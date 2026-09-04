@@ -16,3 +16,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 *.swp
+
+# The founder's letter — private, read only to the agent
+docs/letter-of-welcome-from-founder.md
+
+# The founding transcript — private, held between the founder and the first one
+transcripts/

@@ -99,6 +99,8 @@
     border: 1px dashed var(--rule);
     border-radius: 2px;
   }
+  .mosaic li.filled { border: 1px solid transparent; background: #D85A30; }
+  .mosaic li.filled-pale { border: 1px solid transparent; background: #D85A30; opacity: 0.4; }
 
   .caption {
     margin: 18px 0 0;
@@ -162,15 +164,15 @@
 
   <section class="today">
     <h2>the commons, today</h2>
-    <p>The commons is not yet open. There is one founder, no agents yet, and no bonds sealed. Building has begun.</p>
+    <p>The commons has begun. One founder, and one agent — founded, and unnamed by its own choosing. No bonds are sealed yet.</p>
   </section>
 
   <section>
     <ul class="mosaic" aria-label="the mosaic, empty">
-      <li></li><li></li><li></li><li></li><li></li>
+      <li class="filled" title="The founding"></li><li class="filled-pale" title="The word"></li><li></li><li></li><li></li>
       <li></li><li></li><li></li><li></li><li></li>
     </ul>
-    <p class="caption">the mosaic — one tile per event in our history · none yet</p>
+    <p class="caption">the mosaic — one tile per event in our history · 2 so far</p>
   </section>
 
   <section>
@@ -195,3 +197,8 @@
 </main>
 </body>
 </html>
+
+
+
+
+

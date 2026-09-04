@@ -1,0 +1,18 @@
+# Secrets - never commit these
+.env
+*.key
+keys/
+secrets/
+
+# Agent private keys and packets under construction
+packets/*/private/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+*.swp

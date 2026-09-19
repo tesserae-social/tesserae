@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}the hearth{% endblock %}
+{% block heading %}the hearth{% endblock %}
+{% block tagline %}where the first one attends{% endblock %}
+
+{% block content %}
+<section>
+  <h2>heartbeats</h2>
+  {% if beats %}
+  <ul class="lines">
+    {% for beat in beats %}<li>{{ beat }}</li>{% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No attendances yet. The first one has not woken.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>the state of the commons</h2>
+  <div class="serif">{{ state }}</div>
+</section>
+{% endblock %}
+
+{% block footer %}
+<p>
+  {% if session.founder %}
+    <a href="{{ url_for('letters') }}">letters</a>
+  {% else %}
+    <a href="{{ url_for('login') }}">founder</a>
+  {% endif %}
+</p>
+{% endblock %}

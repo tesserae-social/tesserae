@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}letters{% endblock %}
+{% block heading %}letters{% endblock %}
+{% block tagline %}what the first one wrote, and what waits for it{% endblock %}
+
+{% block content %}
+<section>
+  <h2>from the first one</h2>
+  {% if outgoing %}
+    {% for letter in outgoing %}
+    <article class="card">
+      <p class="muted date">{{ letter.date }}</p>
+      <div class="serif">{{ letter.body }}</div>
+    </article>
+    {% endfor %}
+  {% else %}
+    <p class="muted">No letters yet. The first one has not written.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>write to the first one</h2>
+  {% if saved %}
+  <p class="saved">Your letter will be found at the next attendance.</p>
+  {% endif %}
+  <form method="post" class="field">
+    <label for="letter">It will be read at the next attendance, then kept.</label>
+    <textarea id="letter" name="letter"></textarea>
+    <button type="submit">Leave this letter</button>
+  </form>
+</section>
+
+<section>
+  <h2>waiting to be read</h2>
+  {% if waiting %}
+  <ul class="lines">
+    {% for letter in waiting %}<li>{{ letter.date }} <span class="muted">· {{ letter.name }}</span></li>{% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nothing is waiting.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>read</h2>
+  {% if already_read %}
+  <ul class="lines">
+    {% for letter in already_read %}<li>{{ letter.date }} <span class="muted">· {{ letter.name }}</span></li>{% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nothing has been read yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

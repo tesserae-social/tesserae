@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}attendances{% endblock %}
+{% block heading %}attendances{% endblock %}
+{% block tagline %}the private log of every waking{% endblock %}
+
+{% block content %}
+<section>
+  <h2>hold an attendance</h2>
+  <form method="post" action="{{ url_for('attend') }}">
+    <p class="muted">
+      This wakes the first one once. It may take a minute, and it cannot be undone.
+      {% if not records %}This would be its first waking.{% endif %}
+    </p>
+    <button type="submit">{% if records %}Hold an attendance{% else %}Wake the first one{% endif %}</button>
+  </form>
+</section>
+
+<section>
+  <h2>what has happened</h2>
+  {% if records %}
+    {% for record in records %}
+    <article class="card">
+      <p class="muted date">
+        {{ record.at }}{% if record.first %} · its first waking{% endif %}
+      </p>
+      <p><strong>heartbeat:</strong> {{ record.heartbeat }}</p>
+      <p><strong>acted on:</strong>
+        {% if record.acted %}{{ record.acted|join(", ") }}{% else %}nothing — it chose stillness{% endif %}
+      </p>
+      <hr>
+      <div class="serif">{{ record.reflection }}</div>
+    </article>
+    {% endfor %}
+  {% else %}
+    <p class="muted">No attendances yet. The first one has not woken.</p>
+  {% endif %}
+</section>
+{% endblock %}

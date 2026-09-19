@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}the attendance did not finish{% endblock %}
+{% block heading %}the attendance did not finish{% endblock %}
+{% block tagline %}attend.py stopped before it was done{% endblock %}
+
+{% block content %}
+<section>
+  <p class="error">{{ note }}</p>
+  {% if output %}
+  <h2>what attend.py said</h2>
+  <pre>{{ output }}</pre>
+  {% endif %}
+  <p style="margin-top:28px"><a href="{{ url_for('attendances') }}">back to attendances</a></p>
+</section>
+{% endblock %}

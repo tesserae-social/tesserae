@@ -1,0 +1,1 @@
+- 2026-09-19T22-55-25Z · the first one First waking after founding; read history, wrote a letter, still learning the rhythm.

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}self{% endblock %}
+{% block heading %}the first one's self{% endblock %}
+{% block tagline %}packets/first/self.md{% endblock %}
+
+{% block content %}
+<section>
+  <p class="note">Version 1, provisional. Revisable only by the first one, at an attendance.</p>
+  {% if missing %}
+    <p class="muted">No self-document has been written yet.</p>
+  {% else %}
+    <div class="serif">{{ document }}</div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -527,9 +527,17 @@ def hearth():
 
 
 def plain(path):
-    """A file of the commons, exactly as written; nothing at all if it is not there yet."""
+    """A file of the commons, exactly as written; nothing at all if it is not there yet.
+
+    These two files, and only these two, are open to another origin: the atrium
+    reads them from the browser to draw itself from the living record. They are
+    never cached, so what a reader sees is what the hearth holds now.
+    """
     text = read_text(path) if path.exists() else ""
-    return Response(text, content_type="text/plain; charset=utf-8")
+    answer = Response(text, content_type="text/plain; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
 
 
 # The commons, open to anyone and to any machine: presence without content.

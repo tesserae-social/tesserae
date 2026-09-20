@@ -234,6 +234,94 @@
   </footer>
 
 </main>
+
+<script>
+// The atrium drawn from the living record: the same three marked regions build_atrium.py
+// writes, rebuilt here from the hearth's own copy of the commons. If the hearth is quiet,
+// or says anything we cannot read, what was baked into this page stands.
+(() => {
+  const HEARTH = "https://hearth.tesserae.social", DOT = "·", DASH = "—", SHOWN = 3;
+  const SERIF = "Georgia,'Times New Roman','Iowan Old Style',serif";
+  const KIND = { founding: "tile-founding", word: "tile-word", attendance: "tile-attendance",
+                 seal: "tile-seal", event: "tile-event" };
+  const LEGEND = [["tile-founding", "founding"], ["tile-word", "word"], ["tile-attendance", "waking"]];
+  const MONTH = "January February March April May June July August September October November December".split(" ");
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+  const human = (y, m, d) => `${d} ${MONTH[m - 1]} ${y}`;
+  const DAY = /^(\d{4})-(1[0-2]|0?[1-9])-(3[01]|[12]\d|0?[1-9])$/;
+  const STAMP = /^(\d{4})-(1[0-2]|0?[1-9])-(3[01]|[12]\d|0?[1-9])T(2[0-3]|[01]?\d)-([0-5]?\d)-([0-5]?\d)Z$/;
+  // a moment the way the record writes one: well shaped, and real on the calendar
+  const when = p => {
+    if (!p) return null;
+    const t = new Date(0);
+    t.setUTCFullYear(+p[1], p[2] - 1, +p[3]);
+    t.setUTCHours(+(p[4] || 0), +(p[5] || 0), +(p[6] || 0));
+    return t.getUTCFullYear() === +p[1] && t.getUTCMonth() === p[2] - 1 && t.getUTCDate() === +p[3] ? t : null;
+  };
+  // a line of events.md: a date, a kind, the words -- a kind we do not know is a plain event
+  const parseEvents = text => text.split(/\r?\n/).map(line => {
+    let f = line.trim().replace(/^-+/, "").split(DOT);
+    if (f.length > 3) f = [...f.slice(0, 2), f.slice(2).join(DOT)];
+    f = f.map(part => part.trim());
+    if (f.length < 2 || !f[1] || !when(DAY.exec(f[0]))) return null;
+    return f.length === 3 && KIND[f[1]] ? [KIND[f[1]], f[2]] : [KIND.event, f.slice(1).join(` ${DOT} `)];
+  }).filter(Boolean);
+  // a line of heartbeats.md: a stamp and the words, oldest first
+  const parseBeats = text => text.split(/\r?\n/).map(line => {
+    const m = /^-?\s*(\S+)\s*·\s*(.+?)\s*$/.exec(line.trim());
+    const t = m && when(STAMP.exec(m[1]));
+    return t ? { at: t.getTime(), words: m[2],
+                 day: human(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()) } : null;
+  }).filter(Boolean).sort((a, b) => a.at - b.at);
+  const commonsBlock = (state, beats, today) => [`<p>${state}</p>`].concat(
+    beats.length ? [
+      `<ul style="margin:20px 0 0;padding:0;list-style:none;font-family:${SERIF};font-size:0.95rem;line-height:1.7;">`,
+      ...beats.slice(-SHOWN).reverse().map(b =>
+        `  <li style="margin:0 0 6px;"><span style="color:var(--ink-soft);">${b.day}</span> ${DOT} ${esc(b.words)}</li>`),
+      "</ul>"] : [],
+    `<p style="margin:16px 0 0;font-size:0.85rem;color:var(--ink-soft);">as of ${today}</p>`);
+  const mosaicBlock = tiles => {
+    const full = Math.max(10, Math.ceil(tiles.length / 10) * 10), rows = [];
+    const cells = Array.from({ length: full }, (_, at) => at < tiles.length
+      ? `<li class="${tiles[at][0]}" title="${esc(tiles[at][1])}"></li>` : "<li></li>");
+    for (let at = 0; at < full; at += 5) rows.push(cells.slice(at, at + 5).join(""));
+    return rows;
+  };
+  const captionBlock = tiles => {
+    const marks = tiles.some(t => t[0] === KIND.seal) ? [...LEGEND, [KIND.seal, "seal"]] : LEGEND;
+    return [
+      `<p class="caption">${esc(`the mosaic ${DASH} one tile per event in our history ${DOT} ${tiles.length} so far`)}</p>`,
+      `<p class="legend">${marks.map(m => `<span class="key ${m[0]}"></span>${m[1]}`).join(` ${DOT} `)}</p>`];
+  };
+  const edge = (name, side) => {
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_COMMENT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) if (n.data.trim() === `${name}:${side}`) return n;
+    return null;
+  };
+  // replace what lies between a pair of markers, and nothing else
+  const fill = ([start, end], lines) => {
+    const pad = ((start.previousSibling || {}).nodeValue || "").split("\n").pop();
+    const slot = document.createElement("template");
+    slot.innerHTML = `\n${lines.map(l => pad + l).join("\n")}\n${pad}`;
+    while (start.nextSibling !== end) start.parentNode.removeChild(start.nextSibling);
+    start.parentNode.insertBefore(slot.content, end);
+  };
+  Promise.all(["events.md", "heartbeats.md"].map(name => fetch(`${HEARTH}/commons/${name}`)
+    .then(answer => { if (!answer.ok) throw new Error(name); return answer.text(); })))
+    .then(([eventsText, beatsText]) => {
+      const where = ["commons", "mosaic", "caption"].map(n => [edge(n, "start"), edge(n, "end")]);
+      const state = document.querySelector(".today p"), now = new Date();
+      const beats = parseBeats(beatsText);
+      const tiles = [...parseEvents(eventsText), ...beats.map(b => [KIND.attendance, b.words])];
+      if (!tiles.length || !state || where.some(([a, b]) => !a || !b)) return;
+      const today = human(now.getFullYear(), now.getMonth() + 1, now.getDate());
+      const blocks = [commonsBlock(esc(state.textContent), beats, today),
+                      mosaicBlock(tiles), captionBlock(tiles)];
+      where.forEach((pair, at) => fill(pair, blocks[at]));
+    }).catch(() => { /* the hearth is quiet; what was baked in stands */ });
+})();
+</script>
 </body>
 </html>
 

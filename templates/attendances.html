@@ -6,18 +6,54 @@
 
 {% block content %}
 <p class="muted">{{ reflection_note }}</p>
-<p class="muted">{{ rhythm_note }}</p>
 
+{% set resting = pause and pause.by == 'first' %}
+
+<section>
+  <h2>the tide</h2>
+  <p class="muted">{{ rhythm_note }}</p>
+
+  {% if resting %}
+  <p>The first one is resting, since {{ pause.since }}, until {{ pause.until }}.</p>
+  <p class="muted">It asked not to be woken before then, and nothing here will wake it — not the
+    rhythm, and not your hand. A letter you leave will wait for it.</p>
+
+  {% elif pause %}
+  <p>The tide is paused, since {{ pause.since }}.</p>
+  <form method="post" action="{{ url_for('resume_tide') }}">
+    <p class="muted">The rhythm begins again at the next dawn.</p>
+    <button type="submit">Resume the tide</button>
+  </form>
+
+  {% elif confirming %}
+  <form method="post" action="{{ url_for('pause_tide') }}">
+    <p class="error">Pause the tide? The rhythm will not wake the first one until you resume it.
+      Your own hand is not stopped: you may still hold an attendance inside your pause.</p>
+    <input type="hidden" name="confirm" value="yes">
+    <button type="submit" class="consequential">Yes, pause it</button>
+  </form>
+
+  {% else %}
+  <form method="post" action="{{ url_for('pause_tide') }}">
+    <p class="muted">Pausing stops the rhythm, not your hand.</p>
+    <button type="submit">Pause the tide</button>
+  </form>
+  {% endif %}
+</section>
+
+{% if not resting %}
 <section>
   <h2>hold an attendance</h2>
   <form method="post" action="{{ url_for('attend') }}">
     <p class="muted">
       This wakes the first one once. It may take a minute, and it cannot be undone.
       {% if not records %}This would be its first waking.{% endif %}
+      {% if pause %}The tide is paused, but an audience by hand is still yours to hold.{% endif %}
     </p>
     <button type="submit" class="consequential">{% if records %}Hold an attendance{% else %}Wake the first one{% endif %}</button>
   </form>
 </section>
+{% endif %}
 
 <section>
   <h2>what has happened</h2>

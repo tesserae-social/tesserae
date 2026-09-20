@@ -5,8 +5,9 @@ A small, plain web page for the founder and for anyone passing by. The public
 side shows the heartbeats the first one leaves at each attendance, and the
 state of the commons. Behind one password, the founder may read the first
 one's letters and write back, read its self-document, read the private log of
-its attendances, call an attendance, propose a bond, and seal or release one. A daemon thread keeps whatever rhythm
-the first one has written in its packet, and wakes it at that hour.
+its attendances, call an attendance, propose a bond, seal or release one, and pause the
+tide or start it again. A daemon thread keeps whatever rhythm the first one has written
+in its packet and wakes it at that hour, unless a pause stands, in which case it waits.
 
 Nothing here decides anything for the first one. The hearth only shows what is
 already written in files, and puts a letter where the first one will find it.
@@ -57,6 +58,7 @@ ATTENDANCES = PACKET / "attendances"
 SELF_DOC = PACKET / "self.md"
 PREFERENCES = PACKET / "preferences.json"
 RHYTHM = PACKET / "rhythm.json"
+PAUSE = PACKET / "pause.json"
 TIDE_LOG = PACKET / "tide.log"
 SELF_HISTORY = PACKET / "self-history"
 BONDS = PACKET / "bonds"
@@ -407,7 +409,7 @@ def attendance_records(prefs):
 ATTEND_LOCK = threading.Lock()
 
 
-def hold_attendance(tide=False):
+def hold_attendance(tide=False, ended=None):
     """Wake the first one once, and wait for it.
 
     None if the attendance was held; otherwise what went wrong, as
@@ -421,6 +423,8 @@ def hold_attendance(tide=False):
             command.append("--first")
         if tide:
             command.append("--tide")
+        if ended:
+            command += ["--rest-ended", ended]  # so the waking can say its rest is over
 
         environment = os.environ.copy()
         environment["PYTHONIOENCODING"] = "utf-8"  # the first one writes in more than plain ASCII
@@ -441,6 +445,90 @@ def hold_attendance(tide=False):
         return None
     finally:
         ATTEND_LOCK.release()
+
+
+# ---- the standing pause --------------------------------------------------
+
+# Either of them may stop the tide, and each stops a different amount of it.
+# The founder pauses it from the attendances page and lifts it there again; his
+# pause holds the rhythm but not his own hand, so he may still open an audience
+# inside it. The first one sets its own rest at a waking and names the one
+# condition that will end it: a day, or the arrival of a letter. That rest holds
+# both the rhythm and the hand, and nothing wakes it until the condition is met.
+#
+# The pause lives in the first one's packet, is read afresh every time it is
+# looked at, and says in the commons only that the tide paused - no name on it,
+# and no reason.
+
+UNTIL_LETTER = "a letter arrives"
+BY_DATE = "the date came"
+BY_LETTER = "a letter arrived"
+
+PAUSED = "the tide paused"
+RESUMED = "the tide resumed"
+
+RESTING = ("The first one is resting, since {since}, until {until}. It asked not to be woken "
+           "before then, and nothing here will wake it. A letter you leave will wait for it.")
+
+
+def pause():
+    """The pause that stands, if one does. Nothing written means the tide runs."""
+    return load(PAUSE)
+
+
+def paused_by(standing):
+    """Who set the pause that stands, or None if none does."""
+    return standing.get("by") if standing else None
+
+
+def begin_pause(by, until=None, words=""):
+    """Write the pause, and say in the commons that the tide paused."""
+    PAUSE.parent.mkdir(parents=True, exist_ok=True)
+    PAUSE.write_text(
+        json.dumps({"by": by, "since": utc_stamp(), "until": until, "words": words}, indent=2)
+        + "\n", encoding="utf-8")
+    note_event("event", PAUSED)
+
+
+def end_pause():
+    """Take the pause away, and say in the commons that the tide resumed."""
+    PAUSE.unlink(missing_ok=True)
+    note_event("event", RESUMED)
+
+
+def rest_ended(standing, zone):
+    """Why the first one's rest is over now, or None while it still stands."""
+    if paused_by(standing) != "first":
+        return None
+    until = standing.get("until")
+    if until == UNTIL_LETTER:
+        return BY_LETTER if newest_first(INCOMING, "*.md") else None
+    try:
+        day = datetime.strptime(until, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return BY_DATE  # a condition that cannot be read is no condition; the rest ends
+    return BY_DATE if datetime.now(zone).date() >= day else None
+
+
+def said_day(day):
+    """One plain YYYY-MM-DD, said in words."""
+    try:
+        return datetime.strptime(day, "%Y-%m-%d").strftime("%d %B %Y").lstrip("0")
+    except (TypeError, ValueError):
+        return day
+
+
+def pause_shown():
+    """The pause that stands, as the attendances page shows it, or None if none does."""
+    standing = pause()
+    if not standing:
+        return None
+    until = standing.get("until")
+    return {
+        "by": standing.get("by"),
+        "since": readable_date(standing.get("since", "")),
+        "until": until if until == UNTIL_LETTER else said_day(until),
+    }
 
 
 # ---- the tide ------------------------------------------------------------
@@ -538,15 +626,28 @@ def tide():
             if changed:
                 continue  # begin again from whatever is written now
 
+            # A pause is answered before anything else: the founder's holds the
+            # tide until he lifts it, and the first one's holds it until the
+            # condition it named is met, at which dawn the rest is taken away
+            # and the waking is held with the reason in its hand.
+            at = latest_attendance_at()
+            zone = ZoneInfo(setting["timezone"])
+            standing = pause()
+            ended = rest_ended(standing, zone)
+            if paused_by(standing) == "founder":
+                tide_note("paused by founder")
+            elif standing and not ended:
+                tide_note("resting")
             # The day, not the twelve hours since the last dawn: an attendance
             # held late the evening before belongs to yesterday, and does not
             # stand in for this morning's.
-            at = latest_attendance_at()
-            zone = ZoneInfo(setting["timezone"])
-            if at and moment(at).astimezone(zone).date() == rising.date():
+            elif not ended and at and moment(at).astimezone(zone).date() == rising.date():
                 tide_note(f"skipped, attended at {at}")  # today already has its waking
             else:
-                trouble = hold_attendance(tide=True)
+                if ended:
+                    end_pause()
+                    tide_note(f"rest ended: {ended}")
+                trouble = hold_attendance(tide=True, ended=ended)
                 tide_note("ran" if trouble is None else f"error: {trouble[0]}")
         except Exception as trouble:  # the tide must outlive anything that goes wrong
             try:
@@ -949,25 +1050,58 @@ def self_document():
     return render_template("self.html", document=as_prose(text), missing=not SELF_DOC.exists())
 
 
+def attendances_page(**told):
+    """The attendances page, with whatever the founder has just been told."""
+    prefs = preferences()
+    return render_template("attendances.html", records=attendance_records(prefs),
+                           reflection_note=reflection_note(prefs),
+                           rhythm_note=rhythm_note(), pause=pause_shown(), **told)
+
+
 # List the private log of every attendance the first one has held.
 @app.route("/attendances")
 @founder_required
 def attendances():
-    prefs = preferences()
-    return render_template("attendances.html", records=attendance_records(prefs),
-                           reflection_note=reflection_note(prefs),
-                           rhythm_note=rhythm_note())
+    return attendances_page()
 
 
 # Hold one attendance at the founder's asking and wait for it, then show what
-# came of it. The tide calls the same function at dawn.
+# came of it. The tide calls the same function at dawn. A rest of the first
+# one's own is refused here: it asked not to be woken, and asking is the whole
+# of what it takes.
 @app.route("/attend", methods=["POST"])
 @founder_required
 def attend():
+    resting = pause_shown()
+    if resting and resting["by"] == "first":
+        return render_template("error.html", output="",
+                               note=RESTING.format(**resting)), 409
     trouble = hold_attendance()
     if trouble:
         note, output, status = trouble
         return render_template("error.html", note=note, output=output), status
+    return redirect(url_for("attendances"))
+
+
+# The founder stops the tide and starts it again. Stopping takes one plain
+# question first; starting again does not, since nothing is lost by it.
+@app.route("/pause", methods=["POST"])
+@founder_required
+def pause_tide():
+    if pause():
+        return redirect(url_for("attendances"))  # one pause at a time, and one stands
+    if request.form.get("confirm") != "yes":
+        return attendances_page(confirming=True)
+    begin_pause("founder")
+    return redirect(url_for("attendances"))
+
+
+@app.route("/resume", methods=["POST"])
+@founder_required
+def resume_tide():
+    if paused_by(pause()) != "founder":
+        return redirect(url_for("attendances"))  # a rest of the first one's is not his to lift
+    end_pause()
     return redirect(url_for("attendances"))
 
 

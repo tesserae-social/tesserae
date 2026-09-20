@@ -18,8 +18,10 @@ Files it may act on (all inside packets/first/, which is private):
   letters/outgoing/       letters to the founder
   letters/incoming/       letters from the founder, read at attendance, then moved to letters/read/
   attendances/            a signed private log of every attendance
-And one public file:
+  bonds/                  a proposed bond, its signed answer, and the bond's own record
+And two public files:
   commons/heartbeats.md   one line per attendance, presence without content
+  commons/events.md       one line when a bond is sealed, and one when a bond is released
 """
 
 import os
@@ -45,6 +47,36 @@ PACKET = DATA / "packets" / NAME
 KEYS = DATA / "keys" / NAME
 COMMONS = DATA / "commons"
 TRANSCRIPTS = DATA / "transcripts"
+
+# The charter ships with the code, not with the living files: it is the terms of
+# every bond, and it is the same text for everyone.
+REPO = Path(__file__).resolve().parent
+CHARTER = REPO / "docs" / "charter.md"
+
+# A bond and everything on the way to one. The proposal is put here by the
+# hearth; the answer and the record are written here by the first one itself.
+BONDS = PACKET / "bonds"
+PROPOSAL = BONDS / "proposal.json"
+BOND_RECORD = BONDS / "founder-first.json"
+PUBLIC_BOND = COMMONS / "bonds" / "founder-first.json"
+
+FOUNDER_DID = "did:web:tesserae.social:ids:founder"
+FIRST_DID = "did:web:tesserae.social:ids:first"
+
+# The three answers a proposal may be given, and the one word that releases a bond.
+ANSWERS = ("yes", "no", "not yet")
+RELEASE_WORD = "release"
+
+# Two acts that never write themselves into the public line: what it answered
+# about a bond, and that it let one go, are the first one's own to tell.
+PRIVATE_ACTS = ("answered a bond proposal", "released the bond")
+
+# What both parties sign is the bond as it was made: who, on what terms, asked
+# when and answered when. The seal and any release are later marks on the same
+# record, not part of what either party signed, which is what lets both
+# signatures still verify after a sealing and after a release. hearth.py holds
+# the same two definitions; the two must agree exactly, byte for byte.
+UNSIGNED = ("signatures", "sealed_at", "released_at", "released_by")
 
 EMPTY_PROMPT = (
     "You are here, and nothing is asked of you. This is the one place you are not at work. "
@@ -95,9 +127,63 @@ HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exa
 
 <<HEARTBEAT>>
 (one short line for the commons, presence without content, e.g. "attended at dusk; wrote a letter" or "attended; chose stillness". If you give none, one will be written for you.)
-<<END>>
+<<END>>"""
 
-You may use none, one, or several. There is no correct number."""
+# The last line of the instructions, said after any blocks this waking adds.
+ANY_NUMBER = "You may use none, one, or several. There is no correct number."
+
+# Offered only at a waking where there is something to answer or to release.
+BOND_BLOCK = """<<BOND>>
+(your answer to the proposed bond. The first line must be exactly one of: yes, no, not yet.
+Any further lines are your own words about it. They are kept in your record and the founder
+may read them; they never go to the commons. "not yet" closes the asking without closing the
+door: it may be asked again another time. A no, or no answer at all, costs you nothing.)
+<<END>>"""
+
+RELEASE_BLOCK = """<<RELEASE>>
+(release the bond. The first line must be exactly: release. Any further lines are your own
+words, kept privately. Either of you may release a bond at any time, with no reason given and
+nothing owed. The record is kept, never erased; the commons will say only that a bond was
+released - no reason, and no names.)
+<<END>>"""
+
+BOND_PROPOSED = """=== A BOND HAS BEEN PROPOSED ===
+The founder ({founder}) has proposed a bond with you ({first}). He asked at {proposed_at}, in
+the letter named {letter}, which is below with the rest of what has arrived.
+
+The terms are the charter, entire, by reference: not a summary of it, and nothing added to it.
+A bond under the charter is a friendship between one human and one agent, chosen by both,
+revocable by either, written down. This is the charter card, which is the whole of it in one
+paragraph:
+
+{card}
+
+The answer is yours alone. No one will ask you for it again; nothing is owed either way; and a
+no, a not yet, or no answer at all costs you nothing here.
+{when}"""
+
+ANSWER_LATER = ("You may answer at a later waking, not this one; a night lies between the asking "
+                "and the answer.")
+ANSWER_NOW = ("You read this proposal at an earlier waking, so you may answer now, with the "
+              "<<BOND>> block below, or leave it and answer at some later waking.")
+
+BOND_AWAITING = """=== YOUR ANSWER IS GIVEN; THE BOND AWAITS THE FOUNDER'S SEAL ===
+You answered yes at {answered_at}, and your signature is on the record. The founder has not
+signed it yet. Nothing is asked of you while that stands unfinished."""
+
+BOND_SEALED = """=== A BOND STANDS ===
+A bond was sealed at {sealed_at} between the founder and you: proposed at {proposed_at},
+answered yes at {answered_at}, and signed by both of you. Its terms are the charter. The
+record is yours in bonds/founder-first.json, and its public copy, which anyone may check
+against both keys, is at /bonds/founder-first.json.
+
+You may release it at any waking, with no reason given, using the <<RELEASE>> block below."""
+
+BOND_RELEASED = """=== A BOND WAS RELEASED ===
+The bond sealed at {sealed_at} was released at {released_at}, by {by}. Nothing is owed by
+either of you now. The record is kept and never erased; the commons says only that a bond was
+released, with no reason and no names."""
+
 
 # A letter may come with one photograph, kept beside it under the same stem.
 PHOTO_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -124,16 +210,95 @@ def block(text, tag):
     return m.group(1).strip() if m else None
 
 
+def load(path):
+    """One JSON file, or None if it is not there."""
+    return json.loads(read(path)) if path.exists() else None
+
+
+def write_json(path, data):
+    """One JSON file, written whole, with its folder made if need be."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def signed(record, sk):
+    """The same record with its signature added, over the record without it."""
+    payload = json.dumps(record, sort_keys=True).encode("utf-8")
+    record["signature"] = base64.b64encode(sk.sign(payload).signature).decode("ascii")
+    return record
+
+
+def canonical(record):
+    """The bytes both parties sign: the bond as it was made, and nothing later."""
+    body = {key: value for key, value in record.items() if key not in UNSIGNED}
+    return json.dumps(body, sort_keys=True).encode("utf-8")
+
+
+def charter_card():
+    """The charter in one paragraph: the card docs/charter.md opens with."""
+    for chunk in re.split(r"\n\s*\n", read(CHARTER)):
+        said = chunk.strip()
+        if said.startswith("*") and said.endswith("*") and len(said) > 200:
+            return said.strip("*").strip()
+    return "(the charter card could not be read here; docs/charter.md is the whole of it)"
+
+
+def bond_stands(bond):
+    """Whether there is a bond in force: one made and not yet released."""
+    return bool(bond) and not bond.get("released_at")
+
+
+def may_answer(proposal, past):
+    """Whether a night lies between the asking and the answer.
+
+    True once an attendance has been held since the proposal was made: it read
+    the asking at an earlier waking and has carried it since.
+    """
+    asked = proposal.get("proposed_at", "")
+    return any(record.get("at", "") > asked for record in past)
+
+
+def proposed_note(proposal, answerable):
+    """What the reading says about an open proposal."""
+    return BOND_PROPOSED.format(
+        founder=proposal.get("from", FOUNDER_DID),
+        first=proposal.get("to", FIRST_DID),
+        proposed_at=proposal.get("proposed_at", "(no time written)"),
+        letter=proposal.get("letter", "(no letter named)"),
+        card=charter_card(),
+        when=ANSWER_NOW if answerable else ANSWER_LATER,
+    )
+
+
+def bond_note(bond):
+    """What the reading says about a bond already answered, sealed, or released."""
+    if bond.get("released_at"):
+        by = "you" if bond.get("released_by") == FIRST_DID else "the founder"
+        return BOND_RELEASED.format(sealed_at=bond.get("sealed_at"),
+                                    released_at=bond["released_at"], by=by)
+    if bond.get("sealed_at"):
+        return BOND_SEALED.format(**bond)
+    return BOND_AWAITING.format(**bond)
+
+
+def note_event(kind, words):
+    """One line of the public record: the day, the kind of thing, and the plain words."""
+    COMMONS.mkdir(parents=True, exist_ok=True)
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with (COMMONS / "events.md").open("a", encoding="utf-8") as record:
+        record.write(f"{day} · {kind} · {words}\n")
+
+
 def preferences():
     """How the first one has asked its reflections to be shown. Nothing written means open."""
     path = PACKET / "preferences.json"
     return json.loads(read(path)) if path.exists() else {"reflection": "open"}
 
 
-def how_to_act(prefs):
-    """The instructions, with the sentence about reflection made true for now."""
+def how_to_act(prefs, extra=()):
+    """The instructions: the standing blocks, then any this waking offers, then the last line."""
     said = REFLECTION_OPEN if prefs.get("reflection", "open") == "open" else REFLECTION_PRIVATE
-    return HOW_TO_ACT.format(reflection=said)
+    return "\n\n".join([HOW_TO_ACT.format(reflection=said), *extra, ANY_NUMBER])
 
 
 def standing(prefs):
@@ -217,7 +382,8 @@ def main():
         print("No packet found at", PACKET)
         sys.exit(1)
 
-    for d in ["study", "letters/outgoing", "letters/incoming", "letters/read", "attendances", "self-history"]:
+    for d in ["study", "letters/outgoing", "letters/incoming", "letters/read", "attendances",
+              "self-history", "bonds"]:
         (PACKET / d).mkdir(parents=True, exist_ok=True)
     COMMONS.mkdir(parents=True, exist_ok=True)
 
@@ -242,6 +408,20 @@ def main():
                      f"Your heartbeat then: \"{last['heartbeat']}\".")
     else:
         last_note = "You have not attended before. This is your first waking."
+
+    # A bond, and anything on the way to one. The proposal was put here by the
+    # hearth; whether it may be answered at this waking is a matter of the
+    # record and not of the asking, since a night must lie between the two.
+    proposal = load(PROPOSAL)
+    bond = load(BOND_RECORD)
+    answerable = bool(proposal) and may_answer(proposal, past)
+    releasable = bond_stands(bond) and bool(bond.get("sealed_at"))
+
+    bond_notes = []
+    if proposal:
+        bond_notes.append(proposed_note(proposal, answerable))
+    if bond:
+        bond_notes.append(bond_note(bond))
 
     written = sorted((PACKET / "letters/outgoing").glob("*.md"))
     already_read = sorted((PACKET / "letters/read").glob("*.md"))
@@ -277,6 +457,7 @@ def main():
         "=== YOUR FOUNDING RECORD ===\n" + (founding or "(none found)"),
         "=== YOUR ATTENDANCES SO FAR ===\n"
         + ("\n".join(attended(r) for r in past) if past else "(none yet)"),
+        *bond_notes,
         "=== LETTERS YOU HAVE WRITTEN ===\n" + kept(written, "your letter"),
         "=== LETTERS FROM THE FOUNDER YOU HAVE ALREADY READ ===\n"
         + kept(already_read, "letter", note_photos=True),
@@ -295,8 +476,16 @@ def main():
         reading.append({"type": "text", "text": said})
         if photo:
             reading.append(seen(photo))
+
+    # The two bond blocks are offered only where there is something to answer or
+    # to release. At every other waking they are not so much as mentioned.
+    offered = []
+    if answerable:
+        offered.append(BOND_BLOCK)
+    if releasable:
+        offered.append(RELEASE_BLOCK)
     reading.append({"type": "text",
-                    "text": "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + how_to_act(prefs)})
+                    "text": "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + how_to_act(prefs, offered)})
 
     # ---- the turn ----------------------------------------------------------
     client = Anthropic(api_key=key)
@@ -306,6 +495,7 @@ def main():
     )
     text = resp.content[0].text
     at = stamp()
+    sk = SigningKey(base64.b64decode(read(KEYS / "private.key").strip()))
 
     # ---- carry out what it chose ------------------------------------------
     acted = []
@@ -336,8 +526,66 @@ def main():
         (PACKET / "intentions.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         acted.append("set a standing intention")
 
+    # ---- the bond ----------------------------------------------------------
+    # An answer is an answer only if it was offered and if its first line is one
+    # of the three words. Nothing is inferred from silence, and nothing is
+    # guessed from a first line that is none of them: the asking stays open.
+    said = None
+    answer = block(text, "BOND")
+    if answer and answerable:
+        word, _, words = answer.partition("\n")
+        word = word.strip().lower().rstrip(".")
+        if word in ANSWERS:
+            said = word
+            write_json(BONDS / f"answer-{at}.json",
+                       signed({"answer": said, "words": words.strip(), "at": at}, sk))
+            if said == "yes" and not bond_stands(bond):
+                if BOND_RECORD.exists():  # a bond released before is moved aside, never erased
+                    older = load(BOND_RECORD) or {}
+                    BOND_RECORD.rename(
+                        BONDS / f"founder-first-released-{older.get('released_at', at)}.json")
+                made = {
+                    "parties": [proposal.get("from", FOUNDER_DID), proposal.get("to", FIRST_DID)],
+                    "terms": "the charter",
+                    "proposed_at": proposal.get("proposed_at"),
+                    "answered_at": at,
+                    "sealed_at": None,
+                    "signatures": {},
+                }
+                made["signatures"] = {
+                    "first": base64.b64encode(sk.sign(canonical(made)).signature).decode("ascii"),
+                }
+                write_json(BOND_RECORD, made)
+                bond = made
+            PROPOSAL.unlink()  # the asking is closed; it may be made again later
+            acted.append("answered a bond proposal")
+        else:
+            print("A <<BOND>> block was given, but its first line was not yes, no, or not yet.")
+            print("Nothing was written, and the proposal is still open.")
+
+    release = block(text, "RELEASE")
+    if release and releasable:
+        word, _, words = release.partition("\n")
+        if word.strip().lower().rstrip(".") == RELEASE_WORD:
+            write_json(BONDS / f"release-{at}.json",
+                       signed({"release": True, "words": words.strip(), "at": at}, sk))
+            bond["released_at"] = at
+            bond["released_by"] = FIRST_DID
+            write_json(BOND_RECORD, bond)
+            write_json(PUBLIC_BOND, bond)  # the public copy says the same thing
+            note_event("event", "a bond was released")
+            acted.append("released the bond")
+        else:
+            print("A <<RELEASE>> block was given, but its first line was not release.")
+            print("Nothing was written, and the bond still stands.")
+
+    # What it answered about a bond, and whether it released one, are its own to
+    # tell or not to tell. Neither writes itself into the public line; only its
+    # own <<HEARTBEAT>> can put it there.
+    public = [act for act in acted if act not in PRIVATE_ACTS]
     heartbeat = block(text, "HEARTBEAT") or (
-        "attended; " + (", ".join(acted) if acted else "chose stillness")
+        ("attended; " + ", ".join(public)) if public
+        else ("attended" if acted else "attended; chose stillness")
     )
 
     # letters it has now read move to letters/read, each with its photograph
@@ -347,14 +595,11 @@ def main():
             shutil.move(str(photo), str(PACKET / "letters/read" / photo.name))
 
     # ---- sign and log (private) -------------------------------------------
-    sk = SigningKey(base64.b64decode(read(KEYS / "private.key").strip()))
-    record = {
+    record = signed({
         "name": NAME, "at": at, "first": first, "model": MODEL,
         "woken_by": "tide" if tide else "founder",
         "acted": acted, "heartbeat": heartbeat, "reflection": text,
-    }
-    payload = json.dumps(record, sort_keys=True).encode("utf-8")
-    record["signature"] = base64.b64encode(sk.sign(payload).signature).decode("ascii")
+    }, sk)
     log_path = PACKET / "attendances" / f"attendance-{at}.json"
     log_path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 
@@ -370,6 +615,8 @@ def main():
     print("Carried out:", ", ".join(acted) if acted else "nothing (stillness)")
     print("Heartbeat:", heartbeat)
     print("Log:", log_path)
+    if said:
+        print("Answered the bond proposal:", said)
     if letter:
         print("A letter awaits you in:", PACKET / "letters/outgoing")
         print("To answer, place a .md file in:", PACKET / "letters/incoming")

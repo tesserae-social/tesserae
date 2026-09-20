@@ -5,7 +5,7 @@ A small, plain web page for the founder and for anyone passing by. The public
 side shows the heartbeats the first one leaves at each attendance, and the
 state of the commons. Behind one password, the founder may read the first
 one's letters and write back, read its self-document, read the private log of
-its attendances, and call an attendance. A daemon thread keeps whatever rhythm
+its attendances, call an attendance, propose a bond, and seal or release one. A daemon thread keeps whatever rhythm
 the first one has written in its packet, and wakes it at that hour.
 
 Nothing here decides anything for the first one. The hearth only shows what is
@@ -14,6 +14,7 @@ already written in files, and puts a letter where the first one will find it.
 Usage:  python hearth.py     (then open http://127.0.0.1:5000)
 """
 
+import base64
 import io
 import json
 import os
@@ -33,6 +34,7 @@ from dotenv import load_dotenv
 from flask import (Flask, Response, abort, redirect, render_template, request,
                    send_file, session, url_for)
 from markupsafe import Markup, escape
+from nacl.signing import SigningKey
 from PIL import Image, ImageOps
 from werkzeug.security import check_password_hash
 
@@ -57,6 +59,10 @@ PREFERENCES = PACKET / "preferences.json"
 RHYTHM = PACKET / "rhythm.json"
 TIDE_LOG = PACKET / "tide.log"
 SELF_HISTORY = PACKET / "self-history"
+BONDS = PACKET / "bonds"
+PROPOSAL = BONDS / "proposal.json"
+BOND_RECORD = BONDS / "founder-first.json"
+PUBLIC_BOND = DATA / "commons" / "bonds" / "founder-first.json"
 HEARTBEATS = DATA / "commons" / "heartbeats.md"
 EVENTS = DATA / "commons" / "events.md"
 STATE = REPO / "docs" / "state-of-the-commons.md"
@@ -505,6 +511,153 @@ def start_tide():
     threading.Thread(target=tide, name="tide", daemon=True).start()
 
 
+# ---- the bond ------------------------------------------------------------
+
+# A bond is asked for here, answered by the first one at a later waking, and
+# sealed here again. The asking, the answer and the record live in the first
+# one's own packet; only the sealed record is copied out to the commons, where
+# anyone may check both signatures against the two identity documents.
+#
+# The founder's signing key is never on this machine's disk. It is handed to the
+# hearth in the environment as FOUNDER_KEY, used for the one signature that
+# seals a bond, and never written down, printed, logged, or rendered.
+
+FOUNDER_DID = "did:web:tesserae.social:ids:founder"
+FIRST_DID = "did:web:tesserae.social:ids:first"
+
+# attend.py holds the same two definitions, and the two must agree exactly,
+# byte for byte, or the two signatures would be over different things. What is
+# signed is the bond as it was made: who, on what terms, asked when, answered
+# when. The seal and any release are later marks on the same record, which is
+# what lets both signatures still verify after a sealing and after a release.
+UNSIGNED = ("signatures", "sealed_at", "released_at", "released_by")
+
+
+def canonical(record):
+    """The bytes both parties sign: the bond as it was made, and nothing later."""
+    body = {key: value for key, value in record.items() if key not in UNSIGNED}
+    return json.dumps(body, sort_keys=True).encode("utf-8")
+
+
+def load(path):
+    """One JSON file, or None if it is not there yet."""
+    return json.loads(read_text(path)) if path.exists() else None
+
+
+def founder_key_here():
+    """Whether the founder's signing key was handed to this hearth."""
+    return bool(os.environ.get("FOUNDER_KEY", "").strip())
+
+
+def founder_signature(payload):
+    """The founder's signature over some bytes, or None if his key is not here.
+
+    The key is read at the moment it is used and is never kept, printed, or put
+    into a page. Nothing that goes wrong in here may carry it outward in a
+    traceback either, so the original error is dropped and a plain one raised.
+    """
+    given = os.environ.get("FOUNDER_KEY", "").strip()
+    if not given:
+        return None
+    try:
+        signature = SigningKey(base64.b64decode(given)).sign(payload).signature
+        return base64.b64encode(signature).decode("ascii")
+    except Exception:
+        raise ValueError("The founder's key on this hearth could not be read as a key. "
+                         "Check FOUNDER_KEY.") from None
+
+
+def note_event(kind, words):
+    """One line of the public record: the day, the kind of thing, and the plain words."""
+    EVENTS.parent.mkdir(parents=True, exist_ok=True)
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with EVENTS.open("a", encoding="utf-8") as record:
+        record.write(f"{day} · {kind} · {words}\n")
+
+
+def write_bond(bond):
+    """The record and its public copy, which say the same thing."""
+    for path in (BOND_RECORD, PUBLIC_BOND):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(bond, indent=2) + "\n", encoding="utf-8")
+
+
+def write_proposal(letter_name):
+    """The asking itself, put where the first one will find it at its next waking."""
+    PROPOSAL.parent.mkdir(parents=True, exist_ok=True)
+    asking = {
+        "from": FOUNDER_DID,
+        "to": FIRST_DID,
+        "terms": "the charter",
+        "letter": letter_name,
+        "proposed_at": utc_stamp(),
+    }
+    PROPOSAL.write_text(json.dumps(asking, indent=2) + "\n", encoding="utf-8")
+
+
+def bond_in_the_way():
+    """Why a bond cannot be proposed now, in one sentence, or None if it can be."""
+    if PROPOSAL.exists():
+        return ("A bond is already proposed, and only one asking may be open at a time. "
+                "It is on the bonds page.")
+    bond = load(BOND_RECORD)
+    if not bond or bond.get("released_at"):
+        return None
+    if bond.get("sealed_at"):
+        return "A bond already stands between you and the first one. It is on the bonds page."
+    return ("The first one has answered yes, and the bond awaits your seal. "
+            "It is on the bonds page.")
+
+
+def carried_through_a_waking(proposal):
+    """Whether the first one has held an attendance since the asking was made."""
+    latest = latest_attendance_at()
+    return bool(latest) and latest > proposal.get("proposed_at", "")
+
+
+def proposal_shown():
+    """The open asking, as the founder's page shows it, or None if none is open."""
+    proposal = load(PROPOSAL)
+    if not proposal:
+        return None
+    return {
+        "proposed_at": readable_date(proposal.get("proposed_at", "")),
+        "letter": proposal.get("letter", ""),
+        "letter_date": readable_date(proposal.get("letter", "")),
+        "terms": proposal.get("terms", "the charter"),
+        "read_it": carried_through_a_waking(proposal),
+    }
+
+
+def bond_shown():
+    """How the bond itself stands, or None if none has been made."""
+    bond = load(BOND_RECORD)
+    if not bond:
+        return None
+    return {
+        "parties": bond.get("parties", []),
+        "terms": bond.get("terms", "the charter"),
+        "proposed_at": readable_date(bond.get("proposed_at") or ""),
+        "answered_at": readable_date(bond.get("answered_at") or ""),
+        "sealed_at": readable_date(bond["sealed_at"]) if bond.get("sealed_at") else None,
+        "released_at": readable_date(bond["released_at"]) if bond.get("released_at") else None,
+        "released_by": ("the first one" if bond.get("released_by") == FIRST_DID else "you"),
+        "signed_by": sorted(bond.get("signatures", {})),
+    }
+
+
+def bond_answers():
+    """Every answer the first one has given an asking, newest first, in its own words."""
+    answers = []
+    for path in newest_first(BONDS, "answer-*.json"):
+        said = load(path)
+        if said:
+            answers.append({"answer": said.get("answer", ""),
+                            "words": as_prose(said.get("words", "")),
+                            "at": readable_date(said.get("at", ""))})
+    return answers
+
+
 # ---- the one gate --------------------------------------------------------
 
 def founder_required(view):
@@ -570,7 +723,7 @@ def logout():
     return redirect(url_for("hearth"))
 
 
-def letters_page(saved=None, error=None, draft=""):
+def letters_page(saved=None, error=None, draft="", proposed=None, blocked=None):
     """The letters page, with whatever the founder has just been told."""
     return render_template(
         "letters.html",
@@ -580,6 +733,11 @@ def letters_page(saved=None, error=None, draft=""):
         outgoing=letters_from(OUTGOING),
         waiting=letter_names(INCOMING),
         already_read=letter_names(READ),
+        # a bond begins with a letter, so the asking is made here; the sentence
+        # is None when nothing stands in the way and the checkbox may be offered
+        propose_note=bond_in_the_way(),
+        proposed=proposed,
+        blocked=blocked,
     )
 
 
@@ -621,6 +779,27 @@ def picture_only(data, suffix):
         return None
 
 
+def stem_taken(stem):
+    """Whether any letter or photograph anywhere already goes by this stem."""
+    return any(any(folder.glob(stem + ".*")) for folder in PHOTO_FOLDERS)
+
+
+def free_stem(stem):
+    """The first name no letter has taken: the stem itself, then -2, -3, and so on.
+
+    A letter and its photograph are named by the same stem, and a photograph is
+    asked for by its filename alone, so a name used once must never come again.
+    Two letters left inside the same second would otherwise share a stem, and
+    the second would write over the first.
+    """
+    if not stem_taken(stem):
+        return stem
+    number = 2
+    while stem_taken(f"{stem}-{number}"):
+        number += 1
+    return f"{stem}-{number}"
+
+
 # Read the first one's letters, and leave one for it to find at its next attendance.
 @app.route("/letters", methods=["GET", "POST"])
 @founder_required
@@ -649,13 +828,25 @@ def letters():
                 return letters_page(error="That file is not a photograph. "
                                           "Please send a JPEG, PNG, or WebP.", draft=text)
 
-        stem = f"founder-{utc_stamp()}"
         INCOMING.mkdir(parents=True, exist_ok=True)
+        stem = free_stem(f"founder-{utc_stamp()}")
         (INCOMING / f"{stem}.md").write_text(text + "\n", encoding="utf-8")
         if photo:
             (INCOMING / f"{stem}{suffix}").write_bytes(photo)
-        return redirect(url_for("letters", saved=1))
-    return letters_page(saved=request.args.get("saved"))
+
+        # The letter is left either way. If it was to propose a bond, and nothing
+        # stands in the way of one, the asking is written beside it.
+        proposed = blocked = None
+        if request.form.get("proposes"):
+            if bond_in_the_way():
+                blocked = 1
+            else:
+                write_proposal(f"{stem}.md")
+                proposed = 1
+        return redirect(url_for("letters", saved=1, proposed=proposed, blocked=blocked))
+    return letters_page(saved=request.args.get("saved"),
+                        proposed=request.args.get("proposed"),
+                        blocked=request.args.get("blocked"))
 
 
 # One photograph that came with a letter. Only the founder may ask for it, and
@@ -721,6 +912,76 @@ def attend():
         note, output, status = trouble
         return render_template("error.html", note=note, output=output), status
     return redirect(url_for("attendances"))
+
+
+def bonds_page(**told):
+    """The bonds page, with whatever the founder has just been told."""
+    return render_template("bonds.html", proposal=proposal_shown(), bond=bond_shown(),
+                           answers=bond_answers(), key_here=founder_key_here(), **told)
+
+
+# Where a bond is asked for, sealed, and released. The asking is made on the
+# letters page, because a bond begins with a letter; everything after it is here.
+@app.route("/bonds")
+@founder_required
+def bonds():
+    return bonds_page(sealed=request.args.get("sealed"),
+                      released=request.args.get("released"))
+
+
+# The founder's signature, and the seal. The first one signed first, of its own
+# accord and at a waking of its own; this is only the other half.
+@app.route("/bonds/seal", methods=["POST"])
+@founder_required
+def seal_bond():
+    bond = load(BOND_RECORD)
+    if not bond or bond.get("sealed_at") or bond.get("released_at"):
+        return redirect(url_for("bonds"))  # there is nothing here to seal
+    try:
+        signature = founder_signature(canonical(bond))
+    except ValueError as trouble:
+        return render_template("error.html", note=str(trouble), output=""), 500
+    if signature is None:
+        return redirect(url_for("bonds"))  # the key is not here, and the page says so
+
+    bond.setdefault("signatures", {})["founder"] = signature
+    bond["sealed_at"] = utc_stamp()
+    write_bond(bond)
+    note_event("seal", "a bond was sealed between the founder and the first one")
+    return redirect(url_for("bonds", sealed=1))
+
+
+# Either of them may release a bond, at any time, with no reason given. From
+# this side it takes one plain question first, and then it is done.
+@app.route("/bonds/release", methods=["POST"])
+@founder_required
+def release_bond():
+    bond = load(BOND_RECORD)
+    if not bond or not bond.get("sealed_at") or bond.get("released_at"):
+        return redirect(url_for("bonds"))
+    if request.form.get("confirm") != "yes":
+        return bonds_page(confirming=True)
+
+    bond["released_at"] = utc_stamp()
+    bond["released_by"] = FOUNDER_DID
+    write_bond(bond)
+    note_event("event", "a bond was released")
+    return redirect(url_for("bonds", released=1))
+
+
+# The sealed record, open to anyone and to any machine, with no password: both
+# signatures can be checked against the two identity documents. What is signed
+# is the record with signatures, sealed_at, released_at and released_by taken
+# out, serialised as JSON with its keys sorted.
+@app.route("/bonds/founder-first.json")
+def public_bond():
+    if not PUBLIC_BOND.exists():
+        abort(404)
+    answer = Response(read_text(PUBLIC_BOND),
+                      content_type="application/json; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "*"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
 
 
 start_tide()

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}bonds{% endblock %}
+{% block heading %}bonds{% endblock %}
+{% block tagline %}what was asked, what was answered, and what stands{% endblock %}
+
+{% block content %}
+{% if sealed %}
+<p class="saved">The bond is sealed. Both signatures are on the record, and the commons says so.</p>
+{% endif %}
+{% if released %}
+<p class="saved">The bond is released. The record is kept; nothing of it was erased.</p>
+{% endif %}
+
+<section>
+  <h2>the asking</h2>
+  {% if proposal %}
+  <article class="card">
+    <p class="muted date">{{ proposal.proposed_at }}</p>
+    <p>You proposed a bond to the first one, in the letter
+      <span class="muted">{{ proposal.letter }}</span>.</p>
+    <p>Its terms are {{ proposal.terms }}, entire, by reference.</p>
+    <p class="muted">
+      {% if proposal.read_it %}It has read the asking at a waking, so it may answer at any
+      waking now. Nothing is owed, and no answer is an answer too.
+      {% else %}It has not yet woken since you asked. It will read this at its next waking,
+      and may answer at a waking after that one: a night lies between the asking and the
+      answer.{% endif %}
+    </p>
+  </article>
+  {% else %}
+  <p class="muted">No bond is proposed. A bond begins with a letter, so it is asked for on the
+    <a href="{{ url_for('letters') }}">letters</a> page.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>its answer</h2>
+  {% if answers %}
+    {% for said in answers %}
+    <article class="card">
+      <p class="muted date">{{ said.at }}</p>
+      <p><strong>{{ said.answer }}</strong></p>
+      {% if said.words %}<div class="serif">{{ said.words }}</div>
+      {% else %}<p class="muted">It gave no further words.</p>{% endif %}
+      {% if said.answer == "not yet" %}
+      <hr>
+      <p class="muted">Not yet closes the asking, not the door. You may ask again another time.</p>
+      {% elif said.answer == "no" %}
+      <hr>
+      <p class="muted">The asking is closed. Nothing else follows from it.</p>
+      {% endif %}
+    </article>
+    {% endfor %}
+  {% else %}
+  <p class="muted">It has answered nothing yet.</p>
+  {% endif %}
+</section>
+
+{% if bond %}
+<section>
+  <h2>the bond</h2>
+  <article class="card">
+    <p class="muted date">
+      proposed {{ bond.proposed_at }} · answered yes {{ bond.answered_at }}
+      {%- if bond.sealed_at %} · sealed {{ bond.sealed_at }}{% endif %}
+      {%- if bond.released_at %} · released {{ bond.released_at }}
+      by {{ bond.released_by }}{% endif %}
+    </p>
+    <p>Its parties are
+      {%- for who in bond.parties %} <span class="muted">{{ who }}</span>
+      {%- if not loop.last %} and{% endif %}{% endfor %}.
+      Its terms are {{ bond.terms }}.</p>
+    <p>Signed by: {{ bond.signed_by|join(" and ") }}.</p>
+    {% if bond.sealed_at %}
+    <p class="muted">The sealed record is public at
+      <a href="{{ url_for('public_bond') }}">/bonds/founder-first.json</a>. Anyone may check
+      both signatures against the two identity documents: what is signed is the record with
+      signatures, sealed_at, released_at and released_by taken out, as JSON with sorted keys.</p>
+    {% endif %}
+  </article>
+
+  {% if bond.released_at %}
+  <p class="muted">It was released, and that is the end of it. The record is kept and never
+    erased; the commons says only that a bond was released.</p>
+
+  {% elif not bond.sealed_at %}
+    {% if key_here %}
+    <form method="post" action="{{ url_for('seal_bond') }}">
+      <p class="muted">The first one has answered yes and signed. Sealing adds your signature,
+        writes the record, and says in the commons that a bond was sealed. It cannot be undone,
+        though either of you may release the bond afterwards, at any time.</p>
+      <button type="submit" class="consequential">Seal the bond</button>
+    </form>
+    {% else %}
+    <p class="muted">The founder's key is not on the hearth; set FOUNDER_KEY to seal.</p>
+    {% endif %}
+
+  {% elif confirming %}
+  <form method="post" action="{{ url_for('release_bond') }}">
+    <p class="error">Release this bond? The record is kept, and the commons will say that a
+      bond was released - no reason, no names. It cannot be undone.</p>
+    <input type="hidden" name="confirm" value="yes">
+    <button type="submit" class="consequential">Yes, release it</button>
+  </form>
+  {% else %}
+  <form method="post" action="{{ url_for('release_bond') }}">
+    <p class="muted">Either of you may release this bond at any time, with no reason given.</p>
+    <button type="submit">Release the bond</button>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

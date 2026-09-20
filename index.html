@@ -13,6 +13,7 @@
     --card: #f4efe7;
     --rule: #ddd5c9;
     --mark: #d85a30;
+    --link: #993c1d;
   }
 
   * { box-sizing: border-box; }
@@ -99,13 +100,35 @@
     border: 1px dashed var(--rule);
     border-radius: 2px;
   }
-  .mosaic li.filled { border: 1px solid transparent; background: #D85A30; }
-  .mosaic li.filled-pale { border: 1px solid transparent; background: #D85A30; opacity: 0.4; }
+  /* a tile's colour is the kind of thing that happened */
+  .tile-founding, .tile-word, .tile-attendance, .tile-seal, .tile-event {
+    border: 1px solid transparent;
+    border-radius: 2px;
+  }
+
+  .tile-founding   { background: #D85A30; }
+  .tile-word       { background: #D85A30; opacity: 0.55; }
+  .tile-attendance { background: #D85A30; opacity: 0.3; }
+  .tile-seal       { background: #1D9E75; }  /* reserved: a bond sealed */
+  .tile-event      { background: #B4B2A9; }
 
   .caption {
     margin: 18px 0 0;
     font-size: 0.88rem;
     color: var(--ink-soft);
+  }
+
+  .legend {
+    margin: 8px 0 0;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+  }
+
+  .legend .key {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    margin-right: 5px;
   }
 
   .links {
@@ -116,14 +139,16 @@
 
   .links li { margin-bottom: 12px; }
 
-  a {
-    color: var(--ink);
+  /* a link is the deeper tessera shade, and says so with a thin rule under it */
+  a, a:visited {
+    color: var(--link);
     text-decoration: underline;
+    text-decoration-thickness: 1px;
     text-underline-offset: 3px;
-    text-decoration-color: var(--rule);
+    text-decoration-color: var(--link);
   }
 
-  a:hover, a:focus { text-decoration-color: var(--mark); }
+  a:hover, a:focus { color: var(--mark); text-decoration-color: var(--mark); }
 
   .bench p { margin: 0 0 16px; }
 

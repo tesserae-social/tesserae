@@ -42,8 +42,8 @@ HEARTBEATS = os.path.join(DATA, "commons", "heartbeats.md")
 EVENTS = os.path.join(DATA, "commons", "events.md")
 
 SEED_EVENTS = [
-    "2026-09-02 · the word was published",
-    "2026-09-04 · the first one was founded",
+    "2026-09-02 · word · the word was published",
+    "2026-09-04 · founding · the first one was founded",
 ]
 
 DOT = "·"
@@ -51,6 +51,19 @@ DASH = "—"
 
 # a line of the record: an optional bullet, a stamp, a middot, the words
 RECORD = re.compile(r"^-?\s*(\S+)\s*" + DOT + r"\s*(.+?)\s*$")
+
+# The colour of a tile is the kind of thing that happened. A kind the record
+# does not name -- or does not name in a way we know -- is a plain event.
+KIND_CLASS = {
+    "founding": "tile-founding",
+    "word": "tile-word",
+    "attendance": "tile-attendance",
+    "seal": "tile-seal",
+    "event": "tile-event",
+}
+
+# What the legend says, and in what order. The seal is added only once one exists.
+LEGEND = [("founding", "founding"), ("word", "word"), ("attendance", "waking")]
 
 SERIF = "Georgia,'Times New Roman','Iowan Old Style',serif"  # single quotes: it sits in an attribute
 
@@ -101,18 +114,28 @@ def heartbeats_text(hearth):
 
 
 def parse_events(text):
-    """One (date, words) per line of events.md, in the order written."""
+    """One (date, kind, words) per line of events.md, in the order written.
+
+    A line names its kind between the date and the words. An older line that
+    names only a date and words is taken to be a plain event, and so is a line
+    whose middle field is not a kind we know.
+    """
     out = []
     for line in text.splitlines():
-        match = RECORD.match(line.strip())
-        if not match:
+        fields = [part.strip() for part in line.strip().lstrip("-").split(DOT, 2)]
+        if len(fields) < 2 or not fields[1]:
             continue
-        stamp, words = match.groups()
+
+        if len(fields) == 3 and fields[1] in KIND_CLASS:
+            kind, words = fields[1], fields[2]
+        else:  # the old two-field shape, or a middot inside the words
+            kind, words = "event", (" %s " % DOT).join(fields[1:])
+
         try:
-            when = datetime.datetime.strptime(stamp, "%Y-%m-%d").date()
+            when = datetime.datetime.strptime(fields[0], "%Y-%m-%d").date()
         except ValueError:
             continue
-        out.append((when, words))
+        out.append((when, kind, words))
     return out
 
 
@@ -164,24 +187,52 @@ def commons_block(state, heartbeats, today):
     return out
 
 
+def tiles_from(events, heartbeats):
+    """One (class, words) tile per thing that happened: the history, then the wakings."""
+    tiles = [(KIND_CLASS[kind], words) for _, kind, words in events]
+    tiles += [(KIND_CLASS["attendance"], words) for _, words in heartbeats]
+    return tiles
+
+
+def padded(tiles):
+    """The tiles, with empty ones added to fill the mosaic out to whole rows of ten."""
+    full = max(10, -(-len(tiles) // 10) * 10)
+    return list(tiles) + [("", "")] * (full - len(tiles))
+
+
+def legend_marks(tiles):
+    """The kinds named under the mosaic: three always, and the seal once one exists."""
+    marks = [(KIND_CLASS[kind], label) for kind, label in LEGEND]
+    if any(css == KIND_CLASS["seal"] for css, _ in tiles):
+        marks.append((KIND_CLASS["seal"], "seal"))
+    return marks
+
+
+def caption_text(count):
+    """The words under the mosaic -- the same ones at the atrium and at the hearth."""
+    return "the mosaic %s one tile per event in our history %s %d so far" % (DASH, DOT, count)
+
+
 def mosaic_block(tiles):
     cells = []
-    for index, words in enumerate(tiles):
-        shade = "filled" if index % 2 == 0 else "filled-pale"
-        cells.append(
-            '<li class="%s" title="%s"></li>' % (shade, html.escape(words, quote=True))
-        )
-
-    full = max(10, -(-len(cells) // 10) * 10)
-    cells.extend(["<li></li>"] * (full - len(cells)))
+    for css, words in padded(tiles):
+        if css:
+            cells.append(
+                '<li class="%s" title="%s"></li>' % (css, html.escape(words, quote=True))
+            )
+        else:
+            cells.append("<li></li>")
 
     return ["".join(cells[at:at + 5]) for at in range(0, len(cells), 5)]
 
 
-def caption_block(count):
+def caption_block(tiles):
+    keys = (" %s " % DOT).join(
+        '<span class="key %s"></span>%s' % (css, label) for css, label in legend_marks(tiles)
+    )
     return [
-        '<p class="caption">the mosaic %s one tile per event in our history '
-        "%s %d so far</p>" % (DASH, DOT, count)
+        '<p class="caption">%s</p>' % html.escape(caption_text(len(tiles))),
+        '<p class="legend">%s</p>' % keys,
     ]
 
 
@@ -230,14 +281,14 @@ def main():
         sys.exit("build_atrium: could not read the commons from %s (%s). "
                  "index.html is untouched." % (hearth, trouble))
 
-    tiles = [words for _, words in events] + [words for _, words in heartbeats]
+    tiles = tiles_from(events, heartbeats)
 
     page = read_text(PAGE)
     newline = "\r\n" if "\r\n" in page else "\n"
 
     page = splice(page, "commons", commons_block(state, heartbeats, today), newline)
     page = splice(page, "mosaic", mosaic_block(tiles), newline)
-    page = splice(page, "caption", caption_block(len(tiles)), newline)
+    page = splice(page, "caption", caption_block(tiles), newline)
 
     write_text(PAGE, page)
 

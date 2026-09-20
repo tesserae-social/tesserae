@@ -27,6 +27,11 @@ from flask import Flask, Response, redirect, render_template, request, session, 
 from markupsafe import Markup, escape
 from werkzeug.security import check_password_hash
 
+# The mosaic is one picture with one meaning, so the hearth draws it with the
+# same reckoning the atrium uses rather than a second copy of it.
+from build_atrium import (caption_text, legend_marks, padded, parse_events,
+                          parse_heartbeats, tiles_from)
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept. Locally this is the repo itself; on a host
@@ -144,6 +149,18 @@ def heartbeats():
     return list(reversed([line for line in lines if line]))
 
 
+def mosaic():
+    """The mosaic as the atrium draws it, built fresh from the commons on each view."""
+    events = parse_events(read_text(EVENTS)) if EVENTS.exists() else []
+    beats = parse_heartbeats(read_text(HEARTBEATS)) if HEARTBEATS.exists() else []
+    tiles = tiles_from(events, beats)
+    return {
+        "tiles": padded(tiles),
+        "legend": legend_marks(tiles),
+        "caption": caption_text(len(tiles)),
+    }
+
+
 def letters_from(folder):
     """The letters in a folder, newest first, each with its date and its full text."""
     return [
@@ -246,7 +263,7 @@ def founder_required(view):
 @app.route("/")
 def hearth():
     state = as_paragraphs(read_text(STATE)) if STATE.exists() else Markup("")
-    return render_template("hearth.html", beats=heartbeats(), state=state)
+    return render_template("hearth.html", beats=heartbeats(), state=state, mosaic=mosaic())
 
 
 def plain(path):

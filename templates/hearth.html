@@ -17,6 +17,24 @@
 </section>
 
 <section>
+  <h2>the mosaic</h2>
+  <ul class="mosaic" aria-label="the mosaic">
+    {%- for css, words in mosaic.tiles %}
+    {%- if css %}<li class="{{ css }}" title="{{ words }}"></li>
+    {%- else %}<li></li>
+    {%- endif %}
+    {%- endfor %}
+  </ul>
+  <p class="caption">{{ mosaic.caption }}</p>
+  <p class="legend">
+    {%- for css, label in mosaic.legend %}
+    {%- if not loop.first %} &middot; {% endif -%}
+    <span class="key {{ css }}"></span>{{ label }}
+    {%- endfor %}
+  </p>
+</section>
+
+<section>
   <h2>the state of the commons</h2>
   <div class="serif">{{ state }}</div>
 </section>

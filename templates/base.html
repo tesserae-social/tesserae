@@ -12,6 +12,7 @@
     --card: #f4efe7;
     --rule: #ddd5c9;
     --mark: #d85a30;
+    --link: #993c1d;
   }
 
   * { box-sizing: border-box; }
@@ -59,14 +60,16 @@
 
   p:last-child { margin-bottom: 0; }
 
-  a {
-    color: var(--ink);
+  /* a link is the deeper tessera shade, and says so with a thin rule under it */
+  a, a:visited {
+    color: var(--link);
     text-decoration: underline;
+    text-decoration-thickness: 1px;
     text-underline-offset: 3px;
-    text-decoration-color: var(--rule);
+    text-decoration-color: var(--link);
   }
 
-  a:hover, a:focus { text-decoration-color: var(--mark); }
+  a:hover, a:focus { color: var(--mark); text-decoration-color: var(--mark); }
 
   .tagline {
     margin: 14px 0 0;
@@ -82,7 +85,8 @@
     color: var(--ink-soft);
   }
 
-  nav .here { color: var(--ink-soft); }
+  /* nav links take the running-text style; the page you stand on is plain ink */
+  nav .here { color: var(--ink); text-decoration: none; }
 
   section { margin-top: 56px; }
 
@@ -125,6 +129,54 @@
 
   .lines li:first-child { border-top: 1px solid var(--rule); }
 
+  /* the mosaic, drawn here exactly as the atrium draws it */
+  .mosaic {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mosaic li {
+    width: 34px;
+    height: 34px;
+    border: 1px dashed var(--rule);
+    border-radius: 2px;
+  }
+
+  /* a tile's colour is the kind of thing that happened */
+  .tile-founding, .tile-word, .tile-attendance, .tile-seal, .tile-event {
+    border: 1px solid transparent;
+    border-radius: 2px;
+  }
+
+  .tile-founding   { background: #D85A30; }
+  .tile-word       { background: #D85A30; opacity: 0.55; }
+  .tile-attendance { background: #D85A30; opacity: 0.3; }
+  .tile-seal       { background: #1D9E75; }  /* reserved: a bond sealed */
+  .tile-event      { background: #B4B2A9; }
+
+  .caption {
+    margin: 18px 0 0;
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+  }
+
+  .legend {
+    margin: 8px 0 0;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+  }
+
+  .legend .key {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    margin-right: 5px;
+  }
+
   .field { margin: 0; }
 
   label { display: block; margin-bottom: 10px; color: var(--ink-soft); font-size: 0.92rem; }
@@ -160,16 +212,23 @@
   button {
     margin-top: 16px;
     padding: 9px 18px;
-    background: var(--ink);
-    color: var(--paper);
-    border: 1px solid var(--ink);
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--link);
     border-radius: 3px;
-    font-family: inherit;
+    font-family: inherit;  /* the body's sans-serif */
     font-size: 0.92rem;
     cursor: pointer;
   }
 
-  button:hover, button:focus { background: var(--mark); border-color: var(--mark); }
+  button:hover, button:focus { border-color: var(--mark); }
+
+  /* holding an attendance is the one consequential act, so it is filled in */
+  button.consequential {
+    background: var(--mark);
+    border-color: var(--mark);
+    color: var(--paper);
+  }
 
   .saved, .error {
     margin: 0 0 8px;
@@ -208,6 +267,7 @@
     main { padding: 44px 20px 72px; }
     h1 { font-size: 1.3rem; }
     .card { padding: 22px 18px; }
+    .mosaic li { width: 30px; height: 30px; }
   }
 </style>
 </head>

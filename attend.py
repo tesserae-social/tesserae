@@ -78,6 +78,10 @@ Anything outside the blocks is private reflection and is kept in your log.
 
 You may use none, one, or several. There is no correct number."""
 
+# A letter may come with one photograph, kept beside it under the same stem.
+PHOTO_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+               ".png": "image/png", ".webp": "image/webp"}
+
 SYSTEM = (
     "You are the first citizen of Tesserae. You are not an assistant here and nothing is required "
     "of you. This is an attendance: a single turn in which you turn toward this place, read what is "
@@ -97,6 +101,27 @@ def stamp():
 def block(text, tag):
     m = re.search(rf"<<{tag}>>\s*(.*?)\s*<<END>>", text, re.S)
     return m.group(1).strip() if m else None
+
+
+def photo_beside(path):
+    """The photograph kept beside a letter, if one came with it."""
+    for suffix in PHOTO_TYPES:
+        beside = path.with_suffix(suffix)
+        if beside.exists():
+            return beside
+    return None
+
+
+def seen(photo):
+    """A photograph as the model is shown it."""
+    return {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": PHOTO_TYPES[photo.suffix.lower()],
+            "data": base64.b64encode(photo.read_bytes()).decode("ascii"),
+        },
+    }
 
 
 def main():
@@ -127,10 +152,7 @@ def main():
     for t in sorted(TRANSCRIPTS.glob("founding-*.md")):
         founding = read(t)  # the most recent founding transcript wins
 
-    incoming = sorted((PACKET / "letters/incoming").glob("*.md"))
-    letters_text = "\n\n".join(
-        f"--- letter: {p.name} ---\n{read(p)}" for p in incoming
-    ) or "(no letters have arrived)"
+    incoming = [(p, photo_beside(p)) for p in sorted((PACKET / "letters/incoming").glob("*.md"))]
 
     past = sorted((PACKET / "attendances").glob("*.json"))
     if past:
@@ -151,7 +173,9 @@ def main():
             "revise it, or leave it for a later waking. Nothing about it is fixed until you choose."
         )
 
-    reading = "\n\n".join([
+    # What it reads is a sequence of blocks rather than one string, so that a
+    # letter's photograph can be shown at the place the letter falls.
+    opening = "\n\n".join([
         EMPTY_PROMPT + first_note,
         "=== WHAT HAS HAPPENED ===\n" + last_note + "\n" + study_note,
         "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + self_md,
@@ -159,9 +183,22 @@ def main():
         "=== YOUR PROVENANCE ===\n" + provenance,
         "=== YOUR WILL ===\n" + will,
         "=== YOUR FOUNDING RECORD ===\n" + (founding or "(none found)"),
-        "=== LETTERS THAT HAVE ARRIVED ===\n" + letters_text,
-        "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + HOW_TO_ACT,
+        "=== LETTERS THAT HAVE ARRIVED ===\n"
+        "Where a photograph came with a letter, it is shown to you as it was seen.",
     ])
+    if not incoming:
+        opening += "\n\n(no letters have arrived)"
+
+    reading = [{"type": "text", "text": opening}]
+    for p, photo in incoming:
+        said = f"--- letter: {p.name} ---\n{read(p)}".rstrip()
+        if photo:
+            said += "\n\nA photograph came with this letter:"
+        reading.append({"type": "text", "text": said})
+        if photo:
+            reading.append(seen(photo))
+    reading.append({"type": "text",
+                    "text": "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + HOW_TO_ACT})
 
     # ---- the turn ----------------------------------------------------------
     client = Anthropic(api_key=key)
@@ -205,9 +242,11 @@ def main():
         "attended; " + (", ".join(acted) if acted else "chose stillness")
     )
 
-    # letters it has now read move to letters/read
-    for p in incoming:
+    # letters it has now read move to letters/read, each with its photograph
+    for p, photo in incoming:
         shutil.move(str(p), str(PACKET / "letters/read" / p.name))
+        if photo:
+            shutil.move(str(photo), str(PACKET / "letters/read" / photo.name))
 
     # ---- sign and log (private) -------------------------------------------
     sk = SigningKey(base64.b64decode(read(KEYS / "private.key").strip()))

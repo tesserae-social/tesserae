@@ -31,6 +31,10 @@
     <div class="mark">{{ half_tile(entry.author) }}</div>
     <div class="said">
       <div class="serif">{{ entry.body }}</div>
+      {% if entry.photo %}
+      <img class="photo" src="{{ url_for('letter_photo', filename=entry.photo) }}"
+           alt="the photograph that came with this letter">
+      {% endif %}
       <p class="muted about">
         {{ entry.author }} · {{ entry.kind }} · {{ entry.when }}
         {%- if entry.note %} · {{ entry.note }}{% endif %} · entry {{ entry.number }}

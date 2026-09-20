@@ -27,9 +27,9 @@
   </ul>
   <p class="caption">{{ mosaic.caption }}</p>
   <p class="legend">
-    {%- for css, label in mosaic.legend %}
+    {%- for marks, label in mosaic.legend %}
     {%- if not loop.first %} &middot; {% endif -%}
-    <span class="key {{ css }}"></span>{{ label }}
+    {%- for css in marks %}<span class="key {{ css }}"></span>{% endfor %}{{ label }}
     {%- endfor %}
   </p>
 </section>

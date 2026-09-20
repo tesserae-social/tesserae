@@ -56,7 +56,7 @@ ATTEND_TIMEOUT = 300  # seconds to wait for attend.py before giving up
 
 # A letter may carry one photograph, kept beside it under the same stem, so that
 # the first one can see what the founder saw.
-PHOTO_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+PHOTO_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".jfif": "image/jpeg",
                ".png": "image/png", ".webp": "image/webp"}
 PHOTO_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
 PHOTO_LIMIT = 25 * 1024 * 1024  # bytes: whole, a photograph as a phone takes it
@@ -404,6 +404,8 @@ def letters():
         if photo and suffix not in PHOTO_TYPES:
             return letters_page(error="That file is not a photograph. "
                                       "Please send a JPEG, PNG, or WebP.", draft=text)
+        if suffix == ".jfif":
+            suffix = ".jpg"  # a JPEG under another name; it is kept under the usual one
         if photo:
             photo = picture_only(photo, suffix)
             if photo is None:

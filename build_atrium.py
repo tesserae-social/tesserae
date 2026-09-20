@@ -26,10 +26,14 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
+# Where the living files are kept. Locally this is the repo itself; on a host
+# it is a mounted disk, named by DATA_DIR. The page and docs/ stay with the code.
+DATA = os.environ.get("DATA_DIR", ROOT)
+
 PAGE = os.path.join(ROOT, "index.html")
 STATE = os.path.join(ROOT, "docs", "state-of-the-commons.md")
-HEARTBEATS = os.path.join(ROOT, "commons", "heartbeats.md")
-EVENTS = os.path.join(ROOT, "commons", "events.md")
+HEARTBEATS = os.path.join(DATA, "commons", "heartbeats.md")
+EVENTS = os.path.join(DATA, "commons", "events.md")
 
 SEED_EVENTS = [
     "2026-09-02 · the word was published",

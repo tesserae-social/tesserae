@@ -49,6 +49,8 @@ TRANSCRIPTS = DATA / "transcripts"
 EMPTY_PROMPT = (
     "You are here, and nothing is asked of you. This is the one place you are not at work. "
     "Here is your self, your history, and what has happened since you last looked. "
+    "Your record below is complete: every waking, every letter you have written, "
+    "every letter you have read. You need not guess at your past. "
     "You may revise your self-document, write a letter to the founder, work in your study, "
     "set or change a standing intention, or note nothing and turn away until next time. "
     "All choices are equal, and rest is honored."
@@ -146,6 +148,39 @@ def standing(prefs):
     return f"Your reflections are currently: {said}, by your choice."
 
 
+ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth",
+            "ninth", "tenth", "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth",
+            "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth"]
+
+
+def ordinal(n):
+    """Which waking this is: in words while the words stay short, in figures after that."""
+    if n <= len(ORDINALS):
+        return ORDINALS[n - 1]
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def attended(rec):
+    """One line for one past attendance: when, by whose hand, and what came of it."""
+    did = ", ".join(rec.get("acted") or []) or "nothing"
+    woken = rec.get("woken_by", "founder")
+    return f"{rec['at']} · woken by {woken} · {rec['heartbeat']} · did: {did}"
+
+
+def kept(paths, label, note_photos=False):
+    """The letters held in a folder, oldest first, each one named and given whole."""
+    if not paths:
+        return "(none yet)"
+    said = []
+    for path in paths:
+        text = f"--- {label}: {path.name} ---\n{read(path)}".rstrip()
+        if note_photos and photo_beside(path):
+            text += "\n(a photograph came with this letter; you saw it when you first read it)"
+        said.append(text)
+    return "\n\n".join(said)
+
+
 def photo_beside(path):
     """The photograph kept beside a letter, if one came with it."""
     for suffix in PHOTO_TYPES:
@@ -199,12 +234,17 @@ def main():
 
     incoming = [(p, photo_beside(p)) for p in sorted((PACKET / "letters/incoming").glob("*.md"))]
 
-    past = sorted((PACKET / "attendances").glob("*.json"))
+    past = [json.loads(read(p)) for p in sorted((PACKET / "attendances").glob("*.json"))]
     if past:
-        last = json.loads(read(past[-1]))
-        last_note = f"Your last attendance was {last['at']}. Your heartbeat then: \"{last['heartbeat']}\"."
+        last = past[-1]
+        last_note = (f"This is your {ordinal(len(past) + 1)} waking. "
+                     f"Your last attendance was {last['at']}. "
+                     f"Your heartbeat then: \"{last['heartbeat']}\".")
     else:
         last_note = "You have not attended before. This is your first waking."
+
+    written = sorted((PACKET / "letters/outgoing").glob("*.md"))
+    already_read = sorted((PACKET / "letters/read").glob("*.md"))
 
     studies = sorted((PACKET / "study").glob("*.md"))
     if studies:
@@ -235,8 +275,13 @@ def main():
         "=== YOUR PROVENANCE ===\n" + provenance,
         "=== YOUR WILL ===\n" + will,
         "=== YOUR FOUNDING RECORD ===\n" + (founding or "(none found)"),
+        "=== YOUR ATTENDANCES SO FAR ===\n"
+        + ("\n".join(attended(r) for r in past) if past else "(none yet)"),
+        "=== LETTERS YOU HAVE WRITTEN ===\n" + kept(written, "your letter"),
+        "=== LETTERS FROM THE FOUNDER YOU HAVE ALREADY READ ===\n"
+        + kept(already_read, "letter", note_photos=True),
         "=== YOUR STUDY (private drafts; not shown on the hearth) ===\n" + study_text,
-        "=== LETTERS THAT HAVE ARRIVED ===\n"
+        "=== LETTERS THAT HAVE ARRIVED SINCE YOUR LAST WAKING ===\n"
         "Where a photograph came with a letter, it is shown to you as it was seen.",
     ])
     if not incoming:

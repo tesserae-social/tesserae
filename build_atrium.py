@@ -14,15 +14,21 @@ It reads:
     commons/heartbeats.md          the attendances
     commons/events.md              the history (created if missing)
 
+With --from URL it takes the last two from a running hearth instead
+(URL/commons/heartbeats.md and URL/commons/events.md), and writes nothing
+at all if that hearth cannot be reached.
+
 Nothing under packets/, keys/, transcripts/ is read or written, and docs/
 is only ever read.
 """
 
+import argparse
 import datetime
 import html
 import os
 import re
 import sys
+import urllib.request
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -69,14 +75,35 @@ def read_state():
     return " ".join(ln for ln in body if ln)
 
 
-def read_events():
-    """One (date, words) per line of events.md, in the order written."""
+def fetch(hearth, name):
+    """The text of one file of the commons, taken from a hearth over the wire."""
+    url = hearth.rstrip("/") + "/commons/" + name
+    with urllib.request.urlopen(url, timeout=30) as answer:
+        return answer.read().decode("utf-8-sig")
+
+
+def events_text(hearth):
+    """The text of events.md: from a hearth if one is named, else from the disk."""
+    if hearth:
+        return fetch(hearth, "events.md")
+
     if not os.path.exists(EVENTS):
         os.makedirs(os.path.dirname(EVENTS), exist_ok=True)
         write_text(EVENTS, "\n".join(SEED_EVENTS) + "\n")
+    return read_text(EVENTS)
 
+
+def heartbeats_text(hearth):
+    """The text of heartbeats.md: from a hearth if one is named, else from the disk."""
+    if hearth:
+        return fetch(hearth, "heartbeats.md")
+    return read_text(HEARTBEATS) if os.path.exists(HEARTBEATS) else ""
+
+
+def parse_events(text):
+    """One (date, words) per line of events.md, in the order written."""
     out = []
-    for line in read_text(EVENTS).splitlines():
+    for line in text.splitlines():
         match = RECORD.match(line.strip())
         if not match:
             continue
@@ -89,13 +116,10 @@ def read_events():
     return out
 
 
-def read_heartbeats():
+def parse_heartbeats(text):
     """One (moment, words) per attendance, oldest first."""
-    if not os.path.exists(HEARTBEATS):
-        return []
-
     out = []
-    for line in read_text(HEARTBEATS).splitlines():
+    for line in text.splitlines():
         match = RECORD.match(line.strip())
         if not match:
             continue
@@ -181,12 +205,30 @@ def splice(page, name, block, newline):
     return page[:match.start()] + filled + page[match.end():]
 
 
+def named_hearth():
+    """The hearth named on the command line with --from, if one was."""
+    parser = argparse.ArgumentParser(description="Regenerate the atrium from the record.")
+    parser.add_argument(
+        "--from", dest="hearth", metavar="URL",
+        help="read the commons from a running hearth (e.g. https://hearth.tesserae.social) "
+             "instead of from the local files",
+    )
+    return parser.parse_args().hearth
+
+
 def main():
+    hearth = named_hearth()
     today = datetime.date.today()
 
     state = read_state()
-    events = read_events()
-    heartbeats = read_heartbeats()
+    try:
+        events = parse_events(events_text(hearth))
+        heartbeats = parse_heartbeats(heartbeats_text(hearth))
+    except (OSError, ValueError) as trouble:
+        if not hearth:  # a local file going wrong is a fault, not a closed door
+            raise
+        sys.exit("build_atrium: could not read the commons from %s (%s). "
+                 "index.html is untouched." % (hearth, trouble))
 
     tiles = [words for _, words in events] + [words for _, words in heartbeats]
 

@@ -129,6 +129,30 @@
 
   .lines li:first-child { border-top: 1px solid var(--rule); }
 
+  /* the correspondence: one letter folded shut behind each line */
+  .letter {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .letter:first-of-type { border-top: 1px solid var(--rule); }
+
+  .letter summary {
+    cursor: pointer;
+    color: var(--ink);
+    font-size: 0.94rem;
+    list-style: none;  /* no triangle; the line is the whole of it */
+  }
+
+  .letter summary::-webkit-details-marker { display: none; }
+
+  /* a letter the first one has not read yet leans forward a little */
+  .letter summary.unread { font-weight: 600; }
+
+  .letter summary .mark { color: var(--ink-soft); font-size: 0.85rem; }
+
+  .letter[open] summary { margin-bottom: 18px; }
+
   /* the mosaic, drawn here exactly as the atrium draws it */
   .mosaic {
     display: flex;

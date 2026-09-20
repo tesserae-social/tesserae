@@ -125,6 +125,12 @@ def utc_stamp():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
 
 
+def stamp_in(name):
+    """The timestamp inside a filename, or the filename itself if it carries none."""
+    found = STAMP.search(name)
+    return found.group() if found else name
+
+
 def readable_date(text):
     """Find a timestamp inside a filename and say it in words; otherwise give the text back."""
     found = STAMP.search(text)
@@ -212,20 +218,73 @@ def photo_beside(path):
     return None
 
 
-def letters_from(folder):
-    """The letters in a folder, newest first, each with its date and its full text."""
-    return [
-        {"date": readable_date(path.name), "body": as_prose(read_text(path)),
-         "photo": photo_beside(path)}
-        for path in newest_first(folder, "*.md")
-    ]
+# The correspondence is one thing, not two piles: every letter in both
+# directions, newest first, each folded shut behind a single line.
+
+OPENING_CUT = 90  # characters of the first line shown in a letter's one line
 
 
-def letter_names(folder):
-    """Just the names and dates of the letters in a folder, newest first."""
-    return [{"date": readable_date(path.name), "name": path.name,
-             "photo": photo_beside(path)}
-            for path in newest_first(folder, "*.md")]
+def opening_line(text, limit=OPENING_CUT):
+    """The letter's first line of words, cut short with an ellipsis if it runs long."""
+    first = next((line.strip() for line in text.splitlines() if line.strip()), "")
+    if len(first) <= limit:
+        return first
+    return first[:limit].rstrip() + "…"
+
+
+def bond_askings():
+    """Every moment at which a bond was asked for, from the records that keep one."""
+    records = [BOND_RECORD, *newest_first(BONDS, "founder-first-released-*.json")]
+    asked = [load(path) for path in records if path.exists()]
+    return [one["proposed_at"] for one in asked if one and one.get("proposed_at")]
+
+
+def proposing_letters(paths):
+    """Which of the founder's letters asked for a bond, by name.
+
+    An open asking names its letter outright. An answered one does not - the
+    bond's record keeps only the moment the asking was made - so the letter
+    that carried it is the last one written before that moment.
+    """
+    names = set()
+    proposal = load(PROPOSAL)
+    if proposal and proposal.get("letter"):
+        names.add(proposal["letter"])
+    stamped = sorted((stamp_in(path.name), path.name) for path in paths)
+    for asked in bond_askings():
+        earlier = [name for stamp, name in stamped if stamp <= asked]
+        if earlier:
+            names.add(earlier[-1])
+    return names
+
+
+def one_letter(path, who, unread=False, proposes=False):
+    """One letter: the line that stands for it, and the whole of it beneath."""
+    text = read_text(path)
+    return {
+        "stamp": stamp_in(path.name),
+        "date": readable_date(path.name),
+        "who": who,
+        "opening": opening_line(text),
+        "body": as_prose(text),
+        "photo": photo_beside(path),
+        "unread": unread,
+        "proposes": proposes,
+    }
+
+
+def correspondence():
+    """Every letter that has passed between the two of them, newest first."""
+    from_founder = newest_first(INCOMING, "*.md") + newest_first(READ, "*.md")
+    proposals = proposing_letters(from_founder)
+
+    letters = [one_letter(path, "from the founder", unread=path.parent == INCOMING,
+                          proposes=path.name in proposals)
+               for path in from_founder]
+    letters += [one_letter(path, "from the first one")
+                for path in newest_first(OUTGOING, "*.md")]
+    letters.sort(key=lambda letter: letter["stamp"], reverse=True)
+    return letters
 
 
 FOUNDING = {
@@ -730,9 +789,7 @@ def letters_page(saved=None, error=None, draft="", proposed=None, blocked=None):
         saved=saved,
         error=error,
         draft=draft,
-        outgoing=letters_from(OUTGOING),
-        waiting=letter_names(INCOMING),
-        already_read=letter_names(READ),
+        correspondence=correspondence(),
         # a bond begins with a letter, so the asking is made here; the sentence
         # is None when nothing stands in the way and the checkbox may be offered
         propose_note=bond_in_the_way(),

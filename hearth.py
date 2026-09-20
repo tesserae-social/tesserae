@@ -47,6 +47,7 @@ INCOMING = PACKET / "letters" / "incoming"
 READ = PACKET / "letters" / "read"
 ATTENDANCES = PACKET / "attendances"
 SELF_DOC = PACKET / "self.md"
+PREFERENCES = PACKET / "preferences.json"
 SELF_HISTORY = PACKET / "self-history"
 HEARTBEATS = DATA / "commons" / "heartbeats.md"
 EVENTS = DATA / "commons" / "events.md"
@@ -261,17 +262,55 @@ def chronicle_entries():
     return list(reversed(entries))
 
 
-def attendance_records():
+# The reflection is the first one's own thinking, and whether the founder may
+# read it is the first one's choice, not the hearth's. The choice is kept in the
+# packet beside the self-document and read fresh on every request, so that a
+# change takes hold at once and nothing is held in memory across it.
+KEPT_PRIVATE = "Reflection kept private by the first one's choice."
+
+
+def preferences():
+    """How the first one has asked to be shown. Nothing written means open."""
+    if not PREFERENCES.exists():
+        return {"reflection": "open"}
+    return json.loads(read_text(PREFERENCES))
+
+
+def reflection_hidden(prefs, at):
+    """Whether one attendance's reflection is withheld, by the stamp it carries."""
+    setting = prefs.get("reflection", "open")
+    if setting == "private":
+        return True
+    if setting == "private from now":
+        # the stamps sort, so a plain comparison is the whole of it; a missing
+        # set_at withholds everything rather than risk showing what was closed
+        return at >= prefs.get("set_at", "")
+    return False
+
+
+def reflection_note(prefs):
+    """The one line at the top of the attendances page, saying how things stand."""
+    setting = prefs.get("reflection", "open")
+    if setting == "private":
+        return "Reflections: private"
+    if setting == "private from now":
+        return "Reflections: private from " + readable_date(prefs.get("set_at", ""))
+    return "Reflections: open"
+
+
+def attendance_records(prefs):
     """Every attendance log, newest first, ready to be shown."""
     records = []
     for path in newest_first(ATTENDANCES, "*.json"):
         log = json.loads(read_text(path))
+        at = log.get("at", path.name)
+        hidden = reflection_hidden(prefs, at)
         records.append({
-            "at": readable_date(log.get("at", path.name)),
+            "at": readable_date(at),
             "first": log.get("first", False),
             "heartbeat": log.get("heartbeat", ""),
             "acted": log.get("acted", []),
-            "reflection": as_prose(log.get("reflection", "")),
+            "reflection": as_prose(KEPT_PRIVATE if hidden else log.get("reflection", "")),
         })
     return records
 
@@ -468,7 +507,9 @@ def self_document():
 @app.route("/attendances")
 @founder_required
 def attendances():
-    return render_template("attendances.html", records=attendance_records())
+    prefs = preferences()
+    return render_template("attendances.html", records=attendance_records(prefs),
+                           reflection_note=reflection_note(prefs))
 
 
 # Run attend.py once and wait for it, then show what came of it.

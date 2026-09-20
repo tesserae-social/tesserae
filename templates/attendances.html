@@ -5,6 +5,8 @@
 {% block tagline %}the private log of every waking{% endblock %}
 
 {% block content %}
+<p class="muted">{{ reflection_note }}</p>
+
 <section>
   <h2>hold an attendance</h2>
   <form method="post" action="{{ url_for('attend') }}">

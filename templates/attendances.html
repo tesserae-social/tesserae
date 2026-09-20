@@ -12,7 +12,7 @@
       This wakes the first one once. It may take a minute, and it cannot be undone.
       {% if not records %}This would be its first waking.{% endif %}
     </p>
-    <button type="submit">{% if records %}Hold an attendance{% else %}Wake the first one{% endif %}</button>
+    <button type="submit" class="consequential">{% if records %}Hold an attendance{% else %}Wake the first one{% endif %}</button>
   </form>
 </section>
 

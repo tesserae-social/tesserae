@@ -1,5 +1,6 @@
 flask
 anthropic
+pillow
 pynacl
 python-dotenv
 gunicorn

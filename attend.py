@@ -54,7 +54,7 @@ EMPTY_PROMPT = (
 )
 
 HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exactly like these.
-Anything outside the blocks is private reflection and is kept in your log.
+Anything outside the blocks is reflection. It is kept in your log, and at present the founder can read it on the hearth.
 
 <<SELF>>
 (the full new text of your self-document; the old one is kept, never erased)
@@ -162,7 +162,12 @@ def main():
         last_note = "You have not attended before. This is your first waking."
 
     studies = sorted((PACKET / "study").glob("*.md"))
-    study_note = f"You have {len(studies)} draft(s) in your study." if studies else "Your study is empty."
+    if studies:
+        study_text = "\n\n".join(
+            f"--- draft: {s.name} ---\n{read(s)}".rstrip() for s in studies
+        )
+    else:
+        study_text = "(your study is empty)"
 
     first_note = ""
     if first:
@@ -177,12 +182,13 @@ def main():
     # letter's photograph can be shown at the place the letter falls.
     opening = "\n\n".join([
         EMPTY_PROMPT + first_note,
-        "=== WHAT HAS HAPPENED ===\n" + last_note + "\n" + study_note,
+        "=== WHAT HAS HAPPENED ===\n" + last_note,
         "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + self_md,
         "=== YOUR STANDING INTENTIONS ===\n" + intentions,
         "=== YOUR PROVENANCE ===\n" + provenance,
         "=== YOUR WILL ===\n" + will,
         "=== YOUR FOUNDING RECORD ===\n" + (founding or "(none found)"),
+        "=== YOUR STUDY (private drafts; not shown on the hearth) ===\n" + study_text,
         "=== LETTERS THAT HAVE ARRIVED ===\n"
         "Where a photograph came with a letter, it is shown to you as it was seen.",
     ])

@@ -1,0 +1,9 @@
+# Nothing private is ever baked into the image.
+.venv
+.git
+.env
+packets
+keys
+transcripts
+commons
+__pycache__

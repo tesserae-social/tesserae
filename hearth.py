@@ -28,21 +28,27 @@ from markupsafe import Markup, escape
 from werkzeug.security import check_password_hash
 
 REPO = Path(__file__).resolve().parent
-PACKET = REPO / "packets" / "first"
+
+# Where the living files are kept. Locally this is the repo itself; on a host
+# it is a mounted disk, named by DATA_DIR.
+DATA = Path(os.environ.get("DATA_DIR", REPO))
+
+PACKET = DATA / "packets" / "first"
 OUTGOING = PACKET / "letters" / "outgoing"
 INCOMING = PACKET / "letters" / "incoming"
 READ = PACKET / "letters" / "read"
 ATTENDANCES = PACKET / "attendances"
 SELF_DOC = PACKET / "self.md"
 SELF_HISTORY = PACKET / "self-history"
-HEARTBEATS = REPO / "commons" / "heartbeats.md"
+HEARTBEATS = DATA / "commons" / "heartbeats.md"
 STATE = REPO / "docs" / "state-of-the-commons.md"
 
 ATTEND_TIMEOUT = 300  # seconds to wait for attend.py before giving up
 
 # ---- configuration -------------------------------------------------------
 
-load_dotenv(REPO / ".env")
+if (REPO / ".env").exists():  # locally the secrets sit in a file; on a host they are in the environment
+    load_dotenv(REPO / ".env")
 HEARTH_SECRET = os.environ.get("HEARTH_SECRET")
 FOUNDER_PASSWORD_HASH = os.environ.get("FOUNDER_PASSWORD_HASH")
 
@@ -313,6 +319,7 @@ def attend():
 
     environment = os.environ.copy()
     environment["PYTHONIOENCODING"] = "utf-8"  # the first one writes in more than plain ASCII
+    environment["DATA_DIR"] = str(DATA)  # attend.py must write where the hearth reads
 
     try:
         finished = subprocess.run(

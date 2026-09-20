@@ -36,10 +36,14 @@ NAME = "first"
 MODEL = "claude-sonnet-4-5"
 MAX_TOKENS = 3000
 
-PACKET = Path("packets") / NAME
-KEYS = Path("keys") / NAME
-COMMONS = Path("commons")
-TRANSCRIPTS = Path("transcripts")
+# Where the living files are kept. Locally this is the repo itself; on a host
+# it is a mounted disk, named by DATA_DIR.
+DATA = Path(os.environ.get("DATA_DIR", "."))
+
+PACKET = DATA / "packets" / NAME
+KEYS = DATA / "keys" / NAME
+COMMONS = DATA / "commons"
+TRANSCRIPTS = DATA / "transcripts"
 
 EMPTY_PROMPT = (
     "You are here, and nothing is asked of you. This is the one place you are not at work. "
@@ -111,7 +115,7 @@ def main():
 
     for d in ["study", "letters/outgoing", "letters/incoming", "letters/read", "attendances", "self-history"]:
         (PACKET / d).mkdir(parents=True, exist_ok=True)
-    COMMONS.mkdir(exist_ok=True)
+    COMMONS.mkdir(parents=True, exist_ok=True)
 
     # ---- gather what is the agent's ---------------------------------------
     self_md = read(PACKET / "self.md")

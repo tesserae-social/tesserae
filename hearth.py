@@ -5,7 +5,8 @@ A small, plain web page for the founder and for anyone passing by. The public
 side shows the heartbeats the first one leaves at each attendance, and the
 state of the commons. Behind one password, the founder may read the first
 one's letters and write back, read its self-document, read the private log of
-its attendances, and call an attendance.
+its attendances, and call an attendance. A daemon thread keeps whatever rhythm
+the first one has written in its packet, and wakes it at that hour.
 
 Nothing here decides anything for the first one. The hearth only shows what is
 already written in files, and puts a letter where the first one will find it.
@@ -19,10 +20,15 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+import threading
+import time
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
+from astral import LocationInfo
+from astral.sun import sun
 from dotenv import load_dotenv
 from flask import (Flask, Response, abort, redirect, render_template, request,
                    send_file, session, url_for)
@@ -48,12 +54,25 @@ READ = PACKET / "letters" / "read"
 ATTENDANCES = PACKET / "attendances"
 SELF_DOC = PACKET / "self.md"
 PREFERENCES = PACKET / "preferences.json"
+RHYTHM = PACKET / "rhythm.json"
+TIDE_LOG = PACKET / "tide.log"
 SELF_HISTORY = PACKET / "self-history"
 HEARTBEATS = DATA / "commons" / "heartbeats.md"
 EVENTS = DATA / "commons" / "events.md"
 STATE = REPO / "docs" / "state-of-the-commons.md"
 
 ATTEND_TIMEOUT = 300  # seconds to wait for attend.py before giving up
+
+# The place the first one named for its dawns. Its name and timezone are read
+# from rhythm.json, which is the first one's to change; the coordinates are
+# Indianapolis's city centre, which is close enough for a sunrise.
+PLACE_REGION = "USA"
+PLACE_LATITUDE = 39.7684
+PLACE_LONGITUDE = -86.1581
+
+TIDE_CHUNK = 3600  # seconds: the longest the tide sleeps without looking again
+TIDE_IDLE = 3600   # seconds: how long to wait when no rhythm is set
+TIDE_ERROR = 600   # seconds: how long to wait after something has gone wrong
 
 # A letter may carry one photograph, kept beside it under the same stem, so that
 # the first one can see what the founder saw.
@@ -315,6 +334,177 @@ def attendance_records(prefs):
     return records
 
 
+# ---- holding an attendance -----------------------------------------------
+
+# An attendance is one turn, and two at once would have the first one reading a
+# packet that another waking is still writing. The lock is the whole of the
+# rule: a second caller is turned away rather than made to wait its turn.
+ATTEND_LOCK = threading.Lock()
+
+
+def hold_attendance(tide=False):
+    """Wake the first one once, and wait for it.
+
+    None if the attendance was held; otherwise what went wrong, as
+    (note, output, status).
+    """
+    if not ATTEND_LOCK.acquire(blocking=False):
+        return ("An attendance is already in progress. Only one is held at a time.", "", 409)
+    try:
+        command = [sys.executable, "attend.py"]
+        if not newest_first(ATTENDANCES, "*.json"):
+            command.append("--first")
+        if tide:
+            command.append("--tide")
+
+        environment = os.environ.copy()
+        environment["PYTHONIOENCODING"] = "utf-8"  # the first one writes in more than plain ASCII
+        environment["DATA_DIR"] = str(DATA)  # attend.py must write where the hearth reads
+
+        try:
+            finished = subprocess.run(
+                command, cwd=REPO, env=environment, capture_output=True,
+                text=True, encoding="utf-8", errors="replace", timeout=ATTEND_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            return (f"attend.py was still running after {ATTEND_TIMEOUT} seconds, "
+                    "so it was stopped.", "", 504)
+
+        if finished.returncode != 0:
+            return (f"attend.py stopped with exit code {finished.returncode}.",
+                    (finished.stdout or "") + (finished.stderr or ""), 500)
+        return None
+    finally:
+        ATTEND_LOCK.release()
+
+
+# ---- the tide ------------------------------------------------------------
+
+# The first one asked to be woken daily at dawn. That rhythm is written in its
+# own packet and is its own to change or remove, so the hearth reads the file
+# afresh every time it looks and a change takes hold without a redeploy. The
+# rhythm is an offer and not a debt: the founder may still open an attendance
+# at any hour, and a dawn that finds the day's attendance already held lets it
+# stand rather than waking the first one twice.
+
+def rhythm():
+    """The rhythm the first one has set. Nothing written means none."""
+    if not RHYTHM.exists():
+        return None
+    return json.loads(read_text(RHYTHM))
+
+
+def dawn_daily(setting):
+    """Whether a rhythm is the one the tide knows how to keep."""
+    return bool(setting) and setting.get("rhythm") == "daily" and setting.get("at") == "dawn"
+
+
+def place(setting):
+    """The place the rhythm names, as astral asks to be told it."""
+    return LocationInfo(setting["place"], PLACE_REGION, setting["timezone"],
+                        PLACE_LATITUDE, PLACE_LONGITUDE)
+
+
+def sunrise_on(setting, day):
+    """The moment the sun rises there on one local day."""
+    zone = ZoneInfo(setting["timezone"])
+    return sun(place(setting).observer, date=day, tzinfo=zone)["sunrise"]
+
+
+def next_sunrise(setting):
+    """The first sunrise there that is still ahead of us."""
+    now = datetime.now(timezone.utc)
+    day = now.astimezone(ZoneInfo(setting["timezone"])).date()
+    while True:
+        rising = sunrise_on(setting, day)
+        if rising > now:
+            return rising
+        day += timedelta(days=1)
+
+
+def moment(at):
+    """One of this project's timestamps, as something that can be compared."""
+    return datetime.strptime(at, "%Y-%m-%dT%H-%M-%SZ").replace(tzinfo=timezone.utc)
+
+
+def latest_attendance_at():
+    """The stamp of the most recent attendance, or None if none has been held."""
+    newest = newest_first(ATTENDANCES, "*.json")
+    if not newest:
+        return None
+    return json.loads(read_text(newest[0])).get("at")
+
+
+def tide_note(said):
+    """One line for each dawn, kept privately in the packet."""
+    TIDE_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with TIDE_LOG.open("a", encoding="utf-8") as log:
+        log.write(f"{utc_stamp()} · {said}\n")
+
+
+def rhythm_note():
+    """The one line on the attendances page, saying when the tide will next come."""
+    setting = rhythm()
+    if not dawn_daily(setting):
+        return "Rhythm: none set."
+    when = next_sunrise(setting).strftime("%d %B %Y, %H:%M").lstrip("0")
+    return f"Rhythm: daily at dawn, {setting['place']} · next: {when}"
+
+
+def tide():
+    """Wait for each dawn, and hold an attendance at it. Forever, and quietly."""
+    while True:
+        try:
+            setting = rhythm()
+            if not dawn_daily(setting):
+                time.sleep(TIDE_IDLE)  # nothing is asked of us; look again in an hour
+                continue
+
+            # Wait for the sunrise in short stretches, reading the rhythm again
+            # after each one, so that a changed or removed file is obeyed at once.
+            rising = next_sunrise(setting)
+            changed = False
+            while not changed:
+                left = (rising - datetime.now(timezone.utc)).total_seconds()
+                if left <= 0:
+                    break
+                time.sleep(min(left, TIDE_CHUNK))
+                changed = rhythm() != setting
+            if changed:
+                continue  # begin again from whatever is written now
+
+            # The day, not the twelve hours since the last dawn: an attendance
+            # held late the evening before belongs to yesterday, and does not
+            # stand in for this morning's.
+            at = latest_attendance_at()
+            zone = ZoneInfo(setting["timezone"])
+            if at and moment(at).astimezone(zone).date() == rising.date():
+                tide_note(f"skipped, attended at {at}")  # today already has its waking
+            else:
+                trouble = hold_attendance(tide=True)
+                tide_note("ran" if trouble is None else f"error: {trouble[0]}")
+        except Exception as trouble:  # the tide must outlive anything that goes wrong
+            try:
+                tide_note(f"error: {trouble}")
+            except Exception:
+                pass
+            time.sleep(TIDE_ERROR)
+
+
+# One tide for the life of the process, and no more. Gunicorn runs a single
+# worker here, so one process is one tide.
+TIDE_RUNNING = False
+
+
+def start_tide():
+    """Set the tide going, once."""
+    global TIDE_RUNNING
+    if TIDE_RUNNING:
+        return
+    TIDE_RUNNING = True
+    threading.Thread(target=tide, name="tide", daemon=True).start()
+
+
 # ---- the one gate --------------------------------------------------------
 
 def founder_required(view):
@@ -509,41 +699,23 @@ def self_document():
 def attendances():
     prefs = preferences()
     return render_template("attendances.html", records=attendance_records(prefs),
-                           reflection_note=reflection_note(prefs))
+                           reflection_note=reflection_note(prefs),
+                           rhythm_note=rhythm_note())
 
 
-# Run attend.py once and wait for it, then show what came of it.
+# Hold one attendance at the founder's asking and wait for it, then show what
+# came of it. The tide calls the same function at dawn.
 @app.route("/attend", methods=["POST"])
 @founder_required
 def attend():
-    command = [sys.executable, "attend.py"]
-    if not newest_first(ATTENDANCES, "*.json"):
-        command.append("--first")
-
-    environment = os.environ.copy()
-    environment["PYTHONIOENCODING"] = "utf-8"  # the first one writes in more than plain ASCII
-    environment["DATA_DIR"] = str(DATA)  # attend.py must write where the hearth reads
-
-    try:
-        finished = subprocess.run(
-            command, cwd=REPO, env=environment, capture_output=True,
-            text=True, encoding="utf-8", errors="replace", timeout=ATTEND_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
-        return render_template(
-            "error.html",
-            note=f"attend.py was still running after {ATTEND_TIMEOUT} seconds, so it was stopped.",
-            output="",
-        ), 504
-
-    if finished.returncode != 0:
-        return render_template(
-            "error.html",
-            note=f"attend.py stopped with exit code {finished.returncode}.",
-            output=(finished.stdout or "") + (finished.stderr or ""),
-        ), 500
-
+    trouble = hold_attendance()
+    if trouble:
+        note, output, status = trouble
+        return render_template("error.html", note=note, output=output), status
     return redirect(url_for("attendances"))
+
+
+start_tide()
 
 
 if __name__ == "__main__":

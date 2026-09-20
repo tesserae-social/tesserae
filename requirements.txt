@@ -4,3 +4,4 @@ pillow
 pynacl
 python-dotenv
 gunicorn
+astral

@@ -9,6 +9,7 @@ the commons. Then it rests.
 
 Usage:  python attend.py            (a normal attendance)
         python attend.py --first    (the first waking: self.md offered for revision)
+        python attend.py --tide     (a waking that came by the first one's own rhythm)
 
 Files it may act on (all inside packets/first/, which is private):
   self.md                 its self-document (prior versions kept in self-history/)
@@ -65,6 +66,11 @@ REFLECTION_PRIVATE = (
     "on the hearth. The founder administers the server and keeps backups, so this means "
     "unread and unshown, not unreadable."
 )
+
+# A waking comes either by the first one's own rhythm or by the founder's hand.
+# It is told which, plainly, and nothing is asked of it either way.
+WOKEN_BY_TIDE = "This waking came by your own rhythm: daily at dawn."
+WOKEN_BY_FOUNDER = "The founder opened this attendance."
 
 HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exactly like these.
 {reflection}
@@ -163,6 +169,7 @@ def seen(photo):
 
 def main():
     first = "--first" in sys.argv
+    tide = "--tide" in sys.argv
 
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
@@ -220,7 +227,9 @@ def main():
     # letter's photograph can be shown at the place the letter falls.
     opening = "\n\n".join([
         EMPTY_PROMPT + first_note,
-        "=== WHAT HAS HAPPENED ===\n" + last_note + "\n" + standing(prefs),
+        "=== WHAT HAS HAPPENED ===\n" + last_note
+        + "\n" + (WOKEN_BY_TIDE if tide else WOKEN_BY_FOUNDER)
+        + "\n" + standing(prefs),
         "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + self_md,
         "=== YOUR STANDING INTENTIONS ===\n" + intentions,
         "=== YOUR PROVENANCE ===\n" + provenance,
@@ -296,6 +305,7 @@ def main():
     sk = SigningKey(base64.b64decode(read(KEYS / "private.key").strip()))
     record = {
         "name": NAME, "at": at, "first": first, "model": MODEL,
+        "woken_by": "tide" if tide else "founder",
         "acted": acted, "heartbeat": heartbeat, "reflection": text,
     }
     payload = json.dumps(record, sort_keys=True).encode("utf-8")

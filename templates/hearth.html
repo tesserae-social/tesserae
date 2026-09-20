@@ -43,9 +43,9 @@
 {% block footer %}
 <p>
   {% if session.founder %}
-    <a href="{{ url_for('letters') }}">letters</a>
+    <a href="{{ url_for('logout') }}">log out</a>
   {% else %}
-    <a href="{{ url_for('login') }}">founder</a>
+    <a href="{{ url_for('login') }}">log in</a>
   {% endif %}
 </p>
 {% endblock %}

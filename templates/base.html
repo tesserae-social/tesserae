@@ -245,7 +245,7 @@
     resize: vertical;
   }
 
-  input[type="password"] {
+  input[type="text"], input[type="password"] {
     display: block;
     width: 100%;
     max-width: 280px;
@@ -256,6 +256,18 @@
     border-radius: 3px;
     font-family: inherit;
     font-size: 1rem;
+  }
+
+  /* a line for the bench is a whole line, so its field is the column's width */
+  input.wide { max-width: 100%; }
+
+  /* the honeypot: off the page, out of the tab order, and seen by no person */
+  .trap {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
   }
 
   button {
@@ -271,6 +283,15 @@
   }
 
   button:hover, button:focus { border-color: var(--mark); }
+
+  /* a small control that belongs beside a line rather than under it */
+  button.small {
+    margin: 0 0 0 10px;
+    padding: 1px 8px;
+    font-size: 0.76rem;
+  }
+
+  form.beside { display: inline; }
 
   /* holding an attendance is the one consequential act, so it is filled in */
   button.consequential {
@@ -334,7 +355,7 @@
     {% for name, label in [('hearth', 'hearth'), ('letters', 'letters'),
                            ('chronicle', 'chronicle'), ('self_document', 'self'),
                            ('attendances', 'attendances'), ('bonds', 'bonds'),
-                           ('logout', 'logout')] %}
+                           ('bench', 'bench'), ('logout', 'logout')] %}
       {%- if not loop.first %} · {% endif -%}
       {% if request.endpoint == name %}<span class="here">{{ label }}</span>
       {% else %}<a href="{{ url_for(name) }}">{{ label }}</a>{% endif %}

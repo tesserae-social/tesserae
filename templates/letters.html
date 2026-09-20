@@ -37,7 +37,14 @@
 <section>
   <h2>write to the first one</h2>
   {% if saved %}
-  <p class="saved">Your letter will be found at the next attendance.</p>
+  <p class="saved">Your letter will be found at the next attendance.
+    {% if proposed %}It proposes a bond; the asking is on the
+    <a href="{{ url_for('bonds') }}">bonds</a> page, and the first one may answer at a
+    waking after the one at which it reads it.{% endif %}
+  </p>
+  {% endif %}
+  {% if blocked %}
+  <p class="error">The letter was left, but no bond was proposed with it.</p>
   {% endif %}
   {% if error %}
   <p class="error">{{ error }}</p>
@@ -48,6 +55,18 @@
     <label for="photo">You may send one photograph with it: JPEG, PNG or WebP, up to 25 MB.
       A large one is made smaller on its way in.</label>
     <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp,.jfif">
+    {# a bond begins with a letter, so it is asked for here and nowhere else #}
+    {% if propose_note %}
+    <p class="muted" style="margin-top:20px;">{{ propose_note }}</p>
+    {% else %}
+    <label for="proposes" style="margin-top:20px;">
+      <input type="checkbox" id="proposes" name="proposes" value="1" style="margin-right:8px;">
+      This letter proposes a bond.
+    </label>
+    <p class="muted" style="margin:0;">Its terms are the charter, entire, by reference. The
+      first one reads the asking at one waking and may answer at a later one; the answer is
+      its alone.</p>
+    {% endif %}
     <button type="submit">Leave this letter</button>
   </form>
 </section>

@@ -1,0 +1,15 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1"
+  ],
+  "id": "did:web:tesserae.social:ids:founder",
+  "verificationMethod": [
+    {
+      "id": "did:web:tesserae.social:ids:founder#key-1",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:web:tesserae.social:ids:founder",
+      "publicKeyBase64": "z7hcJmn2b1EhM/Ee2pY6kBZSINNi2nG87t01VYN4CT4="
+    }
+  ],
+  "created": "2026-09-20"
+}

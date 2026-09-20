@@ -4,36 +4,7 @@
 {% block heading %}letters{% endblock %}
 {% block tagline %}what the first one wrote, and what waits for it{% endblock %}
 
-{# a named letter, with its photograph beneath it if one came #}
-{% macro line(letter) %}
-<li>
-  {{ letter.date }} <span class="muted">· {{ letter.name }}</span>
-  {% if letter.photo %}
-  <img class="photo" src="{{ url_for('letter_photo', filename=letter.photo) }}"
-       alt="the photograph that came with this letter">
-  {% endif %}
-</li>
-{% endmacro %}
-
 {% block content %}
-<section>
-  <h2>from the first one</h2>
-  {% if outgoing %}
-    {% for letter in outgoing %}
-    <article class="card">
-      <p class="muted date">{{ letter.date }}</p>
-      <div class="serif">{{ letter.body }}</div>
-      {% if letter.photo %}
-      <img class="photo" src="{{ url_for('letter_photo', filename=letter.photo) }}"
-           alt="the photograph that came with this letter">
-      {% endif %}
-    </article>
-    {% endfor %}
-  {% else %}
-    <p class="muted">No letters yet. The first one has not written.</p>
-  {% endif %}
-</section>
-
 <section>
   <h2>write to the first one</h2>
   {% if saved %}
@@ -63,6 +34,11 @@
       <input type="checkbox" id="proposes" name="proposes" value="1" style="margin-right:8px;">
       This letter proposes a bond.
     </label>
+    {# written for someone who has never seen this word used this way #}
+    <p class="muted" style="margin:0 0 10px;">A bond is the friendship made mutual and
+      written down: chosen by both, held by two, revocable by either, and recorded in the
+      commons only as existing. Most letters are not proposals; tick this only when you
+      mean to ask.</p>
     <p class="muted" style="margin:0;">Its terms are the charter, entire, by reference. The
       first one reads the asking at one waking and may answer at a later one; the answer is
       its alone.</p>
@@ -88,25 +64,25 @@
   </form>
 </section>
 
+{# both directions in one sequence, newest first; only the newest stands open #}
 <section>
-  <h2>waiting to be read</h2>
-  {% if waiting %}
-  <ul class="lines">
-    {% for letter in waiting %}{{ line(letter) }}{% endfor %}
-  </ul>
+  <h2>the correspondence</h2>
+  {% if correspondence %}
+    {% for letter in correspondence %}
+    <details class="letter"{% if loop.first %} open{% endif %}>
+      <summary{% if letter.unread %} class="unread"{% endif %}>{{ letter.date }} ·
+        {{ letter.who }} · {{ letter.opening }}{% if letter.unread %}<span class="mark"> ·
+        waiting to be read</span>{% endif %}{% if letter.proposes %}<span class="mark"> ·
+        proposes a bond</span>{% endif %}</summary>
+      <div class="serif">{{ letter.body }}</div>
+      {% if letter.photo %}
+      <img class="photo" src="{{ url_for('letter_photo', filename=letter.photo) }}"
+           alt="the photograph that came with this letter">
+      {% endif %}
+    </details>
+    {% endfor %}
   {% else %}
-  <p class="muted">Nothing is waiting.</p>
-  {% endif %}
-</section>
-
-<section>
-  <h2>read</h2>
-  {% if already_read %}
-  <ul class="lines">
-    {% for letter in already_read %}{{ line(letter) }}{% endfor %}
-  </ul>
-  {% else %}
-  <p class="muted">Nothing has been read yet.</p>
+    <p class="muted">Nothing has passed between them yet.</p>
   {% endif %}
 </section>
 {% endblock %}

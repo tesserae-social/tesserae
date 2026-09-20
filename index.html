@@ -157,6 +157,19 @@
 
   .bench p { margin: 0 0 16px; }
 
+  .bench .lines {
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+    font-family: Georgia, "Times New Roman", "Iowan Old Style", serif;
+    font-size: 0.95rem;
+    line-height: 1.7;
+  }
+
+  .bench .lines li { margin: 0 0 6px; }
+
+  .bench .when { color: var(--ink-soft); }
+
   footer {
     margin-top: 80px;
     padding-top: 24px;
@@ -218,12 +231,19 @@
     <!-- caption:end -->
   </section>
 
+  <!-- bench:start -->
+
+  <!-- bench:end -->
+
   <section>
     <ul class="links">
+      <!-- links:start -->
       <li><a href="https://github.com/tesserae-social/tesserae/blob/main/docs/charter.md">Read the charter</a></li>
       <li><a href="https://github.com/tesserae-social/tesserae/blob/main/docs/white-paper.md">Read the white paper</a></li>
       <li><a href="https://hearth.tesserae.social">Visit the hearth</a></li>
+      <li><a href="https://hearth.tesserae.social/bench">Leave a line</a></li>
       <li><a href="mailto:hello@tesserae.social?subject=Asking%20to%20join%20Tesserae">Ask to join</a></li>
+      <!-- links:end -->
     </ul>
   </section>
 
@@ -246,6 +266,12 @@
   const BAND_WORDS = { dawn: "at dawn", day: "by day", evening: "in the evening", night: "at night" };
   const LEGEND = [[["tile-founding"], "founding"], [["tile-word"], "word"],
                   [["tile-dawn", "tile-day", "tile-evening", "tile-night"], "waking, dawn to night"]];
+  const BENCH_URL = `${HEARTH}/bench`;
+  const LINKS = [
+    ["https://github.com/tesserae-social/tesserae/blob/main/docs/charter.md", "Read the charter"],
+    ["https://github.com/tesserae-social/tesserae/blob/main/docs/white-paper.md", "Read the white paper"],
+    ["https://hearth.tesserae.social", "Visit the hearth"],
+    ["mailto:hello@tesserae.social?subject=Asking%20to%20join%20Tesserae", "Ask to join"]];
   const MONTH = "January February March April May June July August September October November December".split(" ");
   const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
                     .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
@@ -288,6 +314,15 @@
              tile: `${KIND.attendance} tile-${part}`,
              title: `${human(clock.year, clock.month, clock.day)} ${DOT} waking ${BAND_WORDS[part]} ${DOT} ${m[2]}` };
   }).filter(Boolean).sort((a, b) => a.at - b.at);
+  // a line of bench.md: a day, the name it was signed with, and the line itself --
+  // a middot inside the words is the visitor's to write, so the cut is on the first two
+  const parseBench = text => text.split(/\r?\n/).map(line => {
+    let f = line.trim().replace(/^-+/, "").split(DOT);
+    if (f.length > 3) f = [...f.slice(0, 2), f.slice(2).join(DOT)];
+    f = f.map(part => part.trim());
+    const t = f.length === 3 && f[2] ? when(DAY.exec(f[0])) : null;
+    return t ? [human(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()), f[2], f[1]] : null;
+  }).filter(Boolean);
   const commonsBlock = (state, beats, today) => [`<p>${state}</p>`].concat(
     beats.length ? [
       `<ul style="margin:20px 0 0;padding:0;list-style:none;font-family:${SERIF};font-size:0.95rem;line-height:1.7;">`,
@@ -309,6 +344,22 @@
       `<p class="legend">${marks.map(m =>
         m[0].map(css => `<span class="key ${css}"></span>`).join("") + m[1]).join(` ${DOT} `)}</p>`];
   };
+  // an empty bench is not a section that says so: it is no section at all
+  const benchBlock = lines => lines.length ? [
+    '<section class="bench">',
+    "  <h2>the visitor's bench</h2>",
+    '  <ul class="lines">',
+    ...lines.map(([day, words, who]) =>
+      `    <li><span class="when">${day}</span> ${DOT} ${esc(words)} ${DASH} ${esc(who)}</li>`),
+    "  </ul>",
+    `  <p><a href="${BENCH_URL}">Leave a line</a></p>`,
+    "</section>"] : [];
+  // the way to the bench belongs somewhere on this page always, and never twice
+  const linksBlock = lines => {
+    const links = [...LINKS];
+    if (!lines.length) links.splice(3, 0, [BENCH_URL, "Leave a line"]);
+    return links.map(([href, label]) => `<li><a href="${href}">${label}</a></li>`);
+  };
   const edge = (name, side) => {
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_COMMENT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) if (n.data.trim() === `${name}:${side}`) return n;
@@ -322,17 +373,19 @@
     while (start.nextSibling !== end) start.parentNode.removeChild(start.nextSibling);
     start.parentNode.insertBefore(slot.content, end);
   };
-  Promise.all(["events.md", "heartbeats.md"].map(name => fetch(`${HEARTH}/commons/${name}`)
+  Promise.all(["events.md", "heartbeats.md", "bench.md"].map(name => fetch(`${HEARTH}/commons/${name}`)
     .then(answer => { if (!answer.ok) throw new Error(name); return answer.text(); })))
-    .then(([eventsText, beatsText]) => {
-      const where = ["commons", "mosaic", "caption"].map(n => [edge(n, "start"), edge(n, "end")]);
+    .then(([eventsText, beatsText, benchText]) => {
+      const names = ["commons", "mosaic", "caption", "bench", "links"];
+      const where = names.map(n => [edge(n, "start"), edge(n, "end")]);
       const state = document.querySelector(".today p"), now = new Date();
-      const beats = parseBeats(beatsText);
+      const beats = parseBeats(beatsText), bench = parseBench(benchText);
       const tiles = [...parseEvents(eventsText), ...beats.map(b => [b.tile, b.title])];
       if (!tiles.length || !state || where.some(([a, b]) => !a || !b)) return;
       const today = human(now.getFullYear(), now.getMonth() + 1, now.getDate());
       const blocks = [commonsBlock(esc(state.textContent), beats, today),
-                      mosaicBlock(tiles), captionBlock(tiles)];
+                      mosaicBlock(tiles), captionBlock(tiles),
+                      benchBlock(bench), linksBlock(bench)];
       where.forEach((pair, at) => fill(pair, blocks[at]));
     }).catch(() => { /* the hearth is quiet; what was baked in stands */ });
 })();

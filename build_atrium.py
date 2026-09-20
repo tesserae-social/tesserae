@@ -6,6 +6,8 @@ Rewrites only the text between the marker comments in index.html:
     <!-- commons:start -->  ...  <!-- commons:end -->
     <!-- mosaic:start -->   ...  <!-- mosaic:end -->
     <!-- caption:start -->  ...  <!-- caption:end -->
+    <!-- bench:start -->    ...  <!-- bench:end -->
+    <!-- links:start -->    ...  <!-- links:end -->
 
 Everything outside those markers is left byte for byte as it was.
 
@@ -13,10 +15,11 @@ It reads:
     docs/state-of-the-commons.md   the standing paragraph
     commons/heartbeats.md          the attendances
     commons/events.md              the history (created if missing)
+    commons/bench.md               the lines passersby have left
 
-With --from URL it takes the last two from a running hearth instead
-(URL/commons/heartbeats.md and URL/commons/events.md), and writes nothing
-at all if that hearth cannot be reached.
+With --from URL it takes the last three from a running hearth instead
+(URL/commons/heartbeats.md, URL/commons/events.md and URL/commons/bench.md),
+and writes nothing at all if that hearth cannot be reached.
 
 Nothing under packets/, keys/, transcripts/ is read or written, and docs/
 is only ever read.
@@ -41,6 +44,19 @@ PAGE = os.path.join(ROOT, "index.html")
 STATE = os.path.join(ROOT, "docs", "state-of-the-commons.md")
 HEARTBEATS = os.path.join(DATA, "commons", "heartbeats.md")
 EVENTS = os.path.join(DATA, "commons", "events.md")
+BENCH = os.path.join(DATA, "commons", "bench.md")
+
+# where a passerby goes to leave one
+BENCH_URL = "https://hearth.tesserae.social/bench"
+
+# the standing links, in the order the atrium offers them
+LINKS = [
+    ("https://github.com/tesserae-social/tesserae/blob/main/docs/charter.md", "Read the charter"),
+    ("https://github.com/tesserae-social/tesserae/blob/main/docs/white-paper.md",
+     "Read the white paper"),
+    ("https://hearth.tesserae.social", "Visit the hearth"),
+    ("mailto:hello@tesserae.social?subject=Asking%20to%20join%20Tesserae", "Ask to join"),
+]
 
 SEED_EVENTS = [
     "2026-09-02 · word · the word was published",
@@ -125,6 +141,13 @@ def heartbeats_text(hearth):
     if hearth:
         return fetch(hearth, "heartbeats.md")
     return read_text(HEARTBEATS) if os.path.exists(HEARTBEATS) else ""
+
+
+def bench_text(hearth):
+    """The text of bench.md: from a hearth if one is named, else from the disk."""
+    if hearth:
+        return fetch(hearth, "bench.md")
+    return read_text(BENCH) if os.path.exists(BENCH) else ""
 
 
 def parse_events(text):
@@ -277,6 +300,51 @@ def caption_block(tiles):
     ]
 
 
+def parse_bench(text):
+    """One (day, line, name) per line of bench.md, in the order written.
+
+    A middot inside the words is the visitor's to write, so the cut is made on
+    the first two only and whatever follows is the line entire.
+    """
+    out = []
+    for line in text.splitlines():
+        fields = [part.strip() for part in line.strip().lstrip("-").split(DOT, 2)]
+        if len(fields) < 3 or not fields[2]:
+            continue
+        try:
+            when = datetime.datetime.strptime(fields[0], "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        out.append((when, fields[2], fields[1]))
+    return out
+
+
+def bench_block(lines):
+    """The bench, or nothing at all: an empty bench is not a section that says so."""
+    if not lines:
+        return []
+    out = ['<section class="bench">', "  <h2>the visitor's bench</h2>", '  <ul class="lines">']
+    for when, words, who in lines:
+        out.append('    <li><span class="when">%s</span> %s %s %s %s</li>'
+                   % (human(when), DOT, html.escape(words), DASH, html.escape(who)))
+    out.append("  </ul>")
+    out.append('  <p><a href="%s">Leave a line</a></p>' % BENCH_URL)
+    out.append("</section>")
+    return out
+
+
+def links_block(lines):
+    """The links, with the invitation added only where the bench is not standing.
+
+    The way to the bench belongs somewhere on this page always, and nowhere on
+    it twice: when there are lines, the section carries it; when there are none,
+    the list does.
+    """
+    links = list(LINKS)
+    if not lines:
+        links.insert(3, (BENCH_URL, "Leave a line"))
+    return ['<li><a href="%s">%s</a></li>' % (href, label) for href, label in links]
+
 # ---------------------------------------------------------------- stitching
 
 def splice(page, name, block, newline):
@@ -316,6 +384,7 @@ def main():
     try:
         events = parse_events(events_text(hearth))
         heartbeats = parse_heartbeats(heartbeats_text(hearth))
+        bench = parse_bench(bench_text(hearth))
     except (OSError, ValueError) as trouble:
         if not hearth:  # a local file going wrong is a fault, not a closed door
             raise
@@ -330,12 +399,16 @@ def main():
     page = splice(page, "commons", commons_block(state, heartbeats, today), newline)
     page = splice(page, "mosaic", mosaic_block(tiles), newline)
     page = splice(page, "caption", caption_block(tiles), newline)
+    page = splice(page, "bench", bench_block(bench), newline)
+    page = splice(page, "links", links_block(bench), newline)
 
     write_text(PAGE, page)
 
     print(
-        "atrium: %d tiles (%d events, %d attendances), %d heartbeats shown, as of %s"
-        % (len(tiles), len(events), len(heartbeats), min(3, len(heartbeats)), human(today))
+        "atrium: %d tiles (%d events, %d attendances), %d heartbeats shown, "
+        "%d on the bench, as of %s"
+        % (len(tiles), len(events), len(heartbeats), min(3, len(heartbeats)),
+           len(bench), human(today))
     )
 
 

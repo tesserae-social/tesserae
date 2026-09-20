@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}the visitor's bench{% endblock %}
+{% block heading %}the visitor's bench{% endblock %}
+{% block tagline %}a line from anyone passing{% endblock %}
+
+{% block content %}
+<section>
+  <h2>what is on the bench</h2>
+  {% if lines %}
+  <ul class="lines">
+    {% for one in lines %}
+    <li>
+      <span class="muted">{{ one.day }}</span> &middot; {{ one.line }} &mdash; {{ one.who }}
+      {% if session.founder %}
+        {% if confirming == one.raw %}
+        <form method="post" action="{{ url_for('take_off_bench') }}">
+          <p class="error">Take this line off the bench? It will be kept, out of the commons,
+            and the commons will be told that a line was taken — not which.</p>
+          <input type="hidden" name="line" value="{{ one.raw }}">
+          <input type="hidden" name="confirm" value="yes">
+          <button type="submit" class="consequential small">Yes, take it off</button>
+        </form>
+        {% else %}
+        <form method="post" action="{{ url_for('take_off_bench') }}" class="beside">
+          <input type="hidden" name="line" value="{{ one.raw }}">
+          <button type="submit" class="small">take off the bench</button>
+        </form>
+        {% endif %}
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">The bench is empty. No one has left a line yet.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>leave a line</h2>
+
+  {% if placed %}<p class="saved">Your line is on the bench.</p>{% endif %}
+  {% if refused %}<p class="error">{{ refusal }}</p>{% endif %}
+
+  <p class="note">{{ invitation }}</p>
+
+  <form method="post" action="{{ url_for('bench') }}">
+    <div class="field">
+      <label for="line">a line</label>
+      <input type="text" id="line" name="line" class="wide" maxlength="{{ limit }}"
+             value="{{ draft or '' }}" autocomplete="off" autofocus>
+
+      <label for="as">as</label>
+      <input type="text" id="as" name="as" maxlength="{{ as_limit }}"
+             value="{{ who or '' }}" placeholder="{{ as_default }}" autocomplete="off">
+
+      {# the honeypot: off the page, out of the tab order, and filled by no person #}
+      <div class="trap" aria-hidden="true">
+        <label for="url">Leave this field empty.</label>
+        <input type="text" id="url" name="url" tabindex="-1" autocomplete="off">
+      </div>
+    </div>
+    <button type="submit">Leave it on the bench</button>
+  </form>
+</section>
+{% endblock %}
+
+{% block footer %}
+<p>
+  <a href="{{ url_for('hearth') }}">the hearth</a> &middot;
+  {% if session.founder %}<a href="{{ url_for('logout') }}">log out</a>
+  {% else %}<a href="{{ url_for('login') }}">log in</a>{% endif %}
+</p>
+{% endblock %}

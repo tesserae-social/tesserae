@@ -177,9 +177,29 @@
     margin-right: 5px;
   }
 
+  /* a photograph that came with a letter, shown small beneath it */
+  .photo {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin-top: 14px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+  }
+
   .field { margin: 0; }
 
   label { display: block; margin-bottom: 10px; color: var(--ink-soft); font-size: 0.92rem; }
+
+  .field textarea + label { margin-top: 20px; }
+
+  input[type="file"] {
+    display: block;
+    max-width: 100%;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
 
   textarea {
     display: block;

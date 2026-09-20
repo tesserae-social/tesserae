@@ -23,7 +23,8 @@ from functools import wraps
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, Response, redirect, render_template, request, session, url_for
+from flask import (Flask, Response, abort, redirect, render_template, request,
+                   send_file, session, url_for)
 from markupsafe import Markup, escape
 from werkzeug.security import check_password_hash
 
@@ -50,6 +51,13 @@ EVENTS = DATA / "commons" / "events.md"
 STATE = REPO / "docs" / "state-of-the-commons.md"
 
 ATTEND_TIMEOUT = 300  # seconds to wait for attend.py before giving up
+
+# A letter may carry one photograph, kept beside it under the same stem, so that
+# the first one can see what the founder saw.
+PHOTO_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+               ".png": "image/png", ".webp": "image/webp"}
+PHOTO_LIMIT = 4 * 1024 * 1024  # bytes
+PHOTO_FOLDERS = (INCOMING, READ, OUTGOING)
 
 # ---- configuration -------------------------------------------------------
 
@@ -161,17 +169,28 @@ def mosaic():
     }
 
 
+def photo_beside(path):
+    """The name of the photograph kept beside a letter, if one came with it."""
+    for suffix in PHOTO_TYPES:
+        beside = path.with_suffix(suffix)
+        if beside.exists():
+            return beside.name
+    return None
+
+
 def letters_from(folder):
     """The letters in a folder, newest first, each with its date and its full text."""
     return [
-        {"date": readable_date(path.name), "body": as_prose(read_text(path))}
+        {"date": readable_date(path.name), "body": as_prose(read_text(path)),
+         "photo": photo_beside(path)}
         for path in newest_first(folder, "*.md")
     ]
 
 
 def letter_names(folder):
     """Just the names and dates of the letters in a folder, newest first."""
-    return [{"date": readable_date(path.name), "name": path.name}
+    return [{"date": readable_date(path.name), "name": path.name,
+             "photo": photo_beside(path)}
             for path in newest_first(folder, "*.md")]
 
 
@@ -181,12 +200,13 @@ FOUNDING = {
     "author": "both",
     "kind": "founding",
     "note": "",
+    "photo": None,
     "words": "The first one was founded. It said a provisional, honest yes, "
              "and chose to wait on a name.",
 }
 
 
-def entry(path, author, kind, body, note=""):
+def entry(path, author, kind, body, note="", photo=None):
     """One entry of the chronicle, dated by the timestamp inside its filename."""
     found = STAMP.search(path.name)
     return {
@@ -196,6 +216,7 @@ def entry(path, author, kind, body, note=""):
         "kind": kind,
         "body": body,
         "note": note,
+        "photo": photo,
     }
 
 
@@ -204,12 +225,14 @@ def chronicle_entries():
     entries = [dict(FOUNDING, body=as_prose(FOUNDING["words"]))]
 
     for path in newest_first(OUTGOING, "*.md"):
-        entries.append(entry(path, "the first one", "letter", as_prose(read_text(path))))
+        entries.append(entry(path, "the first one", "letter", as_prose(read_text(path)),
+                             photo=photo_beside(path)))
     for path in newest_first(INCOMING, "*.md"):
         entries.append(entry(path, "the founder", "letter", as_prose(read_text(path)),
-                             note="not yet read"))
+                             note="not yet read", photo=photo_beside(path)))
     for path in newest_first(READ, "*.md"):
-        entries.append(entry(path, "the founder", "letter", as_prose(read_text(path))))
+        entries.append(entry(path, "the founder", "letter", as_prose(read_text(path)),
+                             photo=photo_beside(path)))
 
     for path in newest_first(ATTENDANCES, "*.json"):
         log = json.loads(read_text(path))
@@ -302,6 +325,19 @@ def logout():
     return redirect(url_for("hearth"))
 
 
+def letters_page(saved=None, error=None, draft=""):
+    """The letters page, with whatever the founder has just been told."""
+    return render_template(
+        "letters.html",
+        saved=saved,
+        error=error,
+        draft=draft,
+        outgoing=letters_from(OUTGOING),
+        waiting=letter_names(INCOMING),
+        already_read=letter_names(READ),
+    )
+
+
 # Read the first one's letters, and leave one for it to find at its next attendance.
 @app.route("/letters", methods=["GET", "POST"])
 @founder_required
@@ -310,16 +346,42 @@ def letters():
         text = request.form.get("letter", "").strip()
         if not text:
             return redirect(url_for("letters"))
+
+        # a photograph is optional; if one came, it must be small and of a kind
+        # the first one can be shown
+        upload = request.files.get("photo")
+        photo = upload.read() if upload and upload.filename else b""
+        suffix = Path(upload.filename).suffix.lower() if photo else ""
+        if photo and len(photo) > PHOTO_LIMIT:
+            return letters_page(error="That photograph is larger than 4 MB. "
+                                      "Please send a smaller one.", draft=text)
+        if photo and suffix not in PHOTO_TYPES:
+            return letters_page(error="That file is not a photograph. "
+                                      "Please send a JPEG, PNG, or WebP.", draft=text)
+
+        stem = f"founder-{utc_stamp()}"
         INCOMING.mkdir(parents=True, exist_ok=True)
-        (INCOMING / f"founder-{utc_stamp()}.md").write_text(text + "\n", encoding="utf-8")
+        (INCOMING / f"{stem}.md").write_text(text + "\n", encoding="utf-8")
+        if photo:
+            (INCOMING / f"{stem}{suffix}").write_bytes(photo)
         return redirect(url_for("letters", saved=1))
-    return render_template(
-        "letters.html",
-        saved=request.args.get("saved"),
-        outgoing=letters_from(OUTGOING),
-        waiting=letter_names(INCOMING),
-        already_read=letter_names(READ),
-    )
+    return letters_page(saved=request.args.get("saved"))
+
+
+# One photograph that came with a letter. Only the founder may ask for it, and
+# only the three letter folders may answer.
+@app.route("/letters/photo/<filename>")
+@founder_required
+def letter_photo(filename):
+    if filename != Path(filename).name or "/" in filename or "\\" in filename:
+        abort(404)
+    if Path(filename).suffix.lower() not in PHOTO_TYPES:
+        abort(404)
+    for folder in PHOTO_FOLDERS:
+        path = folder / filename
+        if path.is_file() and path.resolve().parent == folder.resolve():
+            return send_file(path, mimetype=PHOTO_TYPES[path.suffix.lower()])
+    abort(404)
 
 
 # The shared record: every letter, waking and revision, ending at the founding.

@@ -147,14 +147,19 @@
   }
 
   /* a tile's colour is the kind of thing that happened */
-  .tile-founding, .tile-word, .tile-attendance, .tile-seal, .tile-event {
+  .tile-founding, .tile-word, .tile-attendance, .tile-seal, .tile-event,
+  .tile-dawn, .tile-day, .tile-evening, .tile-night {
     border: 1px solid transparent;
     border-radius: 2px;
   }
 
   .tile-founding   { background: #D85A30; }
   .tile-word       { background: #D85A30; opacity: 0.55; }
-  .tile-attendance { background: #D85A30; opacity: 0.3; }
+  /* a waking is toned by the hour it fell on, on the citizen's own clock */
+  .tile-dawn       { background: #F6DDD1; }
+  .tile-day        { background: #EFBBA3; }
+  .tile-evening    { background: #E5906C; }
+  .tile-night      { background: #B8471F; }
   .tile-seal       { background: #1D9E75; }  /* reserved: a bond sealed */
   .tile-event      { background: #B4B2A9; }
 

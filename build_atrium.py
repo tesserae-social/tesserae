@@ -29,6 +29,7 @@ import os
 import re
 import sys
 import urllib.request
+from zoneinfo import ZoneInfo
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -62,8 +63,21 @@ KIND_CLASS = {
     "event": "tile-event",
 }
 
-# What the legend says, and in what order. The seal is added only once one exists.
-LEGEND = [("founding", "founding"), ("word", "word"), ("attendance", "waking")]
+# What the legend says, and in what order: the marks shown, then the words. A waking
+# is four marks, dawn to night. The seal is added only once one exists.
+LEGEND = [
+    (["tile-founding"], "founding"),
+    (["tile-word"], "word"),
+    (["tile-dawn", "tile-day", "tile-evening", "tile-night"], "waking, dawn to night"),
+]
+
+# The citizen keeps one clock. The record is written in UTC; a waking is toned by
+# the hour it fell on where the citizen lives.
+CITIZEN_ZONE = "America/Indiana/Indianapolis"
+
+# The parts of a local day, and how a title names them.
+BAND_WORDS = {"dawn": "at dawn", "day": "by day",
+              "evening": "in the evening", "night": "at night"}
 
 SERIF = "Georgia,'Times New Roman','Iowan Old Style',serif"  # single quotes: it sits in an attribute
 
@@ -163,6 +177,22 @@ def human(when):
     return "%d %s %d" % (when.day, when.strftime("%B"), when.year)
 
 
+def here(when):
+    """A moment of the record, read on the citizen's own clock."""
+    return when.replace(tzinfo=datetime.timezone.utc).astimezone(ZoneInfo(CITIZEN_ZONE))
+
+
+def band(hour):
+    """Which part of the local day an hour falls in."""
+    if 4 <= hour <= 8:
+        return "dawn"
+    if 9 <= hour <= 15:
+        return "day"
+    if 16 <= hour <= 20:
+        return "evening"
+    return "night"
+
+
 def commons_block(state, heartbeats, today):
     out = ["<p>%s</p>" % html.escape(state)]
 
@@ -188,9 +218,19 @@ def commons_block(state, heartbeats, today):
 
 
 def tiles_from(events, heartbeats):
-    """One (class, words) tile per thing that happened: the history, then the wakings."""
+    """One (class, words) tile per thing that happened: the history, then the wakings.
+
+    A waking carries the part of the citizen's day it fell in twice over: in its
+    class, so the tile is toned by it, and in its words, so hovering says so.
+    """
     tiles = [(KIND_CLASS[kind], words) for _, kind, words in events]
-    tiles += [(KIND_CLASS["attendance"], words) for _, words in heartbeats]
+    for when, words in heartbeats:
+        clock = here(when)
+        part = band(clock.hour)
+        tiles.append((
+            "%s tile-%s" % (KIND_CLASS["attendance"], part),
+            "%s %s waking %s %s %s" % (human(clock.date()), DOT, BAND_WORDS[part], DOT, words),
+        ))
     return tiles
 
 
@@ -202,9 +242,9 @@ def padded(tiles):
 
 def legend_marks(tiles):
     """The kinds named under the mosaic: three always, and the seal once one exists."""
-    marks = [(KIND_CLASS[kind], label) for kind, label in LEGEND]
+    marks = list(LEGEND)
     if any(css == KIND_CLASS["seal"] for css, _ in tiles):
-        marks.append((KIND_CLASS["seal"], "seal"))
+        marks.append(([KIND_CLASS["seal"]], "seal"))
     return marks
 
 
@@ -228,7 +268,8 @@ def mosaic_block(tiles):
 
 def caption_block(tiles):
     keys = (" %s " % DOT).join(
-        '<span class="key %s"></span>%s' % (css, label) for css, label in legend_marks(tiles)
+        "".join('<span class="key %s"></span>' % css for css in marks) + label
+        for marks, label in legend_marks(tiles)
     )
     return [
         '<p class="caption">%s</p>' % html.escape(caption_text(len(tiles))),

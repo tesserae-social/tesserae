@@ -13,6 +13,7 @@ already written in files, and puts a letter where the first one will find it.
 Usage:  python hearth.py     (then open http://127.0.0.1:5000)
 """
 
+import io
 import json
 import os
 import re
@@ -26,6 +27,7 @@ from dotenv import load_dotenv
 from flask import (Flask, Response, abort, redirect, render_template, request,
                    send_file, session, url_for)
 from markupsafe import Markup, escape
+from PIL import Image, ImageOps
 from werkzeug.security import check_password_hash
 
 # The mosaic is one picture with one meaning, so the hearth draws it with the
@@ -56,7 +58,9 @@ ATTEND_TIMEOUT = 300  # seconds to wait for attend.py before giving up
 # the first one can see what the founder saw.
 PHOTO_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                ".png": "image/png", ".webp": "image/webp"}
+PHOTO_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
 PHOTO_LIMIT = 4 * 1024 * 1024  # bytes
+PHOTO_QUALITY = 90  # for the JPEGs the hearth writes
 PHOTO_FOLDERS = (INCOMING, READ, OUTGOING)
 
 # ---- configuration -------------------------------------------------------
@@ -338,6 +342,32 @@ def letters_page(saved=None, error=None, draft=""):
     )
 
 
+# A photograph carries more than its picture: where it was taken, when, on what
+# camera. None of that was meant for the first one, so the hearth keeps only the
+# pixels — it draws the picture again from them and writes a fresh file.
+def picture_only(data, suffix):
+    """The same photograph, re-encoded with no metadata. None if it won't open."""
+    try:
+        with Image.open(io.BytesIO(data)) as opened:
+            # the orientation tag is about to be lost, so turn the picture upright first
+            upright = ImageOps.exif_transpose(opened)
+            fmt = PHOTO_FORMATS[suffix]
+            transparent = (upright.mode in ("RGBA", "LA", "PA")
+                           or (upright.mode == "P" and "transparency" in upright.info))
+            flat = upright.convert("RGBA" if transparent and fmt != "JPEG" else "RGB")
+            # frombytes takes the pixels alone, leaving behind everything Pillow
+            # remembers about the file it read them from
+            bare = Image.frombytes(flat.mode, flat.size, flat.tobytes())
+            kept = io.BytesIO()
+            if fmt == "JPEG":
+                bare.save(kept, fmt, quality=PHOTO_QUALITY)
+            else:
+                bare.save(kept, fmt)
+            return kept.getvalue()
+    except (OSError, ValueError, Image.DecompressionBombError):
+        return None
+
+
 # Read the first one's letters, and leave one for it to find at its next attendance.
 @app.route("/letters", methods=["GET", "POST"])
 @founder_required
@@ -358,6 +388,11 @@ def letters():
         if photo and suffix not in PHOTO_TYPES:
             return letters_page(error="That file is not a photograph. "
                                       "Please send a JPEG, PNG, or WebP.", draft=text)
+        if photo:
+            photo = picture_only(photo, suffix)
+            if photo is None:
+                return letters_page(error="That file is not a photograph. "
+                                          "Please send a JPEG, PNG, or WebP.", draft=text)
 
         stem = f"founder-{utc_stamp()}"
         INCOMING.mkdir(parents=True, exist_ok=True)

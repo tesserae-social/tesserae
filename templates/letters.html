@@ -45,7 +45,8 @@
   <form method="post" class="field" enctype="multipart/form-data">
     <label for="letter">It will be read at the next attendance, then kept.</label>
     <textarea id="letter" name="letter">{{ draft }}</textarea>
-    <label for="photo">You may send one photograph with it: JPEG, PNG or WebP, up to 4 MB.</label>
+    <label for="photo">You may send one photograph with it: JPEG, PNG or WebP, up to 25 MB.
+      A large one is made smaller on its way in.</label>
     <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp">
     <button type="submit">Leave this letter</button>
   </form>

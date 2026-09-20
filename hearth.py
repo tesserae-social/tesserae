@@ -59,7 +59,8 @@ ATTEND_TIMEOUT = 300  # seconds to wait for attend.py before giving up
 PHOTO_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                ".png": "image/png", ".webp": "image/webp"}
 PHOTO_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
-PHOTO_LIMIT = 4 * 1024 * 1024  # bytes
+PHOTO_LIMIT = 25 * 1024 * 1024  # bytes: whole, a photograph as a phone takes it
+PHOTO_EDGE = 2048  # pixels: the longest side the hearth keeps
 PHOTO_QUALITY = 90  # for the JPEGs the hearth writes
 PHOTO_FOLDERS = (INCOMING, READ, OUTGOING)
 
@@ -78,6 +79,9 @@ if not HEARTH_SECRET or not FOUNDER_PASSWORD_HASH:
 
 app = Flask(__name__)
 app.secret_key = HEARTH_SECRET
+# Refuse anything far past the limit before reading it, so that one enormous
+# upload cannot fill the small machine's memory.
+app.config["MAX_CONTENT_LENGTH"] = PHOTO_LIMIT + 1024 * 1024
 
 
 # ---- small helpers -------------------------------------------------------
@@ -342,15 +346,27 @@ def letters_page(saved=None, error=None, draft=""):
     )
 
 
+def fitted(image):
+    """The same picture, no longer than PHOTO_EDGE on its longest side."""
+    if max(image.size) <= PHOTO_EDGE:
+        return image  # a small photograph is already the size it should be
+    return ImageOps.contain(image, (PHOTO_EDGE, PHOTO_EDGE), Image.LANCZOS)
+
+
 # A photograph carries more than its picture: where it was taken, when, on what
 # camera. None of that was meant for the first one, so the hearth keeps only the
-# pixels — it draws the picture again from them and writes a fresh file.
+# pixels — it draws the picture again from them and writes a fresh file. A phone
+# takes a far larger picture than anyone needs to look at, so it is made smaller
+# on the way in; what is kept is what a reader would see anyway.
 def picture_only(data, suffix):
-    """The same photograph, re-encoded with no metadata. None if it won't open."""
+    """The same photograph, made smaller and re-encoded with no metadata.
+
+    None if it won't open.
+    """
     try:
         with Image.open(io.BytesIO(data)) as opened:
             # the orientation tag is about to be lost, so turn the picture upright first
-            upright = ImageOps.exif_transpose(opened)
+            upright = fitted(ImageOps.exif_transpose(opened))
             fmt = PHOTO_FORMATS[suffix]
             transparent = (upright.mode in ("RGBA", "LA", "PA")
                            or (upright.mode == "P" and "transparency" in upright.info))
@@ -383,7 +399,7 @@ def letters():
         photo = upload.read() if upload and upload.filename else b""
         suffix = Path(upload.filename).suffix.lower() if photo else ""
         if photo and len(photo) > PHOTO_LIMIT:
-            return letters_page(error="That photograph is larger than 4 MB. "
+            return letters_page(error="That photograph is larger than 25 MB. "
                                       "Please send a smaller one.", draft=text)
         if photo and suffix not in PHOTO_TYPES:
             return letters_page(error="That file is not a photograph. "
@@ -417,6 +433,18 @@ def letter_photo(filename):
         if path.is_file() and path.resolve().parent == folder.resolve():
             return send_file(path, mimetype=PHOTO_TYPES[path.suffix.lower()])
     abort(404)
+
+
+# An upload too large to read at all never reaches the letters view, so the
+# refusal is said here instead - plainly, and only to the founder, since the
+# letters page itself is his alone.
+@app.errorhandler(413)
+def too_large(error):
+    if not session.get("founder"):
+        return render_template("error.html", note="That was too much to send.",
+                               output=""), 413
+    return letters_page(error="That photograph is larger than 25 MB. "
+                              "Please send a smaller one."), 413
 
 
 # The shared record: every letter, waking and revision, ending at the founding.

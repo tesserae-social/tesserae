@@ -7,3 +7,7 @@ keys
 transcripts
 commons
 __pycache__
+
+# The tests are the code's own, and are not part of what runs.
+tests
+.pytest_cache

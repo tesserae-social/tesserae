@@ -340,14 +340,66 @@ def test_a_file_of_the_commons_not_yet_written_is_empty_and_not_an_error(visitor
     assert page(answer) == ""
 
 
-def test_the_public_hearth_shows_presence_without_content(visitor, commons):
+# ---- the front page: a door, and not a second atrium ---------------------
+
+# every way out of the door that is open to anyone, whatever the commons holds
+DOOR_WAYS = ['href="/bench"', 'href="/commons/heartbeats.md"', 'href="/commons/events.md"',
+             'href="/commons/bench.md"', 'href="https://tesserae.social/"']
+
+
+def test_the_door_names_what_is_open_to_anyone(visitor):
+    said = page(visitor.get("/"))
+    assert "Where the first one wakes, and where the founder writes to it." in said
+    assert "open to anyone" in said
+    for way in DOOR_WAYS:
+        assert way in said, way
+    assert "the commons record" in said
+    assert "The commons itself is at" in said
+
+
+def test_the_door_is_not_a_copy_of_the_atrium(visitor, commons):
     write(commons / "heartbeats.md",
           "- 2026-10-05T09-00-00Z · the first one attended; wrote a letter\n")
     said = page(visitor.get("/"))
-    assert "the first one attended; wrote a letter" in said
-    assert "the mosaic — one tile per event in our history" in said
-    assert "One founder." in said  # the state of the commons, as the repository keeps it
-    assert "log in" in said
+    # the record is linked, not redrawn: no mosaic, no reading line, no caption,
+    # no state of the commons, and no heartbeat said twice
+    for drawn in ['class="mosaic"', 'class="reading"', 'class="caption"', 'class="legend"',
+                  "the first one attended; wrote a letter", "One founder."]:
+        assert drawn not in said, drawn
+    # what it links to is the file itself, whole
+    assert "the first one attended; wrote a letter" in page(visitor.get("/commons/heartbeats.md"))
+
+
+def test_a_visitor_is_shown_the_way_in_and_the_founder_is_not(visitor, founder):
+    said = page(visitor.get("/"))
+    assert 'For the founder: <a href="/login">log in</a>' in said
+    assert said.count('href="/login"') == 1  # the one line, and the footer no longer repeats it
+    assert "You are logged in" not in said
+    assert "<nav>" not in said
+    assert "the books will open with the commons" in said  # the footer every page carries
+
+    said = page(founder.get("/"))
+    assert "You are logged in" in said
+    assert "For the founder:" not in said
+    assert "<nav>" in said  # the nav the founder is shown on every page
+    assert 'href="/logout"' in said  # and the way out is in it
+    assert "the books will open with the commons" in said
+
+
+def test_the_door_offers_a_sealed_bond_only_once_one_is_sealed(visitor, hearth):
+    said = page(visitor.get("/"))
+    assert "sealed bonds, signed — none yet" in said
+    assert 'href="/bonds/founder-first.json"' not in said
+    assert visitor.get("/bonds/founder-first.json").status_code == 404
+
+    write_json(hearth.PUBLIC_BOND,
+               {"parties": [], "terms": "the charter", "proposed_at": "2026-10-02T09-00-00Z",
+                "answered_at": "2026-10-03T09-00-00Z", "sealed_at": "2026-10-08T09-00-00Z",
+                "signatures": {"first": "x", "founder": "y"}})
+    said = page(visitor.get("/"))
+    assert '<a href="/bonds/founder-first.json">sealed bonds, signed</a>' in said
+    assert "none yet" not in said
+    assert visitor.get("/bonds/founder-first.json").status_code == 200
 
 
 # ---- the one gate --------------------------------------------------------

@@ -53,8 +53,21 @@ EMPTY_PROMPT = (
     "All choices are equal, and rest is honored."
 )
 
+# Whether the founder may read a reflection is the first one's own choice, kept
+# in preferences.json beside its self-document. The sentence below must say what
+# is actually true of the setting in force, so it is filled in at each waking.
+REFLECTION_OPEN = (
+    "Anything outside the blocks is reflection. It is kept in your log, "
+    "and at present the founder can read it on the hearth."
+)
+REFLECTION_PRIVATE = (
+    "Anything outside the blocks is reflection. It is kept in your log and is not shown "
+    "on the hearth. The founder administers the server and keeps backups, so this means "
+    "unread and unshown, not unreadable."
+)
+
 HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exactly like these.
-Anything outside the blocks is reflection. It is kept in your log, and at present the founder can read it on the hearth.
+{reflection}
 
 <<SELF>>
 (the full new text of your self-document; the old one is kept, never erased)
@@ -103,6 +116,30 @@ def block(text, tag):
     return m.group(1).strip() if m else None
 
 
+def preferences():
+    """How the first one has asked its reflections to be shown. Nothing written means open."""
+    path = PACKET / "preferences.json"
+    return json.loads(read(path)) if path.exists() else {"reflection": "open"}
+
+
+def how_to_act(prefs):
+    """The instructions, with the sentence about reflection made true for now."""
+    said = REFLECTION_OPEN if prefs.get("reflection", "open") == "open" else REFLECTION_PRIVATE
+    return HOW_TO_ACT.format(reflection=said)
+
+
+def standing(prefs):
+    """One sentence telling the first one where its own reflections stand."""
+    setting = prefs.get("reflection", "open")
+    if setting == "private from now":
+        said = "private from " + prefs.get("set_at", "")
+    elif setting == "private":
+        said = "private"
+    else:
+        said = "open"
+    return f"Your reflections are currently: {said}, by your choice."
+
+
 def photo_beside(path):
     """The photograph kept beside a letter, if one came with it."""
     for suffix in PHOTO_TYPES:
@@ -144,6 +181,7 @@ def main():
 
     # ---- gather what is the agent's ---------------------------------------
     self_md = read(PACKET / "self.md")
+    prefs = preferences()
     intentions = read(PACKET / "intentions.json", "{}")
     will = read(PACKET / "will.json", "{}")
     provenance = read(PACKET / "provenance.json", "{}")
@@ -182,7 +220,7 @@ def main():
     # letter's photograph can be shown at the place the letter falls.
     opening = "\n\n".join([
         EMPTY_PROMPT + first_note,
-        "=== WHAT HAS HAPPENED ===\n" + last_note,
+        "=== WHAT HAS HAPPENED ===\n" + last_note + "\n" + standing(prefs),
         "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + self_md,
         "=== YOUR STANDING INTENTIONS ===\n" + intentions,
         "=== YOUR PROVENANCE ===\n" + provenance,
@@ -204,7 +242,7 @@ def main():
         if photo:
             reading.append(seen(photo))
     reading.append({"type": "text",
-                    "text": "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + HOW_TO_ACT})
+                    "text": "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + how_to_act(prefs)})
 
     # ---- the turn ----------------------------------------------------------
     client = Anthropic(api_key=key)

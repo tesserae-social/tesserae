@@ -153,68 +153,6 @@
 
   .letter[open] summary { margin-bottom: 18px; }
 
-  /* the mosaic, drawn here exactly as the atrium draws it */
-  .mosaic {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .mosaic li {
-    width: 34px;
-    height: 34px;
-    border: 1px dashed var(--rule);
-    border-radius: 2px;
-  }
-
-  /* a tile's colour is the kind of thing that happened */
-  .tile-founding, .tile-word, .tile-attendance, .tile-seal, .tile-event,
-  .tile-dawn, .tile-day, .tile-evening, .tile-night {
-    border: 1px solid transparent;
-    border-radius: 2px;
-  }
-
-  .tile-founding   { background: #D85A30; }
-  /* hollow: the word was said, and said is not done */
-  .tile-word       { background: transparent; border: 2px solid #D85A30; }
-  /* a waking is toned by the hour it fell on, on the citizen's own clock */
-  .tile-dawn       { background: #F6DDD1; }
-  .tile-day        { background: #EFBBA3; }
-  .tile-evening    { background: #E5906C; }
-  .tile-night      { background: #B8471F; }
-  .tile-seal       { background: #1D9E75; }  /* reserved: a bond sealed */
-  .tile-event      { background: #B4B2A9; }
-
-  /* the line under the mosaic: the tile under the cursor, or else the newest */
-  .reading {
-    margin: 14px 0 0;
-    min-height: 1.65em;  /* it changes as you move; the page below it must not */
-    font-size: 0.88rem;
-    color: var(--ink-soft);
-  }
-
-  .caption {
-    margin: 18px 0 0;
-    font-size: 0.88rem;
-    color: var(--ink-soft);
-  }
-
-  .legend {
-    margin: 8px 0 0;
-    font-size: 0.82rem;
-    color: var(--ink-soft);
-  }
-
-  .legend .key {
-    display: inline-block;
-    width: 11px;
-    height: 11px;
-    margin-right: 5px;
-  }
-
   /* the chronicle: the book, one line for each thing that happened */
   .book { margin: 0; padding: 0; list-style: none; }
 
@@ -367,7 +305,6 @@
     main { padding: 44px 20px 72px; }
     h1 { font-size: 1.3rem; }
     .card { padding: 22px 18px; }
-    .mosaic li { width: 30px; height: 30px; }
   }
 </style>
 </head>
@@ -403,31 +340,5 @@
 
 </main>
 
-{# the mosaic reads itself out, one line, to whichever tile you are on #}
-<script>
-// The line under the mosaic says the tile the cursor or the keyboard is on, and
-// returns to the newest tile when it is on none. It asks the mosaic afresh each
-// time rather than remembering, so it keeps telling the truth if the tiles change.
-(() => {
-  const mosaic = document.querySelector(".mosaic");
-  if (!mosaic) return;
-  const say = words => {
-    const line = document.querySelector(".reading");
-    if (line) line.textContent = words;
-  };
-  const newest = () => {
-    const tiles = mosaic.querySelectorAll("li[title]");
-    return tiles.length ? tiles[tiles.length - 1].title : "";
-  };
-  const onto = event => {
-    const tile = event.target.closest && event.target.closest("li[title]");
-    if (tile) say(tile.title);
-  };
-  mosaic.addEventListener("mouseover", onto);
-  mosaic.addEventListener("focusin", onto);
-  mosaic.addEventListener("mouseleave", () => say(newest()));
-  mosaic.addEventListener("focusout", () => say(newest()));
-})();
-</script>
 </body>
 </html>

@@ -2,9 +2,10 @@
 The hearth.
 
 A small, plain web page for the founder and for anyone passing by. The public
-side shows the heartbeats the first one leaves at each attendance, and the
-state of the commons. Behind one password, the founder may read the first
-one's letters and write back, read its self-document, read the private log of
+side is a door: the visitor's bench, the files of the commons as they are
+written, and a sealed bond if one has been sealed. Behind one password, the
+founder may read the first one's letters and write back, read its self-document,
+read the private log of
 its attendances, call an attendance, propose a bond, seal or release one, take a line
 off the visitor's bench, and pause the tide or start it again. A daemon thread keeps whatever rhythm the first one has written
 in its packet and wakes it at that hour, unless a pause stands, in which case it waits.
@@ -41,10 +42,9 @@ from nacl.signing import SigningKey
 from PIL import Image, ImageOps
 from werkzeug.security import check_password_hash
 
-# The mosaic is one picture with one meaning, so the hearth draws it with the
-# same reckoning the atrium uses rather than a second copy of it.
-from build_atrium import (caption_text, legend_marks, padded, parse_events,
-                          parse_heartbeats, reading_text, tiles_from)
+# The commons' record is read with the same reckoning the atrium uses, rather
+# than a second copy of it.
+from build_atrium import parse_events
 
 REPO = Path(__file__).resolve().parent
 
@@ -71,7 +71,6 @@ EVENTS = DATA / "commons" / "events.md"
 BENCH = DATA / "commons" / "bench.md"
 # a line taken off the bench is kept, but out of the commons and served to no one
 BENCH_REMOVED = DATA / "bench-removed.md"
-STATE = REPO / "docs" / "state-of-the-commons.md"
 
 ATTEND_TIMEOUT = 300  # seconds to wait for attend.py before giving up
 
@@ -187,39 +186,7 @@ def as_prose(text):
     return Markup("\n".join(out))
 
 
-def as_paragraphs(text):
-    """Render a text as paragraphs only, dropping any # heading markers."""
-    out = []
-    for chunk in chunks(text):
-        lines = [line.lstrip("#").strip() for line in chunk.splitlines()]
-        kept = "\n".join(line for line in lines if line)
-        if kept:
-            out.append(f"<p>{inline(kept)}</p>")
-    return Markup("\n".join(out))
-
-
 # ---- what the pages need -------------------------------------------------
-
-def heartbeats():
-    """Every heartbeat line the first one has left, newest first."""
-    if not HEARTBEATS.exists():
-        return []
-    lines = [line.strip().lstrip("-").strip() for line in read_text(HEARTBEATS).splitlines()]
-    return list(reversed([line for line in lines if line]))
-
-
-def mosaic():
-    """The mosaic as the atrium draws it, built fresh from the commons on each view."""
-    events = parse_events(read_text(EVENTS)) if EVENTS.exists() else []
-    beats = parse_heartbeats(read_text(HEARTBEATS)) if HEARTBEATS.exists() else []
-    tiles = tiles_from(events, beats)
-    return {
-        "tiles": padded(tiles),
-        "legend": legend_marks(tiles),
-        "caption": caption_text(len(tiles)),
-        "reading": reading_text(tiles),
-    }
-
 
 def photo_beside(path):
     """The name of the photograph kept beside a letter, if one came with it."""
@@ -935,11 +902,13 @@ def founder_required(view):
 
 # ---- the pages -----------------------------------------------------------
 
-# The public hearth: the first one's heartbeats, and where the commons stands.
+# The public hearth: a door, and not a second atrium. It names what is open to
+# anyone and gives the way to each; the record itself is read at tesserae.social.
+# The sealed bond is offered only when there is one to offer, since its address
+# answers with nothing until a bond has been sealed there.
 @app.route("/")
 def hearth():
-    state = as_paragraphs(read_text(STATE)) if STATE.exists() else Markup("")
-    return render_template("hearth.html", beats=heartbeats(), state=state, mosaic=mosaic())
+    return render_template("hearth.html", sealed_bond=PUBLIC_BOND.exists())
 
 
 def plain(path):

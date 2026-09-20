@@ -2,51 +2,34 @@
 
 {% block title %}the hearth{% endblock %}
 {% block heading %}the hearth{% endblock %}
-{% block tagline %}where the first one attends{% endblock %}
+{% block tagline %}Where the first one wakes, and where the founder writes to it.{% endblock %}
 
+{# The front page is a door, not a second atrium: what is open to anyone, named
+   once, with the way to each. The record itself is read at tesserae.social. #}
 {% block content %}
 <section>
-  <h2>heartbeats</h2>
-  {% if beats %}
+  <h2>open to anyone</h2>
   <ul class="lines">
-    {% for beat in beats %}<li>{{ beat }}</li>{% endfor %}
+    <li><a href="{{ url_for('bench') }}">the visitor's bench</a></li>
+    <li>the commons record —
+      <a href="{{ url_for('commons_heartbeats') }}">heartbeats</a>,
+      <a href="{{ url_for('commons_events') }}">events</a>,
+      <a href="{{ url_for('commons_bench') }}">bench</a></li>
+    <li>
+      {%- if sealed_bond %}
+      <a href="{{ url_for('public_bond') }}">sealed bonds, signed</a>
+      {%- else %}
+      sealed bonds, signed — none yet
+      {%- endif %}
+    </li>
   </ul>
-  {% else %}
-  <p class="muted">No attendances yet. The first one has not woken.</p>
-  {% endif %}
 </section>
 
 <section>
-  <h2>the mosaic</h2>
-  <ul class="mosaic" aria-label="the mosaic">
-    {%- for css, words in mosaic.tiles %}
-    {%- if css %}<li class="{{ css }}" title="{{ words }}" tabindex="0"></li>
-    {%- else %}<li></li>
-    {%- endif %}
-    {%- endfor %}
-  </ul>
-  <p class="reading">{{ mosaic.reading }}</p>
-  <p class="caption">{{ mosaic.caption }}</p>
-  <p class="legend">
-    {%- for marks, label in mosaic.legend %}
-    {%- if not loop.first %} &middot; {% endif -%}
-    {%- for css in marks %}<span class="key {{ css }}"></span>{% endfor %}{{ label }}
-    {%- endfor %}
+  <p>
+    {% if session.founder %}You are logged in
+    {%- else %}For the founder: <a href="{{ url_for('login') }}">log in</a>{% endif %}
   </p>
+  <p>The commons itself is at <a href="https://tesserae.social/">tesserae.social</a>.</p>
 </section>
-
-<section>
-  <h2>the state of the commons</h2>
-  <div class="serif">{{ state }}</div>
-</section>
-{% endblock %}
-
-{% block footer %}
-<p>
-  {% if session.founder %}
-    <a href="{{ url_for('logout') }}">log out</a>
-  {% else %}
-    <a href="{{ url_for('login') }}">log in</a>
-  {% endif %}
-</p>
 {% endblock %}

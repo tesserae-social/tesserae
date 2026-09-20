@@ -223,8 +223,8 @@
   {% if session.founder %}
   <nav>
     {% for name, label in [('hearth', 'hearth'), ('letters', 'letters'),
-                           ('self_document', 'self'), ('attendances', 'attendances'),
-                           ('logout', 'logout')] %}
+                           ('chronicle', 'chronicle'), ('self_document', 'self'),
+                           ('attendances', 'attendances'), ('logout', 'logout')] %}
       {%- if not loop.first %} · {% endif -%}
       {% if request.endpoint == name %}<span class="here">{{ label }}</span>
       {% else %}<a href="{{ url_for(name) }}">{{ label }}</a>{% endif %}

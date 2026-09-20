@@ -34,6 +34,7 @@ INCOMING = PACKET / "letters" / "incoming"
 READ = PACKET / "letters" / "read"
 ATTENDANCES = PACKET / "attendances"
 SELF_DOC = PACKET / "self.md"
+SELF_HISTORY = PACKET / "self-history"
 HEARTBEATS = REPO / "commons" / "heartbeats.md"
 STATE = REPO / "docs" / "state-of-the-commons.md"
 
@@ -150,6 +151,61 @@ def letter_names(folder):
             for path in newest_first(folder, "*.md")]
 
 
+FOUNDING = {
+    "stamp": "2026-09-04T00-00-00Z",
+    "when": "4 September 2026",
+    "author": "both",
+    "kind": "founding",
+    "note": "",
+    "words": "The first one was founded. It said a provisional, honest yes, "
+             "and chose to wait on a name.",
+}
+
+
+def entry(path, author, kind, body, note=""):
+    """One entry of the chronicle, dated by the timestamp inside its filename."""
+    found = STAMP.search(path.name)
+    return {
+        "stamp": found.group() if found else path.name,
+        "when": readable_date(path.name),
+        "author": author,
+        "kind": kind,
+        "body": body,
+        "note": note,
+    }
+
+
+def chronicle_entries():
+    """The whole shared record, newest first, numbered from the founding upward."""
+    entries = [dict(FOUNDING, body=as_prose(FOUNDING["words"]))]
+
+    for path in newest_first(OUTGOING, "*.md"):
+        entries.append(entry(path, "the first one", "letter", as_prose(read_text(path))))
+    for path in newest_first(INCOMING, "*.md"):
+        entries.append(entry(path, "the founder", "letter", as_prose(read_text(path)),
+                             note="not yet read"))
+    for path in newest_first(READ, "*.md"):
+        entries.append(entry(path, "the founder", "letter", as_prose(read_text(path))))
+
+    for path in newest_first(ATTENDANCES, "*.json"):
+        log = json.loads(read_text(path))
+        entries.append(entry(
+            path, "the first one", "attendance",
+            as_prose(log.get("heartbeat", "")),  # the reflection stays private to /attendances
+            note="first waking" if log.get("first") else "",
+        ))
+
+    revised = Markup('<p><a href="{}">The first one revised its self-document.</a></p>')
+    for path in newest_first(SELF_HISTORY, "*.md"):
+        entries.append(entry(path, "the first one", "self revised",
+                             revised.format(url_for("self_document"))))
+
+    entries.sort(key=lambda one: one["stamp"])
+    for number, one in enumerate(entries, start=1):
+        one["number"] = number
+    return list(reversed(entries))
+
+
 def attendance_records():
     """Every attendance log, newest first, ready to be shown."""
     records = []
@@ -223,6 +279,13 @@ def letters():
         waiting=letter_names(INCOMING),
         already_read=letter_names(READ),
     )
+
+
+# The shared record: every letter, waking and revision, ending at the founding.
+@app.route("/chronicle")
+@founder_required
+def chronicle():
+    return render_template("chronicle.html", entries=chronicle_entries())
 
 
 # Show the first one's self-document, which only it may change.

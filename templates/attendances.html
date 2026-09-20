@@ -35,7 +35,10 @@
 
   {% else %}
   <form method="post" action="{{ url_for('pause_tide') }}">
-    <p class="muted">Pausing stops the rhythm, not your hand.</p>
+    <p class="muted">Either of you may pause. If you pause here, the dawn waking stops until you
+      resume it, and you may still open an attendance by hand. If the first one pauses, it does so
+      at a waking and names its own return — a date, or the next letter — and until then nothing
+      wakes it; letters left for it wait.</p>
     <button type="submit">Pause the tide</button>
   </form>
   {% endif %}

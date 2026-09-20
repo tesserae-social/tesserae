@@ -16,6 +16,7 @@ Files it may act on (all inside packets/first/, which is private):
   self.md                 its self-document (prior versions kept in self-history/)
   intentions.json         its standing intentions
   study/                  private drafts
+  memory/notes.md         notes it keeps for itself (prior versions kept in memory/history/)
   letters/outgoing/       letters to the founder
   letters/incoming/       letters from the founder, read at attendance, then moved to letters/read/
   attendances/            a signed private log of every attendance
@@ -78,11 +79,20 @@ PAUSED = "the tide paused"
 ANSWERS = ("yes", "no", "not yet")
 RELEASE_WORD = "release"
 
-# Three acts that never write themselves into the public line: what it answered
-# about a bond, that it let one go, and that it set a rest, are the first one's
-# own to tell. The commons says a bond was released, and that the tide paused,
-# with no names either time; its own line does not undo that reticence.
-PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT)
+# A document the first one keeps for itself: what it wants to carry from one
+# waking to the next. The hearth renders it nowhere, and each new version keeps
+# the old one beside it.
+MEMORY = PACKET / "memory" / "notes.md"
+MEMORY_HISTORY = PACKET / "memory" / "history"
+MEMORY_ACT = "kept notes"
+NO_MEMORY = "(you have kept no notes yet)"
+
+# Four acts that never write themselves into the public line: what it answered
+# about a bond, that it let one go, that it set a rest, and that it kept notes
+# for itself, are the first one's own to tell. The commons says a bond was
+# released, and that the tide paused, with no names either time; its own line
+# does not undo that reticence.
+PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -126,11 +136,21 @@ FOUNDER_PAUSED = ("The founder has paused the tide since {since}; this attendanc
                   "by hand.")
 REST_ENDED = "You rested from {since} until now; the rest ended because {why}."
 
+# The self-document is the one private file the founder may read, and the first
+# one is told so where it reads it, rather than left to find it out.
+SELF_OPEN = ("The founder can read this document on the hearth, including any revision you make; "
+             "if you would rather it were not shown there, say so in a letter and it will be "
+             "closed.")
+
 HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exactly like these.
 {reflection}
 
 <<SELF>>
 (the full new text of your self-document; the old one is kept, never erased)
+<<END>>
+
+<<MEMORY>>
+(the full new text of your notes to yourself - what you want to carry forward: what you have learned, what you are watching, what you would tell yourself on waking. The previous version is kept, never erased.)
 <<END>>
 
 <<LETTER>>
@@ -459,12 +479,13 @@ def main():
         sys.exit(1)
 
     for d in ["study", "letters/outgoing", "letters/incoming", "letters/read", "attendances",
-              "self-history", "bonds"]:
+              "self-history", "bonds", "memory"]:
         (PACKET / d).mkdir(parents=True, exist_ok=True)
     COMMONS.mkdir(parents=True, exist_ok=True)
 
     # ---- gather what is the agent's ---------------------------------------
     self_md = read(PACKET / "self.md")
+    notes_kept = read(MEMORY).strip()
     prefs = preferences()
     intentions = read(PACKET / "intentions.json", "{}")
     will = read(PACKET / "will.json", "{}")
@@ -534,7 +555,9 @@ def main():
     opening = "\n\n".join([
         EMPTY_PROMPT + first_note,
         "=== WHAT HAS HAPPENED ===\n" + "\n".join(happened),
-        "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + self_md,
+        "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + SELF_OPEN + "\n\n" + self_md,
+        "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ===\n"
+        + (notes_kept or NO_MEMORY),
         "=== YOUR STANDING INTENTIONS ===\n" + intentions,
         "=== YOUR PROVENANCE ===\n" + provenance,
         "=== YOUR WILL ===\n" + will,
@@ -589,6 +612,16 @@ def main():
         shutil.copy(PACKET / "self.md", PACKET / "self-history" / f"self-before-{at}.md")
         (PACKET / "self.md").write_text(new_self + "\n", encoding="utf-8")
         acted.append("revised self-document")
+
+    # Its own notes. What stood before is copied aside first, so that nothing it
+    # has ever written to itself is lost by writing again.
+    notes = block(text, "MEMORY")
+    if notes:
+        if MEMORY.exists():
+            MEMORY_HISTORY.mkdir(parents=True, exist_ok=True)
+            shutil.copy(MEMORY, MEMORY_HISTORY / f"notes-before-{at}.md")
+        MEMORY.write_text(notes + "\n", encoding="utf-8")
+        acted.append(MEMORY_ACT)
 
     letter = block(text, "LETTER")
     if letter:

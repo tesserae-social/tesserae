@@ -30,10 +30,14 @@
     {% if propose_note %}
     <p class="muted" style="margin-top:20px;">{{ propose_note }}</p>
     {% else %}
+    {% if propose_wait %}
+    <p class="muted" style="margin-top:20px;">{{ propose_wait }}</p>
+    {% else %}
     <label for="proposes" style="margin-top:20px;">
       <input type="checkbox" id="proposes" name="proposes" value="1" style="margin-right:8px;">
       This letter proposes a bond.
     </label>
+    {% endif %}
     {# written for someone who has never seen this word used this way #}
     <p class="muted" style="margin:0 0 10px;">A bond is the friendship made mutual and
       written down: chosen by both, held by two, revocable by either, and recorded in the
@@ -69,7 +73,7 @@
   <h2>the correspondence</h2>
   {% if correspondence %}
     {% for letter in correspondence %}
-    <details class="letter"{% if loop.first %} open{% endif %}>
+    <details class="letter" id="{{ letter.stem }}"{% if loop.first %} open{% endif %}>
       <summary{% if letter.unread %} class="unread"{% endif %}>{{ letter.date }} ·
         {{ letter.who }} · {{ letter.opening }}{% if letter.unread %}<span class="mark"> ·
         waiting to be read</span>{% endif %}{% if letter.proposes %}<span class="mark"> ·
@@ -85,4 +89,21 @@
     <p class="muted">Nothing has passed between them yet.</p>
   {% endif %}
 </section>
+
+<script>
+// A line in the chronicle names one letter: /letters#<its stem>. Arriving that
+// way opens that letter and brings it into view, on arrival and on any later
+// change of the hash, so a second click on a second line works as the first did.
+(() => {
+  const open = () => {
+    const wanted = decodeURIComponent(location.hash.slice(1));
+    const letter = wanted && document.getElementById(wanted);
+    if (!letter || letter.tagName !== "DETAILS") return;
+    letter.open = true;
+    letter.scrollIntoView();
+  };
+  open();
+  window.addEventListener("hashchange", open);
+})();
+</script>
 {% endblock %}

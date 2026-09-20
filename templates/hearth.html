@@ -20,11 +20,12 @@
   <h2>the mosaic</h2>
   <ul class="mosaic" aria-label="the mosaic">
     {%- for css, words in mosaic.tiles %}
-    {%- if css %}<li class="{{ css }}" title="{{ words }}"></li>
+    {%- if css %}<li class="{{ css }}" title="{{ words }}" tabindex="0"></li>
     {%- else %}<li></li>
     {%- endif %}
     {%- endfor %}
   </ul>
+  <p class="reading">{{ mosaic.reading }}</p>
   <p class="caption">{{ mosaic.caption }}</p>
   <p class="legend">
     {%- for marks, label in mosaic.legend %}

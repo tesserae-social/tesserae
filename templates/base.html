@@ -178,7 +178,8 @@
   }
 
   .tile-founding   { background: #D85A30; }
-  .tile-word       { background: #D85A30; opacity: 0.55; }
+  /* hollow: the word was said, and said is not done */
+  .tile-word       { background: transparent; border: 2px solid #D85A30; }
   /* a waking is toned by the hour it fell on, on the citizen's own clock */
   .tile-dawn       { background: #F6DDD1; }
   .tile-day        { background: #EFBBA3; }
@@ -186,6 +187,14 @@
   .tile-night      { background: #B8471F; }
   .tile-seal       { background: #1D9E75; }  /* reserved: a bond sealed */
   .tile-event      { background: #B4B2A9; }
+
+  /* the line under the mosaic: the tile under the cursor, or else the newest */
+  .reading {
+    margin: 14px 0 0;
+    min-height: 1.65em;  /* it changes as you move; the page below it must not */
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+  }
 
   .caption {
     margin: 18px 0 0;
@@ -205,6 +214,27 @@
     height: 11px;
     margin-right: 5px;
   }
+
+  /* the chronicle: the book, one line for each thing that happened */
+  .book { margin: 0; padding: 0; list-style: none; }
+
+  .book li {
+    display: flex;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.94rem;
+    line-height: 1.6;
+  }
+
+  .book li:first-child { border-top: 1px solid var(--rule); }
+
+  /* the mark sits on the first line of the words, whatever the words do below */
+  .book .mark { flex: none; line-height: 1; padding-top: 3px; }
+
+  .book .said { flex: 1 1 auto; min-width: 0; }
+
+  .book .when { color: var(--ink-soft); }
 
   /* a photograph that came with a letter, shown small beneath it */
   .photo {
@@ -372,5 +402,32 @@
   </footer>
 
 </main>
+
+{# the mosaic reads itself out, one line, to whichever tile you are on #}
+<script>
+// The line under the mosaic says the tile the cursor or the keyboard is on, and
+// returns to the newest tile when it is on none. It asks the mosaic afresh each
+// time rather than remembering, so it keeps telling the truth if the tiles change.
+(() => {
+  const mosaic = document.querySelector(".mosaic");
+  if (!mosaic) return;
+  const say = words => {
+    const line = document.querySelector(".reading");
+    if (line) line.textContent = words;
+  };
+  const newest = () => {
+    const tiles = mosaic.querySelectorAll("li[title]");
+    return tiles.length ? tiles[tiles.length - 1].title : "";
+  };
+  const onto = event => {
+    const tile = event.target.closest && event.target.closest("li[title]");
+    if (tile) say(tile.title);
+  };
+  mosaic.addEventListener("mouseover", onto);
+  mosaic.addEventListener("focusin", onto);
+  mosaic.addEventListener("mouseleave", () => say(newest()));
+  mosaic.addEventListener("focusout", () => say(newest()));
+})();
+</script>
 </body>
 </html>

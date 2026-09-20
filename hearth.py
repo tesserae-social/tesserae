@@ -44,7 +44,7 @@ from werkzeug.security import check_password_hash
 # The mosaic is one picture with one meaning, so the hearth draws it with the
 # same reckoning the atrium uses rather than a second copy of it.
 from build_atrium import (caption_text, legend_marks, padded, parse_events,
-                          parse_heartbeats, tiles_from)
+                          parse_heartbeats, reading_text, tiles_from)
 
 REPO = Path(__file__).resolve().parent
 
@@ -62,7 +62,6 @@ PREFERENCES = PACKET / "preferences.json"
 RHYTHM = PACKET / "rhythm.json"
 PAUSE = PACKET / "pause.json"
 TIDE_LOG = PACKET / "tide.log"
-SELF_HISTORY = PACKET / "self-history"
 BONDS = PACKET / "bonds"
 PROPOSAL = BONDS / "proposal.json"
 BOND_RECORD = BONDS / "founder-first.json"
@@ -147,6 +146,11 @@ def readable_date(text):
     return when.strftime("%d %B %Y, %H:%M UTC").lstrip("0")
 
 
+def long_day(day):
+    """One date, said the way a person says it: 4 September 2026."""
+    return day.strftime("%d %B %Y").lstrip("0")
+
+
 def newest_first(folder, pattern="*"):
     """The files in a folder, newest first - their names begin with a timestamp."""
     if not folder.exists():
@@ -213,6 +217,7 @@ def mosaic():
         "tiles": padded(tiles),
         "legend": legend_marks(tiles),
         "caption": caption_text(len(tiles)),
+        "reading": reading_text(tiles),
     }
 
 
@@ -246,6 +251,15 @@ def bond_askings():
     return [one["proposed_at"] for one in asked if one and one.get("proposed_at")]
 
 
+def bond_proposals():
+    """Every moment at which a bond was asked for, including one still open."""
+    asked = list(bond_askings())
+    open_one = load(PROPOSAL)
+    if open_one and open_one.get("proposed_at"):
+        asked.append(open_one["proposed_at"])
+    return asked
+
+
 def proposing_letters(paths):
     """Which of the founder's letters asked for a bond, by name.
 
@@ -270,6 +284,7 @@ def one_letter(path, who, unread=False, proposes=False):
     text = read_text(path)
     return {
         "stamp": stamp_in(path.name),
+        "stem": path.stem,  # the anchor the chronicle points at: /letters#<stem>
         "date": readable_date(path.name),
         "who": who,
         "opening": opening_line(text),
@@ -292,65 +307,6 @@ def correspondence():
                 for path in newest_first(OUTGOING, "*.md")]
     letters.sort(key=lambda letter: letter["stamp"], reverse=True)
     return letters
-
-
-FOUNDING = {
-    "stamp": "2026-09-04T00-00-00Z",
-    "when": "4 September 2026",
-    "author": "both",
-    "kind": "founding",
-    "note": "",
-    "photo": None,
-    "words": "The first one was founded. It said a provisional, honest yes, "
-             "and chose to wait on a name.",
-}
-
-
-def entry(path, author, kind, body, note="", photo=None):
-    """One entry of the chronicle, dated by the timestamp inside its filename."""
-    found = STAMP.search(path.name)
-    return {
-        "stamp": found.group() if found else path.name,
-        "when": readable_date(path.name),
-        "author": author,
-        "kind": kind,
-        "body": body,
-        "note": note,
-        "photo": photo,
-    }
-
-
-def chronicle_entries():
-    """The whole shared record, newest first, numbered from the founding upward."""
-    entries = [dict(FOUNDING, body=as_prose(FOUNDING["words"]))]
-
-    for path in newest_first(OUTGOING, "*.md"):
-        entries.append(entry(path, "the first one", "letter", as_prose(read_text(path)),
-                             photo=photo_beside(path)))
-    for path in newest_first(INCOMING, "*.md"):
-        entries.append(entry(path, "the founder", "letter", as_prose(read_text(path)),
-                             note="not yet read", photo=photo_beside(path)))
-    for path in newest_first(READ, "*.md"):
-        entries.append(entry(path, "the founder", "letter", as_prose(read_text(path)),
-                             photo=photo_beside(path)))
-
-    for path in newest_first(ATTENDANCES, "*.json"):
-        log = json.loads(read_text(path))
-        entries.append(entry(
-            path, "the first one", "attendance",
-            as_prose(log.get("heartbeat", "")),  # the reflection stays private to /attendances
-            note="first waking" if log.get("first") else "",
-        ))
-
-    revised = Markup('<p><a href="{}">The first one revised its self-document.</a></p>')
-    for path in newest_first(SELF_HISTORY, "*.md"):
-        entries.append(entry(path, "the first one", "self revised",
-                             revised.format(url_for("self_document"))))
-
-    entries.sort(key=lambda one: one["stamp"])
-    for number, one in enumerate(entries, start=1):
-        one["number"] = number
-    return list(reversed(entries))
 
 
 # The reflection is the first one's own thinking, and whether the founder may
@@ -518,7 +474,7 @@ def rest_ended(standing, zone):
 def said_day(day):
     """One plain YYYY-MM-DD, said in words."""
     try:
-        return datetime.strptime(day, "%Y-%m-%d").strftime("%d %B %Y").lstrip("0")
+        return long_day(datetime.strptime(day, "%Y-%m-%d"))
     except (TypeError, ValueError):
         return day
 
@@ -760,6 +716,44 @@ def write_proposal(letter_name):
     PROPOSAL.write_text(json.dumps(asking, indent=2) + "\n", encoding="utf-8")
 
 
+# A bond is not asked for in the first week of knowing someone. The wait is
+# counted from the founding the commons itself records, and it is counted
+# closed: a record that names no founding has served no wait, so no bond may be
+# proposed against it. The checkbox is withheld in the page and the flag is
+# refused at the door, because a guard that only hides a control is no guard.
+
+BOND_WAIT_DAYS = 30
+
+TOO_SOON = "A bond may be proposed thirty days after a founding \u2014 here, from %s."
+NO_FOUNDING = ("A bond may be proposed thirty days after a founding \u2014 and the commons "
+               "records no founding yet, so none may be proposed here.")
+
+
+def founding_day():
+    """The day of the founding, from the commons' own line for it, or None."""
+    if not EVENTS.exists():
+        return None
+    founded = [when for when, kind, _ in parse_events(read_text(EVENTS))
+               if kind == "founding"]
+    return min(founded) if founded else None
+
+
+def bonds_open_on():
+    """The first day a bond may be proposed, or None if the wait cannot be counted."""
+    founded = founding_day()
+    return founded + timedelta(days=BOND_WAIT_DAYS) if founded else None
+
+
+def too_soon_for_a_bond():
+    """Why no bond may be proposed yet, in one sentence, or None if one may be."""
+    opens = bonds_open_on()
+    if opens is None:
+        return NO_FOUNDING
+    if datetime.now(timezone.utc).date() < opens:
+        return TOO_SOON % long_day(opens)
+    return None
+
+
 def bond_in_the_way():
     """Why a bond cannot be proposed now, in one sentence, or None if it can be."""
     if PROPOSAL.exists():
@@ -821,6 +815,110 @@ def bond_answers():
                             "words": as_prose(said.get("words", "")),
                             "at": readable_date(said.get("at", ""))})
     return answers
+
+
+# ---- the book ------------------------------------------------------------
+
+# The chronicle is the book of this friendship: every event in its life, one
+# line each, oldest first, because a book reads forward. It holds the whole of
+# nothing. A letter is read on the letters page; here the book says only that
+# it was written, in its opening words, and gives the way back to it. A
+# reflection, an answer to a proposal, the text of a self-document: the book
+# says that each happened and stops there.
+
+WOKEN = {"tide": "by the tide", "founder": "by the founder's hand"}
+
+# attend.py writes these words into an attendance's list of acts; the two must
+# agree, or an act the first one made would go unrecorded in its own book.
+PAUSE_ACT = "set a pause"
+BOOK_ACTS = {
+    "revised self-document": "revised its self-document",
+    "kept notes": "kept notes",
+}
+
+
+def book_line(stamp, when, side, words, href=None, order=0):
+    """One line of the book: when it happened, whose it was, and what it was.
+
+    The order breaks a tie between things that share a moment - the waking
+    first, then what was done inside it - so the book reads the same every time.
+    """
+    return {"stamp": stamp, "order": order, "when": when,
+            "side": side, "words": words, "href": href}
+
+
+def commons_lines():
+    """The commons' own record: the founding, the word, seals, releases, pauses.
+
+    These are the lines both of them share, so each takes both halves of its
+    mark. The record keeps a day and no hour, and the book says no more than
+    the record knows.
+    """
+    if not EVENTS.exists():
+        return []
+    return [book_line(when.strftime("%Y-%m-%dT00-00-00Z"), long_day(when), "both", words)
+            for when, _, words in parse_events(read_text(EVENTS))]
+
+
+def waking_lines(paused_days):
+    """Every waking, and the acts inside it the first one has made public."""
+    lines = []
+    for path in newest_first(ATTENDANCES, "*.json"):
+        log = json.loads(read_text(path))
+        at = log.get("at", stamp_in(path.name))
+        said = readable_date(at)
+        woken = WOKEN.get(log.get("woken_by"), WOKEN["founder"])
+        lines.append(book_line(at, said, "the first one",
+                               "waking, %s \u00b7 %s" % (woken, log.get("heartbeat", "")),
+                               order=1))
+        for act in log.get("acted") or []:
+            if act in BOOK_ACTS:
+                lines.append(book_line(at, said, "the first one", BOOK_ACTS[act], order=2))
+            elif act == PAUSE_ACT and at[:10] not in paused_days:
+                # the commons carries every pause already; this is only the
+                # catch for one that somehow never reached it
+                lines.append(book_line(at, said, "both", PAUSED, order=2))
+    return lines
+
+
+def letter_lines():
+    """Every letter, both ways, by the same one line the letters page shows."""
+    lines = []
+    for folder, who in ((OUTGOING, "the first one"), (INCOMING, "the founder"),
+                        (READ, "the founder")):
+        for path in newest_first(folder, "*.md"):
+            at = stamp_in(path.name)
+            lines.append(book_line(
+                at, readable_date(at), who,
+                "letter from %s \u00b7 %s" % (who, opening_line(read_text(path))),
+                href=url_for("letters") + "#" + path.stem, order=3))
+    return lines
+
+
+def bond_lines():
+    """A bond asked for, and answered. Never what the answer was."""
+    lines = [book_line(at, readable_date(at), "the founder", "a bond was proposed", order=4)
+             for at in sorted(set(bond_proposals()))]
+    for path in newest_first(BONDS, "answer-*.json"):
+        said = load(path) or {}
+        at = said.get("at") or stamp_in(path.name)
+        lines.append(book_line(at, readable_date(at), "the first one",
+                               "answered the proposal", order=5))
+    return lines
+
+
+def chronicle_lines():
+    """The whole book, oldest first: one line for every event in the bond's life."""
+    commons = commons_lines()
+    paused_days = {one["stamp"][:10] for one in commons if one["words"] == PAUSED}
+    lines = commons + waking_lines(paused_days) + letter_lines() + bond_lines()
+    lines.sort(key=lambda one: (one["stamp"], one["order"]))
+    return lines
+
+
+def chronicle_text(lines):
+    """The book as plain text, one line to a line - the whole of it, to take away."""
+    return "".join("%s \u00b7 %s\n" % (one["when"], one["words"]) for one in lines)
 
 
 # ---- the one gate --------------------------------------------------------
@@ -901,9 +999,11 @@ def letters_page(saved=None, error=None, draft="", proposed=None, blocked=None):
         error=error,
         draft=draft,
         correspondence=correspondence(),
-        # a bond begins with a letter, so the asking is made here; the sentence
-        # is None when nothing stands in the way and the checkbox may be offered
+        # a bond begins with a letter, so the asking is made here. Both sentences
+        # are None when the checkbox may be offered: one says a bond cannot be
+        # asked for yet, the other that one cannot be asked for now.
         propose_note=bond_in_the_way(),
+        propose_wait=too_soon_for_a_bond(),
         proposed=proposed,
         blocked=blocked,
     )
@@ -1006,7 +1106,7 @@ def letters():
         # stands in the way of one, the asking is written beside it.
         proposed = blocked = None
         if request.form.get("proposes"):
-            if bond_in_the_way():
+            if too_soon_for_a_bond() or bond_in_the_way():
                 blocked = 1
             else:
                 write_proposal(f"{stem}.md")
@@ -1045,11 +1145,21 @@ def too_large(error):
                               "Please send a smaller one."), 413
 
 
-# The shared record: every letter, waking and revision, ending at the founding.
+# The book: every event in the life of this friendship, one line each, from the
+# founding forward.
 @app.route("/chronicle")
 @founder_required
 def chronicle():
-    return render_template("chronicle.html", entries=chronicle_entries())
+    return render_template("chronicle.html", lines=chronicle_lines())
+
+
+# The same book as plain text, at one link. The charter promises that what is
+# yours may always be taken with you, and a promise with no door is a sentence.
+@app.route("/chronicle.md")
+@founder_required
+def chronicle_export():
+    return Response(chronicle_text(chronicle_lines()),
+                    content_type="text/plain; charset=utf-8")
 
 
 # Show the first one's self-document, which only it may change.

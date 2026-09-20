@@ -2,45 +2,39 @@
 
 {% block title %}chronicle{% endblock %}
 {% block heading %}chronicle{% endblock %}
-{% block tagline %}the shared record, newest first, the founding at the foot{% endblock %}
+{% block tagline %}the book: one line for each thing that happened, oldest first{% endblock %}
 
-{# one tile per voice: the first one takes the left half, the founder the right #}
-{% macro half_tile(author) %}
+{# one tile per side: the first one takes the left half, the founder the right,
+   and what belongs to both of them takes the whole #}
+{% macro half_tile(side) %}
 <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-  {% if author in ['the first one', 'both'] %}
+  {% if side in ['the first one', 'both'] %}
   <rect x="0" y="0" width="8" height="16" fill="#D85A30" opacity="0.85"></rect>
   {% endif %}
-  {% if author in ['the founder', 'both'] %}
+  {% if side in ['the founder', 'both'] %}
   <rect x="8" y="0" width="8" height="16" fill="#D85A30" opacity="0.4"></rect>
   {% endif %}
 </svg>
 {% endmacro %}
 
 {% block content %}
-<style>
-  .entry { display: flex; gap: 16px; padding: 26px 0; border-bottom: 1px solid var(--rule); }
-  .entry:first-of-type { border-top: 1px solid var(--rule); }
-  .entry .mark { flex: 0 0 14px; padding-top: 6px; }
-  .entry .said { flex: 1 1 auto; min-width: 0; }
-  .entry .about { margin: 12px 0 0; }
-</style>
-
 <section>
-  {% for entry in entries %}
-  <article class="entry">
-    <div class="mark">{{ half_tile(entry.author) }}</div>
-    <div class="said">
-      <div class="serif">{{ entry.body }}</div>
-      {% if entry.photo %}
-      <img class="photo" src="{{ url_for('letter_photo', filename=entry.photo) }}"
-           alt="the photograph that came with this letter">
-      {% endif %}
-      <p class="muted about">
-        {{ entry.author }} · {{ entry.kind }} · {{ entry.when }}
-        {%- if entry.note %} · {{ entry.note }}{% endif %} · entry {{ entry.number }}
-      </p>
-    </div>
-  </article>
-  {% endfor %}
+  <p class="note"><a href="{{ url_for('chronicle_export') }}">export the chronicle</a> —
+    the whole book as plain text, yours to take at any time.</p>
+
+  {% if lines %}
+  <ul class="book">
+    {% for line in lines %}
+    <li>
+      <span class="mark">{{ half_tile(line.side) }}</span>
+      <span class="said"><span class="when">{{ line.when }}</span> ·
+        {%- if line.href %} <a href="{{ line.href }}">{{ line.words }}</a>
+        {%- else %} {{ line.words }}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nothing has happened yet.</p>
+  {% endif %}
 </section>
 {% endblock %}

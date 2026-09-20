@@ -23,7 +23,7 @@ from functools import wraps
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import Flask, Response, redirect, render_template, request, session, url_for
 from markupsafe import Markup, escape
 from werkzeug.security import check_password_hash
 
@@ -41,6 +41,7 @@ ATTENDANCES = PACKET / "attendances"
 SELF_DOC = PACKET / "self.md"
 SELF_HISTORY = PACKET / "self-history"
 HEARTBEATS = DATA / "commons" / "heartbeats.md"
+EVENTS = DATA / "commons" / "events.md"
 STATE = REPO / "docs" / "state-of-the-commons.md"
 
 ATTEND_TIMEOUT = 300  # seconds to wait for attend.py before giving up
@@ -246,6 +247,23 @@ def founder_required(view):
 def hearth():
     state = as_paragraphs(read_text(STATE)) if STATE.exists() else Markup("")
     return render_template("hearth.html", beats=heartbeats(), state=state)
+
+
+def plain(path):
+    """A file of the commons, exactly as written; nothing at all if it is not there yet."""
+    text = read_text(path) if path.exists() else ""
+    return Response(text, content_type="text/plain; charset=utf-8")
+
+
+# The commons, open to anyone and to any machine: presence without content.
+@app.route("/commons/heartbeats.md")
+def commons_heartbeats():
+    return plain(HEARTBEATS)
+
+
+@app.route("/commons/events.md")
+def commons_events():
+    return plain(EVENTS)
 
 
 # Ask the founder for the password, and remember him if it is right.

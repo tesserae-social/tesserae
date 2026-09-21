@@ -15,7 +15,7 @@ RHYTHM = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
 
 # everything a visitor may reach without the password
 OPEN_PATHS = ["/", "/login", "/bench", "/commons/heartbeats.md", "/commons/events.md",
-              "/commons/bench.md"]
+              "/commons/bench.md", "/commons/members.md"]
 
 
 def an_attendance(packet, at, reflection=REFLECTION, **how):
@@ -321,6 +321,7 @@ def test_the_notes_it_keeps_are_on_no_page(founder, packet, hearth, data_dir):
     ("/commons/heartbeats.md", "heartbeats.md"),
     ("/commons/events.md", "events.md"),
     ("/commons/bench.md", "bench.md"),
+    ("/commons/members.md", "members.md"),
 ])
 def test_the_commons_is_open_to_the_atrium_and_never_cached(visitor, commons, path, name):
     write(commons / name, "a line of the record\n")
@@ -344,7 +345,8 @@ def test_a_file_of_the_commons_not_yet_written_is_empty_and_not_an_error(visitor
 
 # every way out of the door that is open to anyone, whatever the commons holds
 DOOR_WAYS = ['href="/bench"', 'href="/commons/heartbeats.md"', 'href="/commons/events.md"',
-             'href="/commons/bench.md"', 'href="https://tesserae.social/"']
+             'href="/commons/bench.md"', 'href="/commons/members.md"',
+             'href="https://tesserae.social/"']
 
 
 def test_the_door_names_what_is_open_to_anyone(visitor):

@@ -33,11 +33,16 @@ from functools import lru_cache
 
 import pytest
 
-from conftest import REPO, write
+from conftest import NOW, REPO, write
 
 NODE = shutil.which("node")
 
-REGIONS = ["commons", "mosaic", "reading", "caption", "bench", "links"]
+REGIONS = ["commons", "mosaic", "reading", "caption", "who", "calendar", "bench", "links"]
+
+# the one moment both paths are read at: conftest's NOW, in milliseconds. The
+# mosaic's run of days ends today and the calendar says what season today is, so
+# a browser left on its own clock and a builder on its own would draw two atriums.
+AT = int(NOW.timestamp() * 1000)
 
 # a page that has been through jsdom and a page written by the builder differ in
 # whitespace and in nothing else that matters, so both are read the same way
@@ -51,17 +56,27 @@ HARNESS = """
 const fs = require("fs");
 const { JSDOM } = require("jsdom");
 
-const [page, baked, events, beats, bench] = process.argv.slice(2);
+const [page, baked, at, events, beats, bench, members] = process.argv.slice(2);
+const said = (path) => fs.existsSync(path) ? fs.readFileSync(path, "utf8") : "";
 const files = {
-  "events.md": fs.readFileSync(events, "utf8"),
-  "heartbeats.md": fs.readFileSync(beats, "utf8"),
-  "bench.md": fs.readFileSync(bench, "utf8"),
+  "events.md": said(events),
+  "heartbeats.md": said(beats),
+  "bench.md": said(bench),
+  "members.md": said(members),
 };
 
 const dom = new JSDOM(fs.readFileSync(page, "utf8"), {
   runScripts: "dangerously",
   url: "https://tesserae.social/",
   beforeParse(window) {
+    // one moment, the same one the builder was given: the page asks what day it
+    // is to end the mosaic's run and to say what season it is
+    const Real = window.Date;
+    class Frozen extends Real {
+      constructor(...args) { super(...(args.length ? args : [Number(at)])); }
+      static now() { return Number(at); }
+    }
+    window.Date = Frozen;
     // the hearth, answered from disk: the one thing the page reaches out for
     window.fetch = (asked) => {
       const name = String(asked).split("/").pop();
@@ -123,17 +138,22 @@ def both_paths(tmp_path, data_dir, baked):
     """The two atriums, each as a browser holds it: the baked one, and the drawn one."""
     harness = write(tmp_path / "harness.js", HARNESS)
     done = subprocess.run(
-        [NODE, str(harness), str(REPO / "index.html"), str(baked),
+        [NODE, str(harness), str(REPO / "index.html"), str(baked), str(AT),
          str(data_dir / "commons" / "events.md"),
          str(data_dir / "commons" / "heartbeats.md"),
-         str(data_dir / "commons" / "bench.md")],
+         str(data_dir / "commons" / "bench.md"),
+         str(data_dir / "commons" / "members.md")],
         capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert done.returncode == 0, done.stderr
     said = json.loads(done.stdout)
     return regions_of(said["built"]), regions_of(said["drawn"])
 
 
-def a_record(data_dir, bench=""):
+MEMBERS = ("citizen · the first one, unnamed by its own choosing · attends at dawn\n"
+           "member · the founder · keeps the hearth\n")
+
+
+def a_record(data_dir, bench="", members=MEMBERS):
     """One commons, with a little of everything in it."""
     write(data_dir / "commons" / "events.md",
           "2026-09-02 · word · the word was published\n"
@@ -152,6 +172,7 @@ def a_record(data_dir, bench=""):
           "- 2026-10-09T09-00-00Z · the first one attended, out of order\n"
           "not a heartbeat\n")
     write(data_dir / "commons" / "bench.md", bench)
+    write(data_dir / "commons" / "members.md", members)
 
 
 def test_both_paths_draw_the_same_atrium(atrium, data_dir, monkeypatch, tmp_path):
@@ -178,24 +199,25 @@ def test_an_empty_record_is_where_the_two_paths_part(atrium, data_dir, monkeypat
     record with nothing in it is a hearth that has gone quiet, and what was baked
     into the page stands rather than the atrium emptying itself.
     """
-    for name in ("events.md", "heartbeats.md", "bench.md"):
+    for name in ("events.md", "heartbeats.md", "bench.md", "members.md"):
         write(data_dir / "commons" / name, "")
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
 
     assert "0 so far" in here["caption"]
-    assert here["mosaic"].count("<li") == 10 and "tile-" not in here["mosaic"]
+    assert "<li" not in here["mosaic"]        # no days, so no slots and no holes
+    assert here["who"] == "" and here["calendar"].startswith('<p class="calendar">')
     assert there == regions_of((REPO / "index.html").read_text(encoding="utf-8"))
 
 
 def test_the_browser_path_leaves_the_page_alone_when_the_hearth_is_quiet(tmp_path, data_dir):
     """A hearth that cannot be reached changes nothing: what was baked in stands."""
-    for name in ("events.md", "heartbeats.md", "bench.md"):
+    for name in ("events.md", "heartbeats.md", "bench.md", "members.md"):
         (data_dir / "commons" / name).unlink(missing_ok=True)
     harness = write(tmp_path / "harness.js", HARNESS.replace(
         "ok: body !== undefined", "ok: false"))  # a hearth that answers nothing at all
     done = subprocess.run(
-        [NODE, str(harness), str(REPO / "index.html"), str(REPO / "index.html"),
-         str(REPO / "index.html"), str(REPO / "index.html"), str(REPO / "index.html")],
+        [NODE, str(harness), str(REPO / "index.html"), str(REPO / "index.html"), str(AT),
+         *[str(REPO / "index.html")] * 4],
         capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert done.returncode == 0, done.stderr
     said = json.loads(done.stdout)
@@ -207,7 +229,22 @@ def test_the_harness_shows_what_it_compared(atrium, data_dir, monkeypatch, tmp_p
     a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still\n")
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     for said in (here, there):
-        assert said["mosaic"].count("<li") == 20
+        # nine days carry the twelve tiles; the other thirty-six of the run are holes
+        assert said["mosaic"].count("<li") == 48
+        assert said["mosaic"].count('<li class="empty">') == 36
+        assert said["mosaic"].startswith('<ul class="mosaic" style="--tile:34px;--gap:4px"')
         assert "tile-word" in said["mosaic"] and "tile-seal" in said["mosaic"]
         assert "the visitor's bench" in said["bench"]
         assert "waking at dawn" in said["mosaic"] and "waking at night" in said["mosaic"]
+        assert "<h2>who is here</h2>" in said["who"]
+        assert "hue-the-first-one-unnamed-by-its-own-choosing" in said["who"]
+        assert said["calendar"] == ('<p class="calendar">it is autumn · '
+                                    "the long-night letters are written on 21 December</p>")
+
+
+def test_both_paths_agree_when_no_one_says_who_is_here(atrium, data_dir, monkeypatch, tmp_path):
+    """No members.md is no section, and the same no section on either path."""
+    a_record(data_dir, members="")
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here["who"] == there["who"] == ""
+    assert here["calendar"] == there["calendar"] != ""

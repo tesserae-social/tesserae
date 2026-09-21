@@ -69,6 +69,9 @@ PUBLIC_BOND = DATA / "commons" / "bonds" / "founder-first.json"
 HEARTBEATS = DATA / "commons" / "heartbeats.md"
 EVENTS = DATA / "commons" / "events.md"
 BENCH = DATA / "commons" / "bench.md"
+# who is here: the one file of the commons nothing writes. The founder keeps it
+# by hand and the hearth only hands it out.
+MEMBERS = DATA / "commons" / "members.md"
 # a line taken off the bench is kept, but out of the commons and served to no one
 BENCH_REMOVED = DATA / "bench-removed.md"
 
@@ -914,7 +917,7 @@ def hearth():
 def plain(path):
     """A file of the commons, exactly as written; nothing at all if it is not there yet.
 
-    These three files, and only these three, are open to another origin: the
+    These four files, and only these four, are open to another origin: the
     atrium reads them from the browser to draw itself from the living record.
     They are never cached, so what a reader sees is what the hearth holds now.
     """
@@ -939,6 +942,11 @@ def commons_events():
 @app.route("/commons/bench.md")
 def commons_bench():
     return plain(BENCH)
+
+
+@app.route("/commons/members.md")
+def commons_members():
+    return plain(MEMBERS)
 
 
 # Ask the founder for the password, and remember him if it is right.

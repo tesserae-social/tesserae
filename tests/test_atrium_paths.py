@@ -163,12 +163,15 @@ def a_record(data_dir, bench="", members=MEMBERS):
           "2026-10-08 · seal · a bond was sealed\n"
           "2026-10-09 · event · a line with \"quotes\" & <marks>\n"
           "nonsense, and no date at all\n")
+    # both shapes of a heartbeat line are here: the newer, which writes the
+    # middot between the name and the words, and the older, which ran the two
+    # straight together. Both paths must read them the one way.
     write(data_dir / "commons" / "heartbeats.md",
-          "- 2026-10-10T11-00-00Z · the first one attended at dawn\n"
+          "- 2026-10-10T11-00-00Z · the first one · attended at dawn\n"
           "- 2026-10-10T18-00-00Z · the first one attended by day\n"
-          "- 2026-10-11T00-00-00Z · the first one attended in the evening\n"
+          "- 2026-10-11T00-00-00Z · the first one · attended in the evening\n"
           "- 2026-10-16T03-59-59Z · the first one attended a second before midnight\n"
-          "- 2026-10-16T04-00-00Z · the first one attended a second after\n"
+          "- 2026-10-16T04-00-00Z · the first one · attended a second after\n"
           "- 2026-10-09T09-00-00Z · the first one attended, out of order\n"
           "not a heartbeat\n")
     write(data_dir / "commons" / "bench.md", bench)
@@ -236,6 +239,9 @@ def test_the_harness_shows_what_it_compared(atrium, data_dir, monkeypatch, tmp_p
         assert "tile-word" in said["mosaic"] and "tile-seal" in said["mosaic"]
         assert "the visitor's bench" in said["bench"]
         assert "waking at dawn" in said["mosaic"] and "waking at night" in said["mosaic"]
+        # however a heartbeat line was written, it is read out the one way
+        assert said["mosaic"].count("the first one · attended") == 6
+        assert "Ask to join — the door opens slowly" in said["links"]
         assert "<h2>who is here</h2>" in said["who"]
         assert "hue-the-first-one-unnamed-by-its-own-choosing" in said["who"]
         assert said["calendar"] == ('<p class="calendar">it is autumn · '

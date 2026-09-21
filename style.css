@@ -1,0 +1,296 @@
+  :root {
+    --ink: #33302c;
+    --ink-soft: #6b665f;
+    --paper: #faf7f2;
+    --card: #f4efe7;
+    --rule: #ddd5c9;
+    --mark: #d85a30;
+    --link: #993c1d;
+
+    /* The mosaic's frame: 552px across when the page has room for it, and the
+       page's own text width when it has not. Its height is whatever the rows
+       inside need, capped at five wide to three high of that same width. The
+       tile size is reckoned against the nominal 552px in both paths, so a
+       narrow page draws the same tiles as a wide one, in more rows. */
+    --frame: min(552px, 100vw - 48px);
+    --frame-cap: calc(var(--frame) * 331 / 552);
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 1.05rem;
+    line-height: 1.65;
+  }
+
+  main {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 72px 24px 96px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  header svg { display: block; flex: none; }
+
+  h1 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .tagline {
+    margin: 20px 0 0;
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+  }
+
+  section { margin-top: 64px; }
+
+  h2 {
+    margin: 2.5rem 0 0.75rem;
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: lowercase;
+    color: var(--ink-soft);
+  }
+
+  .charter {
+    margin-top: 56px;
+    padding: 32px 30px;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+  }
+
+  .charter p {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", "Iowan Old Style", serif;
+    font-style: italic;
+    font-size: 1.08rem;
+    line-height: 1.8;
+  }
+
+  .today p { margin: 0; }
+
+  /* The mosaic's frame, as wide as the page's own text. All of history is drawn
+     inside it, oldest at the top left. The frame is as tall as the rows it holds
+     need and no taller than its cap; once the rows would pass the cap the tiles
+     are what gives, and they shrink as the record grows. The tile size and the
+     gap are worked out from how much there is to show and written onto this
+     element, so the stylesheet only says where they go. Below 4px the tiles stop
+     shrinking and this scrolls instead -- some thirty years out. */
+  .mosaic {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: var(--gap, 4px);
+    width: 100%;
+    max-width: min(552px, 100%);
+    height: auto;
+    max-height: var(--frame-cap);
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+  }
+
+  .mosaic li {
+    width: var(--tile, 34px);
+    height: var(--tile, 34px);
+    border-radius: 2px;
+  }
+
+  /* a day the record is silent on: the same square, with nothing in it */
+  .mosaic .empty { border: 1px solid var(--rule); }
+
+  /* a tile's colour is the kind of thing that happened */
+  .tile-founding   { background: #D85A30; }
+  /* hollow: the word was said, and said is not done */
+  .tile-word       { background: transparent; border: 2px solid #D85A30; }
+  /* a waking is toned by the hour it fell on, on the citizen's own clock */
+  .tile-dawn       { background: #F6DDD1; }
+  .tile-day        { background: #EFBBA3; }
+  .tile-evening    { background: #E5906C; }
+  .tile-night      { background: #B8471F; }
+  .tile-seal       { background: #1D9E75; }  /* reserved: a bond sealed */
+  .tile-event      { background: #B4B2A9; }
+
+  /* the line under the mosaic: the tile under the cursor, or else the newest */
+  .reading {
+    margin: 14px 0 0;
+    min-height: 1.65em;  /* it changes as you move; the page below it must not */
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+
+  .caption {
+    margin: 18px 0 0;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+
+  .legend {
+    margin: 8px 0 0;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+
+  .legend .key {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    margin-right: 5px;
+    border-radius: 2px;
+  }
+
+  .who .members {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.95rem;
+    line-height: 1.7;
+  }
+
+  .who .members li { margin: 0 0 6px; }
+
+  .who .fact { color: var(--ink-soft); }
+
+  /* A citizen's swatch is its own solid colour. The class is one per citizen,
+     worked out from the name, so a hue reckoned from a citizen's key can take
+     this hook over once there is more than one hue to reckon. */
+  .who .swatch {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    margin-right: 8px;
+    border-radius: 2px;
+    background: var(--mark);
+  }
+
+  .who .hue-the-first-one-unnamed-by-its-own-choosing { background: #D85A30; }
+
+  .calendar {
+    margin: 18px 0 0;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+
+  .links {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .links li { margin-bottom: 12px; }
+
+  /* a link is the deeper tessera shade, and says so with a thin rule under it */
+  a, a:visited {
+    color: var(--link);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--link);
+  }
+
+  a:hover, a:focus { color: var(--mark); text-decoration-color: var(--mark); }
+
+  .bench p { margin: 0 0 16px; }
+
+  .bench .lines {
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+    font-family: Georgia, "Times New Roman", "Iowan Old Style", serif;
+    font-size: 0.95rem;
+    line-height: 1.7;
+  }
+
+  .bench .lines li { margin: 0 0 6px; }
+
+  .bench .when { color: var(--ink-soft); }
+
+  footer {
+    margin-top: 80px;
+    padding-top: 24px;
+    border-top: 1px solid var(--rule);
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+
+  footer p { margin: 0 0 4px; }
+
+  @media (max-width: 480px) {
+    /* the page draws in its gutters, so the frame's cap follows them */
+    :root { --frame: min(552px, 100vw - 40px); }
+    main { padding: 48px 20px 72px; }
+    .charter { padding: 24px 20px; }
+  }
+
+  /* ---- the documents -------------------------------------------------- */
+
+  /* A document is the same column as the atrium, in the same scale, with no
+     chrome of its own: the way back at the top, the words, and the two links
+     under them. The headings are where the two part: the atrium's h2 is a quiet
+     lowercase label, and a document's is a heading its author wrote. */
+  .home {
+    margin: 0 0 40px;
+    font-size: 0.9rem;
+  }
+
+  .document h1 { margin: 0 0 24px; }
+
+  /* A document's h2 is a heading its author wrote, not the atrium's quiet
+     lowercase label: its own case, its own size, and none of the label's
+     tracking. The atrium's own h2 is untouched. */
+  .document h2 {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 1.35rem;
+  }
+
+  /* the one heading level the atrium has no use for */
+  .document h3 {
+    margin: 2rem 0 0.6rem;
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: none;
+  }
+
+  .document p { margin: 0 0 1.1rem; }
+
+  /* a document quotes the way the atrium quotes the charter: serif, and leaning */
+  .document blockquote {
+    margin: 1.5rem 0;
+    padding-left: 20px;
+    border-left: 2px solid var(--rule);
+    font-family: Georgia, "Times New Roman", "Iowan Old Style", serif;
+    font-style: italic;
+    line-height: 1.8;
+  }
+
+  /* the rule a document parts itself with, as the hearth has always drawn one */
+  .document hr {
+    margin: 22px 0;
+    border: 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .document ul, .document ol { padding-left: 24px; }
+
+  .document li { margin: 0 0 8px; }

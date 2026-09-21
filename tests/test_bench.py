@@ -101,6 +101,12 @@ def test_an_empty_bench_says_so(visitor):
     assert "A line is read once by a small utility model before it is placed" in said
 
 
+def test_the_form_says_which_field_may_be_left_alone(visitor):
+    said = page(visitor.get("/bench"))
+    assert '<label for="line">a line</label>' in said
+    assert '<label for="as">signed as (optional)</label>' in said
+
+
 def test_a_line_is_shown_as_words_and_never_as_markup(visitor, reader, commons):
     written = "<b>hello</b> & <script>alert(1)</script>"
     leave(visitor, line=written, who="<em>me</em>")
@@ -191,6 +197,17 @@ def test_a_refusal_keeps_what_was_written_and_says_no_more(visitor, hearth, monk
     assert told == [REFUSAL]
 
 
+def test_the_honeypot_is_shown_to_no_one(visitor):
+    """It is not drawn at all, and the rule that says so is on the element itself."""
+    said = page(visitor.get("/bench"))
+    trap = re.search(r'<div class="trap"[^>]*>(.*?)</div>', said, re.S)
+    assert trap, "the honeypot is no longer on the page"
+    assert 'aria-hidden="true"' in trap.group(0)
+    assert re.search(r'style="display: ?none"', trap.group(0))
+    assert 'tabindex="-1"' in trap.group(1)
+    assert 'autocomplete="off"' in trap.group(1)
+
+
 def test_the_honeypot_is_told_nothing(visitor, reader, commons):
     answer = leave(visitor, trap="http://example.com")
     assert answer.status_code == 302
@@ -234,6 +251,22 @@ def test_a_line_carries_the_day_it_was_left(visitor, reader, commons, clock):
     clock.set("2026-10-20T23-30-00Z")
     leave(visitor)
     assert bench_lines(commons)[0].startswith("- 2026-10-20 · ")
+
+
+def test_the_day_is_kept_short_and_said_long(visitor, reader, commons, clock):
+    """The file sorts by 2026-10-20; the page says it the way the rest of the site does."""
+    clock.set("2026-10-20T23-30-00Z")
+    leave(visitor)
+    said = page(visitor.get("/bench"))
+    assert "20 October 2026" in said
+    assert "2026-10-20" not in said
+    assert bench_lines(commons)[0].startswith("- 2026-10-20 · ")   # and the file is unchanged
+
+
+def test_a_day_that_is_no_day_is_left_as_it_was_written(visitor, commons):
+    write(commons / "bench.md", "- nonsense · someone · a line all the same\n")
+    said = page(visitor.get("/bench"))
+    assert "nonsense" in said and "a line all the same" in said
 
 
 # ---- taking one off ------------------------------------------------------

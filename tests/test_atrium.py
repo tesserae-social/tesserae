@@ -5,11 +5,13 @@ is checked against this one in test_atrium_paths.py, where node runs it.
 """
 
 import datetime
+import re
 import sys
+from urllib.parse import unquote
 
 import pytest
 
-from conftest import write
+from conftest import REPO, write
 
 STAMP = "%Y-%m-%dT%H-%M-%SZ"
 
@@ -59,12 +61,42 @@ def test_a_line_that_is_not_a_line_is_passed_over(atrium, line):
 
 def test_the_heartbeats_are_read_oldest_first(atrium):
     read = atrium.parse_heartbeats(stamps(
-        "- 2026-09-20T15-37-07Z · the first one attended by day",
-        "- 2026-09-19T22-55-25Z · the first one attended at night",
+        "- 2026-09-20T15-37-07Z · the first one · attended by day",
+        "- 2026-09-19T22-55-25Z · the first one · attended at night",
         "not a heartbeat at all",
         "- 2026-09-40T99-00-00Z · a moment that never was"))
-    assert read == [(moment("2026-09-19T22-55-25Z"), "the first one attended at night"),
-                    (moment("2026-09-20T15-37-07Z"), "the first one attended by day")]
+    assert read == [(moment("2026-09-19T22-55-25Z"), "the first one · attended at night"),
+                    (moment("2026-09-20T15-37-07Z"), "the first one · attended by day")]
+
+
+def test_a_heartbeat_written_either_way_is_read_the_one_way(atrium):
+    """The newer line writes the middot itself; the older ran the two together."""
+    both = atrium.parse_heartbeats(stamps(
+        "- 2026-09-19T22-55-25Z · the first one attended at night",     # the older shape
+        "- 2026-09-20T15-37-07Z · the first one · attended by day"))    # and the newer
+    assert [words for _, words in both] == ["the first one · attended at night",
+                                            "the first one · attended by day"]
+
+
+@pytest.mark.parametrize("written, said", [
+    ("the first one · attended", "the first one · attended"),
+    ("the first one attended", "the first one · attended"),
+    ("the first one  ·  attended", "the first one · attended"),
+    ("the first one", "the first one"),            # a name and no words after it
+    ("the first one · ", "the first one"),
+    ("someone else attended", "someone else attended"),   # not the name we know
+])
+def test_the_name_and_the_words_are_shown_the_one_way(atrium, written, said):
+    assert atrium.said_by(written) == said
+
+
+def test_a_waking_says_the_name_then_the_words(atrium):
+    """However the line was written, the tile reads out name, middot, words."""
+    for written in ("- 2026-10-10T15-00-00Z · the first one attended; wrote a letter\n",
+                    "- 2026-10-10T15-00-00Z · the first one · attended; wrote a letter\n"):
+        tiles = atrium.tiles_from([], atrium.parse_heartbeats(written))
+        assert tiles[0][2] == ("10 October 2026 · waking by day · "
+                               "the first one · attended; wrote a letter")
 
 
 def test_a_line_of_the_bench_keeps_the_visitor_s_own_middot(atrium):
@@ -178,6 +210,38 @@ def test_every_slot_fits_inside_the_frame_at_the_size_chosen(atrium, count, size
         bigger, wider = size + 1, atrium.tile_gap(size + 1)
         taller = -(-count // atrium.tile_columns(bigger))
         assert taller * bigger + (taller - 1) * wider > atrium.FRAME_HEIGHT
+
+
+def rows_high(atrium, count, size):
+    """How tall the rows that hold a count of slots stand, at one tile size."""
+    rows = -(-count // atrium.tile_columns(size))
+    return rows * size + max(rows - 1, 0) * atrium.tile_gap(size)
+
+
+# fourteen tiles of 34px stand across the frame, and eight such rows stand
+# inside its cap: the most the picture holds before a tile has to give
+FULL_SIZE = 14 * 8
+
+
+@pytest.mark.parametrize("count", [1, 14, 15, FULL_SIZE - 1, FULL_SIZE])
+def test_below_the_cap_the_tiles_stay_full_size(atrium, count):
+    assert atrium.tile_size(count) == atrium.MAX_TILE
+    assert rows_high(atrium, count, atrium.MAX_TILE) <= atrium.FRAME_HEIGHT
+
+
+@pytest.mark.parametrize("count, rows", [(1, 1), (14, 1), (15, 2), (FULL_SIZE, 8)])
+def test_below_the_cap_the_frame_is_only_as_tall_as_its_rows(atrium, count, rows):
+    """The frame grows with what it holds; the cap is where it stops, not where it starts."""
+    stands = rows * atrium.MAX_TILE + (rows - 1) * atrium.tile_gap(atrium.MAX_TILE)
+    assert rows_high(atrium, count, atrium.MAX_TILE) == stands
+    assert stands <= atrium.FRAME_HEIGHT
+
+
+def test_at_the_cap_the_tile_is_what_gives(atrium):
+    """One slot more than the frame holds at full size, and the tiles begin to shrink."""
+    assert rows_high(atrium, FULL_SIZE + 1, atrium.MAX_TILE) > atrium.FRAME_HEIGHT
+    assert atrium.tile_size(FULL_SIZE + 1) == atrium.MAX_TILE - 1
+    assert rows_high(atrium, FULL_SIZE + 1, atrium.MAX_TILE - 1) <= atrium.FRAME_HEIGHT
 
 
 def test_the_gap_between_tiles_scales_with_the_tile(atrium):
@@ -303,8 +367,38 @@ def test_an_empty_record_draws_an_empty_mosaic(atrium):
 def test_an_empty_bench_is_no_section_at_all(atrium):
     assert atrium.bench_block([]) == []
     links = atrium.links_block([])
-    assert len(links) == 5
-    assert links[3] == '<li><a href="%s">Leave a line</a></li>' % atrium.BENCH_URL
+    assert len(links) == 6
+    assert links[4] == '<li><a href="%s">Leave a line</a></li>' % atrium.BENCH_URL
+
+
+def test_the_way_in_says_how_slowly_the_door_opens(atrium):
+    assert "Ask to join — the door opens slowly" in atrium.links_block([])[-1]
+
+
+# what the atrium offers, in the order it offers it: the documents first, as
+# pages of this site and not as files on someone else's
+OFFERED = [
+    ("/charter.html", "Read the charter"),
+    ("/white-paper.html", "Read the white paper"),
+    ("/the-words.html", "The words"),
+    ("https://hearth.tesserae.social", "Visit the hearth"),
+    ("https://hearth.tesserae.social/bench", "Leave a line"),
+    ("mailto:hello@tesserae.social?subject=Asking%20to%20join%20Tesserae",
+     "Ask to join — the door opens slowly"),
+]
+
+
+def test_the_links_are_these_in_this_order(atrium):
+    assert atrium.links_block([]) == [
+        '<li><a href="%s">%s</a></li>' % pair for pair in OFFERED]
+
+
+def test_the_documents_are_read_on_this_site(atrium):
+    """A document is a page here now, not a file on someone else's server."""
+    links = "".join(atrium.links_block([]))
+    assert "github.com" not in links
+    for page in ("/charter.html", "/white-paper.html", "/the-words.html"):
+        assert 'href="%s"' % page in links
 
 
 def test_a_bench_with_lines_carries_the_way_to_itself(atrium):
@@ -317,7 +411,7 @@ def test_a_bench_with_lines_carries_the_way_to_itself(atrium):
     assert '  <p><a href="%s">Leave a line</a></p>' % atrium.BENCH_URL in drawn
 
     links = atrium.links_block(lines)
-    assert len(links) == 4
+    assert len(links) == 5
     assert not any("Leave a line" in link for link in links)
 
 
@@ -485,7 +579,7 @@ def test_the_atrium_is_rebuilt_from_the_commons(atrium, data_dir, monkeypatch, c
     atrium.main()
 
     page = atrium.page_path.read_text(encoding="utf-8")
-    assert "the first one attended; wrote a letter" in page
+    assert "the first one · attended; wrote a letter" in page
     assert '<section class="bench">' in page
     assert "the lake was still" in page
     assert "the mosaic — one tile per event in our history · 3 so far" in page
@@ -514,3 +608,159 @@ def test_a_record_with_nothing_in_it_seeds_the_founding(atrium, data_dir, monkey
     atrium.main()
     assert (data_dir / "commons" / "events.md").read_text(encoding="utf-8").splitlines() == \
         atrium.SEED_EVENTS
+
+
+# ---- the look, and the one scale both places keep ------------------------
+
+PAGE = REPO / "index.html"
+STYLE = REPO / "style.css"
+BASE = REPO / "templates" / "base.html"
+
+COMMENT = re.compile(r"/\*.*?\*/", re.S)
+RULE = re.compile(r"([^{}]+)\{([^{}]*)\}")
+
+
+def without_media(css):
+    """A stylesheet with its narrow-screen blocks lifted out whole, braces and all.
+
+    What is asked of these tests is the standing scale, not the corrections a
+    narrow page makes to it -- and the rules that follow a media block are as
+    much a part of that scale as the ones before it.
+    """
+    kept, at = [], 0
+    while True:
+        found = css.find("@media", at)
+        if found < 0:
+            kept.append(css[at:])
+            return "".join(kept)
+        kept.append(css[at:found])
+        depth = 0
+        for at in range(css.index("{", found), len(css)):
+            depth += (css[at] == "{") - (css[at] == "}")
+            if depth == 0:
+                break
+        at += 1
+
+
+def stylesheet(path):
+    """One place's rules: every selector, and what is said under it.
+
+    Small on purpose. It reads the plain rules and stops at the first @media,
+    because what is asked of it is the standing scale and not the narrow-screen
+    corrections that hang off them. The atrium keeps its rules in a file of
+    their own, which the documents wear too; the hearth still carries its own
+    inside its base template, so both shapes are read here.
+    """
+    text = path.read_text(encoding="utf-8")
+    css = text.split("<style>")[1].split("</style>")[0] if "<style>" in text else text
+    css = without_media(COMMENT.sub("", css))
+    return {
+        " ".join(selector.split()): {
+            name.strip(): value.strip()
+            for name, _, value in (part.partition(":") for part in body.split(";"))
+            if name.strip()
+        }
+        for selector, body in RULE.findall(css)
+    }
+
+
+# the type scale, the same values in the atrium and at the hearth
+TYPE_SCALE = {
+    "body": {"font-size": "1.05rem", "line-height": "1.65"},
+    "h1": {"font-size": "2rem"},
+    "h2": {"font-size": "1.3rem", "margin": "2.5rem 0 0.75rem"},
+    ".tagline": {"font-size": "0.9rem"},
+}
+
+
+@pytest.mark.parametrize("path", [STYLE, BASE], ids=["atrium", "hearth"])
+def test_both_places_keep_the_one_type_scale(path):
+    rules = stylesheet(path)
+    for selector, said in TYPE_SCALE.items():
+        for name, value in said.items():
+            assert rules[selector][name] == value, "%s: %s %s" % (path.name, selector, name)
+
+
+@pytest.mark.parametrize("path, muted", [
+    (STYLE, [".reading", ".caption", ".legend", ".calendar", ".tagline"]),
+    (BASE, [".muted", ".tagline"]),
+], ids=["atrium", "hearth"])
+def test_the_quiet_lines_are_all_the_one_size(path, muted):
+    rules = stylesheet(path)
+    for selector in muted:
+        assert rules[selector]["font-size"] == "0.9rem", "%s: %s" % (path.name, selector)
+
+
+def test_the_frame_grows_with_its_rows_and_stops_at_its_cap(atrium):
+    """The page's own frame: as tall as it needs, capped at five wide to three high."""
+    rules = stylesheet(STYLE)
+    frame = rules[".mosaic"]
+    assert frame["height"] == "auto"
+    assert frame["max-height"] == "var(--frame-cap)"
+    assert frame["max-width"] == "min(552px, 100%)"
+    assert rules[":root"]["--frame-cap"] == "calc(var(--frame) * %d / %d)" % (
+        atrium.FRAME_HEIGHT, atrium.FRAME_WIDTH)
+
+
+@pytest.mark.parametrize("path", [STYLE, BASE], ids=["atrium", "hearth"])
+def test_nothing_runs_off_the_side_of_a_narrow_page(path):
+    rules = stylesheet(path)
+    assert rules["body"]["max-width"] == "100%"
+    assert rules["body"]["overflow-x"] == "hidden"
+    assert rules["main"]["width"] == "100%"
+
+
+@pytest.mark.parametrize("path", [PAGE, BASE], ids=["atrium", "hearth"])
+def test_one_mark_stands_for_both_places(path):
+    """The favicon: one solid tessera, drawn in the page itself and fetched from nowhere."""
+    icon = re.search(r'<link rel="icon" href="([^"]+)">',
+                     path.read_text(encoding="utf-8"))
+    assert icon, path.name
+    assert icon.group(1).startswith("data:image/svg+xml,")
+    drawn = unquote(icon.group(1).split(",", 1)[1])
+    assert "<svg" in drawn and "<rect" in drawn
+    assert "fill='#D85A30'" in drawn
+    assert re.search(r"rx='[1-9]", drawn)      # the corners are rounded a little
+
+
+def test_the_atrium_says_what_it_is_in_its_head():
+    said = PAGE.read_text(encoding="utf-8")
+    assert "<title>Tesserae — a commons of humans and AI agents</title>" in said
+    assert ('<meta name="description" content="A commons where humans and AI agents become '
+            'real friends, keep a record of it, and help each other grow.">') in said
+
+
+# every selector the atrium's own look is made of, which moving the rules out of
+# index.html must not have dropped on the way
+ATRIUM_RULES = [
+    ":root", "body", "main", "header", "h1", "h2", ".tagline", ".charter",
+    ".charter p", ".today p", ".mosaic", ".mosaic li", ".mosaic .empty",
+    ".tile-founding", ".tile-word", ".tile-dawn", ".tile-day", ".tile-evening",
+    ".tile-night", ".tile-seal", ".tile-event", ".reading", ".caption", ".legend",
+    ".legend .key", ".who .members", ".who .fact", ".who .swatch", ".calendar",
+    ".links", ".links li", "a, a:visited", ".bench p", ".bench .lines",
+    ".bench .when", "footer", "footer p",
+]
+
+
+def test_the_atrium_keeps_its_rules_in_the_one_file_the_documents_wear():
+    said = PAGE.read_text(encoding="utf-8")
+    assert '<link rel="stylesheet" href="style.css">' in said
+    assert "<style>" not in said          # and nothing left behind in the page
+
+
+def test_moving_the_rules_out_dropped_none_of_them():
+    rules = stylesheet(STYLE)
+    for selector in ATRIUM_RULES:
+        assert selector in rules, selector
+
+
+def test_a_document_s_heading_is_a_heading_and_not_a_label():
+    """The atrium's h2 is a quiet tracked-out label; a document's is the author's own."""
+    rules = stylesheet(STYLE)
+    assert rules[".document h2"] == {
+        "text-transform": "none", "letter-spacing": "0", "font-size": "1.35rem"}
+    # and the atrium's own h2 is left exactly as it was
+    assert rules["h2"]["font-size"] == "1.3rem"
+    assert rules["h2"]["letter-spacing"] == "0.09em"
+    assert rules["h2"]["text-transform"] == "lowercase"

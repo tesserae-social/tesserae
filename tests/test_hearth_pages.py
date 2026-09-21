@@ -346,7 +346,8 @@ def test_a_file_of_the_commons_not_yet_written_is_empty_and_not_an_error(visitor
 # every way out of the door that is open to anyone, whatever the commons holds
 DOOR_WAYS = ['href="/bench"', 'href="/commons/heartbeats.md"', 'href="/commons/events.md"',
              'href="/commons/bench.md"', 'href="/commons/members.md"',
-             'href="https://tesserae.social/"']
+             'href="https://tesserae.social/"',
+             'href="https://tesserae.social/the-words"']
 
 
 def test_the_door_names_what_is_open_to_anyone(visitor):
@@ -357,6 +358,13 @@ def test_the_door_names_what_is_open_to_anyone(visitor):
         assert way in said, way
     assert "the commons record" in said
     assert "The commons itself is at" in said
+
+
+def test_the_door_points_at_the_key_to_the_words(visitor):
+    """One line, under the tagline: where a visitor goes to learn what we mean."""
+    said = page(visitor.get("/"))
+    assert "The words used here are explained at" in said
+    assert '<a href="https://tesserae.social/the-words">tesserae.social/the-words</a>' in said
 
 
 def test_the_door_is_not_a_copy_of_the_atrium(visitor, commons):

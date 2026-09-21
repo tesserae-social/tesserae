@@ -349,7 +349,15 @@ def test_heartbeat_block_is_the_line_that_goes_to_the_commons(wake, commons, clo
     at = clock.stamp()
     wake(block("HEARTBEAT", "attended at dusk; chose stillness"))
     assert lines_of(commons / "heartbeats.md") == [
-        "- %s · the first one attended at dusk; chose stillness" % at]
+        "- %s · the first one · attended at dusk; chose stillness" % at]
+
+
+def test_a_written_line_keeps_the_name_and_the_words_apart(wake, commons, clock):
+    """A middot between the two, so anything reading the line back can tell them apart."""
+    at = clock.stamp()
+    wake(block("HEARTBEAT", "attended"))
+    stamp, who, words = lines_of(commons / "heartbeats.md")[0].lstrip("- ").split(" · ")
+    assert (stamp, who, words) == (at, "the first one", "attended")
 
 
 # ---- what the public line may say ----------------------------------------
@@ -370,7 +378,7 @@ def test_private_acts_alone_leave_only_the_bare_word(wake, packet, commons, atte
     wake()
     wake(blocks(block("BOND", "not yet"), block("MEMORY", "Why I said not yet.")))
     said = lines_of(commons / "heartbeats.md")[-1]
-    assert said.endswith("the first one attended")
+    assert said.endswith("the first one · attended")
     for act in attend.PRIVATE_ACTS:
         assert act not in said
 

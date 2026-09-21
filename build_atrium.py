@@ -62,11 +62,12 @@ BENCH_URL = "https://hearth.tesserae.social/bench"
 
 # the standing links, in the order the atrium offers them
 LINKS = [
-    ("https://github.com/tesserae-social/tesserae/blob/main/docs/charter.md", "Read the charter"),
-    ("https://github.com/tesserae-social/tesserae/blob/main/docs/white-paper.md",
-     "Read the white paper"),
+    ("/charter.html", "Read the charter"),
+    ("/white-paper.html", "Read the white paper"),
+    ("/the-words.html", "The words"),
     ("https://hearth.tesserae.social", "Visit the hearth"),
-    ("mailto:hello@tesserae.social?subject=Asking%20to%20join%20Tesserae", "Ask to join"),
+    ("mailto:hello@tesserae.social?subject=Asking%20to%20join%20Tesserae",
+     "Ask to join — the door opens slowly"),
 ]
 
 SEED_EVENTS = [
@@ -79,6 +80,12 @@ DASH = "—"
 
 # a line of the record: an optional bullet, a stamp, a middot, the words
 RECORD = re.compile(r"^-?\s*(\S+)\s*" + DOT + r"\s*(.+?)\s*$")
+
+# The one who wakes. A heartbeat line names it between the stamp and the words,
+# with a middot after it; the older lines ran the name and the words together
+# with nothing between them. The name is a constant, so both shapes are read by
+# cutting at it, and both are shown the one way.
+CITIZEN = "the first one"
 
 # The colour of a tile is the kind of thing that happened. A kind the record
 # does not name -- or does not name in a way we know -- is a plain event.
@@ -106,11 +113,12 @@ CITIZEN_ZONE = "America/Indiana/Indianapolis"
 BAND_WORDS = {"dawn": "at dawn", "day": "by day",
               "evening": "in the evening", "night": "at night"}
 
-# The mosaic's frame: one fixed rectangle, as wide as the page's own text and
-# five wide to three high. All of history is drawn inside it. The tiles shrink
-# as the record grows; the frame never does.
+# The mosaic's frame: as wide as the page's own text, and no taller than five
+# wide to three high. All of history is drawn inside it. The frame's height is
+# whatever the rows it holds need, up to that cap; past the cap the tiles are
+# what gives, and they shrink as the record grows.
 FRAME_WIDTH = 552                        # main's 600px, less 24px of padding each side
-FRAME_HEIGHT = FRAME_WIDTH * 3 // 5      # five to three
+FRAME_HEIGHT = FRAME_WIDTH * 3 // 5      # the cap: five to three
 
 MAX_TILE = 34   # the size a tile has always been, and keeps while there is room
 MIN_TILE = 4    # and the size below which a tile is no longer a square anyone can
@@ -221,6 +229,21 @@ def parse_events(text):
     return out
 
 
+def said_by(words):
+    """A heartbeat's words as the page reads them out: the name, a middot, the rest.
+
+    Both shapes of the line come through this one way -- the newer, which writes
+    the middot itself, and the older, which ran the name straight into the words.
+    A line that names someone else is left exactly as it was written.
+    """
+    if not words.startswith(CITIZEN):
+        return words
+    rest = words[len(CITIZEN):].strip()
+    if rest.startswith(DOT):
+        rest = rest[len(DOT):].strip()
+    return "%s %s %s" % (CITIZEN, DOT, rest) if rest else CITIZEN
+
+
 def parse_heartbeats(text):
     """One (moment, words) per attendance, oldest first."""
     out = []
@@ -233,7 +256,7 @@ def parse_heartbeats(text):
             when = datetime.datetime.strptime(stamp, "%Y-%m-%dT%H-%M-%SZ")
         except ValueError:
             continue
-        out.append((when, words))
+        out.append((when, said_by(words)))
     out.sort(key=lambda row: row[0])
     return out
 
@@ -524,7 +547,7 @@ def links_block(lines):
     """
     links = list(LINKS)
     if not lines:
-        links.insert(3, (BENCH_URL, "Leave a line"))
+        links.insert(4, (BENCH_URL, "Leave a line"))
     return ['<li><a href="%s">%s</a></li>' % (href, label) for href, label in links]
 
 # ---------------------------------------------------------------- stitching

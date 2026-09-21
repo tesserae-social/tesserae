@@ -5,7 +5,10 @@ Rewrites only the text between the marker comments in index.html:
 
     <!-- commons:start -->  ...  <!-- commons:end -->
     <!-- mosaic:start -->   ...  <!-- mosaic:end -->
+    <!-- reading:start -->  ...  <!-- reading:end -->
     <!-- caption:start -->  ...  <!-- caption:end -->
+    <!-- who:start -->      ...  <!-- who:end -->
+    <!-- calendar:start --> ...  <!-- calendar:end -->
     <!-- bench:start -->    ...  <!-- bench:end -->
     <!-- links:start -->    ...  <!-- links:end -->
 
@@ -16,10 +19,17 @@ It reads:
     commons/heartbeats.md          the attendances
     commons/events.md              the history (created if missing)
     commons/bench.md               the lines passersby have left
+    commons/members.md             who is here
 
-With --from URL it takes the last three from a running hearth instead
-(URL/commons/heartbeats.md, URL/commons/events.md and URL/commons/bench.md),
-and writes nothing at all if that hearth cannot be reached.
+commons/members.md is the one file of the commons nothing writes: the founder
+keeps it by hand, one line per citizen or member, and the hearth serves it
+beside the rest. A copy lives on the hearth's disk as well as in the repository;
+when there is none, the section is simply left off. Some later hand will grow
+this out of the bonds instead, and can drop the file then.
+
+With --from URL it takes the last four from a running hearth instead
+(URL/commons/heartbeats.md and so on), and writes nothing at all if that
+hearth cannot be reached.
 
 Nothing under packets/, keys/, transcripts/ is read or written, and docs/
 is only ever read.
@@ -45,6 +55,7 @@ STATE = os.path.join(ROOT, "docs", "state-of-the-commons.md")
 HEARTBEATS = os.path.join(DATA, "commons", "heartbeats.md")
 EVENTS = os.path.join(DATA, "commons", "events.md")
 BENCH = os.path.join(DATA, "commons", "bench.md")
+MEMBERS = os.path.join(DATA, "commons", "members.md")
 
 # where a passerby goes to leave one
 BENCH_URL = "https://hearth.tesserae.social/bench"
@@ -95,7 +106,34 @@ CITIZEN_ZONE = "America/Indiana/Indianapolis"
 BAND_WORDS = {"dawn": "at dawn", "day": "by day",
               "evening": "in the evening", "night": "at night"}
 
-SERIF = "Georgia,'Times New Roman','Iowan Old Style',serif"  # single quotes: it sits in an attribute
+# The mosaic's frame: one fixed rectangle, as wide as the page's own text and
+# five wide to three high. All of history is drawn inside it. The tiles shrink
+# as the record grows; the frame never does.
+FRAME_WIDTH = 552                        # main's 600px, less 24px of padding each side
+FRAME_HEIGHT = FRAME_WIDTH * 3 // 5      # five to three
+
+MAX_TILE = 34   # the size a tile has always been, and keeps while there is room
+MIN_TILE = 4    # and the size below which a tile is no longer a square anyone can
+                # see. At 4px the frame holds some eleven thousand slots, which is
+                # thirty years of days; past that the tile stays 4px and the frame
+                # scrolls. Nothing needs doing about that for a long while.
+
+# A slot with nothing in it: a day the record is silent on.
+EMPTY = ("", "")
+
+# who is here: the kinds of line commons/members.md may carry.
+MEMBER_KINDS = ("citizen", "member")
+
+# The seasons of the northern hemisphere, by the day each one opens on. Fixed
+# days rather than the true instant of an equinox: near enough to say what
+# season it is, and the same arithmetic in both places that says it.
+SEASONS = [((3, 20), "spring"), ((6, 21), "summer"),
+           ((9, 22), "autumn"), ((12, 21), "winter")]
+
+# The rites of the year, by the day each falls on and what the calendar says of it.
+RITES = [((6, 21), "the long-day letters are written on 21 June"),
+         ((12, 21), "the long-night letters are written on 21 December"),
+         ((9, 4), "Founding Day is 4 September")]
 
 
 # ---------------------------------------------------------------- reading
@@ -150,6 +188,13 @@ def bench_text(hearth):
     return read_text(BENCH) if os.path.exists(BENCH) else ""
 
 
+def members_text(hearth):
+    """The text of members.md: from a hearth if one is named, else from the disk."""
+    if hearth:
+        return fetch(hearth, "members.md")
+    return read_text(MEMBERS) if os.path.exists(MEMBERS) else ""
+
+
 def parse_events(text):
     """One (date, kind, words) per line of events.md, in the order written.
 
@@ -193,6 +238,24 @@ def parse_heartbeats(text):
     return out
 
 
+def parse_members(text):
+    """One (kind, name, fact) per line of members.md, in the order written.
+
+    A line names what it is first -- citizen or member -- then who, then one
+    plain fact. A line shaped any other way is passed over, so a note the
+    founder leaves himself in the file costs nothing.
+    """
+    out = []
+    for line in text.splitlines():
+        fields = [part.strip() for part in line.strip().lstrip("-").split(DOT, 2)]
+        if len(fields) < 3 or fields[0] not in MEMBER_KINDS:
+            continue
+        if not fields[1] or not fields[2]:
+            continue
+        out.append((fields[0], fields[1], fields[2]))
+    return out
+
+
 # ---------------------------------------------------------------- writing
 
 def human(when):
@@ -203,6 +266,15 @@ def human(when):
 def here(when):
     """A moment of the record, read on the citizen's own clock."""
     return when.replace(tzinfo=datetime.timezone.utc).astimezone(ZoneInfo(CITIZEN_ZONE))
+
+
+def today_here():
+    """Today on the citizen's own clock: the day the mosaic's run of days ends.
+
+    The page says one date and draws one last slot, so both are read off the one
+    clock the commons keeps rather than off whichever machine is doing the reading.
+    """
+    return datetime.datetime.now(ZoneInfo(CITIZEN_ZONE)).date()
 
 
 def band(hour):
@@ -216,57 +288,89 @@ def band(hour):
     return "night"
 
 
-def commons_block(state, heartbeats, today):
-    out = ["<p>%s</p>" % html.escape(state)]
-
-    recent = list(reversed(heartbeats))[:3]
-    if recent:
-        out.append(
-            '<ul style="margin:20px 0 0;padding:0;list-style:none;'
-            'font-family:%s;font-size:0.95rem;line-height:1.7;">' % SERIF
-        )
-        for when, words in recent:
-            out.append(
-                '  <li style="margin:0 0 6px;">'
-                '<span style="color:var(--ink-soft);">%s</span> %s %s</li>'
-                % (human(when.date()), DOT, html.escape(words))
-            )
-        out.append("</ul>")
-
-    out.append(
+def commons_block(state, today):
+    """The standing paragraph and the day it was read. The wakings are the mosaic's."""
+    return [
+        "<p>%s</p>" % html.escape(state),
         '<p style="margin:16px 0 0;font-size:0.85rem;color:var(--ink-soft);">'
-        "as of %s</p>" % human(today)
-    )
-    return out
+        "as of %s</p>" % human(today),
+    ]
 
 
 def tiles_from(events, heartbeats):
-    """One (class, words) tile per thing that happened: the history, then the wakings.
+    """One (day, class, words) tile per thing that happened: the history, then the wakings.
 
-    A waking carries the part of the citizen's day it fell in twice over: in its
-    class, so the tile is toned by it, and in its words, so hovering says so.
+    The day is the citizen's own calendar day, and it is what the mosaic is laid
+    out by. Every tile's words open with that day too, because they are read out
+    whole under the mosaic. A waking carries the part of the citizen's day it fell
+    in twice over: in its class, so the tile is toned by it, and in its words.
     """
-    tiles = [(KIND_CLASS[kind], words) for _, kind, words in events]
+    tiles = [(when, KIND_CLASS[kind], "%s %s %s" % (human(when), DOT, words))
+             for when, kind, words in events]
     for when, words in heartbeats:
         clock = here(when)
         part = band(clock.hour)
         tiles.append((
+            clock.date(),
             "%s tile-%s" % (KIND_CLASS["attendance"], part),
             "%s %s waking %s %s %s" % (human(clock.date()), DOT, BAND_WORDS[part], DOT, words),
         ))
     return tiles
 
 
-def padded(tiles):
-    """The tiles, with empty ones added to fill the mosaic out to whole rows of ten."""
-    full = max(10, -(-len(tiles) // 10) * 10)
-    return list(tiles) + [("", "")] * (full - len(tiles))
+def slots(tiles, today):
+    """One slot per day from the first thing that happened to today, in reading order.
+
+    A day the record is silent on is a hole: the same square, with nothing in it.
+    The run ends today rather than at the newest tile, so a pause at the end of
+    the run shows as holes and not as nothing at all. With the daily tide, holes
+    appear only where the tide stopped.
+    """
+    if not tiles:
+        return []
+
+    by_day = {}
+    for day, css, words in tiles:
+        by_day.setdefault(day, []).append((css, words))
+
+    day, last = min(by_day), max(max(by_day), today)
+    out = []
+    while day <= last:
+        out.extend(by_day.get(day, [EMPTY]))
+        day += datetime.timedelta(days=1)
+    return out
+
+
+def tile_gap(size):
+    """The space between tiles: four at 34px, none at 4px, and evenly on between."""
+    return ((size - MIN_TILE) * 4 + 15) // 30
+
+
+def tile_columns(size):
+    """How many tiles of a size stand side by side across the frame."""
+    gap = tile_gap(size)
+    return max(1, (FRAME_WIDTH + gap) // (size + gap))
+
+
+def tile_size(count):
+    """The largest tile, no bigger than 34px, at which every slot still fits the frame.
+
+    The page's own script works this out the same way, down to the arithmetic, so
+    the atrium the builder bakes and the atrium a browser draws are one picture.
+    Below 4px the tile stops shrinking and the frame scrolls instead; see MIN_TILE.
+    """
+    for size in range(MAX_TILE, MIN_TILE, -1):
+        gap = tile_gap(size)
+        rows = -(-count // tile_columns(size))
+        if rows * size + max(rows - 1, 0) * gap <= FRAME_HEIGHT:
+            return size
+    return MIN_TILE
 
 
 def legend_marks(tiles):
     """The kinds named under the mosaic: three always, and the seal once one exists."""
     marks = list(LEGEND)
-    if any(css == KIND_CLASS["seal"] for css, _ in tiles):
+    if any(css == KIND_CLASS["seal"] for _, css, _ in tiles):
         marks.append(([KIND_CLASS["seal"]], "seal"))
     return marks
 
@@ -276,17 +380,39 @@ def caption_text(count):
     return "the mosaic %s one tile per event in our history %s %d so far" % (DASH, DOT, count)
 
 
-def mosaic_block(tiles):
-    cells = []
-    for css, words in padded(tiles):
+def mosaic_block(cells):
+    """The mosaic entire: the frame, sized to what it holds, and everything in it.
+
+    The frame carries the tile size it was reckoned at, so the picture the page
+    shows is the picture whoever wrote it meant. An empty slot is a square with
+    no words and no way to land on it: there is nothing there to read out.
+    """
+    size = tile_size(len(cells))
+    drawn = []
+    for css, words in cells:
         if css:
-            cells.append(
-                '<li class="%s" title="%s"></li>' % (css, html.escape(words, quote=True))
+            drawn.append(
+                '<li class="%s" title="%s" tabindex="0"></li>'
+                % (css, html.escape(words, quote=True))
             )
         else:
-            cells.append("<li></li>")
+            drawn.append('<li class="empty"></li>')
 
-    return ["".join(cells[at:at + 5]) for at in range(0, len(cells), 5)]
+    rows = ["".join(drawn[at:at + 5]) for at in range(0, len(drawn), 5)]
+    return (['<ul class="mosaic" style="--tile:%dpx;--gap:%dpx" aria-label="the mosaic">'
+             % (size, tile_gap(size))] + rows + ["</ul>"])
+
+
+def reading_text(cells):
+    """The line under the mosaic at rest: the newest tile's words, holes passed over."""
+    for css, words in reversed(cells):
+        if css:
+            return words
+    return ""
+
+
+def reading_block(cells):
+    return ['<p class="reading">%s</p>' % html.escape(reading_text(cells))]
 
 
 def caption_block(tiles):
@@ -298,6 +424,62 @@ def caption_block(tiles):
         '<p class="caption">%s</p>' % html.escape(caption_text(len(tiles))),
         '<p class="legend">%s</p>' % keys,
     ]
+
+
+def hue(name):
+    """The class a citizen's swatch is coloured by: one class per citizen, keyed by name.
+
+    There is one citizen and one colour today, so the stylesheet names it outright.
+    The class is worked out from the name rather than fixed here so that a hue
+    reckoned from a citizen's key can take the same hook later on.
+    """
+    return "hue-" + re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def who_block(members):
+    """Who is here, or nothing at all: with no file to read there is no section."""
+    if not members:
+        return []
+    out = ["<h2>who is here</h2>", '<ul class="members">']
+    for kind, name, fact in members:
+        swatch = ('<span class="swatch %s"></span>' % hue(name)) if kind == "citizen" else ""
+        out.append('  <li>%s%s %s <span class="fact">%s</span></li>'
+                   % (swatch, html.escape(name), DOT, html.escape(fact)))
+    out.append("</ul>")
+    return out
+
+
+def season(day):
+    """The season the northern hemisphere is in, by the day of the year."""
+    called = SEASONS[-1][1]  # before the spring equinox the year is still in winter
+    for opens, named in SEASONS:
+        if (day.month, day.day) >= opens:
+            called = named
+    return called
+
+
+def next_rite(today):
+    """What the year asks for next: the nearer of the coming solstice and Founding Day.
+
+    A rite that falls today is the next one, not the one a year out.
+    """
+    soonest = None
+    for (month, day), said in RITES:
+        when = datetime.date(today.year, month, day)
+        if when < today:
+            when = datetime.date(today.year + 1, month, day)
+        if soonest is None or when < soonest[0]:
+            soonest = (when, said)
+    return soonest[1]
+
+
+def calendar_text(today):
+    """The one line under who is here: what season it is, and what is asked for next."""
+    return "it is %s %s %s" % (season(today), DOT, next_rite(today))
+
+
+def calendar_block(today):
+    return ['<p class="calendar">%s</p>' % html.escape(calendar_text(today))]
 
 
 def parse_bench(text):
@@ -378,13 +560,14 @@ def named_hearth():
 
 def main():
     hearth = named_hearth()
-    today = datetime.date.today()
+    today = today_here()
 
     state = read_state()
     try:
         events = parse_events(events_text(hearth))
         heartbeats = parse_heartbeats(heartbeats_text(hearth))
         bench = parse_bench(bench_text(hearth))
+        members = parse_members(members_text(hearth))
     except (OSError, ValueError) as trouble:
         if not hearth:  # a local file going wrong is a fault, not a closed door
             raise
@@ -392,23 +575,27 @@ def main():
                  "index.html is untouched." % (hearth, trouble))
 
     tiles = tiles_from(events, heartbeats)
+    cells = slots(tiles, today)
 
     page = read_text(PAGE)
     newline = "\r\n" if "\r\n" in page else "\n"
 
-    page = splice(page, "commons", commons_block(state, heartbeats, today), newline)
-    page = splice(page, "mosaic", mosaic_block(tiles), newline)
+    page = splice(page, "commons", commons_block(state, today), newline)
+    page = splice(page, "mosaic", mosaic_block(cells), newline)
+    page = splice(page, "reading", reading_block(cells), newline)
     page = splice(page, "caption", caption_block(tiles), newline)
+    page = splice(page, "who", who_block(members), newline)
+    page = splice(page, "calendar", calendar_block(today), newline)
     page = splice(page, "bench", bench_block(bench), newline)
     page = splice(page, "links", links_block(bench), newline)
 
     write_text(PAGE, page)
 
     print(
-        "atrium: %d tiles (%d events, %d attendances), %d heartbeats shown, "
-        "%d on the bench, as of %s"
-        % (len(tiles), len(events), len(heartbeats), min(3, len(heartbeats)),
-           len(bench), human(today))
+        "atrium: %d tiles in %d slots at %dpx (%d events, %d attendances), "
+        "%d on the bench, %d here, as of %s"
+        % (len(tiles), len(cells), tile_size(len(cells)), len(events), len(heartbeats),
+           len(bench), len(members), human(today))
     )
 
 

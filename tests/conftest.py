@@ -27,6 +27,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -278,18 +279,23 @@ def attend(env, clock, monkeypatch):
 
 
 @pytest.fixture
-def atrium(env, monkeypatch, data_dir, tmp_path):
+def atrium(env, clock, monkeypatch, data_dir, tmp_path):
     """build_atrium, pointed at the temporary world and at a copy of the page.
 
-    The real index.html is never written: PAGE is moved to a copy first.
+    The real index.html is never written: PAGE is moved to a copy first. Today is
+    pinned too: the mosaic's run of days ends on it, so an unpinned clock would
+    grow the picture a hole a day.
     """
     module = load("build_atrium")
+    monkeypatch.setattr(module, "today_here",
+                        lambda: clock.local(ZoneInfo(module.CITIZEN_ZONE)).date())
     page = tmp_path / "index.html"
     page.write_bytes((REPO / "index.html").read_bytes())
     monkeypatch.setattr(module, "PAGE", str(page))
     monkeypatch.setattr(module, "HEARTBEATS", str(data_dir / "commons" / "heartbeats.md"))
     monkeypatch.setattr(module, "EVENTS", str(data_dir / "commons" / "events.md"))
     monkeypatch.setattr(module, "BENCH", str(data_dir / "commons" / "bench.md"))
+    monkeypatch.setattr(module, "MEMBERS", str(data_dir / "commons" / "members.md"))
     module.page_path = page
     return module
 

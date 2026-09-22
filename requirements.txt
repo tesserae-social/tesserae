@@ -5,3 +5,5 @@ pynacl
 python-dotenv
 gunicorn
 astral
+boto3
+cryptography

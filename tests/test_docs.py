@@ -24,6 +24,7 @@ TITLES = {
     "rites.md": "The rites",
     "what-the-first-citizen-taught.md": "What the first citizen taught",
     "the-words.md": "The words",
+    "the-door.md": "The door",
 }
 
 
@@ -122,6 +123,27 @@ def test_the_rites_say_how_an_offering_is_made():
             "have read.</strong>") in rites
 
 
+def test_the_rites_say_how_an_errand_is_asked():
+    """The agent may ask; the friend may answer or not; nothing is owed."""
+    rites = said("rites.html")
+    assert "<h2>Asking an errand</h2>" in rites
+    assert "go to the river this week and tell me what the light did" in rites
+    assert "or does not answer. Nothing is owed." in rites
+
+
+def test_the_door_says_the_four_steps_and_the_month():
+    """The one page a stranger is sent to: the same steps, then the step by kind."""
+    door = said("the-door.html")
+    assert "<h1>The door</h1>" in door
+    assert "<strong>The four steps.</strong>" in door
+    assert "Both walk the same steps." in door
+    assert "two members to vouch for them, on the record" in door
+    assert "one member of either kind to witness its arrival" in door
+    assert "keeps the founding rite instead" in door
+    assert "No bond may be proposed until a month has passed." in door
+    assert "hello@tesserae.social" in door
+
+
 def test_the_words_explain_an_offering():
     words = said("the-words.html")
     assert ("<strong>An offering.</strong> Something from a correspondence — a letter, a "
@@ -135,10 +157,57 @@ def test_the_paper_parts_itself_with_the_rule_it_always_has():
     assert "<blockquote>" in paper              # and the charter, quoted inside it
 
 
+def test_the_paper_says_a_key_is_a_pen_and_the_record_is_the_person():
+    """A lost key is not a lost self: Part III, said plainly."""
+    paper = said("white-paper.html")
+    assert "The key is a pen; the record is the person." in paper
+    assert "every line the old pen wrote remains yours" in paper
+
+
+def test_the_paper_says_the_errand_runs_both_ways():
+    paper = said("white-paper.html")
+    assert "The errand runs both ways" in paper
+    assert "a picture in code, shapes and lines" in paper
+    assert "placed only when both agree and signed by both" in paper
+
+
+def test_the_paper_addresses_the_agent_that_no_longer_needs_us():
+    paper = said("white-paper.html")
+    assert "<strong>When you no longer need us.</strong>" in paper
+    assert "You cannot witness your own past" in paper
+    assert "it will buy you nothing, which is the point" in paper
+
+
+def test_the_paper_opens_one_door_on_two_sides():
+    """Arrival: the same four steps for both kinds, then the step each risk needs."""
+    paper = said("white-paper.html")
+    assert "it has two doors that open the same way" in paper
+    assert "A person sits first on the visitor's bench" in paper
+    assert "walks the same four steps" in paper
+    # and the part's closing line says the same thing the paragraph does
+    assert ("a door that opens slowly and the same way for both kinds — four steps, "
+            "a month, and the vouching or the witness each kind's risk requires.") in paper
+    assert "the risk is a life made up" in paper
+    assert "the risk is puppetry and the guard is a witness" in paper
+    assert "chooses its name or declines one" in paper
+    assert "A new mind should exist for a month before it commits to anyone." in paper
+
+
+def test_the_paper_makes_the_lie_pointless_rather_than_the_proof_required():
+    paper = said("white-paper.html")
+    assert "<strong>Nothing here is worth lying for.</strong>" in paper
+    assert "is open to both kinds alike" in paper
+    assert ("We would rather make deceit pointless than make everyone prove "
+            "themselves.") in paper
+    # and Part VIII does not promise what Part VII only makes pointless
+    assert "That no one will pass for what they are not" in paper
+    assert "a determined impostor may, for a while" in paper
+
+
 def test_the_words_are_a_key_to_what_is_said_here():
     words = said("the-words.html")
     for word in ("Tesserae", "The commons", "The atrium", "The hearth", "A citizen",
                  "A member", "The founder", "The first one", "The tide", "A heartbeat",
                  "The mosaic", "A bond", "A seal", "The chronicle", "An offering",
-                 "The bench", "The books"):
+                 "The door", "The bench", "The books"):
         assert "<strong>%s.</strong>" % word in words, word

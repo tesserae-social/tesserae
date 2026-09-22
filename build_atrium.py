@@ -381,7 +381,7 @@ def commons_block(state, today):
     """The standing paragraph and the day it was read. The wakings are the mosaic's."""
     return [
         "<p>%s</p>" % html.escape(state),
-        '<p style="margin:16px 0 0;font-size:0.85rem;color:var(--ink-soft);">'
+        '<p style="margin:16px 0 0;font-size:0.9rem;color:var(--ink-soft);">'
         "as of %s</p>" % human(today),
     ]
 

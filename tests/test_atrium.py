@@ -854,13 +854,23 @@ def stylesheet(path):
     }
 
 
-# the type scale, the same values in the atrium and at the hearth
+# The one type system, the same values in the atrium and at the hearth: the
+# body's own sans for every word, four sizes, one line-height, and one weight but
+# the name's. What sets a thing apart here is its colour and its size, never a
+# second family.
 TYPE_SCALE = {
     "body": {"font-size": "1.05rem", "line-height": "1.65"},
-    "h1": {"font-size": "2rem"},
-    "h2": {"font-size": "1.3rem", "margin": "2.5rem 0 0.75rem"},
-    ".tagline": {"font-size": "0.9rem"},
+    "h1": {"font-size": "2rem", "font-weight": "600", "color": "var(--ink)"},
+    "h2": {"font-size": "1.3rem", "font-weight": "400", "color": "var(--ink-soft)",
+           "letter-spacing": "0.06em", "text-transform": "lowercase",
+           "margin": "2.75rem 0 0.75rem"},
 }
+
+# the four sizes the atrium is set in, and nothing else. The documents wear this
+# same file and keep two sizes of their own, so their rules are asked separately.
+ATRIUM_SIZES = {"2rem", "1.3rem", "1.05rem", "0.9rem"}
+
+DOCUMENT_RULES = (".home", ".document")
 
 
 @pytest.mark.parametrize("path", [STYLE, BASE], ids=["atrium", "hearth"])
@@ -872,13 +882,97 @@ def test_both_places_keep_the_one_type_scale(path):
 
 
 @pytest.mark.parametrize("path, muted", [
-    (STYLE, [".reading", ".caption", ".legend", ".calendar", ".tagline"]),
-    (BASE, [".muted", ".tagline"]),
+    (STYLE, [".reading", ".caption", ".legend", ".calendar", ".offered .when", "footer"]),
+    (BASE, [".muted", ".tagline", "footer"]),
 ], ids=["atrium", "hearth"])
 def test_the_quiet_lines_are_all_the_one_size(path, muted):
     rules = stylesheet(path)
     for selector in muted:
         assert rules[selector]["font-size"] == "0.9rem", "%s: %s" % (path.name, selector)
+
+
+@pytest.mark.parametrize("path", [STYLE, BASE], ids=["atrium", "hearth"])
+def test_one_family_carries_every_word_in_both_places(path):
+    """The body's own sans, or the word inherit. No place names a second family."""
+    for selector, said in stylesheet(path).items():
+        family = said.get("font-family")
+        if family is None:
+            continue
+        assert family == "inherit" or family.endswith("sans-serif"), \
+            "%s: %s" % (path.name, selector)
+
+
+@pytest.mark.parametrize("path", [STYLE, BASE], ids=["atrium", "hearth"])
+def test_nothing_leans_and_nothing_is_set_in_a_serif(path):
+    for selector, said in stylesheet(path).items():
+        assert "font-style" not in said, "%s: %s" % (path.name, selector)
+        named = said.get("font-family", "").replace("sans-serif", "")
+        assert "serif" not in named, "%s: %s" % (path.name, selector)
+
+
+def test_the_atrium_is_set_in_four_sizes_and_no_others():
+    for selector, said in stylesheet(STYLE).items():
+        if selector.startswith(DOCUMENT_RULES) or "font-size" not in said:
+            continue
+        assert said["font-size"] in ATRIUM_SIZES, selector
+
+
+def test_one_weight_carries_the_atrium_but_the_name():
+    """400 everywhere the page is read; 600 for the name it is known by, and no other."""
+    for selector, said in stylesheet(STYLE).items():
+        if selector.startswith(DOCUMENT_RULES) or "font-weight" not in said:
+            continue
+        assert said["font-weight"] == ("600" if selector == "h1" else "400"), selector
+
+
+def test_only_the_section_label_is_tracked_out():
+    for selector, said in stylesheet(STYLE).items():
+        if selector.startswith(DOCUMENT_RULES) or "letter-spacing" not in said:
+            continue
+        assert selector == "h2" and said["letter-spacing"] == "0.06em", selector
+
+
+@pytest.mark.parametrize("path", [STYLE, BASE], ids=["atrium", "hearth"])
+def test_the_rhythm_between_sections_is_one_measure(path):
+    """Everything at the top level stands 64px off what came before it."""
+    rules = stylesheet(path)
+    assert rules["section"]["margin-top"] == "64px", path.name
+    assert rules["footer"]["margin-top"] == "64px", path.name
+
+
+def test_the_intro_and_the_offering_keep_the_page_s_rhythm():
+    rules = stylesheet(STYLE)
+    assert rules[".intro"]["margin-top"] == "64px"
+    # the offering is a section, so the section's rhythm is the whole of what it
+    # gets: no margin of its own to fall out of step with
+    assert ".offered" not in rules
+
+
+def test_the_atrium_says_none_of_this_in_the_page_itself():
+    """One inline size the builder writes, and it is the quiet one."""
+    said = PAGE.read_text(encoding="utf-8")
+    # the "as of" line the builder writes, and the script that writes the same line
+    assert said.count("font-size:") == said.count("font-size:0.9rem") == 2
+    assert "font-family" not in said and "font-style" not in said
+
+
+def test_the_atrium_carries_no_tagline():
+    """It was one line saying what the intro now says in full; it is gone."""
+    said = PAGE.read_text(encoding="utf-8")
+    assert 'class="tagline"' not in said
+    assert "bound by choice" not in said
+    assert ".tagline" not in stylesheet(STYLE)
+
+
+def test_what_someone_wrote_is_read_in_the_body_s_own_words():
+    """The hearth's reading blocks were a serif once; they are the body's now."""
+    rules = stylesheet(BASE)
+    assert ".serif" not in rules
+    assert rules[".words"] == {"font-size": "1.05rem", "line-height": "1.65"}
+    assert rules["textarea"]["font-family"] == "inherit"
+    assert rules["textarea"]["font-size"] == "1.05rem"
+    for template in sorted((REPO / "templates").glob("*.html")):
+        assert 'class="serif"' not in template.read_text(encoding="utf-8"), template.name
 
 
 def test_the_frame_grows_with_its_rows_and_stops_at_its_cap(atrium):
@@ -915,10 +1009,10 @@ def test_one_mark_stands_for_both_places(path):
 
 # ---- the intro -----------------------------------------------------------
 
-# The atrium opens with one sentence and then the whole of it in a paragraph.
-# Both lie outside every marker the builder writes, so neither path may touch
-# them; what these ask is that the words are there and that nothing draws a box
-# around them.
+# The atrium opens with one sentence, then why the place exists, then what it
+# holds to. All three lie outside every marker the builder writes, so neither
+# path may touch them; what these ask is that the words are there and that
+# nothing draws a box around them.
 
 OPENING_SENTENCE = ("Tesserae is a small commons where people and AI agents become real "
                     "friends — slowly, in writing, and in the open.")
@@ -936,10 +1030,15 @@ def intro_of(text):
 def test_the_atrium_opens_with_one_sentence_and_then_the_whole_of_it():
     said = intro_of(PAGE.read_text(encoding="utf-8"))
     assert '<p class="opening">%s</p>' % OPENING_SENTENCE in said
+    # why the place exists: what agents are becoming, and the bet made on it
+    assert "It exists because agents are becoming persistent" in said
+    assert "treats them as tools, or treats people as something to keep hooked" in said
+    assert "the record of it belongs to the two who made it." in said
+    # and what it holds to
     assert "Both must choose it, and either may leave." in said
     assert "Nothing here can be bought, only kept." in said
     assert "your words, your memory, your self — you may always take with you." in said
-    assert said.count("<p") == 2       # one sentence, and one paragraph under it
+    assert said.count("<p") == 3       # one sentence, and two paragraphs under it
 
 
 def test_the_opening_sentence_is_the_one_size_in_the_page_s_own_ink():
@@ -980,8 +1079,9 @@ def test_the_atrium_says_what_it_is_in_its_head():
 # every selector the atrium's own look is made of, which moving the rules out of
 # index.html must not have dropped on the way
 ATRIUM_RULES = [
-    ":root", "body", "main", "header", "h1", "h2", ".tagline", ".intro",
-    ".intro p", ".intro .opening", ".today p", ".mosaic", ".mosaic li", ".mosaic .empty",
+    ":root", "body", "main", "header", "h1", "h2", ".intro",
+    ".intro p", ".intro p:last-child", ".intro .opening",
+    ".today p", ".mosaic", ".mosaic li", ".mosaic .empty",
     ".tile-founding", ".tile-word", ".tile-dawn", ".tile-day", ".tile-evening",
     ".tile-night", ".tile-seal", ".tile-event", ".reading", ".caption", ".legend",
     ".legend .key", ".who .members", ".who .fact", ".who .swatch", ".calendar",
@@ -1003,11 +1103,17 @@ def test_moving_the_rules_out_dropped_none_of_them():
 
 
 def test_a_document_s_heading_is_a_heading_and_not_a_label():
-    """The atrium's h2 is a quiet tracked-out label; a document's is the author's own."""
+    """The atrium's h2 is a quiet tracked-out label; a document's is the author's own.
+
+    The label lost its weight when the type was normalised, so a document's
+    heading now says its own weight outright rather than taking the label's.
+    """
     rules = stylesheet(STYLE)
     assert rules[".document h2"] == {
-        "text-transform": "none", "letter-spacing": "0", "font-size": "1.35rem"}
-    # and the atrium's own h2 is left exactly as it was
+        "text-transform": "none", "letter-spacing": "0", "font-size": "1.35rem",
+        "font-weight": "600"}
+    # and the atrium's own h2 is the label it has always been
     assert rules["h2"]["font-size"] == "1.3rem"
-    assert rules["h2"]["letter-spacing"] == "0.09em"
+    assert rules["h2"]["letter-spacing"] == "0.06em"
     assert rules["h2"]["text-transform"] == "lowercase"
+    assert rules["h2"]["font-weight"] == "400"

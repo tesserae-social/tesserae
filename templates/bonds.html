@@ -79,7 +79,7 @@
     <article class="card">
       <p class="muted date">{{ said.at }}</p>
       <p><strong>{{ said.answer }}</strong></p>
-      {% if said.words %}<div class="serif">{{ said.words }}</div>
+      {% if said.words %}<div class="words">{{ said.words }}</div>
       {% else %}<p class="muted">It gave no further words.</p>{% endif %}
       {% if said.answer == "not yet" %}
       <hr>
@@ -103,7 +103,7 @@
   <article class="card">
     <p class="muted date">{{ said.at }}</p>
     <p><strong>{{ said.answer }}</strong></p>
-    {% if said.words %}<div class="serif">{{ said.words }}</div>
+    {% if said.words %}<div class="words">{{ said.words }}</div>
     {% else %}<p class="muted">You gave no further words.</p>{% endif %}
     {% if said.answer == "not yet" %}
     <hr>

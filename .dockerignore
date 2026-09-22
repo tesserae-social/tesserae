@@ -11,3 +11,8 @@ __pycache__
 # The tests are the code's own, and are not part of what runs.
 tests
 .pytest_cache
+
+# The job that keeps the record, and the record it keeps. Both belong to the
+# repository; neither is any part of the hearth, which never reads from them.
+.github
+record

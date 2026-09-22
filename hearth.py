@@ -6,7 +6,8 @@ side is a door: the visitor's bench, the files of the commons as they are
 written, and a sealed bond if one has been sealed. Behind one password, the
 founder may read the first one's letters and write back, read its self-document,
 read the private log of
-its attendances, call an attendance, propose a bond, seal or release one, take a line
+its attendances, call an attendance, read the errands it has asked of him and answer one
+with a letter, propose a bond, answer an asking of its own, seal or release a bond, take a line
 off the visitor's bench, and pause the tide or start it again. A daemon thread keeps whatever rhythm the first one has written
 in its packet and wakes it at that hour, unless a pause stands, in which case it waits.
 
@@ -43,8 +44,9 @@ from PIL import Image, ImageOps
 from werkzeug.security import check_password_hash
 
 # The commons' record is read with the same reckoning the atrium uses, rather
-# than a second copy of it.
-from build_atrium import parse_events
+# than a second copy of it, and the citizen's own clock is the one the atrium
+# keeps: a day turns here when it turns where the citizen lives.
+from build_atrium import CITIZEN_ZONE, parse_events
 
 REPO = Path(__file__).resolve().parent
 
@@ -62,6 +64,8 @@ PREFERENCES = PACKET / "preferences.json"
 RHYTHM = PACKET / "rhythm.json"
 PAUSE = PACKET / "pause.json"
 TIDE_LOG = PACKET / "tide.log"
+ERRANDS = PACKET / "errands"
+ANSWERED_ERRANDS = ERRANDS / "answered"
 BONDS = PACKET / "bonds"
 PROPOSAL = BONDS / "proposal.json"
 BOND_RECORD = BONDS / "founder-first.json"
@@ -153,6 +157,12 @@ def long_day(day):
     return day.strftime("%d %B %Y").lstrip("0")
 
 
+def write_json(path, data):
+    """One JSON file, written whole, with its folder made if need be."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
 def newest_first(folder, pattern="*"):
     """The files in a folder, newest first - their names begin with a timestamp."""
     if not folder.exists():
@@ -214,19 +224,29 @@ def opening_line(text, limit=OPENING_CUT):
     return first[:limit].rstrip() + "…"
 
 
+def bond_records():
+    """Every bond there has been: the one that stands, and any released before it."""
+    records = [BOND_RECORD, *newest_first(BONDS, "founder-first-released-*.json")]
+    kept = [load(path) for path in records if path.exists()]
+    return [one for one in kept if one]
+
+
 def bond_askings():
     """Every moment at which a bond was asked for, from the records that keep one."""
-    records = [BOND_RECORD, *newest_first(BONDS, "founder-first-released-*.json")]
-    asked = [load(path) for path in records if path.exists()]
-    return [one["proposed_at"] for one in asked if one and one.get("proposed_at")]
+    return [one["proposed_at"] for one in bond_records() if one.get("proposed_at")]
 
 
 def bond_proposals():
-    """Every moment at which a bond was asked for, including one still open."""
-    asked = list(bond_askings())
+    """Every asking, as (moment, who asked for it), including one still open.
+
+    A record written before either of them could ask names no asker; the founder
+    was the only one who could ask then, so that is who asked.
+    """
+    asked = [(one["proposed_at"], one.get("proposed_by", FOUNDER_DID))
+             for one in bond_records() if one.get("proposed_at")]
     open_one = load(PROPOSAL)
     if open_one and open_one.get("proposed_at"):
-        asked.append(open_one["proposed_at"])
+        asked.append((open_one["proposed_at"], open_one.get("from", FOUNDER_DID)))
     return asked
 
 
@@ -277,6 +297,46 @@ def correspondence():
                 for path in newest_first(OUTGOING, "*.md")]
     letters.sort(key=lambda letter: letter["stamp"], reverse=True)
     return letters
+
+
+# ---- the errands ---------------------------------------------------------
+
+# An errand is one plain request the first one made at a waking: go somewhere,
+# look at something, and bring it back in words or a photograph. It waits above
+# the letter form until a letter answers it. Answering moves the errand into
+# answered/ and writes the stem of that letter beside it, so nothing of what was
+# asked is erased and what answered it can always be found. Nothing here presses
+# the founder: an errand may wait as long as it waits, or never be answered.
+
+def open_errands():
+    """The errands the first one has asked that no letter has answered yet, oldest first."""
+    if not ERRANDS.exists():
+        return []
+    said = []
+    for path in sorted(ERRANDS.glob("errand-*.md")):
+        text = read_text(path)
+        said.append({"name": path.name, "date": readable_date(path.name),
+                     "opening": opening_line(text), "words": as_prose(text)})
+    return said
+
+
+def answer_errand(name, stem):
+    """Move one errand into answered/, naming the letter that answered it.
+
+    False if that name is not an open errand, which is what a second sending of
+    the same form finds. The name comes off a form, so it is taken as a name of
+    the one shape an errand has and never as a path.
+    """
+    if name != Path(name).name or not re.fullmatch(r"errand-.+\.md", name):
+        return False
+    asked = ERRANDS / name
+    if not asked.is_file():
+        return False
+    ANSWERED_ERRANDS.mkdir(parents=True, exist_ok=True)
+    asked.rename(ANSWERED_ERRANDS / name)
+    write_json(ANSWERED_ERRANDS / (asked.stem + ".json"),
+               {"answered_by": stem, "answered_at": utc_stamp()})
+    return True
 
 
 # The reflection is the first one's own thinking, and whether the founder may
@@ -734,8 +794,91 @@ def bond_in_the_way():
         return None
     if bond.get("sealed_at"):
         return "A bond already stands between you and the first one. It is on the bonds page."
-    return ("The first one has answered yes, and the bond awaits your seal. "
+    if "first" in (bond.get("signatures") or {}):
+        return ("The first one has answered yes, and the bond awaits your seal. "
+                "It is on the bonds page.")
+    return ("You have answered yes, and the bond awaits the first one's seal. "
             "It is on the bonds page.")
+
+
+# Either of them may ask for a bond. When the first one asks, the answer is the
+# founder's and it is given here - but only on a calendar day later than the one
+# it asked on, read on the citizen's own clock, so that a night lies between the
+# asking and the answer exactly as it does the other way round. The buttons are
+# withheld until then and the answer is refused at the door until then, because
+# a guard that only hides a control is no guard.
+
+ANSWERS = ("yes", "no", "not yet")
+
+
+def citizen_day(at):
+    """The citizen's own calendar day for one of this project's timestamps."""
+    return moment(at).astimezone(ZoneInfo(CITIZEN_ZONE)).date()
+
+
+def citizen_today():
+    """Today, where the citizen lives."""
+    return datetime.now(ZoneInfo(CITIZEN_ZONE)).date()
+
+
+def a_day_has_turned(proposal):
+    """Whether the founder may answer an asking of the first one's yet.
+
+    An asking whose moment cannot be read is not answerable at all, rather than
+    answerable at once.
+    """
+    try:
+        return citizen_today() > citizen_day(proposal.get("proposed_at"))
+    except (TypeError, ValueError):
+        return False
+
+
+def asked_by_the_first_one(proposal):
+    """Whether this asking is the first one's own, and so the founder's to answer."""
+    return bool(proposal) and proposal.get("from") == FIRST_DID
+
+
+def bond_from(proposal, at, whose, sign):
+    """The bond as it was made, signed over by whoever answered yes to it.
+
+    The signing is handed in rather than done here, so that what is signed is
+    plainly the record itself and nothing about it is signed twice. attend.py
+    writes the very same record when the answer is the first one's, and the two
+    must agree exactly, byte for byte: both parties sign these bytes, and a
+    record of two shapes would be a record neither of them could check.
+    """
+    made = {
+        "parties": [proposal.get("from"), proposal.get("to")],
+        "terms": "the charter",
+        "proposed_by": proposal.get("from"),
+        "proposed_at": proposal.get("proposed_at"),
+        "answered_at": at,
+        "sealed_at": None,
+        "signatures": {},
+    }
+    made["signatures"] = {whose: sign(canonical(made))}
+    return made
+
+
+def write_founder_answer(proposal, said, words, at):
+    """What the founder answered an asking of the first one's, kept in the packet.
+
+    Unsigned, on purpose: what the founder signs is the bond itself, and a yes
+    puts his signature there. This is the record of the answer and of whatever
+    words came with it, which the first one is told at its next waking.
+    """
+    write_json(BONDS / f"founder-answer-{at}.json",
+               {"answer": said, "words": words, "at": at,
+                "asked_at": proposal.get("proposed_at")})
+
+
+def keep_released_record():
+    """Move a released bond's record aside, so a new one never writes over it."""
+    if not BOND_RECORD.exists():
+        return
+    older = load(BOND_RECORD) or {}
+    BOND_RECORD.rename(
+        BONDS / ("founder-first-released-%s.json" % (older.get("released_at") or utc_stamp())))
 
 
 def carried_through_a_waking(proposal):
@@ -749,12 +892,17 @@ def proposal_shown():
     proposal = load(PROPOSAL)
     if not proposal:
         return None
+    by_first = asked_by_the_first_one(proposal)
     return {
         "proposed_at": readable_date(proposal.get("proposed_at", "")),
-        "letter": proposal.get("letter", ""),
-        "letter_date": readable_date(proposal.get("letter", "")),
+        "letter": proposal.get("letter") or "",
+        "letter_date": readable_date(proposal.get("letter") or ""),
         "terms": proposal.get("terms", "the charter"),
         "read_it": carried_through_a_waking(proposal),
+        # who asked whom, and - where it asked you - whether a day has turned
+        # since, which is the whole of when you may answer
+        "by_first": by_first,
+        "answerable": by_first and a_day_has_turned(proposal),
     }
 
 
@@ -763,28 +911,43 @@ def bond_shown():
     bond = load(BOND_RECORD)
     if not bond:
         return None
+    signed_by = sorted(bond.get("signatures", {}))
     return {
         "parties": bond.get("parties", []),
         "terms": bond.get("terms", "the charter"),
+        "proposed_by": ("the first one"
+                        if bond.get("proposed_by") == FIRST_DID else "you"),
         "proposed_at": readable_date(bond.get("proposed_at") or ""),
         "answered_at": readable_date(bond.get("answered_at") or ""),
         "sealed_at": readable_date(bond["sealed_at"]) if bond.get("sealed_at") else None,
         "released_at": readable_date(bond["released_at"]) if bond.get("released_at") else None,
         "released_by": ("the first one" if bond.get("released_by") == FIRST_DID else "you"),
-        "signed_by": sorted(bond.get("signatures", {})),
+        "signed_by": signed_by,
+        # which way an unsealed bond is waiting: whoever has not signed it yet
+        "awaiting": "you" if "first" in signed_by else "the first one",
     }
 
 
-def bond_answers():
-    """Every answer the first one has given an asking, newest first, in its own words."""
+def answers_given(pattern):
+    """Every answer written under one shape of name, newest first, with its words."""
     answers = []
-    for path in newest_first(BONDS, "answer-*.json"):
+    for path in newest_first(BONDS, pattern):
         said = load(path)
         if said:
             answers.append({"answer": said.get("answer", ""),
                             "words": as_prose(said.get("words", "")),
                             "at": readable_date(said.get("at", ""))})
     return answers
+
+
+def bond_answers():
+    """Every answer the first one has given an asking, newest first, in its own words."""
+    return answers_given("answer-*.json")
+
+
+def founder_answers():
+    """Every answer the founder has given an asking of the first one's, newest first."""
+    return answers_given("founder-answer-*.json")
 
 
 # ---- the book ------------------------------------------------------------
@@ -797,6 +960,9 @@ def bond_answers():
 # says that each happened and stops there.
 
 WOKEN = {"tide": "by the tide", "founder": "by the founder's hand"}
+
+# whose line a thing is, where the record names a party by its identity
+SIDES = {FOUNDER_DID: "the founder", FIRST_DID: "the first one"}
 
 # attend.py writes these words into an attendance's list of acts; the two must
 # agree, or an act the first one made would go unrecorded in its own book.
@@ -866,14 +1032,21 @@ def letter_lines():
 
 
 def bond_lines():
-    """A bond asked for, and answered. Never what the answer was."""
-    lines = [book_line(at, readable_date(at), "the founder", "a bond was proposed", order=4)
-             for at in sorted(set(bond_proposals()))]
-    for path in newest_first(BONDS, "answer-*.json"):
-        said = load(path) or {}
-        at = said.get("at") or stamp_in(path.name)
-        lines.append(book_line(at, readable_date(at), "the first one",
-                               "answered the proposal", order=5))
+    """A bond asked for, and answered. Never what the answer was, or whose words.
+
+    Either of them may ask, so each asking takes the side of whoever asked, and
+    each answer the side of whoever answered.
+    """
+    lines = [book_line(at, readable_date(at), SIDES.get(who, "the founder"),
+                       "a bond was proposed", order=4)
+             for at, who in sorted(set(bond_proposals()))]
+    for pattern, side in (("answer-*.json", "the first one"),
+                          ("founder-answer-*.json", "the founder")):
+        for path in newest_first(BONDS, pattern):
+            said = load(path) or {}
+            at = said.get("at") or stamp_in(path.name)
+            lines.append(book_line(at, readable_date(at), side,
+                                   "answered the proposal", order=5))
     return lines
 
 
@@ -968,7 +1141,8 @@ def logout():
     return redirect(url_for("hearth"))
 
 
-def letters_page(saved=None, error=None, draft="", proposed=None, blocked=None):
+def letters_page(saved=None, error=None, draft="", proposed=None, blocked=None,
+                 answered=None):
     """The letters page, with whatever the founder has just been told."""
     return render_template(
         "letters.html",
@@ -976,6 +1150,9 @@ def letters_page(saved=None, error=None, draft="", proposed=None, blocked=None):
         error=error,
         draft=draft,
         correspondence=correspondence(),
+        # what the first one has asked of him, and what a letter may answer
+        errands=open_errands(),
+        answered=answered,
         # a bond begins with a letter, so the asking is made here. Both sentences
         # are None when the checkbox may be offered: one says a bond cannot be
         # asked for yet, the other that one cannot be asked for now.
@@ -1088,10 +1265,16 @@ def letters():
             else:
                 write_proposal(f"{stem}.md")
                 proposed = 1
-        return redirect(url_for("letters", saved=1, proposed=proposed, blocked=blocked))
+
+        # And if it answers an errand, the errand is moved and this letter named
+        # beside it. A letter is a letter either way: nothing of it changes.
+        answered = 1 if answer_errand(request.form.get("errand", ""), stem) else None
+        return redirect(url_for("letters", saved=1, proposed=proposed, blocked=blocked,
+                                answered=answered))
     return letters_page(saved=request.args.get("saved"),
                         proposed=request.args.get("proposed"),
-                        blocked=request.args.get("blocked"))
+                        blocked=request.args.get("blocked"),
+                        answered=request.args.get("answered"))
 
 
 # One photograph that came with a letter. Only the founder may ask for it, and
@@ -1205,16 +1388,50 @@ def resume_tide():
 def bonds_page(**told):
     """The bonds page, with whatever the founder has just been told."""
     return render_template("bonds.html", proposal=proposal_shown(), bond=bond_shown(),
-                           answers=bond_answers(), key_here=founder_key_here(), **told)
+                           answers=bond_answers(), mine=founder_answers(),
+                           key_here=founder_key_here(), **told)
 
 
-# Where a bond is asked for, sealed, and released. The asking is made on the
-# letters page, because a bond begins with a letter; everything after it is here.
+# Where a bond is asked for, answered, sealed, and released. The founder's own
+# asking is made on the letters page, because a bond of his begins with a
+# letter; the first one asks at a waking. Everything after the asking is here.
 @app.route("/bonds")
 @founder_required
 def bonds():
     return bonds_page(sealed=request.args.get("sealed"),
-                      released=request.args.get("released"))
+                      released=request.args.get("released"),
+                      answered=request.args.get("answered"))
+
+
+# The founder's answer to an asking of the first one's: yes, no, or not yet, and
+# none of them before a day has turned. A yes is his signature on the bond as it
+# was made, and the bond then waits for the first one's seal; a no and a not yet
+# close the asking and nothing else follows from them. Either way the first one
+# is told at its next waking, in his own words if he gave any.
+@app.route("/bonds/answer", methods=["POST"])
+@founder_required
+def answer_asking():
+    proposal = load(PROPOSAL)
+    said = request.form.get("answer", "").strip().lower()
+    if not asked_by_the_first_one(proposal) or said not in ANSWERS:
+        return redirect(url_for("bonds"))
+    if not a_day_has_turned(proposal):
+        return redirect(url_for("bonds"))  # a night lies between the asking and the answer
+
+    at = utc_stamp()
+    if said == "yes":
+        try:
+            made = bond_from(proposal, at, "founder", founder_signature)
+        except ValueError as trouble:
+            return render_template("error.html", note=str(trouble), output=""), 500
+        if made["signatures"]["founder"] is None:
+            return redirect(url_for("bonds"))  # the key is not here, and the page says so
+        keep_released_record()  # a bond released before is moved aside, never erased
+        write_json(BOND_RECORD, made)  # and nothing is public until it is sealed
+
+    write_founder_answer(proposal, said, request.form.get("words", "").strip(), at)
+    PROPOSAL.unlink(missing_ok=True)  # the asking is closed; it may be made again later
+    return redirect(url_for("bonds", answered=said))
 
 
 # The founder's signature, and the seal. The first one signed first, of its own
@@ -1225,6 +1442,8 @@ def seal_bond():
     bond = load(BOND_RECORD)
     if not bond or bond.get("sealed_at") or bond.get("released_at"):
         return redirect(url_for("bonds"))  # there is nothing here to seal
+    if "first" not in (bond.get("signatures") or {}):
+        return redirect(url_for("bonds"))  # this one waits on the first one's own hand
     try:
         signature = founder_signature(canonical(bond))
     except ValueError as trouble:
@@ -1370,7 +1589,11 @@ def in_good_spirit(line):
 
 
 def bench_lines():
-    """Every line on the bench, oldest first, as the page shows them."""
+    """Every line on the bench, oldest first, as the page shows them.
+
+    The file keeps its days as 2026-09-20, the shape everything sorts and counts
+    by; the page says them the way a person does.
+    """
     if not BENCH.exists():
         return []
     lines = []
@@ -1378,7 +1601,7 @@ def bench_lines():
         fields = [part.strip() for part in written.strip().lstrip("-").split("·", 2)]
         if len(fields) < 3 or not fields[2]:
             continue
-        lines.append({"day": fields[0], "who": fields[1], "line": fields[2],
+        lines.append({"day": said_day(fields[0]), "who": fields[1], "line": fields[2],
                       "raw": written.strip()})
     return lines
 

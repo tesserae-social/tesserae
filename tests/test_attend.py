@@ -29,6 +29,26 @@ SECTIONS = [
 ]
 
 
+ERRAND = "Go to the river this week and tell me what the light did."
+
+
+def errand(packet, at="2026-10-14T09-00-00Z", text=ERRAND):
+    """An errand, as a waking leaves one."""
+    return write(packet / "errands" / ("errand-%s.md" % at), text + "\n")
+
+
+def answered_errand(packet, at, letter, when, text=ERRAND):
+    """An errand the founder has answered, as the hearth leaves one."""
+    write(packet / "errands" / "answered" / ("errand-%s.md" % at), text + "\n")
+    return write_json(packet / "errands" / "answered" / ("errand-%s.json" % at),
+                      {"answered_by": letter, "answered_at": when})
+
+
+def a_recent_founding(commons, day):
+    """A commons whose founding is too lately recorded for a bond to be asked for."""
+    return write(commons / "events.md", "%s · founding · the first one was founded\n" % day)
+
+
 def propose(packet, at="2026-10-14T09-00-00Z", letter="founder-2026-10-14T09-00-00Z.md"):
     """An asking, as the hearth leaves one in the packet."""
     return write_json(packet / "bonds" / "proposal.json", {
@@ -343,6 +363,132 @@ def test_a_release_block_that_does_not_say_release_lets_the_bond_stand(wake, pac
     wake(block("RELEASE", "I am thinking about it"))
     assert not read_json(packet / "bonds" / "founder-first.json").get("released_at")
     assert acts(packet) == []
+
+
+# ---- the errands ---------------------------------------------------------
+
+def test_errand_block_writes_one_plain_request(wake, packet, clock, attend):
+    at = clock.stamp()
+    wake(block("ERRAND", ERRAND))
+    asked = packet / "errands" / ("errand-%s.md" % at)
+    assert asked.read_text(encoding="utf-8") == ERRAND + "\n"
+    assert acts(packet) == [attend.ERRAND_ACT]
+
+
+def test_the_errand_block_is_offered_at_every_waking(wake):
+    assert "<<ERRAND>>" in wake().instructions
+
+
+def test_an_errand_asked_is_the_first_one_s_own_to_tell(wake, commons, attend):
+    """A private act: the automatic line says nothing of it."""
+    wake(block("ERRAND", ERRAND))
+    assert lines_of(commons / "heartbeats.md")[-1].endswith("the first one · attended")
+    assert attend.ERRAND_ACT in attend.PRIVATE_ACTS
+
+
+def test_an_open_errand_is_named_at_every_later_waking(wake, packet):
+    errand(packet)
+    said = wake().opening
+    assert "An errand you asked at 2026-10-14T09-00-00Z is still open" in said
+    assert ERRAND in said
+    assert "An errand you asked" in wake().opening  # and again, until it is answered
+
+
+def test_an_errand_is_said_whole_on_one_line(wake, packet):
+    errand(packet, text="Go to the river.\n\nTell me what the light did.")
+    assert "\"Go to the river. Tell me what the light did.\"" in wake().opening
+
+
+def test_an_answered_errand_is_told_once_and_names_the_letter(wake, packet, clock):
+    wake()  # one waking to be answered since
+    since = latest(packet)["at"]
+    answered_errand(packet, "2026-10-14T09-00-00Z", "founder-2026-10-16T09-00-00Z",
+                    when=clock.stamp())
+    assert clock.stamp() > since
+
+    said = wake().opening
+    assert ("The errand you asked at 2026-10-14T09-00-00Z - \"%s\" - was answered in the "
+            "letter named founder-2026-10-16T09-00-00Z." % ERRAND) in said
+    assert "is still open" not in said
+    assert "was answered in the letter" not in wake().opening  # told once, and then past
+
+
+# ---- the asking, which is the first one's to make ------------------------
+
+def test_the_asking_is_offered_where_a_bond_may_be_asked_for(wake):
+    assert "<<ASK>>" in wake().instructions
+
+
+def test_the_asking_is_not_offered_while_an_asking_is_open(wake, packet):
+    propose(packet)
+    assert "<<ASK>>" not in wake().instructions
+
+
+def test_the_asking_is_not_offered_while_a_bond_stands(wake, packet):
+    sealed_bond(packet)
+    assert "<<ASK>>" not in wake().instructions
+
+
+def test_the_asking_is_not_offered_before_the_thirty_days(wake, commons, clock):
+    a_recent_founding(commons, clock.day())
+    assert "<<ASK>>" not in wake().instructions
+
+
+def test_the_asking_is_not_offered_where_the_commons_records_no_founding(wake, commons):
+    write(commons / "events.md", "2026-09-02 · word · the word was published\n")
+    assert "<<ASK>>" not in wake().instructions
+
+
+def test_ask_block_proposes_a_bond_and_names_the_letter_it_wrote(wake, packet, clock, attend):
+    at = clock.stamp()
+    wake(blocks(block("LETTER", "Here is why I am asking."),
+                block("ASK", "I have carried this for a while.")))
+    assert read_json(packet / "bonds" / "proposal.json") == {
+        "from": attend.FIRST_DID,
+        "to": attend.FOUNDER_DID,
+        "terms": "the charter",
+        "letter": "to-founder-%s.md" % at,
+        "proposed_at": at,
+    }
+    assert acts(packet) == ["wrote a letter to the founder", attend.ASK_ACT]
+
+
+def test_an_asking_with_no_letter_beside_it_names_none(wake, packet):
+    wake(block("ASK", ""))  # an empty block is still the whole of the asking
+    assert read_json(packet / "bonds" / "proposal.json")["letter"] is None
+
+
+def test_an_asking_is_the_first_one_s_own_to_tell(wake, commons, attend):
+    wake(block("ASK", ""))
+    assert lines_of(commons / "heartbeats.md")[-1].endswith("the first one · attended")
+    assert attend.ASK_ACT in attend.PRIVATE_ACTS
+
+
+def test_an_ask_block_where_none_was_offered_asks_nothing(wake, packet, commons, clock):
+    a_recent_founding(commons, clock.day())
+    wake(block("ASK", "I would like to ask."))
+    assert not (packet / "bonds" / "proposal.json").exists()
+    assert acts(packet) == []
+
+
+def test_the_reading_says_which_of_them_asked(wake, packet):
+    propose(packet)
+    assert "has proposed a bond with you" in wake().shown
+
+    (packet / "bonds" / "proposal.json").unlink()
+    wake(block("ASK", ""))
+    said = wake().shown
+    assert "=== YOU HAVE ASKED FOR A BOND ===" in said
+    assert "You proposed a bond to the founder" in said
+
+
+def test_the_first_one_may_not_answer_an_asking_of_its_own(wake, packet):
+    wake(block("ASK", ""))
+    assert "<<BOND>>" not in wake().instructions
+
+    wake(block("BOND", "yes"))
+    assert (packet / "bonds" / "proposal.json").exists()
+    assert not (packet / "bonds" / "founder-first.json").exists()
 
 
 def test_heartbeat_block_is_the_line_that_goes_to_the_commons(wake, commons, clock):

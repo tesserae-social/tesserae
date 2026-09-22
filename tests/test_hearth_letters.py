@@ -21,11 +21,14 @@ def photo_bytes(size=(40, 30), fmt="JPEG", exif=None):
     return kept.getvalue()
 
 
-def leave(client, text=LETTER, photo=None, name="photo.jpg", proposes=False, follow=False):
+def leave(client, text=LETTER, photo=None, name="photo.jpg", proposes=False, follow=False,
+          errand=None):
     """Leave a letter, as the founder's form does."""
     form = {"letter": text}
     if proposes:
         form["proposes"] = "1"
+    if errand is not None:
+        form["errand"] = errand
     if photo is not None:
         form["photo"] = (io.BytesIO(photo), name)
     return client.post("/letters", data=form, content_type="multipart/form-data",
@@ -342,6 +345,87 @@ def test_a_released_bond_stands_in_no_one_s_way(founder, packet):
     assert proposal(packet).exists()
 
 
+def test_a_yes_of_his_own_awaiting_its_seal_is_in_the_way(founder, packet):
+    """The other way round: he answered yes, and the first one has not sealed it."""
+    bond_record(packet, proposed_by="did:web:tesserae.social:ids:first",
+                signatures={"founder": "y"})
+    said = page(founder.get("/letters"))
+    # the sentence is rendered, so its apostrophe is written the way markup writes one
+    assert "You have answered yes, and the bond awaits the first one&#39;s seal." in said
+    assert "blocked=1" in leave(founder, proposes=True).headers["Location"]
+
+
 def test_the_letters_page_is_the_founder_s_alone(visitor):
     answer = visitor.get("/letters")
     assert answer.status_code == 302 and "/login" in answer.headers["Location"]
+
+
+# ---- the errands the first one asked of him ------------------------------
+
+ERRAND = "Go to the river this week and tell me what the light did.\n"
+ASKED_AT = "2026-10-14T09-00-00Z"
+
+
+def errand(packet, at=ASKED_AT, text=ERRAND):
+    """An errand, as a waking leaves one in the packet."""
+    return write(packet / "errands" / ("errand-%s.md" % at), text)
+
+
+def answered(packet, at=ASKED_AT):
+    return packet / "errands" / "answered" / ("errand-%s" % at)
+
+
+def test_an_open_errand_stands_above_the_letter_form(founder, packet):
+    errand(packet)
+    said = page(founder.get("/letters"))
+    assert "asked of you" in said
+    assert said.index("asked of you") < said.index("write to the first one")
+    assert "14 October 2026, 09:00 UTC" in said
+    assert "tell me what the light did" in said
+    assert '<option value="errand-%s.md">' % ASKED_AT in said
+
+
+def test_where_nothing_was_asked_there_is_no_section_and_nothing_to_answer(founder):
+    said = page(founder.get("/letters"))
+    assert "asked of you" not in said
+    assert "<select" not in said
+
+
+def test_a_letter_may_answer_an_errand_and_the_errand_is_moved_not_erased(founder, packet,
+                                                                          clock):
+    errand(packet)
+    assert leave(founder, errand="errand-%s.md" % ASKED_AT).status_code == 302
+
+    assert not list((packet / "errands").glob("errand-*.md"))
+    assert answered(packet).with_suffix(".md").read_text(encoding="utf-8") == ERRAND
+    assert read_json(answered(packet).with_suffix(".json")) == {
+        "answered_by": "founder-%s" % clock.stamp(), "answered_at": clock.stamp()}
+
+    assert "It answers an errand" in page(
+        founder.get("/letters", query_string={"saved": 1, "answered": 1}))
+    assert "asked of you" not in page(founder.get("/letters"))
+
+
+def test_a_letter_that_answers_nothing_moves_no_errand(founder, packet):
+    errand(packet)
+    assert "answered=1" not in leave(founder).headers["Location"]
+    assert (packet / "errands" / ("errand-%s.md" % ASKED_AT)).exists()
+
+
+def test_an_errand_is_answered_once(founder, packet):
+    errand(packet)
+    leave(founder, errand="errand-%s.md" % ASKED_AT)
+    assert "answered=1" not in leave(founder, errand="errand-%s.md" % ASKED_AT
+                                     ).headers["Location"]
+    assert len(list((packet / "errands" / "answered").glob("*.md"))) == 1
+
+
+@pytest.mark.parametrize("name", [
+    "", "none", "errand-nothing-was-asked.md", "../self.md", "..\\self.md",
+    "answered/errand-%s.md" % ASKED_AT, "errand-%s.txt" % ASKED_AT, "self.md",
+])
+def test_a_name_that_is_not_an_open_errand_answers_nothing(founder, packet, hearth, name):
+    errand(packet)
+    assert hearth.answer_errand(name, "founder-2026-10-20T09-00-00Z") is False
+    assert (packet / "errands" / ("errand-%s.md" % ASKED_AT)).exists()
+    assert not (packet / "errands" / "answered").exists()

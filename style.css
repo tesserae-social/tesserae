@@ -70,20 +70,20 @@
     color: var(--ink-soft);
   }
 
-  .charter {
-    margin-top: 56px;
-    padding: 32px 30px;
-    background: var(--card);
-    border: 1px solid var(--rule);
-    border-radius: 3px;
-  }
+  /* The intro: one sentence, and then the whole of it in a paragraph. It stands
+     on the page's own paper, in the page's own ink -- no ground of its own, no
+     border, and no box, because what it says is the page and not a quotation
+     inside it. The opening sentence is the h2's size in the body's own weight. */
+  .intro { margin-top: 56px; }
 
-  .charter p {
-    margin: 0;
-    font-family: Georgia, "Times New Roman", "Iowan Old Style", serif;
-    font-style: italic;
-    font-size: 1.08rem;
-    line-height: 1.8;
+  .intro p { margin: 0; }
+
+  .intro .opening {
+    margin: 0 0 1.1rem;
+    font-size: 1.3rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--ink);
   }
 
   .today p { margin: 0; }
@@ -239,7 +239,6 @@
     /* the page draws in its gutters, so the frame's cap follows them */
     :root { --frame: min(552px, 100vw - 40px); }
     main { padding: 48px 20px 72px; }
-    .charter { padding: 24px 20px; }
   }
 
   /* ---- the documents -------------------------------------------------- */
@@ -274,7 +273,7 @@
 
   .document p { margin: 0 0 1.1rem; }
 
-  /* a document quotes the way the atrium quotes the charter: serif, and leaning */
+  /* a document quotes the way this place has always quoted: serif, and leaning */
   .document blockquote {
     margin: 1.5rem 0;
     padding-left: 20px;

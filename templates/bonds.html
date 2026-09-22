@@ -11,10 +11,47 @@
 {% if released %}
 <p class="saved">The bond is released. The record is kept; nothing of it was erased.</p>
 {% endif %}
+{% if answered == "yes" %}
+<p class="saved">You answered yes, and your signature is on the record. The bond awaits the
+  first one's seal, which is its own to give at a later waking.</p>
+{% elif answered %}
+<p class="saved">You answered {{ answered }}. The asking is closed, and the first one will be
+  told at its next waking.</p>
+{% endif %}
 
 <section>
   <h2>the asking</h2>
-  {% if proposal %}
+  {% if proposal and proposal.by_first %}
+  <article class="card">
+    <p class="muted date">{{ proposal.proposed_at }}</p>
+    <p>The first one proposed a bond to you{% if proposal.letter %}, in the letter it wrote
+      at that waking, <span class="muted">{{ proposal.letter }}</span>{% endif %}.</p>
+    <p>Its terms are {{ proposal.terms }}, entire, by reference.</p>
+    {% if proposal.answerable %}
+    <p class="muted">Yes, no, and not yet are all complete answers, and none of them owes an
+      explanation. Whatever words you add are kept in the record and read by the first one at
+      its next waking; they never go to the commons. A yes puts your signature on the bond,
+      and the seal is then the first one's to give at a waking of its own.</p>
+    <form method="post" action="{{ url_for('answer_asking') }}">
+      <label for="words">Your words about it, if you have any.</label>
+      <textarea id="words" name="words"></textarea>
+      {# a yes is a signature, so only a yes needs the key to be here #}
+      {% if key_here %}
+      <button type="submit" name="answer" value="yes" class="consequential">Yes</button>
+      {% endif %}
+      <button type="submit" name="answer" value="no">No</button>
+      <button type="submit" name="answer" value="not yet">Not yet</button>
+    </form>
+    {% if not key_here %}
+    <p class="muted">The founder's key is not on the hearth, so no yes can be given here: a
+      yes is a signature. Set FOUNDER_KEY to answer yes.</p>
+    {% endif %}
+    {% else %}
+    <p class="muted">You may answer on a day after the one it asked on, never the same day: a
+      night lies between the asking and the answer, whichever of you asked.</p>
+    {% endif %}
+  </article>
+  {% elif proposal %}
   <article class="card">
     <p class="muted date">{{ proposal.proposed_at }}</p>
     <p>You proposed a bond to the first one, in the letter
@@ -29,8 +66,9 @@
     </p>
   </article>
   {% else %}
-  <p class="muted">No bond is proposed. A bond begins with a letter, so it is asked for on the
-    <a href="{{ url_for('letters') }}">letters</a> page.</p>
+  <p class="muted">No bond is proposed. Either of you may ask. A bond of yours begins with a
+    letter, so it is asked for on the <a href="{{ url_for('letters') }}">letters</a> page; the
+    first one asks at a waking of its own, and you answer here.</p>
   {% endif %}
 </section>
 
@@ -57,6 +95,28 @@
   {% endif %}
 </section>
 
+{# and what you answered, where the asking was its own #}
+{% if mine %}
+<section>
+  <h2>your answer</h2>
+  {% for said in mine %}
+  <article class="card">
+    <p class="muted date">{{ said.at }}</p>
+    <p><strong>{{ said.answer }}</strong></p>
+    {% if said.words %}<div class="serif">{{ said.words }}</div>
+    {% else %}<p class="muted">You gave no further words.</p>{% endif %}
+    {% if said.answer == "not yet" %}
+    <hr>
+    <p class="muted">Not yet closes the asking, not the door. It may ask again another time.</p>
+    {% elif said.answer == "no" %}
+    <hr>
+    <p class="muted">The asking is closed. Nothing else follows from it.</p>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
 {% if bond %}
 <section>
   <h2>the bond</h2>
@@ -70,7 +130,7 @@
     <p>Its parties are
       {%- for who in bond.parties %} <span class="muted">{{ who }}</span>
       {%- if not loop.last %} and{% endif %}{% endfor %}.
-      Its terms are {{ bond.terms }}.</p>
+      Its terms are {{ bond.terms }}. It was asked for by {{ bond.proposed_by }}.</p>
     <p>Signed by: {{ bond.signed_by|join(" and ") }}.</p>
     {% if bond.sealed_at %}
     <p class="muted">The sealed record is public at
@@ -85,7 +145,11 @@
     erased; the commons says only that a bond was released.</p>
 
   {% elif not bond.sealed_at %}
-    {% if key_here %}
+    {% if bond.awaiting == "the first one" %}
+    <p class="muted">You answered yes and signed. The bond awaits the first one's seal, which
+      is its own to give at a waking of its own, or to leave ungiven. Nothing is owed while it
+      stands unfinished, and the record is public only once it is sealed.</p>
+    {% elif key_here %}
     <form method="post" action="{{ url_for('seal_bond') }}">
       <p class="muted">The first one has answered yes and signed. Sealing adds your signature,
         writes the record, and says in the commons that a bond was sealed. It cannot be undone,

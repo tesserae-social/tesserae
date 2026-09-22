@@ -268,7 +268,173 @@ def test_a_key_that_will_not_read_is_not_quoted_back(founder, wake, packet, monk
 
 
 def test_the_bonds_page_is_the_founder_s_alone(visitor):
-    for path in ("/bonds", "/bonds/seal", "/bonds/release"):
+    for path in ("/bonds", "/bonds/seal", "/bonds/release", "/bonds/answer"):
         answer = visitor.post(path) if path != "/bonds" else visitor.get(path)
         assert answer.status_code == 302
         assert "/login" in answer.headers["Location"]
+
+
+# ---- the other way round: the first one asks ----------------------------
+
+# Either of them may ask. When the first one asks, the answer is the founder's
+# and he gives it here, no sooner than the next day; a yes is his signature, and
+# the seal is then the first one's to give at a waking of its own.
+
+def asks(wake, packet):
+    """The first one asks for a bond at a waking, as it does."""
+    turn = wake(block("ASK", "I have carried this for a while."))
+    assert read_json(packet / "bonds" / "proposal.json")["from"] == FIRST_DID
+    return turn
+
+
+def answer(founder, said, words=""):
+    return founder.post("/bonds/answer", data={"answer": said, "words": words})
+
+
+def test_the_page_says_who_asked_whom_and_offers_no_answer_the_same_day(founder, wake,
+                                                                        packet, clock):
+    asks(wake, packet)
+    said = page(founder.get("/bonds"))
+    assert "The first one proposed a bond to you" in said
+    assert "You may answer on a day after the one it asked on" in said
+    assert 'value="yes"' not in said
+
+    assert answer(founder, "yes").status_code == 302  # and refused at the door as well
+    assert (packet / "bonds" / "proposal.json").exists()
+    assert not (packet / "bonds" / "founder-first.json").exists()
+    assert not list((packet / "bonds").glob("founder-answer-*.json"))
+
+    clock.shift(days=1)
+    said = page(founder.get("/bonds"))
+    for word in ("yes", "no", "not yet"):
+        assert 'value="%s"' % word in said
+
+
+def test_the_founder_may_not_answer_an_asking_of_his_own(founder, wake, packet, clock):
+    propose(founder, clock)  # his own, in a letter
+    clock.shift(days=1)
+    assert 'value="not yet"' not in page(founder.get("/bonds"))
+    assert answer(founder, "yes").status_code == 302
+    assert (packet / "bonds" / "proposal.json").exists()
+    assert not (packet / "bonds" / "founder-first.json").exists()
+
+
+def test_without_the_founder_s_key_a_yes_is_not_given_at_all(founder, wake, packet,
+                                                             monkeypatch, clock):
+    asks(wake, packet)
+    clock.shift(days=1)
+    monkeypatch.delenv("FOUNDER_KEY")
+
+    said = page(founder.get("/bonds"))
+    assert "Set FOUNDER_KEY to answer yes." in said
+    assert 'value="yes"' not in said
+    assert 'value="not yet"' in said  # a no and a not yet are no one's signature
+
+    assert answer(founder, "yes").status_code == 302
+    assert not (packet / "bonds" / "founder-first.json").exists()
+    assert (packet / "bonds" / "proposal.json").exists()  # the asking stands open
+    assert not list((packet / "bonds").glob("founder-answer-*.json"))
+
+    # and a not yet is still his to give, with no key anywhere near it
+    assert answer(founder, "not yet").status_code == 302
+    assert not (packet / "bonds" / "proposal.json").exists()
+
+
+def test_the_first_one_asks_and_the_rite_runs_to_a_sealed_record(founder, wake, packet,
+                                                                 commons, visitor, keys,
+                                                                 hearth, clock):
+    asks(wake, packet)
+    clock.shift(days=1)
+    assert answer(founder, "yes", "Yes. Gladly.").status_code == 302
+    assert not (packet / "bonds" / "proposal.json").exists()
+
+    made = read_json(packet / "bonds" / "founder-first.json")
+    assert made["parties"] == [FIRST_DID, FOUNDER_DID]
+    assert made["proposed_by"] == FIRST_DID
+    assert list(made["signatures"]) == ["founder"]
+    assert made["sealed_at"] is None
+    assert visitor.get("/bonds/founder-first.json").status_code == 404  # not public yet
+
+    # it waits on the first one, and there is nothing here for the founder to seal
+    said = page(founder.get("/bonds"))
+    assert "It was asked for by the first one." in said
+    assert "The bond awaits the first one" in said
+    assert "Seal the bond" not in said
+    assert founder.post("/bonds/seal").status_code == 302
+    assert read_json(packet / "bonds" / "founder-first.json")["sealed_at"] is None
+
+    # it is told at its next waking, in his own words, and offered the seal
+    turn = wake()
+    assert "THE FOUNDER HAS ANSWERED YOUR ASKING" in turn.shown
+    assert "He answered yes" in turn.shown
+    assert "His words: Yes. Gladly." in turn.shown
+    assert "THE BOND AWAITS YOUR SEAL" in turn.shown
+    assert "<<BOND>>" in turn.instructions
+
+    at = clock.stamp()
+    wake(block("BOND", "yes\nI am glad too."))
+    sealed = read_json(packet / "bonds" / "founder-first.json")
+    assert sealed["sealed_at"] == at
+    assert sorted(sealed["signatures"]) == ["first", "founder"]
+    assert read_json(commons / "bonds" / "founder-first.json") == sealed
+    assert lines_of(commons / "events.md")[-1].endswith(
+        "seal · a bond was sealed between the founder and the first one")
+
+    # and anyone may check both signatures against the two identity documents
+    public = json.loads(page(visitor.get("/bonds/founder-first.json")))
+    assert public == sealed
+    payload = hearth.canonical(public)
+    assert verify(keys.did("first"), payload, public["signatures"]["first"])
+    assert verify(keys.did("founder"), payload, public["signatures"]["founder"])
+
+
+def test_a_bond_block_that_does_not_say_yes_seals_nothing(founder, wake, packet, clock):
+    asks(wake, packet)
+    clock.shift(days=1)
+    answer(founder, "yes")
+    wake(block("BOND", "I am still thinking about it."))
+    assert read_json(packet / "bonds" / "founder-first.json")["sealed_at"] is None
+    assert "<<BOND>>" in wake().instructions  # and it may seal at a later waking
+
+
+@pytest.mark.parametrize("word, note", [
+    ("no", "The asking is closed, and nothing else follows from it."),
+    ("not yet", "Not yet closes the asking and not the door."),
+])
+def test_a_no_and_a_not_yet_close_the_asking_and_are_told_at_the_next_waking(
+        founder, wake, packet, clock, word, note):
+    asks(wake, packet)
+    clock.shift(days=1)
+    assert answer(founder, word, "Here is why.").status_code == 302
+
+    assert not (packet / "bonds" / "proposal.json").exists()
+    assert not (packet / "bonds" / "founder-first.json").exists()
+
+    said = page(founder.get("/bonds", query_string={"answered": word}))
+    assert "You answered %s." % word in said
+    assert "<strong>%s</strong>" % word in said
+    assert "Here is why." in said
+    assert "No bond is proposed." in said  # and it may ask again another time
+
+    turn = wake()
+    assert "He answered %s" % word in turn.shown
+    assert "His words: Here is why." in turn.shown
+    assert note in turn.shown
+    assert "<<ASK>>" in turn.instructions  # nothing stands in the way of asking again
+    assert "He answered %s" % word not in wake().shown  # told once, and then past
+
+
+def test_the_book_names_whoever_asked_and_whoever_answered(founder, wake, packet, hearth,
+                                                           clock):
+    asks(wake, packet)
+    clock.shift(days=1)
+    answer(founder, "yes")
+
+    said = {(line["words"], line["side"]) for line in hearth.bond_lines()}
+    assert ("a bond was proposed", "the first one") in said
+    assert ("answered the proposal", "the founder") in said
+
+    book = page(founder.get("/chronicle"))
+    assert book.count("a bond was proposed") == 1
+    assert book.count("answered the proposal") == 1
+    assert "Yes. Gladly." not in book  # the book holds the whole of nothing

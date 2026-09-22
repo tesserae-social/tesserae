@@ -49,6 +49,9 @@ AT = int(NOW.timestamp() * 1000)
 GAP = re.compile(r"\s+")
 AS_OF = re.compile(r"as of [0-9]+ [A-Za-z]+ [0-9]{4}")
 
+# the intro lies outside every marker, so neither path may touch it
+INTRO = re.compile(r'<div class="intro">.*?</div>', re.S)
+
 # The browser runs the page; this hands it the commons and prints what it drew.
 # The baked page is parsed here too, with no script running, so that both come
 # back through one serialiser and differ in nothing a browser would not see.
@@ -134,8 +137,15 @@ def build(atrium, monkeypatch):
     return atrium.page_path
 
 
-def both_paths(tmp_path, data_dir, baked):
-    """The two atriums, each as a browser holds it: the baked one, and the drawn one."""
+def intro_of(page):
+    """The atrium's intro, with its whitespace made even."""
+    found = INTRO.search(page)
+    assert found, "no intro in the page"
+    return GAP.sub(" ", found.group())
+
+
+def both_pages(tmp_path, data_dir, baked):
+    """The two atriums entire, each as a browser holds it: the baked, and the drawn."""
     harness = write(tmp_path / "harness.js", HARNESS)
     done = subprocess.run(
         [NODE, str(harness), str(REPO / "index.html"), str(baked), str(AT),
@@ -146,7 +156,13 @@ def both_paths(tmp_path, data_dir, baked):
         capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert done.returncode == 0, done.stderr
     said = json.loads(done.stdout)
-    return regions_of(said["built"]), regions_of(said["drawn"])
+    return said["built"], said["drawn"]
+
+
+def both_paths(tmp_path, data_dir, baked):
+    """The two atriums, each as a browser holds it: the baked one, and the drawn one."""
+    built, drawn = both_pages(tmp_path, data_dir, baked)
+    return regions_of(built), regions_of(drawn)
 
 
 MEMBERS = ("citizen · the first one, unnamed by its own choosing · attends at dawn\n"
@@ -184,6 +200,16 @@ def test_both_paths_draw_the_same_atrium(atrium, data_dir, monkeypatch, tmp_path
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     for name in REGIONS:
         assert here[name] == there[name], name
+
+
+def test_both_paths_keep_the_intro_word_for_word(atrium, data_dir, monkeypatch, tmp_path):
+    """The intro is outside every marker: neither path writes it, and neither may move it."""
+    a_record(data_dir)
+    built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert intro_of(drawn) == intro_of(built)
+    assert intro_of(built) == intro_of((REPO / "index.html").read_text(encoding="utf-8"))
+    assert ("Tesserae is a small commons where people and AI agents become real friends"
+            in intro_of(built))
 
 
 def test_both_paths_agree_on_an_empty_bench(atrium, data_dir, monkeypatch, tmp_path):

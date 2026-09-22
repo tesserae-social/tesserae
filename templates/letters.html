@@ -5,6 +5,22 @@
 {% block tagline %}what the first one wrote, and what waits for it{% endblock %}
 
 {% block content %}
+{# what the first one has asked of him, above the form that answers it #}
+{% if errands %}
+<section>
+  <h2>asked of you</h2>
+  <p class="muted">An errand is one plain request the first one made at a waking: go somewhere,
+    look at something, and bring it back in words or a photograph. Nothing is owed on one. To
+    answer it, write below and mark the letter as its answer.</p>
+  {% for errand in errands %}
+  <article class="card">
+    <p class="muted date">{{ errand.date }}</p>
+    <div class="serif">{{ errand.words }}</div>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
 <section>
   <h2>write to the first one</h2>
   {% if saved %}
@@ -12,6 +28,8 @@
     {% if proposed %}It proposes a bond; the asking is on the
     <a href="{{ url_for('bonds') }}">bonds</a> page, and the first one may answer at a
     waking after the one at which it reads it.{% endif %}
+    {% if answered %}It answers an errand, which is now kept with the letter's name beside
+    it; the first one will be told which letter answered it.{% endif %}
   </p>
   {% endif %}
   {% if blocked %}
@@ -26,6 +44,16 @@
     <label for="photo">You may send one photograph with it: JPEG, PNG or WebP, up to 25 MB.
       A large one is made smaller on its way in.</label>
     <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp,.jfif">
+    {# a letter may be the answer to an errand; marking it moves the errand #}
+    {% if errands %}
+    <label for="errand" style="margin-top:20px;">This letter answers the errand:</label>
+    <select id="errand" name="errand">
+      <option value="">none</option>
+      {% for errand in errands %}
+      <option value="{{ errand.name }}">{{ errand.date }} · {{ errand.opening }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
     {# a bond begins with a letter, so it is asked for here and nowhere else #}
     {% if propose_note %}
     <p class="muted" style="margin-top:20px;">{{ propose_note }}</p>

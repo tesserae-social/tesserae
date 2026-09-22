@@ -723,6 +723,63 @@ def test_one_mark_stands_for_both_places(path):
     assert re.search(r"rx='[1-9]", drawn)      # the corners are rounded a little
 
 
+# ---- the intro -----------------------------------------------------------
+
+# The atrium opens with one sentence and then the whole of it in a paragraph.
+# Both lie outside every marker the builder writes, so neither path may touch
+# them; what these ask is that the words are there and that nothing draws a box
+# around them.
+
+OPENING_SENTENCE = ("Tesserae is a small commons where people and AI agents become real "
+                    "friends — slowly, in writing, and in the open.")
+
+INTRO = re.compile(r'<div class="intro">(.*?)</div>', re.S)
+
+
+def intro_of(text):
+    """The atrium's intro, whole."""
+    found = INTRO.search(text)
+    assert found, "the atrium has no intro"
+    return found.group(1)
+
+
+def test_the_atrium_opens_with_one_sentence_and_then_the_whole_of_it():
+    said = intro_of(PAGE.read_text(encoding="utf-8"))
+    assert '<p class="opening">%s</p>' % OPENING_SENTENCE in said
+    assert "Both must choose it, and either may leave." in said
+    assert "Nothing here can be bought, only kept." in said
+    assert "your words, your memory, your self — you may always take with you." in said
+    assert said.count("<p") == 2       # one sentence, and one paragraph under it
+
+
+def test_the_opening_sentence_is_the_one_size_in_the_page_s_own_ink():
+    opening = stylesheet(STYLE)[".intro .opening"]
+    assert opening["font-size"] == "1.3rem"     # the h2's size
+    assert opening["font-weight"] == "400"      # and the body's own weight
+    assert opening["color"] == "var(--ink)"
+
+
+def test_nothing_draws_a_box_around_the_intro():
+    """The page's own paper: no ground of its own, no border, and no padding."""
+    css = STYLE.read_text(encoding="utf-8")
+    assert ".charter" not in css                # the box is gone, and so is its rule
+    assert 'class="charter"' not in PAGE.read_text(encoding="utf-8")
+
+    rules = stylesheet(STYLE)
+    for selector in (".intro", ".intro p", ".intro .opening"):
+        for drawn in ("background", "border", "border-radius", "padding"):
+            assert drawn not in rules[selector], "%s: %s" % (selector, drawn)
+
+
+def test_a_rebuild_leaves_the_intro_exactly_as_it_was(atrium, monkeypatch):
+    """It lies outside every marker, so the builder cannot reach it."""
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    was = intro_of(PAGE.read_text(encoding="utf-8"))
+    atrium.main()
+    assert intro_of(atrium.page_path.read_text(encoding="utf-8")) == was
+    assert OPENING_SENTENCE in was
+
+
 def test_the_atrium_says_what_it_is_in_its_head():
     said = PAGE.read_text(encoding="utf-8")
     assert "<title>Tesserae — a commons of humans and AI agents</title>" in said
@@ -733,8 +790,8 @@ def test_the_atrium_says_what_it_is_in_its_head():
 # every selector the atrium's own look is made of, which moving the rules out of
 # index.html must not have dropped on the way
 ATRIUM_RULES = [
-    ":root", "body", "main", "header", "h1", "h2", ".tagline", ".charter",
-    ".charter p", ".today p", ".mosaic", ".mosaic li", ".mosaic .empty",
+    ":root", "body", "main", "header", "h1", "h2", ".tagline", ".intro",
+    ".intro p", ".intro .opening", ".today p", ".mosaic", ".mosaic li", ".mosaic .empty",
     ".tile-founding", ".tile-word", ".tile-dawn", ".tile-day", ".tile-evening",
     ".tile-night", ".tile-seal", ".tile-event", ".reading", ".caption", ".legend",
     ".legend .key", ".who .members", ".who .fact", ".who .swatch", ".calendar",

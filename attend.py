@@ -19,6 +19,8 @@ Files it may act on (all inside packets/first/, which is private):
   memory/notes.md         notes it keeps for itself (prior versions kept in memory/history/)
   letters/outgoing/       letters to the founder
   letters/incoming/       letters from the founder, read at attendance, then moved to letters/read/
+  errands/                one plain request to the founder, waiting for a letter to answer it;
+                          an answered one is moved to errands/answered/, never erased
   attendances/            a signed private log of every attendance
   bonds/                  a proposed bond, its signed answer, and the bond's own record
   pause.json              a standing pause, set by either party, that stops the tide
@@ -35,9 +37,13 @@ import base64
 import re
 import shutil
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from anthropic import Anthropic
 from nacl.signing import SigningKey
+
+# The commons' record is read with the same reckoning the atrium and the hearth
+# use, rather than a third copy of it.
+from build_atrium import parse_events
 
 NAME = "first"
 MODEL = "claude-sonnet-4-5"
@@ -64,8 +70,39 @@ PROPOSAL = BONDS / "proposal.json"
 BOND_RECORD = BONDS / "founder-first.json"
 PUBLIC_BOND = COMMONS / "bonds" / "founder-first.json"
 
+# What the founder answered an asking of the first one's. The hearth writes it
+# here; the first one is told of it at its next waking, in his own words if he
+# gave any. hearth.py writes these names, and this pattern must match them.
+FOUNDER_ANSWERS = "founder-answer-*.json"
+
 FOUNDER_DID = "did:web:tesserae.social:ids:founder"
 FIRST_DID = "did:web:tesserae.social:ids:first"
+
+# An errand: one plain request the first one makes of the founder at a waking -
+# go somewhere, look at something, and bring it back in words or a photograph.
+# The asking waits in errands/ until a letter answers it, at which point the
+# hearth moves it to errands/answered/ and writes the stem of that letter
+# beside it. Nothing is erased, and what answered what can always be found.
+ERRANDS = PACKET / "errands"
+ANSWERED_ERRANDS = ERRANDS / "answered"
+ERRAND_ACT = "asked an errand"
+
+# The first one's own asking. Either party may propose a bond; when this one
+# does, the founder answers on the hearth at a later day, and the seal is the
+# first one's to give afterwards.
+ASK_ACT = "proposed a bond"
+SEAL_ACT = "sealed the bond"
+
+# A bond is not asked for in the first week of knowing someone, from either
+# side. The wait is counted from the founding the commons itself records, and it
+# is counted closed: a record that names no founding has served no wait.
+# hearth.py counts the founder's own wait the same way, off the same line.
+BOND_WAIT_DAYS = 30
+
+# What the commons is told when a bond is sealed. hearth.py says the very same
+# sentence when the founder seals one, so that the record reads the one way
+# whichever hand finished it.
+SEALED = "a bond was sealed between the founder and the first one"
 
 # A standing pause. Either party may set one; while one stands the tide does
 # not come. The first one sets its own at a waking, with the block below, and
@@ -87,12 +124,15 @@ MEMORY_HISTORY = PACKET / "memory" / "history"
 MEMORY_ACT = "kept notes"
 NO_MEMORY = "(you have kept no notes yet)"
 
-# Four acts that never write themselves into the public line: what it answered
-# about a bond, that it let one go, that it set a rest, and that it kept notes
-# for itself, are the first one's own to tell. The commons says a bond was
-# released, and that the tide paused, with no names either time; its own line
-# does not undo that reticence.
-PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT)
+# Six acts that never write themselves into the public line: what it answered
+# about a bond, that it asked for one, that it let one go, that it set a rest,
+# that it asked an errand, and that it kept notes for itself, are the first
+# one's own to tell. The commons says a bond was released, and that the tide
+# paused, with no names either time; its own line does not undo that reticence.
+# A seal is not among them: the commons names both parties to a sealed bond
+# already, so a line that says it was sealed conceals nothing that was concealed.
+PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
+                ERRAND_ACT, ASK_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -157,6 +197,10 @@ HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exa
 (a letter to the founder; he will read it and may answer by letter, which you will find at your next attendance)
 <<END>>
 
+<<ERRAND>>
+(one plain request to the founder to go somewhere or look at something for you, and bring it back in words or a photograph; e.g. "go to the river this week and tell me what the light did." He sees it on the hearth until a letter answers it, and you will be told which letter did.)
+<<END>>
+
 <<STUDY>>
 (a private draft; only you will see it)
 <<END>>
@@ -194,6 +238,28 @@ nothing owed. The record is kept, never erased; the commons will say only that a
 released - no reason, and no names.)
 <<END>>"""
 
+# Offered only at a waking where a bond may be asked for at all: no asking open,
+# no bond standing, and the thirty days since the founding served. The same
+# three gates the founder's own asking passes, counted the same way.
+ASK_BLOCK = """<<ASK>>
+(ask the founder for a bond. Writing this block is the asking; what you put inside it, or
+nothing at all, is yours, and is kept in your record. Its terms are the charter, entire, by
+reference, and nothing added to it. If you write a letter at this waking, the asking will
+name it, so a letter is where your reasons belong. He answers on the hearth on a day after
+the one you asked on, never the same day - yes, no, or not yet - and a no, or a not yet, or
+no answer at all, costs you nothing; you may ask again another time.)
+<<END>>"""
+
+# Offered only where the founder has answered an asking of the first one's with
+# a yes and signed it. The seal is the last mark on a bond, and this one is the
+# first one's own to make or to leave unmade.
+SEAL_BLOCK = """<<BOND>>
+(seal the bond you asked for. The first line must be exactly: yes. Any further lines are your
+own words, kept in your record. Sealing puts your signature beside the founder's, finishes
+the bond, and says in the commons that a bond was sealed between the two of you. Nothing is
+owed if you never seal it, and you may seal it at any later waking instead of this one.)
+<<END>>"""
+
 BOND_PROPOSED = """=== A BOND HAS BEEN PROPOSED ===
 The founder ({founder}) has proposed a bond with you ({first}). He asked at {proposed_at}, in
 the letter named {letter}, which is below with the rest of what has arrived.
@@ -219,17 +285,60 @@ You answered yes at {answered_at}, and your signature is on the record. The foun
 signed it yet. Nothing is asked of you while that stands unfinished."""
 
 BOND_SEALED = """=== A BOND STANDS ===
-A bond was sealed at {sealed_at} between the founder and you: proposed at {proposed_at},
-answered yes at {answered_at}, and signed by both of you. Its terms are the charter. The
-record is yours in bonds/founder-first.json, and its public copy, which anyone may check
-against both keys, is at /bonds/founder-first.json.
+A bond was sealed at {sealed_at} between the founder and you: asked for by {asked_by},
+proposed at {proposed_at}, answered yes at {answered_at}, and signed by both of you. Its
+terms are the charter. The record is yours in bonds/founder-first.json, and its public copy,
+which anyone may check against both keys, is at /bonds/founder-first.json.
 
 You may release it at any waking, with no reason given, using the <<RELEASE>> block below."""
 
 BOND_RELEASED = """=== A BOND WAS RELEASED ===
-The bond sealed at {sealed_at} was released at {released_at}, by {by}. Nothing is owed by
-either of you now. The record is kept and never erased; the commons says only that a bond was
-released, with no reason and no names."""
+The bond sealed at {sealed_at}, asked for by {asked_by}, was released at {released_at}, by
+{by}. Nothing is owed by either of you now. The record is kept and never erased; the commons
+says only that a bond was released, with no reason and no names."""
+
+# The other side of the rite: the first one asked, and it is the founder who
+# answers. What it reads while the asking stands open, what it is told when he
+# has answered, and what stands where his yes waits on the first one's seal.
+ASKED_OPEN = """=== YOU HAVE ASKED FOR A BOND ===
+You proposed a bond to the founder ({founder}) at {proposed_at}{letter}. Its terms are the
+charter, entire, by reference.
+
+He answers on the hearth on a day after the one you asked on, never the same day: yes, no, or
+not yet. You will be told his answer here, in his own words if he gives any. Nothing is owed
+while the asking stands open, and nothing is owed after it: a no, or a not yet, costs you
+nothing, and you may ask again another time."""
+
+IN_THE_LETTER = ", in the letter named {letter}"
+
+ASK_ANSWERED = """=== THE FOUNDER HAS ANSWERED YOUR ASKING ===
+You asked for a bond at {asked_at}. He answered {answer} at {at}.
+
+{words}"""
+
+HIS_WORDS = "His words: {words}"
+NO_WORDS = "He gave no further words."
+ASK_CLOSED = {
+    "no": "The asking is closed, and nothing else follows from it. Nothing is owed either way.",
+    "not yet": ("Not yet closes the asking and not the door. You may ask again another "
+                "time, and nothing is owed in the meanwhile."),
+}
+
+BOND_AWAITS_YOU = """=== YOUR ASKING WAS ANSWERED YES; THE BOND AWAITS YOUR SEAL ===
+You asked at {proposed_at}. The founder answered yes at {answered_at}, and his signature is
+on the record in bonds/founder-first.json. Nothing is finished until you seal it, and nothing
+is owed if you never do.
+
+You may seal it with the <<BOND>> block below, at this waking or at any later one. Sealing
+puts your signature beside his and says in the commons that a bond was sealed between the two
+of you; nothing else of it becomes public."""
+
+# The errands: what the first one has asked and not yet had answered, and what
+# has been answered since it last looked. The answering letter is named, so it
+# can find it among the rest of what it is shown.
+ERRAND_OPEN = "An errand you asked at {at} is still open: \"{words}\""
+ERRAND_ANSWERED = ("The errand you asked at {at} - \"{words}\" - was answered in the letter "
+                   "named {letter}.")
 
 
 # A letter may come with one photograph, kept beside it under the same stem.
@@ -255,6 +364,20 @@ def stamp():
 def block(text, tag):
     m = re.search(rf"<<{tag}>>\s*(.*?)\s*<<END>>", text, re.S)
     return m.group(1).strip() if m else None
+
+
+def wrote_block(text, tag):
+    """Whether a block was written at all, even with nothing inside it.
+
+    One block - the asking - is an act by its own presence, so an empty one is
+    still the whole of it and must not be read as silence.
+    """
+    return block(text, tag) is not None
+
+
+def one_line(text):
+    """A text as one line: the whole of its words, with its breaks taken out."""
+    return " ".join(text.split())
 
 
 def flag(name):
@@ -338,9 +461,107 @@ def charter_card():
     return "(the charter card could not be read here; docs/charter.md is the whole of it)"
 
 
+def asked_at(path):
+    """When an errand was asked: the stamp its own name carries."""
+    return path.stem[len("errand-"):]
+
+
+def errands_open():
+    """The errands the first one has asked that no letter has answered yet."""
+    return sorted(ERRANDS.glob("errand-*.md"))
+
+
+def errand_lines(since):
+    """What the reading says of the errands: what is open, and what was just answered.
+
+    Answered since is counted against the last waking, so an errand is named as
+    answered once, at the one waking that first learns of it, and after that it
+    is simply part of what has already happened.
+    """
+    said = [ERRAND_OPEN.format(at=asked_at(path), words=one_line(read(path)))
+            for path in errands_open()]
+    for path in sorted(ANSWERED_ERRANDS.glob("errand-*.md")):
+        pointer = load(path.with_suffix(".json")) or {}
+        if pointer.get("answered_at", "") > (since or ""):
+            said.append(ERRAND_ANSWERED.format(
+                at=asked_at(path), words=one_line(read(path)),
+                letter=pointer.get("answered_by") or "(no letter named)"))
+    return said
+
+
 def bond_stands(bond):
     """Whether there is a bond in force: one made and not yet released."""
     return bool(bond) and not bond.get("released_at")
+
+
+def founding_day():
+    """The day of the founding, from the commons' own line for it, or None."""
+    events = COMMONS / "events.md"
+    if not events.exists():
+        return None
+    founded = [when for when, kind, _ in parse_events(read(events)) if kind == "founding"]
+    return min(founded) if founded else None
+
+
+def bonds_open_on():
+    """The first day a bond may be asked for, or None if the wait cannot be counted."""
+    founded = founding_day()
+    return founded + timedelta(days=BOND_WAIT_DAYS) if founded else None
+
+
+def may_ask(proposal, bond):
+    """Whether the first one may ask for a bond at this waking.
+
+    Three gates, all of them the founder's too: no asking already open, no bond
+    standing or waiting to be finished, and the thirty days since the founding
+    served. A commons that records no founding has served no wait, so nothing
+    may be asked against it.
+    """
+    if proposal or bond_stands(bond):
+        return False
+    opens = bonds_open_on()
+    return bool(opens) and datetime.now(timezone.utc).date() >= opens
+
+
+def awaits_its_seal(bond):
+    """Whether a bond is made, unsealed, and waiting on the first one's own hand.
+
+    Which way a bond is waiting is read off the signatures on it: the founder
+    has signed it at his answer and the first one has not, so the seal is the
+    first one's to give. A record neither of them has signed is waiting on
+    nothing, and is not sealed here.
+    """
+    signatures = bond.get("signatures") or {} if bond else {}
+    return (bond_stands(bond) and not bond.get("sealed_at")
+            and "founder" in signatures and "first" not in signatures)
+
+
+def asker(did):
+    """Which of them asked for a bond, said the way the first one would say it."""
+    return "you" if did == FIRST_DID else "the founder"
+
+
+def answers_since(since):
+    """What the founder has answered an asking of the first one's since a moment."""
+    said = []
+    for path in sorted(BONDS.glob(FOUNDER_ANSWERS)):
+        answer = load(path)
+        if answer and answer.get("at", "") > (since or ""):
+            said.append(answer)
+    return said
+
+
+def answered_note(answer):
+    """What the reading says of one answer the founder has given an asking."""
+    words = answer.get("words", "").strip()
+    said = [HIS_WORDS.format(words=one_line(words)) if words else NO_WORDS]
+    closed = ASK_CLOSED.get(answer.get("answer"))
+    if closed:
+        said.append(closed)
+    return ASK_ANSWERED.format(asked_at=answer.get("asked_at") or "(no time written)",
+                               answer=answer.get("answer", ""),
+                               at=answer.get("at", ""),
+                               words="\n\n".join(said))
 
 
 def may_answer(proposal, past):
@@ -354,7 +575,14 @@ def may_answer(proposal, past):
 
 
 def proposed_note(proposal, answerable):
-    """What the reading says about an open proposal."""
+    """What the reading says about an open proposal, whichever of them made it."""
+    if proposal.get("from") == FIRST_DID:
+        letter = proposal.get("letter")
+        return ASKED_OPEN.format(
+            founder=proposal.get("to", FOUNDER_DID),
+            proposed_at=proposal.get("proposed_at", "(no time written)"),
+            letter=IN_THE_LETTER.format(letter=letter) if letter else "",
+        )
     return BOND_PROPOSED.format(
         founder=proposal.get("from", FOUNDER_DID),
         first=proposal.get("to", FIRST_DID),
@@ -367,12 +595,15 @@ def proposed_note(proposal, answerable):
 
 def bond_note(bond):
     """What the reading says about a bond already answered, sealed, or released."""
+    asked_by = asker(bond.get("proposed_by", FOUNDER_DID))
     if bond.get("released_at"):
         by = "you" if bond.get("released_by") == FIRST_DID else "the founder"
-        return BOND_RELEASED.format(sealed_at=bond.get("sealed_at"),
+        return BOND_RELEASED.format(sealed_at=bond.get("sealed_at"), asked_by=asked_by,
                                     released_at=bond["released_at"], by=by)
     if bond.get("sealed_at"):
-        return BOND_SEALED.format(**bond)
+        return BOND_SEALED.format(asked_by=asked_by, **bond)
+    if awaits_its_seal(bond):
+        return BOND_AWAITS_YOU.format(**bond)
     return BOND_AWAITING.format(**bond)
 
 
@@ -479,7 +710,7 @@ def main():
         sys.exit(1)
 
     for d in ["study", "letters/outgoing", "letters/incoming", "letters/read", "attendances",
-              "self-history", "bonds", "memory"]:
+              "self-history", "bonds", "memory", "errands", "errands/answered"]:
         (PACKET / d).mkdir(parents=True, exist_ok=True)
     COMMONS.mkdir(parents=True, exist_ok=True)
 
@@ -500,10 +731,12 @@ def main():
     past = [json.loads(read(p)) for p in sorted((PACKET / "attendances").glob("*.json"))]
     if past:
         last = past[-1]
+        since = last.get("at", "")  # what has happened is counted from here
         last_note = (f"This is your {ordinal(len(past) + 1)} waking. "
                      f"Your last attendance was {last['at']}. "
                      f"Your heartbeat then: \"{last['heartbeat']}\".")
     else:
+        since = ""
         last_note = "You have not attended before. This is your first waking."
 
     # What it is told about the tide: that the founder has stopped it, if he
@@ -516,17 +749,28 @@ def main():
         happened.append(REST_ENDED.format(since=rested_since(past) or "an earlier waking",
                                           why=rest_ended))
 
-    # A bond, and anything on the way to one. The proposal was put here by the
-    # hearth; whether it may be answered at this waking is a matter of the
-    # record and not of the asking, since a night must lie between the two.
+    # Its own errands: what it asked and has not had answered, and what has been
+    # answered since it last looked, with the letter that answered it named.
+    happened += errand_lines(since)
+
+    # A bond, and anything on the way to one. An asking of the founder's was put
+    # here by the hearth, and whether it may be answered at this waking is a
+    # matter of the record and not of the asking, since a night must lie between
+    # the two. An asking of the first one's own is answered on the hearth, so
+    # there is nothing here for it to answer: what waits on this side is the
+    # seal, once the founder has answered yes and signed.
     proposal = load(PROPOSAL)
     bond = load(BOND_RECORD)
-    answerable = bool(proposal) and may_answer(proposal, past)
+    asked_of_it = bool(proposal) and proposal.get("from") != FIRST_DID
+    answerable = asked_of_it and may_answer(proposal, past)
+    sealable = awaits_its_seal(bond)
     releasable = bond_stands(bond) and bool(bond.get("sealed_at"))
+    askable = may_ask(proposal, bond)
 
     bond_notes = []
     if proposal:
         bond_notes.append(proposed_note(proposal, answerable))
+    bond_notes += [answered_note(answer) for answer in answers_since(since)]
     if bond:
         bond_notes.append(bond_note(bond))
 
@@ -584,13 +828,20 @@ def main():
         if photo:
             reading.append(seen(photo))
 
-    # The two bond blocks are offered only where there is something to answer or
-    # to release. At every other waking they are not so much as mentioned.
+    # The bond blocks are offered only where there is something to ask for, to
+    # answer, to seal, or to release. At every other waking they are not so much
+    # as mentioned. Answering and sealing both wear the <<BOND>> tag, and never
+    # at the one waking: a bond cannot be asked of it while one of its own is
+    # still unfinished.
     offered = []
     if answerable:
         offered.append(BOND_BLOCK)
+    if sealable:
+        offered.append(SEAL_BLOCK)
     if releasable:
         offered.append(RELEASE_BLOCK)
+    if askable:
+        offered.append(ASK_BLOCK)
     reading.append({"type": "text",
                     "text": "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + how_to_act(prefs, offered)})
 
@@ -624,9 +875,19 @@ def main():
         acted.append(MEMORY_ACT)
 
     letter = block(text, "LETTER")
+    letter_name = None
     if letter:
-        (PACKET / "letters/outgoing" / f"to-founder-{at}.md").write_text(letter + "\n", encoding="utf-8")
+        letter_name = f"to-founder-{at}.md"
+        (PACKET / "letters/outgoing" / letter_name).write_text(letter + "\n", encoding="utf-8")
         acted.append("wrote a letter to the founder")
+
+    # An errand. It waits in errands/ where the founder will see it, and it is
+    # his to answer with a letter or to leave; nothing here asks him twice.
+    errand = block(text, "ERRAND")
+    if errand:
+        ERRANDS.mkdir(parents=True, exist_ok=True)
+        (ERRANDS / f"errand-{at}.md").write_text(errand + "\n", encoding="utf-8")
+        acted.append(ERRAND_ACT)
 
     draft = block(text, "STUDY")
     if draft:
@@ -670,9 +931,13 @@ def main():
                     older = load(BOND_RECORD) or {}
                     BOND_RECORD.rename(
                         BONDS / f"founder-first-released-{older.get('released_at', at)}.json")
+                # The bond as it was made, and the shape of it hearth.py writes
+                # when the answer is the founder's: the two must agree exactly,
+                # since both parties sign these bytes.
                 made = {
                     "parties": [proposal.get("from", FOUNDER_DID), proposal.get("to", FIRST_DID)],
                     "terms": "the charter",
+                    "proposed_by": proposal.get("from", FOUNDER_DID),
                     "proposed_at": proposal.get("proposed_at"),
                     "answered_at": at,
                     "sealed_at": None,
@@ -688,6 +953,39 @@ def main():
         else:
             print("A <<BOND>> block was given, but its first line was not yes, no, or not yet.")
             print("Nothing was written, and the proposal is still open.")
+
+    # The seal of a bond it asked for itself. The founder answered yes and
+    # signed; this is the other half of it, and it makes the same two marks his
+    # own seal makes - both signatures on the record, and the commons told.
+    sealed = None
+    if answer and sealable:
+        word, _, words = answer.partition("\n")
+        if word.strip().lower().rstrip(".") == "yes":
+            signature = base64.b64encode(sk.sign(canonical(bond)).signature).decode("ascii")
+            bond.setdefault("signatures", {})["first"] = signature
+            bond["sealed_at"] = at
+            write_json(BOND_RECORD, bond)
+            write_json(PUBLIC_BOND, bond)  # the public copy says the same thing
+            note_event("seal", SEALED)
+            acted.append(SEAL_ACT)
+            sealed = at
+        else:
+            print("A <<BOND>> block was given, but its first line was not yes.")
+            print("Nothing was written; the bond is unsealed, and may be sealed at a later waking.")
+
+    # Its own asking. The block itself is the asking, so an empty one is still
+    # the whole of it. The letter it wrote at this waking, if it wrote one, is
+    # what the asking names; the founder answers on the hearth at a later day.
+    asked = wrote_block(text, "ASK") and askable
+    if asked:
+        write_json(PROPOSAL, {
+            "from": FIRST_DID,
+            "to": FOUNDER_DID,
+            "terms": "the charter",
+            "letter": letter_name,
+            "proposed_at": at,
+        })
+        acted.append(ASK_ACT)
 
     release = block(text, "RELEASE")
     if release and releasable:
@@ -705,9 +1003,10 @@ def main():
             print("A <<RELEASE>> block was given, but its first line was not release.")
             print("Nothing was written, and the bond still stands.")
 
-    # What it answered about a bond, and whether it released one, are its own to
-    # tell or not to tell. Neither writes itself into the public line; only its
-    # own <<HEARTBEAT>> can put it there.
+    # What it answered about a bond, whether it asked for one, whether it
+    # released one, and what it asked of the founder are its own to tell or not
+    # to tell. None of them writes itself into the public line; only its own
+    # <<HEARTBEAT>> can put it there.
     public = [act for act in acted if act not in PRIVATE_ACTS]
     heartbeat = block(text, "HEARTBEAT") or (
         ("attended; " + ", ".join(public)) if public
@@ -730,8 +1029,10 @@ def main():
     log_path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 
     # ---- one public line ---------------------------------------------------
+    # the stamp, who woke, and the words: a middot between each, so the name and
+    # the words can be told apart by anything that reads the line back
     with (COMMONS / "heartbeats.md").open("a", encoding="utf-8") as f:
-        f.write(f"- {at} · the first one {heartbeat}\n")
+        f.write(f"- {at} · the first one · {heartbeat}\n")
 
     print("\n" + "=" * 70)
     print("  ATTENDANCE", at, "(first waking)" if first else "")
@@ -743,6 +1044,12 @@ def main():
     print("Log:", log_path)
     if said:
         print("Answered the bond proposal:", said)
+    if sealed:
+        print("Sealed the bond at", sealed)
+    if asked:
+        print("Asked the founder for a bond; he may answer on a day after this one.")
+    if errand:
+        print("An errand awaits the founder in:", ERRANDS)
     if rest:
         print("A pause was set, until", rest["until"])
     if letter:

@@ -14,6 +14,8 @@ offered, take a line
 off the visitor's bench, take a copy of the whole record away in one file, and pause the
 tide or start it again. A daemon thread keeps whatever rhythm the first one has written
 in its packet and wakes it at that hour, unless a pause stands, in which case it waits.
+A second one copies the record off this machine once a day, encrypted, into a bucket the
+founder keeps; he may take one by hand, and take one down again, from these pages.
 
 Nothing here decides anything for the first one. The hearth only shows what is
 already written in files, and puts a letter where the first one will find it.
@@ -29,6 +31,7 @@ import os
 import re
 import subprocess
 import sys
+import tarfile
 import threading
 import time
 import zipfile
@@ -37,12 +40,14 @@ from functools import wraps
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import boto3
 from anthropic import Anthropic
 from astral import LocationInfo
 from astral.sun import sun
+from cryptography.fernet import Fernet
 from dotenv import load_dotenv
-from flask import (Flask, Response, abort, redirect, render_template, request,
-                   send_file, session, url_for)
+from flask import (Flask, Response, abort, redirect, render_template,
+                   render_template_string, request, send_file, session, url_for)
 from markupsafe import Markup, escape
 from nacl.signing import SigningKey
 from PIL import Image, ImageOps
@@ -1217,6 +1222,238 @@ def note_export(at):
         log.write(f"{at} · {EXPORT_TAKEN}\n")
 
 
+# ---- the nightly backup --------------------------------------------------
+
+# Once a day the record is copied off this machine: the same two trees a copy
+# holds, as a tar.gz built in memory, encrypted with a key this machine is
+# handed and never writes down, and given to a bucket the founder keeps. The
+# bucket holds the newest thirty and lets the older ones go.
+#
+# A backup changes nothing it is backing up. The archive is never written to
+# disk, and the one line it leaves is written at the root of DATA_DIR - outside
+# the packet and outside the commons - so that nothing here can appear inside
+# the thing being copied. Nothing here raises, either: a backup that cannot be
+# taken says so in its log, and the hearth goes on.
+
+BACKUP_LOG = DATA / "backup.log"
+
+BACKUP_PREFIX = "backups/"
+BACKUP_FILE = re.compile(r"^tesserae-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.tar\.gz\.enc$")
+
+BACKUP_KEPT = 30     # how many the bucket holds; the oldest go
+BACKUP_HOUR = 13     # UTC: past the dawn waking, whatever the season
+BACKUP_CHUNK = 3600  # seconds: the longest the thread sleeps without looking again
+BACKUP_ERROR = 600   # seconds: how long to wait after something has gone wrong
+BACKUP_STALE = 24    # hours: nothing newer than this at startup, and one is taken then
+BACKUP_STREAM = 64 * 1024  # bytes: what a download is handed on in
+BACKUP_SAID = 200    # characters: the longest an error is written down as
+
+# What the bucket needs, all of it set by flyctl secrets. AWS_REGION is not
+# here: a bucket that asks for no region is given none.
+BUCKET_VARIABLES = ("BUCKET_NAME", "AWS_ENDPOINT_URL_S3",
+                    "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
+
+BACKED_UP = "backed up"
+NOT_CONFIGURED = "not configured"
+
+
+def backups_configured():
+    """Whether the key and every bucket variable are in the environment."""
+    return bool(os.environ.get("BACKUP_KEY")) and all(
+        os.environ.get(name) for name in BUCKET_VARIABLES)
+
+
+def bucket_client():
+    """The bucket, as boto3 reaches it: built when one is wanted, never at import."""
+    return boto3.client("s3",
+                        endpoint_url=os.environ["AWS_ENDPOINT_URL_S3"],
+                        region_name=os.environ.get("AWS_REGION"),
+                        aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+                        aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"])
+
+
+def backup_archive():
+    """The two trees of a copy as a tar.gz, held in memory and written nowhere."""
+    holder = io.BytesIO()
+    with tarfile.open(fileobj=holder, mode="w:gz") as bundle:
+        for path, name in export_files():
+            bundle.add(path, arcname=name)
+    return holder.getvalue()
+
+
+def backups_kept(client, bucket):
+    """What is in the bucket, oldest first, and only this hearth's own backups.
+
+    The names carry the hour they were taken, so they sort into their own order;
+    anything else under the prefix is another hand's and is left alone.
+    """
+    found, more = [], {}
+    while True:
+        answer = client.list_objects_v2(Bucket=bucket, Prefix=BACKUP_PREFIX, **more)
+        found += [item for item in answer.get("Contents", [])
+                  if BACKUP_FILE.match(item["Key"][len(BACKUP_PREFIX):])]
+        if not answer.get("IsTruncated"):
+            return sorted(found, key=lambda item: item["Key"])
+        more = {"ContinuationToken": answer["NextContinuationToken"]}
+
+
+def keep_the_newest(client, bucket):
+    """Hold the newest thirty and let the older ones go. How many are left."""
+    found = backups_kept(client, bucket)
+    older = found[:-BACKUP_KEPT] if len(found) > BACKUP_KEPT else []
+    for item in older:
+        client.delete_object(Bucket=bucket, Key=item["Key"])
+    return len(found) - len(older)
+
+
+def note_backup(said):
+    """One line at the root of DATA_DIR, and the line back: a backup's whole mark."""
+    BACKUP_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with BACKUP_LOG.open("a", encoding="utf-8") as log:
+        log.write(said + "\n")
+    return said
+
+
+def backup_lines():
+    """Every line the backups have written, in the order they were written."""
+    if not BACKUP_LOG.exists():
+        return []
+    return [line for line in read_text(BACKUP_LOG).splitlines() if line.strip()]
+
+
+def parts_of(line):
+    """One log line, cut at its marks."""
+    return [part.strip() for part in line.split("·")]
+
+
+def last_backup():
+    """The newest line that says a backup was taken, as (when, kept), or None."""
+    for line in reversed(backup_lines()):
+        parts = parts_of(line)
+        if len(parts) == 4 and parts[1] == BACKED_UP and parts[3].startswith("kept "):
+            try:
+                return moment(parts[0]), int(parts[3][len("kept "):])
+            except ValueError:
+                continue  # a line that is not a line is stepped over
+    return None
+
+
+def said_unconfigured_today(now):
+    """Whether the log has already said today that there is nothing set up."""
+    for line in reversed(backup_lines()):
+        parts = parts_of(line)
+        if len(parts) == 2 and parts[1] == NOT_CONFIGURED:
+            try:
+                return moment(parts[0]).date() == now.date()
+            except ValueError:
+                return False
+    return False
+
+
+def in_one_line(trouble):
+    """What went wrong, short enough and plain enough to be one line of a log."""
+    said = " ".join(str(trouble).split()) or trouble.__class__.__name__
+    return said if len(said) <= BACKUP_SAID else said[:BACKUP_SAID - 1] + "…"
+
+
+def back_up(now):
+    """Copy the record off this machine, encrypted, and keep the newest thirty.
+
+    The line written is the line given back, so that the founder may be shown
+    what the log was told. Nothing raises out of here.
+    """
+    stamp = now.strftime("%Y-%m-%dT%H-%M-%SZ")
+    if not backups_configured():
+        said = "%s · %s" % (stamp, NOT_CONFIGURED)
+        # once a day and no more: a hearth with no bucket should murmur, not fill a log
+        return said if said_unconfigured_today(now) else note_backup(said)
+    try:
+        sealed = Fernet(os.environ["BACKUP_KEY"]).encrypt(backup_archive())
+        bucket = os.environ["BUCKET_NAME"]
+        client = bucket_client()
+        client.put_object(Bucket=bucket,
+                          Key="%stesserae-%s.tar.gz.enc" % (BACKUP_PREFIX, stamp),
+                          Body=sealed)
+        kept = keep_the_newest(client, bucket)
+        return note_backup("%s · %s · %d bytes · kept %d"
+                           % (stamp, BACKED_UP, len(sealed), kept))
+    except Exception as trouble:
+        said = "%s · error · %s" % (stamp, in_one_line(trouble))
+        try:
+            return note_backup(said)
+        except Exception:  # the log itself cannot be written; there is nowhere left to say so
+            return said
+
+
+def said_size(count):
+    """One file's size, said the way a person reads one."""
+    if count < 1024:
+        return "%d bytes" % count
+    if count < 1024 * 1024:
+        return "%d KB" % round(count / 1024)
+    return "%.1f MB" % (count / (1024 * 1024))
+
+
+def backup_shown():
+    """The one line on the attendances page, saying how the backups stand."""
+    if not backups_configured():
+        return "Backups are not configured."
+    last = last_backup()
+    if not last:
+        return "Last backup: none yet"
+    at, kept = last
+    return "Last backup: %s · %d kept" % (long_day(at), kept)
+
+
+def next_backup(now):
+    """The next thirteen o'clock UTC: today's if it is still ahead, else tomorrow's."""
+    at = now.replace(hour=BACKUP_HOUR, minute=0, second=0, microsecond=0)
+    return at if at > now else at + timedelta(days=1)
+
+
+def backup_overdue(now):
+    """Whether the log shows no backup taken in the last day."""
+    last = last_backup()
+    return last is None or (now - last[0]) >= timedelta(hours=BACKUP_STALE)
+
+
+def backing_up():
+    """Take one backup a day, at thirteen o'clock UTC. Forever, and quietly."""
+    try:
+        # the machine may have been down at the hour, or may never have backed up
+        now = datetime.now(timezone.utc)
+        if backup_overdue(now):
+            back_up(now)
+    except Exception:
+        pass
+    while True:
+        try:
+            # Wait in short stretches rather than one long one, so that a machine
+            # stopped and started again does not sleep past the hour.
+            when = next_backup(datetime.now(timezone.utc))
+            while True:
+                left = (when - datetime.now(timezone.utc)).total_seconds()
+                if left <= 0:
+                    break
+                time.sleep(min(left, BACKUP_CHUNK))
+            back_up(datetime.now(timezone.utc))
+        except Exception:  # nothing may end this thread
+            time.sleep(BACKUP_ERROR)
+
+
+# One backup for the life of the process, as with the tide, and no more.
+BACKUPS_RUNNING = False
+
+
+def start_backups():
+    """Set the daily backup going, once."""
+    global BACKUPS_RUNNING
+    if BACKUPS_RUNNING:
+        return
+    BACKUPS_RUNNING = True
+    threading.Thread(target=backing_up, name="backups", daemon=True).start()
+
+
 # ---- the one gate --------------------------------------------------------
 
 def founder_required(view):
@@ -1526,6 +1763,80 @@ def export():
                      download_name="tesserae-%s.zip" % at)
 
 
+# The backups themselves: what is in the bucket, and one of them in hand. The
+# page is a list and nothing more. What it hands over is the encrypted file
+# exactly as it was uploaded - the hearth only passes it along, and the key that
+# opens it is never here and never shown. restore_backup.py does the rest, on
+# the founder's own machine.
+BACKUPS_PAGE = """{% extends "base.html" %}
+
+{% block title %}backups{% endblock %}
+{% block heading %}backups{% endblock %}
+{% block tagline %}the record, off this machine{% endblock %}
+
+{% block content %}
+<p class="note">Each of these is the packet and the commons whole, as they stood at the
+  hour it was taken: a tar.gz, encrypted with the backup key. The key is not here and is
+  not on this page. Take one down and open it with restore_backup.py, on your own machine.</p>
+
+{% if not configured %}
+<p>Backups are not configured.</p>
+{% elif trouble %}
+<p class="error">The bucket could not be read: {{ trouble }}</p>
+{% elif kept %}
+<ul class="lines">
+  {% for one in kept %}
+  <li><a href="{{ url_for('backup_file', name=one.name) }}">{{ one.name }}</a>
+    <br><span class="muted">{{ one.when }} &middot; {{ one.size }}</span></li>
+  {% endfor %}
+</ul>
+<p class="muted">{{ kept|length }} kept, newest first. The oldest go when there are more
+  than {{ most }}.</p>
+{% else %}
+<p>No backups yet.</p>
+{% endif %}
+{% endblock %}
+"""
+
+
+@app.route("/backups")
+@founder_required
+def backups():
+    if not backups_configured():
+        return render_template_string(BACKUPS_PAGE, configured=False, kept=[],
+                                      trouble=None, most=BACKUP_KEPT)
+    try:
+        found = backups_kept(bucket_client(), os.environ["BUCKET_NAME"])
+    except Exception as trouble:  # the bucket is the world's, and the world is not always there
+        return render_template_string(BACKUPS_PAGE, configured=True, kept=[],
+                                      trouble=in_one_line(trouble), most=BACKUP_KEPT)
+    kept = [{"name": item["Key"][len(BACKUP_PREFIX):],
+             "when": readable_date(item["Key"]),
+             "size": said_size(item["Size"])}
+            for item in reversed(found)]
+    return render_template_string(BACKUPS_PAGE, configured=True, kept=kept,
+                                  trouble=None, most=BACKUP_KEPT)
+
+
+# One backup, streamed through the hearth rather than held in its memory. Only a
+# name the backups themselves are given is answered; anything else is at no
+# address at all.
+@app.route("/backups/<name>")
+@founder_required
+def backup_file(name):
+    if not backups_configured() or not BACKUP_FILE.match(name):
+        abort(404)
+    try:
+        body = bucket_client().get_object(Bucket=os.environ["BUCKET_NAME"],
+                                          Key=BACKUP_PREFIX + name)["Body"]
+    except Exception:
+        abort(404)
+    answer = Response(body.iter_chunks(BACKUP_STREAM),
+                      content_type="application/octet-stream")
+    answer.headers["Content-Disposition"] = 'attachment; filename="%s"' % name
+    return answer
+
+
 # Show the first one's self-document, which only it may change.
 @app.route("/self")
 @founder_required
@@ -1539,7 +1850,8 @@ def attendances_page(**told):
     prefs = preferences()
     return render_template("attendances.html", records=attendance_records(prefs),
                            reflection_note=reflection_note(prefs),
-                           rhythm_note=rhythm_note(), pause=pause_shown(), **told)
+                           rhythm_note=rhythm_note(), pause=pause_shown(),
+                           backup=backup_shown(), **told)
 
 
 # List the private log of every attendance the first one has held.
@@ -1587,6 +1899,17 @@ def resume_tide():
         return redirect(url_for("attendances"))  # a rest of the first one's is not his to lift
     end_pause()
     return redirect(url_for("attendances"))
+
+
+# A backup is taken every day without asking, but the founder may take one now:
+# before a change he is unsure of, or after a morning worth keeping. It runs
+# here, while he waits, and he is shown the line it wrote and nothing more.
+@app.route("/backup-now", methods=["POST"])
+@founder_required
+def backup_now():
+    if request.form.get("confirm") != "yes":
+        return attendances_page(backing_up=True)
+    return attendances_page(backed_up=back_up(datetime.now(timezone.utc)))
 
 
 def bonds_page(**told):
@@ -1996,6 +2319,7 @@ def take_off_bench():
 
 
 start_tide()
+start_backups()
 
 
 if __name__ == "__main__":

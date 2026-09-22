@@ -42,6 +42,25 @@
     <button type="submit">Pause the tide</button>
   </form>
   {% endif %}
+
+  <p class="muted">{{ backup }} &middot; <a href="{{ url_for('backups') }}">all of them</a></p>
+
+  {% if backed_up %}
+  <p class="saved">{{ backed_up }}</p>
+  {% endif %}
+
+  {% if backing_up %}
+  <form method="post" action="{{ url_for('backup_now') }}">
+    <p class="error">Back one up now? It copies the packet and the commons off this machine,
+      encrypted, and may take a moment. One is taken every day at 13:00 UTC in any case.</p>
+    <input type="hidden" name="confirm" value="yes">
+    <button type="submit" class="consequential">Yes, back it up</button>
+  </form>
+  {% else %}
+  <form method="post" action="{{ url_for('backup_now') }}">
+    <button type="submit">Back up now</button>
+  </form>
+  {% endif %}
 </section>
 
 {% if not resting %}

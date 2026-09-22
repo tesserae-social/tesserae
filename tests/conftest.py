@@ -193,7 +193,7 @@ def data_dir(tmp_path, keys_cut):
     data = tmp_path / "data"
     packet = data / "packets" / "first"
     for folder in ("study", "letters/outgoing", "letters/incoming", "letters/read",
-                   "attendances", "self-history", "bonds", "memory"):
+                   "attendances", "self-history", "bonds", "memory", "offerings"):
         (packet / folder).mkdir(parents=True, exist_ok=True)
     (packet / "self.md").write_text(SELF_TEXT, encoding="utf-8")
 
@@ -254,11 +254,13 @@ def load(name):
 
     Every path these modules use is worked out once, at import, from the
     environment - so a test that wants its own world must import them again
-    after setting it. hearth.py also sets its tide going at import; here it is
-    imported with no thread able to start, and the tide is tested on purpose
-    instead.
+    after setting it, and so must offering.py, which both of the others import
+    and which reads DATA_DIR the same way. hearth.py also sets its tide going at
+    import; here it is imported with no thread able to start, and the tide is
+    tested on purpose instead.
     """
     sys.modules.pop(name, None)
+    sys.modules.pop("offering", None)
     with no_threads():
         return importlib.import_module(name)
 
@@ -296,6 +298,8 @@ def atrium(env, clock, monkeypatch, data_dir, tmp_path):
     monkeypatch.setattr(module, "EVENTS", str(data_dir / "commons" / "events.md"))
     monkeypatch.setattr(module, "BENCH", str(data_dir / "commons" / "bench.md"))
     monkeypatch.setattr(module, "MEMBERS", str(data_dir / "commons" / "members.md"))
+    monkeypatch.setattr(module, "OFFERINGS", str(data_dir / "commons" / "offerings.md"))
+    monkeypatch.setattr(module, "OFFERED", str(data_dir / "commons" / "offerings"))
     module.page_path = page
     return module
 

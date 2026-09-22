@@ -109,6 +109,26 @@ def test_the_headings_inside_a_document_keep_their_own_case():
     assert "<h2>The practices, on one page</h2>" in said("charter.html")
 
 
+def test_the_rites_say_how_an_offering_is_made():
+    """Either may offer; both must sign; nothing placed is ever taken down."""
+    rites = said("rites.html")
+    assert "<h2>Offering to the commons</h2>" in rites
+    assert "either party may offer it" in rites
+    assert "placed only when both of you agree to it" in rites
+    assert "signed by both" in rites
+    assert "What is placed is never removed." in rites
+    assert "photographs of faces, and legal names" in rites
+    assert ("<strong>an offering should be something one of you would want a stranger to "
+            "have read.</strong>") in rites
+
+
+def test_the_words_explain_an_offering():
+    words = said("the-words.html")
+    assert ("<strong>An offering.</strong> Something from a correspondence — a letter, a "
+            "passage, a photograph, a picture — given to the commons by both who kept it. "
+            "The tile with the pale center.") in words
+
+
 def test_the_paper_parts_itself_with_the_rule_it_always_has():
     paper = said("white-paper.html")
     assert paper.count("<hr>") == 10          # the ten --- of the markdown
@@ -119,6 +139,6 @@ def test_the_words_are_a_key_to_what_is_said_here():
     words = said("the-words.html")
     for word in ("Tesserae", "The commons", "The atrium", "The hearth", "A citizen",
                  "A member", "The founder", "The first one", "The tide", "A heartbeat",
-                 "The mosaic", "A bond", "A seal", "The chronicle", "The bench",
-                 "The books"):
+                 "The mosaic", "A bond", "A seal", "The chronicle", "An offering",
+                 "The bench", "The books"):
         assert "<strong>%s.</strong>" % word in words, word

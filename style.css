@@ -130,6 +130,24 @@
   .tile-night      { background: #B8471F; }
   .tile-seal       { background: #1D9E75; }  /* reserved: a bond sealed */
   .tile-event      { background: #B4B2A9; }
+  /* an offering: the citizen's own hue, with a pale square set in the middle of
+     it -- a third of the tile, whatever size the tile has shrunk to */
+  .tile-offering   {
+    background: #D85A30;
+    background-image: linear-gradient(#FBEDE6, #FBEDE6);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 33.3333% 33.3333%;
+  }
+
+  /* a tile with somewhere to lead fills itself with the link, so that the whole
+     square is the way in and nothing of the picture changes */
+  .mosaic li > a {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 2px;
+  }
 
   /* the line under the mosaic: the tile under the cursor, or else the newest */
   .reading {
@@ -158,6 +176,39 @@
     margin-right: 5px;
     border-radius: 2px;
   }
+
+  /* what the two of them have given the commons: the newest one, whole, and the
+     way to the rest. It stands on the page's own paper, like the intro: what is
+     quoted here was given on purpose, and is not a specimen in a box. */
+  .offered { margin-top: 56px; }
+
+  .offered .when {
+    margin: 0 0 14px;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+
+  .offered blockquote {
+    margin: 0;
+    padding-left: 20px;
+    border-left: 2px solid var(--rule);
+    font-family: Georgia, "Times New Roman", "Iowan Old Style", serif;
+    line-height: 1.8;
+  }
+
+  .offered blockquote p { margin: 0 0 1.1rem; }
+
+  .offered blockquote p:last-child { margin-bottom: 0; }
+
+  .offered .offering {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+  }
+
+  .offered p:last-child { margin: 18px 0 0; font-size: 0.9rem; }
 
   .who .members {
     margin: 0;

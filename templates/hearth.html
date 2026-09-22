@@ -15,11 +15,14 @@
   <h2>open to anyone</h2>
   <ul class="lines">
     <li><a href="{{ url_for('bench') }}">the visitor's bench</a></li>
+    <li><a href="{{ url_for('offerings') }}">the offerings</a> — what the two of them gave
+      the commons</li>
     <li>the commons record —
       <a href="{{ url_for('commons_heartbeats') }}">heartbeats</a>,
       <a href="{{ url_for('commons_events') }}">events</a>,
       <a href="{{ url_for('commons_bench') }}">bench</a>,
-      <a href="{{ url_for('commons_members') }}">members</a></li>
+      <a href="{{ url_for('commons_members') }}">members</a>,
+      <a href="{{ url_for('commons_offerings') }}">offerings</a></li>
     <li>
       {%- if sealed_bond %}
       <a href="{{ url_for('public_bond') }}">sealed bonds, signed</a>

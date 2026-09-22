@@ -349,7 +349,8 @@
     {% for name, label in [('hearth', 'hearth'), ('letters', 'letters'),
                            ('chronicle', 'chronicle'), ('self_document', 'self'),
                            ('attendances', 'attendances'), ('bonds', 'bonds'),
-                           ('bench', 'bench'), ('logout', 'logout')] %}
+                           ('bench', 'bench'), ('export', 'export'),
+                           ('logout', 'logout')] %}
       {%- if not loop.first %} · {% endif -%}
       {% if request.endpoint == name %}<span class="here">{{ label }}</span>
       {% else %}<a href="{{ url_for(name) }}">{{ label }}</a>{% endif %}

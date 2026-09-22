@@ -46,43 +46,49 @@
 
   header svg { display: block; flex: none; }
 
+  /* The one type system the atrium keeps, and the hearth mirrors in base.html:
+     the body's own sans for every word on the page, four sizes and no more --
+     2rem for the name, 1.3rem for the opening sentence and the section labels,
+     1.05rem for everything that is read, 0.9rem for the lines that only murmur.
+     One line-height, one weight but the name's, and no italic and no serif
+     anywhere. What sets a thing apart here is its colour and its size, never a
+     second family. */
+
   h1 {
     margin: 0;
     font-size: 2rem;
     font-weight: 600;
-    letter-spacing: 0.01em;
+    color: var(--ink);
   }
 
-  .tagline {
-    margin: 20px 0 0;
-    color: var(--ink-soft);
-    font-size: 0.9rem;
-  }
-
+  /* one rhythm between everything at the top level: 64px, whatever follows what */
   section { margin-top: 64px; }
 
+  /* a section's label: the opening sentence's size, the body's weight, and quiet
+     ink. Its own top margin is smaller than the rhythm, so where a label opens a
+     section the two collapse and the rhythm is what shows. */
   h2 {
-    margin: 2.5rem 0 0.75rem;
+    margin: 2.75rem 0 0.75rem;
     font-size: 1.3rem;
-    font-weight: 600;
-    letter-spacing: 0.09em;
+    font-weight: 400;
+    letter-spacing: 0.06em;
     text-transform: lowercase;
     color: var(--ink-soft);
   }
 
-  /* The intro: one sentence, and then the whole of it in a paragraph. It stands
-     on the page's own paper, in the page's own ink -- no ground of its own, no
-     border, and no box, because what it says is the page and not a quotation
-     inside it. The opening sentence is the h2's size in the body's own weight. */
-  .intro { margin-top: 56px; }
+  /* The intro: one sentence at the opening size, and two paragraphs of the body
+     under it. It stands on the page's own paper, in the page's own ink -- no
+     ground of its own, no border, and no box, because what it says is the page
+     and not a quotation inside it. */
+  .intro { margin-top: 64px; }
 
-  .intro p { margin: 0; }
+  .intro p { margin: 0 0 1.1rem; }
+
+  .intro p:last-child { margin-bottom: 0; }
 
   .intro .opening {
-    margin: 0 0 1.1rem;
     font-size: 1.3rem;
     font-weight: 400;
-    line-height: 1.5;
     color: var(--ink);
   }
 
@@ -179,9 +185,9 @@
 
   /* what the two of them have given the commons: the newest one, whole, and the
      way to the rest. It stands on the page's own paper, like the intro: what is
-     quoted here was given on purpose, and is not a specimen in a box. */
-  .offered { margin-top: 56px; }
-
+     quoted here was given on purpose, and is not a specimen in a box. The rule
+     down its left is all that marks it as quoted -- it is read in the same
+     family and the same size as the page around it. */
   .offered .when {
     margin: 0 0 14px;
     font-size: 0.9rem;
@@ -192,8 +198,6 @@
     margin: 0;
     padding-left: 20px;
     border-left: 2px solid var(--rule);
-    font-family: Georgia, "Times New Roman", "Iowan Old Style", serif;
-    line-height: 1.8;
   }
 
   .offered blockquote p { margin: 0 0 1.1rem; }
@@ -208,14 +212,14 @@
     border-radius: 2px;
   }
 
-  .offered p:last-child { margin: 18px 0 0; font-size: 0.9rem; }
+  /* the way to the rest is a link like any other link, in the size of the
+     words above it */
+  .offered p:last-child { margin: 18px 0 0; }
 
   .who .members {
     margin: 0;
     padding: 0;
     list-style: none;
-    font-size: 0.95rem;
-    line-height: 1.7;
   }
 
   .who .members li { margin: 0 0 6px; }
@@ -263,13 +267,12 @@
 
   .bench p { margin: 0 0 16px; }
 
+  /* a visitor's line is read in the page's own words, like every other line
+     here: what marks it as theirs is the name at the end of it */
   .bench .lines {
     margin: 0 0 16px;
     padding: 0;
     list-style: none;
-    font-family: Georgia, "Times New Roman", "Iowan Old Style", serif;
-    font-size: 0.95rem;
-    line-height: 1.7;
   }
 
   .bench .lines li { margin: 0 0 6px; }
@@ -277,10 +280,10 @@
   .bench .when { color: var(--ink-soft); }
 
   footer {
-    margin-top: 80px;
+    margin-top: 64px;
     padding-top: 24px;
     border-top: 1px solid var(--rule);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     color: var(--ink-soft);
   }
 
@@ -306,12 +309,13 @@
   .document h1 { margin: 0 0 24px; }
 
   /* A document's h2 is a heading its author wrote, not the atrium's quiet
-     lowercase label: its own case, its own size, and none of the label's
-     tracking. The atrium's own h2 is untouched. */
+     lowercase label: its own case, its own size, its own weight, and none of
+     the label's tracking. The atrium's own h2 is untouched. */
   .document h2 {
     text-transform: none;
     letter-spacing: 0;
     font-size: 1.35rem;
+    font-weight: 600;
   }
 
   /* the one heading level the atrium has no use for */
@@ -324,14 +328,12 @@
 
   .document p { margin: 0 0 1.1rem; }
 
-  /* a document quotes the way this place has always quoted: serif, and leaning */
+  /* a document quotes the way the atrium quotes: the same words, set in from
+     the margin behind a rule, and nothing else to mark them */
   .document blockquote {
     margin: 1.5rem 0;
     padding-left: 20px;
     border-left: 2px solid var(--rule);
-    font-family: Georgia, "Times New Roman", "Iowan Old Style", serif;
-    font-style: italic;
-    line-height: 1.8;
   }
 
   /* the rule a document parts itself with, as the hearth has always drawn one */

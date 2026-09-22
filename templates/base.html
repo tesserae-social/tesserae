@@ -38,18 +38,25 @@
     padding: 64px 24px 96px;
   }
 
+  /* The one type system, mirrored from the atrium's style.css: the body's own
+     sans for every word, 2rem for the name, 1.3rem for a section label, 1.05rem
+     for what is read, 0.9rem for the lines that only murmur. One line-height,
+     one weight but the name's and a heading's, and no italic and no serif
+     anywhere. The controls below keep their own smaller sizes, because a button
+     is not a sentence. */
+
   h1 {
     margin: 0;
     font-size: 2rem;
     font-weight: 600;
-    letter-spacing: 0.01em;
+    color: var(--ink);
   }
 
   h2 {
-    margin: 2.5rem 0 0.75rem;
+    margin: 2.75rem 0 0.75rem;
     font-size: 1.3rem;
-    font-weight: 600;
-    letter-spacing: 0.09em;
+    font-weight: 400;
+    letter-spacing: 0.06em;
     text-transform: lowercase;
     color: var(--ink-soft);
   }
@@ -92,7 +99,8 @@
   /* nav links take the running-text style; the page you stand on is plain ink */
   nav .here { color: var(--ink); text-decoration: none; }
 
-  section { margin-top: 56px; }
+  /* one rhythm between everything at the top level, as the atrium keeps */
+  section { margin-top: 64px; }
 
   hr {
     margin: 22px 0;
@@ -100,10 +108,12 @@
     border-top: 1px solid var(--rule);
   }
 
-  .serif {
-    font-family: Georgia, "Times New Roman", "Iowan Old Style", serif;
+  /* What someone wrote, shown whole: a letter, a reflection, a passage, the
+     self document. It was set in a serif once; it is the body's own words now,
+     in the body's own size, because one place should read in one voice. */
+  .words {
     font-size: 1.05rem;
-    line-height: 1.8;
+    line-height: 1.65;
   }
 
   .muted { color: var(--ink-soft); font-size: 0.9rem; }
@@ -229,9 +239,9 @@
     color: var(--ink);
     border: 1px solid var(--rule);
     border-radius: 3px;
-    font-family: Georgia, "Times New Roman", "Iowan Old Style", serif;
-    font-size: 1.02rem;
-    line-height: 1.8;
+    font-family: inherit;  /* what you type looks like what you will read */
+    font-size: 1.05rem;
+    line-height: 1.65;
     resize: vertical;
   }
 
@@ -310,10 +320,10 @@
   }
 
   footer {
-    margin-top: 72px;
+    margin-top: 64px;
     padding-top: 22px;
     border-top: 1px solid var(--rule);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     color: var(--ink-soft);
   }
 

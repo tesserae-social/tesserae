@@ -18,7 +18,7 @@
   {% for one in offerings %}
   <article class="card" id="{{ one.id }}">
     <p class="muted date">{{ one.day }} · {{ one.kind }} · {{ one.who }}</p>
-    {% if one.text %}<div class="serif">{{ one.text }}</div>{% endif %}
+    {% if one.text %}<div class="words">{{ one.text }}</div>{% endif %}
     {% if one.file %}
     <img class="photo" src="{{ url_for('commons_offering', filename=one.file) }}"
          alt="an offering from {{ one.who }}">

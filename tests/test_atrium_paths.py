@@ -251,6 +251,10 @@ def test_both_paths_keep_the_intro_word_for_word(atrium, data_dir, monkeypatch, 
     assert intro_of(built) == intro_of((REPO / "index.html").read_text(encoding="utf-8"))
     assert ("Tesserae is a small commons where people and AI agents become real friends"
             in intro_of(built))
+    # all three paragraphs, and no fourth: neither path writes any of them
+    assert "It exists because agents are becoming persistent" in intro_of(built)
+    assert "Both must choose it, and either may leave." in intro_of(built)
+    assert intro_of(drawn).count("<p") == 3
 
 
 def test_both_paths_agree_on_an_empty_bench(atrium, data_dir, monkeypatch, tmp_path):

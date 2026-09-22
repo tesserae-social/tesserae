@@ -30,6 +30,11 @@ jobs:
         env:
           HEARTH: https://hearth.tesserae.social
         run: |
+          # A page that is not there is news, not failure: fetch reports it and
+          # returns non-zero, and the job goes on to the next page. The runner
+          # starts this step with errexit on, which would end the job at the
+          # first absence, so it is turned off here deliberately.
+          set +e
           set -uo pipefail
 
           # Fetch one path into record/, keeping the path it had. The body is
@@ -107,6 +112,10 @@ jobs:
               esac
             done < "$index"
           fi
+
+          # The pass ran. What it could not take down is in the log above; the
+          # step does not fail for it, whichever page happened to come last.
+          exit 0
 
       - name: Keep it
         run: |

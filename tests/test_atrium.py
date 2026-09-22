@@ -5,6 +5,7 @@ is checked against this one in test_atrium_paths.py, where node runs it.
 """
 
 import datetime
+import json
 import re
 import sys
 from urllib.parse import unquote
@@ -120,10 +121,11 @@ def test_the_parts_of_a_day_at_their_edges(atrium, hour, part):
 def test_a_waking_is_toned_by_the_citizen_s_own_clock(atrium):
     """Three in the morning UTC is eleven the evening before there, and that is night."""
     tiles = atrium.tiles_from([], [(moment("2026-10-16T03-00-00Z"), "the first one attended")])
-    day, css, words = tiles[0]
+    day, css, words, where = tiles[0]
     assert day == datetime.date(2026, 10, 15)
     assert css == "tile-attendance tile-night"
     assert words.startswith("15 October 2026 · waking at night ·")
+    assert where == ""           # a waking has nowhere to lead; it is hover-only
 
 
 def test_a_waking_across_the_date_line_belongs_to_the_day_it_fell_on(atrium):
@@ -166,7 +168,7 @@ def test_the_word_is_hollow_and_the_founding_is_filled(atrium):
 def test_a_seal_has_its_own_tile_and_joins_the_legend(atrium):
     tiles = a_whole_record(atrium)
     assert (datetime.date(2026, 10, 8), "tile-seal",
-            "8 October 2026 · a bond was sealed") in tiles
+            "8 October 2026 · a bond was sealed", atrium.BOND_URL) in tiles
     assert atrium.legend_marks(tiles)[-1] == (["tile-seal"], "seal")
     assert len(atrium.legend_marks(tiles)) == 4
     assert '<span class="key tile-seal"></span>seal' in "".join(atrium.caption_block(tiles))
@@ -182,7 +184,7 @@ def test_with_no_seal_the_legend_says_three_things(atrium):
 def test_a_tile_carries_the_day_it_fell_on_in_its_own_words(atrium):
     tiles = a_whole_record(atrium)
     assert tiles[3] == (datetime.date(2026, 10, 9), "tile-event",
-                        "9 October 2026 · the tide paused")
+                        "9 October 2026 · the tide paused", "")
     assert tiles[4][1] == "tile-attendance tile-day"
 
 
@@ -261,7 +263,7 @@ def test_below_four_the_tile_holds_and_the_frame_is_the_one_that_gives(atrium):
 
 
 def test_the_frame_carries_the_size_it_was_reckoned_at(atrium):
-    cells = [("tile-event", "a thing")] * 1000
+    cells = [("tile-event", "a thing", "")] * 1000
     drawn = atrium.mosaic_block(cells)
     assert drawn[0] == ('<ul class="mosaic" style="--tile:12px;--gap:1px" '
                         'aria-label="the mosaic">')
@@ -294,7 +296,7 @@ def test_the_run_begins_at_the_first_thing_and_never_before_it(atrium):
     tiles = atrium.tiles_from(
         atrium.parse_events("2026-09-04 · founding · the first one was founded\n"), [])
     assert atrium.slots(tiles, datetime.date(2026, 9, 4)) == [
-        ("tile-founding", "4 September 2026 · the first one was founded")]
+        ("tile-founding", "4 September 2026 · the first one was founded", "")]
     # a today already passed leaves the run at the newest tile rather than cutting it
     assert atrium.slots(tiles, datetime.date(2026, 1, 1)) == atrium.slots(
         tiles, datetime.date(2026, 9, 4))
@@ -501,6 +503,194 @@ def test_with_no_members_file_the_section_is_left_off(atrium, data_dir, monkeypa
     assert '<p class="calendar">' in said          # the calendar stands on its own
 
 
+# ---- the offerings -------------------------------------------------------
+
+OFFERING_LINE = "- 2026-10-12 · 2026-10-12T09-00-00Z · passage · the founder and the first one\n"
+
+PLACED_RECORD = {
+    "id": "2026-10-12T09-00-00Z", "offered_by": "founder", "kind": "passage",
+    "source": "founder-2026-10-11T09-00-00Z", "text": "The lake was still this morning.",
+    "at": "2026-10-12T08-00-00Z", "sealed_at": "2026-10-12T09-00-00Z",
+    "signatures": {"founder": "x", "first": "y"},
+}
+
+
+def an_offering(data_dir, index=OFFERING_LINE, record=None, **how):
+    """One placed offering, as the commons keeps one."""
+    write(data_dir / "commons" / "offerings.md", index)
+    kept = dict(record if record is not None else PLACED_RECORD, **how)
+    write(data_dir / "commons" / "offerings" / (kept["id"] + ".json"),
+          json.dumps(kept, indent=2) + "\n")
+    return kept
+
+
+def test_a_line_of_offerings_names_the_day_the_offering_and_its_kind(atrium):
+    assert atrium.parse_offerings(OFFERING_LINE) == [
+        (datetime.date(2026, 10, 12), "2026-10-12T09-00-00Z", "passage",
+         "the founder and the first one")]
+
+
+def test_an_attribution_with_a_middot_in_it_is_the_whole_of_what_follows(atrium):
+    read = atrium.parse_offerings(
+        "- 2026-10-12 · an-offering · letter · the founder · and the first one\n")
+    assert read[0][3] == "the founder · and the first one"
+
+
+@pytest.mark.parametrize("line", [
+    "",
+    "   ",
+    "- 2026-10-12 · an-offering · letter",          # no one it belongs to
+    "- 2026-10-12 · an-offering ·  · the two of them",
+    "- 2026-10-12 ·  · letter · the two of them",
+    "- not a date · an-offering · letter · the two of them",
+    "- 2026-13-40 · an-offering · letter · the two of them",
+])
+def test_an_offering_line_that_is_not_one_is_passed_over(atrium, line):
+    assert atrium.parse_offerings(line + "\n") == []
+
+
+def test_an_offering_is_a_tile_that_leads_to_itself(atrium):
+    tiles = atrium.tiles_from([], [], atrium.parse_offerings(OFFERING_LINE))
+    assert tiles == [(datetime.date(2026, 10, 12), "tile-offering",
+                      "12 October 2026 · an offering from the founder and the first one",
+                      "https://hearth.tesserae.social/offerings#2026-10-12T09-00-00Z")]
+
+
+def test_one_offering_is_one_tile(atrium):
+    """The commons keeps a line for it too; the tile is drawn from the fuller record."""
+    events = atrium.parse_events("2026-10-12 · offering · an offering was placed\n")
+    assert events == [(datetime.date(2026, 10, 12), "offering", "an offering was placed")]
+    tiles = atrium.tiles_from(events, [], atrium.parse_offerings(OFFERING_LINE))
+    assert len(tiles) == 1
+    assert tiles[0][1] == "tile-offering"
+
+
+def test_an_offering_joins_the_legend_once_one_exists(atrium):
+    tiles = atrium.tiles_from([], [], atrium.parse_offerings(OFFERING_LINE))
+    assert atrium.legend_marks(tiles)[-1] == (["tile-offering"], "offering")
+    assert [label for _, label in atrium.legend_marks([])][-1] == "waking, dawn to night"
+    assert '<span class="key tile-offering"></span>offering' in "".join(
+        atrium.caption_block(tiles))
+
+
+def test_a_seal_leads_to_the_record_anyone_may_check(atrium):
+    tiles = atrium.tiles_from(
+        atrium.parse_events("2026-10-08 · seal · a bond was sealed\n"), [])
+    assert tiles[0][3] == "https://hearth.tesserae.social/bonds/founder-first.json"
+
+
+def test_a_tile_with_somewhere_to_lead_is_a_link_and_the_rest_are_not(atrium):
+    tiles = atrium.tiles_from(
+        atrium.parse_events("2026-10-12 · seal · a bond was sealed\n"),
+        atrium.parse_heartbeats("- 2026-10-12T15-00-00Z · the first one · attended\n"),
+        atrium.parse_offerings(OFFERING_LINE))
+    drawn = "".join(atrium.mosaic_block(atrium.slots(tiles, datetime.date(2026, 10, 12))))
+
+    assert ('<li class="tile-offering" title="12 October 2026 · an offering from the founder '
+            'and the first one"><a href="https://hearth.tesserae.social/offerings'
+            '#2026-10-12T09-00-00Z" aria-label="12 October 2026 · an offering from the '
+            'founder and the first one"></a></li>') in drawn
+    assert ('<li class="tile-seal" title="12 October 2026 · a bond was sealed">'
+            '<a href="https://hearth.tesserae.social/bonds/founder-first.json"') in drawn
+    # a waking has nowhere to lead: it keeps the hover and the keyboard, and no link
+    assert '<li class="tile-attendance tile-day" title="12 October 2026 · waking by day · ' \
+        'the first one · attended" tabindex="0"></li>' in drawn
+    assert drawn.count("<a href=") == 2
+
+
+def test_the_line_under_the_mosaic_reads_a_link_tile_out_like_any_other(atrium):
+    tiles = atrium.tiles_from([], [], atrium.parse_offerings(OFFERING_LINE))
+    cells = atrium.slots(tiles, datetime.date(2026, 10, 12))
+    assert atrium.reading_text(cells).endswith(
+        "an offering from the founder and the first one")
+
+
+# ---- offered from the hearth ---------------------------------------------
+
+def test_the_newest_offering_is_shown_whole(atrium):
+    latest = atrium.parse_offerings(OFFERING_LINE)[0]
+    drawn = atrium.offering_block(latest, PLACED_RECORD)
+    assert drawn[0] == '<section class="offered">'
+    assert drawn[1] == "  <h2>offered from the hearth</h2>"
+    assert drawn[2] == ('  <p class="when">12 October 2026 · a passage · '
+                        "the founder and the first one</p>")
+    assert "    <p>The lake was still this morning.</p>" in drawn
+    assert drawn[-2] == ('  <p><a href="https://hearth.tesserae.social/offerings'
+                         '#2026-10-12T09-00-00Z">all offerings</a></p>')
+    assert drawn[-1] == "</section>"
+
+
+def test_the_words_of_an_offering_are_paragraphs_and_are_escaped(atrium):
+    latest = atrium.parse_offerings(OFFERING_LINE)[0]
+    drawn = "".join(atrium.offering_block(
+        latest, dict(PLACED_RECORD, text="One thought.\n\n<b>And another</b> & a third.")))
+    assert "<blockquote>" in drawn
+    assert "<p>One thought.</p>" in drawn
+    assert "<p>&lt;b&gt;And another&lt;/b&gt; &amp; a third.</p>" in drawn
+
+
+def test_an_offering_that_is_a_picture_is_shown_from_the_hearth(atrium):
+    latest = atrium.parse_offerings(OFFERING_LINE)[0]
+    drawn = "".join(atrium.offering_block(
+        latest, dict(PLACED_RECORD, text="", kind="picture",
+                     file="2026-10-12T09-00-00Z.svg")))
+    assert ('<img class="offering" src="https://hearth.tesserae.social/commons/offerings/'
+            '2026-10-12T09-00-00Z.svg" alt="an offering from the founder and the first one">'
+            ) in drawn
+    assert "<blockquote>" not in drawn
+
+
+def test_with_nothing_offered_there_is_no_section(atrium):
+    assert atrium.offering_block(None, None) == []
+    assert atrium.offering_block(atrium.parse_offerings(OFFERING_LINE)[0], None) == []
+
+
+def test_the_offering_is_on_the_page_and_the_tile_with_it(atrium, data_dir, monkeypatch):
+    an_offering(data_dir)
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+
+    page = atrium.page_path.read_text(encoding="utf-8")
+    said = page.split("<!-- offering:start -->")[1].split("<!-- offering:end -->")[0]
+    assert "<h2>offered from the hearth</h2>" in said
+    assert "The lake was still this morning." in said
+    assert "all offerings" in said
+
+    mosaic = page.split("<!-- mosaic:start -->")[1].split("<!-- mosaic:end -->")[0]
+    assert 'class="tile-offering"' in mosaic
+    assert "/offerings#2026-10-12T09-00-00Z" in mosaic
+    assert "offering" in page.split("<!-- caption:start -->")[1].split("<!-- caption:end -->")[0]
+
+
+def test_with_no_offerings_the_section_is_left_off(atrium, data_dir, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+
+    page = atrium.page_path.read_text(encoding="utf-8")
+    said = page.split("<!-- offering:start -->")[1].split("<!-- offering:end -->")[0]
+    assert said.strip() == ""
+    assert "<h2>offered from the hearth</h2>" not in page.split("<script>")[0]
+    assert "tile-offering" not in page.split("<!-- mosaic:start -->")[1].split(
+        "<!-- mosaic:end -->")[0]
+
+
+def test_only_the_newest_offering_is_shown(atrium, data_dir, monkeypatch):
+    an_offering(data_dir, index=(
+        "- 2026-10-11 · an-older-one · letter · the founder and the first one\n" + OFFERING_LINE))
+    write(data_dir / "commons" / "offerings" / "an-older-one.json",
+          json.dumps(dict(PLACED_RECORD, id="an-older-one", kind="letter",
+                          text="THE OLDER OFFERING"), indent=2) + "\n")
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+
+    page = atrium.page_path.read_text(encoding="utf-8")
+    said = page.split("<!-- offering:start -->")[1].split("<!-- offering:end -->")[0]
+    assert "The lake was still this morning." in said
+    assert "THE OLDER OFFERING" not in said
+    mosaic = page.split("<!-- mosaic:start -->")[1].split("<!-- mosaic:end -->")[0]
+    assert mosaic.count('class="tile-offering"') == 2   # both are tiles all the same
+
+
 # ---- the calendar --------------------------------------------------------
 
 @pytest.mark.parametrize("day, called", [
@@ -584,7 +774,7 @@ def test_the_atrium_is_rebuilt_from_the_commons(atrium, data_dir, monkeypatch, c
     assert "the lake was still" in page
     assert "the mosaic — one tile per event in our history · 3 so far" in page
     assert "as of %s" % atrium.human(TODAY) in page
-    assert ("3 tiles in 44 slots at 34px (2 events, 1 attendances), "
+    assert ("3 tiles in 44 slots at 34px (2 events, 1 attendances, 0 offerings), "
             "1 on the bench, 0 here") in capsys.readouterr().out
 
 

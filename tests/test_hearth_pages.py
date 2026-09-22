@@ -14,8 +14,9 @@ RHYTHM = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
           "timezone": "America/Indiana/Indianapolis"}
 
 # everything a visitor may reach without the password
-OPEN_PATHS = ["/", "/login", "/bench", "/commons/heartbeats.md", "/commons/events.md",
-              "/commons/bench.md", "/commons/members.md"]
+OPEN_PATHS = ["/", "/login", "/bench", "/offerings", "/commons/heartbeats.md",
+              "/commons/events.md", "/commons/bench.md", "/commons/members.md",
+              "/commons/offerings.md"]
 
 
 def an_attendance(packet, at, reflection=REFLECTION, **how):
@@ -322,6 +323,7 @@ def test_the_notes_it_keeps_are_on_no_page(founder, packet, hearth, data_dir):
     ("/commons/events.md", "events.md"),
     ("/commons/bench.md", "bench.md"),
     ("/commons/members.md", "members.md"),
+    ("/commons/offerings.md", "offerings.md"),
 ])
 def test_the_commons_is_open_to_the_atrium_and_never_cached(visitor, commons, path, name):
     write(commons / name, "a line of the record\n")
@@ -344,8 +346,9 @@ def test_a_file_of_the_commons_not_yet_written_is_empty_and_not_an_error(visitor
 # ---- the front page: a door, and not a second atrium ---------------------
 
 # every way out of the door that is open to anyone, whatever the commons holds
-DOOR_WAYS = ['href="/bench"', 'href="/commons/heartbeats.md"', 'href="/commons/events.md"',
-             'href="/commons/bench.md"', 'href="/commons/members.md"',
+DOOR_WAYS = ['href="/bench"', 'href="/offerings"', 'href="/commons/heartbeats.md"',
+             'href="/commons/events.md"', 'href="/commons/bench.md"',
+             'href="/commons/members.md"', 'href="/commons/offerings.md"',
              'href="https://tesserae.social/"',
              'href="https://tesserae.social/the-words"']
 

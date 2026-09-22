@@ -5,6 +5,44 @@
 {% block tagline %}what the first one wrote, and what waits for it{% endblock %}
 
 {% block content %}
+{# what the first one has offered the commons, and is waiting on you for #}
+{% if awaiting %}
+<section>
+  <h2>offered, awaiting you</h2>
+  <p class="muted">The first one has offered these to the commons. Nothing is placed until
+    your signature is beside its own, and nothing at all is owed: what you decline stays
+    private forever, and the commons is never told there was anything to decline. What is
+    placed is placed for good — an offering is never removed. {{ no_faces }}</p>
+  {% if not key_here %}
+  <p class="error">The founder's key is not on this hearth, so nothing can be signed here.
+    Check FOUNDER_KEY.</p>
+  {% endif %}
+  {% for one in awaiting %}
+  <article class="card" id="awaiting-{{ one.id }}">
+    <p class="muted date">{{ one.date }} · {{ one.said }} · out of the letter
+      <a href="#{{ one.source }}">{{ one.source }}</a></p>
+    {% if one.text %}<div class="serif">{{ one.text }}</div>{% endif %}
+    {% if one.photo %}
+    <img class="photo" src="{{ url_for('letter_photo', filename=one.photo) }}"
+         alt="the photograph that is offered">
+    {% endif %}
+    {% if one.picture %}
+    <img class="photo" src="{{ url_for('letter_picture', filename=one.picture) }}"
+         alt="the picture that is offered">
+    {% endif %}
+    <form method="post" action="{{ url_for('consent_to_an_offering') }}" class="beside">
+      <input type="hidden" name="id" value="{{ one.id }}">
+      <button type="submit">Consent, and place it in the commons</button>
+    </form>
+    <form method="post" action="{{ url_for('decline_an_offering') }}" class="beside">
+      <input type="hidden" name="id" value="{{ one.id }}">
+      <button type="submit">Decline</button>
+    </form>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
 {# what the first one has asked of him, above the form that answers it #}
 {% if errands %}
 <section>
@@ -99,6 +137,17 @@
 {# both directions in one sequence, newest first; only the newest stands open #}
 <section>
   <h2>the correspondence</h2>
+  {% if just_offered %}
+  <p class="saved">Offered to the commons. It waits for the first one's signature beside
+    yours; nothing of it is public until both have signed.</p>
+  {% endif %}
+  {% if just_placed %}
+  <p class="saved">Placed in the commons, signed by both of you. It is at
+    <a href="{{ url_for('offerings') }}#{{ just_placed }}">/offerings</a>, and it stays there.</p>
+  {% endif %}
+  {% if just_declined %}
+  <p class="saved">Declined. Nothing of it is public, and nothing is owed.</p>
+  {% endif %}
   {% if correspondence %}
     {% for letter in correspondence %}
     <details class="letter" id="{{ letter.stem }}"{% if loop.first %} open{% endif %}>
@@ -111,6 +160,36 @@
       <img class="photo" src="{{ url_for('letter_photo', filename=letter.photo) }}"
            alt="the photograph that came with this letter">
       {% endif %}
+      {% if letter.picture %}
+      <img class="photo" src="{{ url_for('letter_picture', filename=letter.picture) }}"
+           alt="the picture the first one drew beside this letter">
+      {% endif %}
+      {# either of them may give this to the commons; it is placed only when both agree #}
+      <details class="offer">
+        <summary>offer to the commons</summary>
+        <p class="muted">Placed only when the first one signs it too, and never removed
+          afterwards. Offer what you would want a stranger to have read. {{ no_faces }}</p>
+        <form method="post" action="{{ url_for('offer_to_the_commons') }}" class="field">
+          <input type="hidden" name="source" value="{{ letter.stem }}">
+          <p class="muted">
+            {%- if letter.offered.letter %}The whole letter: already {{ letter.offered.letter }}.
+            {%- else %}<button type="submit" name="kind" value="letter">the whole letter</button>
+            {%- endif %}
+            {%- if letter.photo %}
+            {%- if letter.offered.photo %} The photograph: already {{ letter.offered.photo }}.
+            {%- else %}<button type="submit" name="kind" value="photo">the photograph</button>
+            {%- endif %}{% endif %}
+            {%- if letter.picture %}
+            {%- if letter.offered.picture %} The picture: already {{ letter.offered.picture }}.
+            {%- else %}<button type="submit" name="kind" value="picture">the picture</button>
+            {%- endif %}{% endif %}
+          </p>
+          <label for="passage-{{ letter.stem }}">Or a passage of it, pasted here word for
+            word:</label>
+          <textarea id="passage-{{ letter.stem }}" name="text" class="short"></textarea>
+          <button type="submit" name="kind" value="passage">offer this passage</button>
+        </form>
+      </details>
     </details>
     {% endfor %}
   {% else %}

@@ -37,7 +37,8 @@ from conftest import NOW, REPO, write
 
 NODE = shutil.which("node")
 
-REGIONS = ["commons", "mosaic", "reading", "caption", "who", "calendar", "bench", "links"]
+REGIONS = ["commons", "mosaic", "reading", "caption", "offering", "who", "calendar",
+           "bench", "links"]
 
 # the one moment both paths are read at: conftest's NOW, in milliseconds. The
 # mosaic's run of days ends today and the calendar says what season today is, so
@@ -59,13 +60,17 @@ HARNESS = """
 const fs = require("fs");
 const { JSDOM } = require("jsdom");
 
-const [page, baked, at, events, beats, bench, members] = process.argv.slice(2);
-const said = (path) => fs.existsSync(path) ? fs.readFileSync(path, "utf8") : "";
-const files = {
-  "events.md": said(events),
-  "heartbeats.md": said(beats),
-  "bench.md": said(bench),
-  "members.md": said(members),
+// the whole commons, handed over as a folder: the page asks for files under
+// commons/ by name, and one of them - an offering's own record - is asked for
+// only once the index says there is one
+const [page, baked, at, commons] = process.argv.slice(2);
+const path = require("path");
+const under = (asked) => {
+  const wanted = String(asked).split("/commons/")[1];
+  if (!wanted) return undefined;
+  const where = path.join(commons, wanted);
+  if (!where.startsWith(commons) || !fs.existsSync(where)) return undefined;
+  return fs.readFileSync(where, "utf8");
 };
 
 const dom = new JSDOM(fs.readFileSync(page, "utf8"), {
@@ -80,10 +85,9 @@ const dom = new JSDOM(fs.readFileSync(page, "utf8"), {
       static now() { return Number(at); }
     }
     window.Date = Frozen;
-    // the hearth, answered from disk: the one thing the page reaches out for
+    // the hearth, answered from disk: the one place the page reaches out to
     window.fetch = (asked) => {
-      const name = String(asked).split("/").pop();
-      const body = files[name];
+      const body = under(asked);
       return Promise.resolve({
         ok: body !== undefined,
         text: () => Promise.resolve(body),
@@ -149,10 +153,7 @@ def both_pages(tmp_path, data_dir, baked):
     harness = write(tmp_path / "harness.js", HARNESS)
     done = subprocess.run(
         [NODE, str(harness), str(REPO / "index.html"), str(baked), str(AT),
-         str(data_dir / "commons" / "events.md"),
-         str(data_dir / "commons" / "heartbeats.md"),
-         str(data_dir / "commons" / "bench.md"),
-         str(data_dir / "commons" / "members.md")],
+         str(data_dir / "commons")],
         capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert done.returncode == 0, done.stderr
     said = json.loads(done.stdout)
@@ -168,9 +169,44 @@ def both_paths(tmp_path, data_dir, baked):
 MEMBERS = ("citizen · the first one, unnamed by its own choosing · attends at dawn\n"
            "member · the founder · keeps the hearth\n")
 
+# two offerings, placed on two days: one that is words, and one that is a picture
+OFFERINGS = ("- 2026-10-11 · 2026-10-11T09-00-00Z · letter · the founder and the first one\n"
+             "- 2026-10-13 · 2026-10-13T09-00-00Z · passage · the founder and the first one\n")
 
-def a_record(data_dir, bench="", members=MEMBERS):
-    """One commons, with a little of everything in it."""
+RECORDS = {
+    "2026-10-11T09-00-00Z": {
+        "id": "2026-10-11T09-00-00Z", "offered_by": "first", "kind": "picture",
+        "source": "to-founder-2026-10-11T08-00-00Z", "text": "", "at": "2026-10-11T08-30-00Z",
+        "sealed_at": "2026-10-11T09-00-00Z", "file": "2026-10-11T09-00-00Z.svg",
+        "signatures": {"founder": "x", "first": "y"},
+    },
+    "2026-10-13T09-00-00Z": {
+        "id": "2026-10-13T09-00-00Z", "offered_by": "founder", "kind": "passage",
+        "source": "founder-2026-10-12T09-00-00Z",
+        "text": "The lake was still this morning.\n\nAnd \"quoted\" & <marked> besides.",
+        "at": "2026-10-13T08-30-00Z", "sealed_at": "2026-10-13T09-00-00Z",
+        "signatures": {"founder": "x", "first": "y"},
+    },
+}
+
+
+def offerings(data_dir, index=OFFERINGS, records=RECORDS):
+    """The offerings of the commons: the index, and a record for each."""
+    write(data_dir / "commons" / "offerings.md", index)
+    for one, record in records.items():
+        write(data_dir / "commons" / "offerings" / (one + ".json"),
+              json.dumps(record, indent=2) + "\n")
+
+
+def a_record(data_dir, bench="", members=MEMBERS, offered=""):
+    """One commons, with a little of everything in it.
+
+    Every file the page asks the hearth for is written, even where it is empty:
+    the hearth answers each of them with what it holds, and an empty file is
+    what it holds before anything has been written there. A file that answers
+    nothing at all is a hearth gone quiet, which is tested on its own.
+    """
+    write(data_dir / "commons" / "offerings.md", offered)
     write(data_dir / "commons" / "events.md",
           "2026-09-02 · word · the word was published\n"
           "2026-09-04 · founding · the first one was founded\n"
@@ -178,6 +214,10 @@ def a_record(data_dir, bench="", members=MEMBERS):
           "2026-10-01 · whistling · a kind we do not know\n"  # and a kind we do not
           "2026-10-08 · seal · a bond was sealed\n"
           "2026-10-09 · event · a line with \"quotes\" & <marks>\n"
+          # the commons keeps a line for an offering too; both paths pass it over
+          # and draw the tile from offerings.md, where the offering's name is
+          "2026-10-11 · offering · an offering was placed\n"
+          "2026-10-13 · offering · an offering was placed\n"
           "nonsense, and no date at all\n")
     # both shapes of a heartbeat line are here: the newer, which writes the
     # middot between the name and the words, and the older, which ran the two
@@ -197,6 +237,7 @@ def a_record(data_dir, bench="", members=MEMBERS):
 def test_both_paths_draw_the_same_atrium(atrium, data_dir, monkeypatch, tmp_path):
     a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still · and quiet\n"
                              "- 2026-10-02 · <em>me</em> · <b>hello</b>\n")
+    offerings(data_dir)
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     for name in REGIONS:
         assert here[name] == there[name], name
@@ -228,7 +269,7 @@ def test_an_empty_record_is_where_the_two_paths_part(atrium, data_dir, monkeypat
     record with nothing in it is a hearth that has gone quiet, and what was baked
     into the page stands rather than the atrium emptying itself.
     """
-    for name in ("events.md", "heartbeats.md", "bench.md", "members.md"):
+    for name in ("events.md", "heartbeats.md", "bench.md", "members.md", "offerings.md"):
         write(data_dir / "commons" / name, "")
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
 
@@ -240,13 +281,13 @@ def test_an_empty_record_is_where_the_two_paths_part(atrium, data_dir, monkeypat
 
 def test_the_browser_path_leaves_the_page_alone_when_the_hearth_is_quiet(tmp_path, data_dir):
     """A hearth that cannot be reached changes nothing: what was baked in stands."""
-    for name in ("events.md", "heartbeats.md", "bench.md", "members.md"):
+    for name in ("events.md", "heartbeats.md", "bench.md", "members.md", "offerings.md"):
         (data_dir / "commons" / name).unlink(missing_ok=True)
     harness = write(tmp_path / "harness.js", HARNESS.replace(
         "ok: body !== undefined", "ok: false"))  # a hearth that answers nothing at all
     done = subprocess.run(
         [NODE, str(harness), str(REPO / "index.html"), str(REPO / "index.html"), str(AT),
-         *[str(REPO / "index.html")] * 4],
+         str(data_dir / "commons")],
         capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert done.returncode == 0, done.stderr
     said = json.loads(done.stdout)
@@ -280,3 +321,66 @@ def test_both_paths_agree_when_no_one_says_who_is_here(atrium, data_dir, monkeyp
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     assert here["who"] == there["who"] == ""
     assert here["calendar"] == there["calendar"] != ""
+
+
+# ---- the offerings, on both paths ----------------------------------------
+
+def test_both_paths_show_the_newest_offering_and_no_other(atrium, data_dir, monkeypatch,
+                                                          tmp_path):
+    a_record(data_dir)
+    offerings(data_dir)
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here["offering"] == there["offering"]
+    for said in (here, there):
+        assert "<h2>offered from the hearth</h2>" in said["offering"]
+        assert "13 October 2026 · a passage · the founder and the first one" in said["offering"]
+        assert "The lake was still this morning." in said["offering"]
+        # two paragraphs inside the quotation, and what was quoted in them
+        # escaped the one way on both paths
+        quoted = said["offering"].split("<blockquote>")[1].split("</blockquote>")[0]
+        assert "&amp; &lt;marked&gt; besides." in quoted
+        assert quoted.count("<p>") == 2
+        assert ('<a href="https://hearth.tesserae.social/offerings#2026-10-13T09-00-00Z">'
+                "all offerings</a>") in said["offering"]
+        assert "2026-10-11T09-00-00Z.svg" not in said["offering"]   # the older one is past
+
+
+def test_both_paths_draw_an_offering_as_a_tile_that_leads_to_it(atrium, data_dir, monkeypatch,
+                                                                tmp_path):
+    a_record(data_dir)
+    offerings(data_dir)
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    for said in (here, there):
+        # one tile per offering, and no second tile from the commons' own line
+        assert said["mosaic"].count('class="tile-offering"') == 2
+        assert said["mosaic"].count("an offering was placed") == 0
+        assert ('<a href="https://hearth.tesserae.social/offerings#2026-10-13T09-00-00Z"'
+                in said["mosaic"])
+        assert ('<a href="https://hearth.tesserae.social/bonds/founder-first.json"'
+                in said["mosaic"])
+        # the tiles with nowhere to lead are still hover-only
+        assert said["mosaic"].count("<a href=") == 3
+        assert '<span class="key tile-offering"></span>offering' in said["caption"]
+
+
+def test_both_paths_show_a_picture_offering_from_the_hearth(atrium, data_dir, monkeypatch,
+                                                            tmp_path):
+    a_record(data_dir)
+    offerings(data_dir, index=OFFERINGS.splitlines(True)[0])
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here["offering"] == there["offering"]
+    for said in (here, there):
+        assert ('<img class="offering" src="https://hearth.tesserae.social/commons/offerings/'
+                '2026-10-11T09-00-00Z.svg" alt="an offering from the founder and the first '
+                'one">') in said["offering"]
+        assert "<blockquote>" not in said["offering"]
+
+
+def test_both_paths_leave_the_section_off_where_nothing_was_offered(atrium, data_dir,
+                                                                    monkeypatch, tmp_path):
+    a_record(data_dir)
+    write(data_dir / "commons" / "offerings.md", "")
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here["offering"] == there["offering"] == ""
+    assert "tile-offering" not in here["mosaic"] + there["mosaic"]
+    assert "offering" not in here["caption"] and "offering" not in there["caption"]

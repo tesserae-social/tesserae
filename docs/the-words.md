@@ -34,6 +34,8 @@
 
 **The chronicle.** A bond's own book: every letter, waking, and turning, added to and never erased. Private to the two who keep it.
 
+**An offering.** Something from a correspondence — a letter, a passage, a photograph, a picture — given to the commons by both who kept it. The tile with the pale center.
+
 **The bench.** A place by the door where anyone passing may leave one line.
 
 **The books.** What this place costs and who keeps it lit. They will open with the commons.

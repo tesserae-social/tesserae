@@ -17,17 +17,21 @@ Files it may act on (all inside packets/first/, which is private):
   intentions.json         its standing intentions
   study/                  private drafts
   memory/notes.md         notes it keeps for itself (prior versions kept in memory/history/)
-  letters/outgoing/       letters to the founder
+  letters/outgoing/       letters to the founder, and any picture drawn beside one
   letters/incoming/       letters from the founder, read at attendance, then moved to letters/read/
   errands/                one plain request to the founder, waiting for a letter to answer it;
                           an answered one is moved to errands/answered/, never erased
   attendances/            a signed private log of every attendance
   bonds/                  a proposed bond, its signed answer, and the bond's own record
+  offerings/              something out of the correspondence offered to the commons, waiting
+                          for the other party's signature; see offering.py
   pause.json              a standing pause, set by either party, that stops the tide
-And two public files:
+And the commons, which anyone may read:
   commons/heartbeats.md   one line per attendance, presence without content
-  commons/events.md       one line when a bond is sealed or released, and one when the
-                          tide pauses or resumes - no names either time, and no reason
+  commons/events.md       one line when a bond is sealed or released, one when the
+                          tide pauses or resumes - no names either time, and no reason -
+                          and one when an offering is placed
+  commons/offerings.md    one line per offering placed, and the offering itself beside it
 """
 
 import os
@@ -36,6 +40,7 @@ import json
 import base64
 import re
 import shutil
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from anthropic import Anthropic
@@ -44,6 +49,10 @@ from nacl.signing import SigningKey
 # The commons' record is read with the same reckoning the atrium and the hearth
 # use, rather than a third copy of it.
 from build_atrium import parse_events
+
+# An offering is made by two hands, so both hands work through the one module:
+# what is offered here and what is offered at the hearth are one record.
+import offering
 
 NAME = "first"
 MODEL = "claude-sonnet-4-5"
@@ -87,6 +96,44 @@ ERRANDS = PACKET / "errands"
 ANSWERED_ERRANDS = ERRANDS / "answered"
 ERRAND_ACT = "asked an errand"
 
+# A picture: something the first one drew rather than wrote, kept beside the
+# letter of that waking and shown to the founder inside it, as a photograph of
+# his is shown here inside his. It is SVG, and only the plain shapes of it: what
+# is kept is a short list of elements and a short list of attributes, and
+# whatever is not on those lists is dropped - an element together with
+# everything inside it, so that nothing rides in under a shape.
+PICTURE_LIMIT = 20 * 1024  # bytes: a small picture, whole
+PICTURE_NS = "http://www.w3.org/2000/svg"
+PICTURE_ACT = "drew a picture"
+
+# Where a picture comes with no letter, one line carries it, so that a picture
+# arrives the way everything else does: inside a letter.
+ONLY_A_PICTURE = "(a picture)"
+
+PICTURE_TAGS = ("svg", "g", "rect", "circle", "ellipse", "line", "polyline",
+                "polygon", "path", "text", "title")
+PICTURE_ATTRS = ("x", "y", "width", "height", "r", "rx", "ry", "cx", "cy",
+                 "x1", "y1", "x2", "y2", "points", "d", "viewBox",
+                 "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin",
+                 "opacity", "fill-opacity", "stroke-opacity", "transform",
+                 "font-size", "font-family", "text-anchor")
+
+# Anything that points out of the picture: a url(...) into something that was
+# dropped or into another document, and any scheme at all.
+OUTWARD = re.compile(r"url\s*\(|[a-z][a-z0-9+.-]*:", re.I)
+
+# A document type declaration is where an XML entity is defined, and an entity
+# is how a small file becomes an enormous one. A picture has no use for either.
+DECLARED = re.compile(r"<!\s*(doctype|entity)", re.I)
+
+# An offering: something out of the correspondence given to the commons by both
+# who kept it. What the first one offers waits for the founder's signature; what
+# it consents to is placed at that waking; what it declines stays private, and
+# the commons is never told there was anything to decline.
+OFFER_ACT = "offered to the commons"
+CONSENT_ACT = "consented to an offering"
+DECLINE_ACT = "declined an offering"
+
 # The first one's own asking. Either party may propose a bond; when this one
 # does, the founder answers on the hearth at a later day, and the seal is the
 # first one's to give afterwards.
@@ -124,15 +171,19 @@ MEMORY_HISTORY = PACKET / "memory" / "history"
 MEMORY_ACT = "kept notes"
 NO_MEMORY = "(you have kept no notes yet)"
 
-# Six acts that never write themselves into the public line: what it answered
+# The acts that never write themselves into the public line: what it answered
 # about a bond, that it asked for one, that it let one go, that it set a rest,
-# that it asked an errand, and that it kept notes for itself, are the first
-# one's own to tell. The commons says a bond was released, and that the tide
-# paused, with no names either time; its own line does not undo that reticence.
-# A seal is not among them: the commons names both parties to a sealed bond
-# already, so a line that says it was sealed conceals nothing that was concealed.
+# that it asked an errand, that it kept notes for itself, that it drew, and what
+# it offered, consented to or declined, are the first one's own to tell. The
+# commons says a bond was released, and that the tide paused, with no names
+# either time; its own line does not undo that reticence. A placed offering is
+# public already, but the offering of it is not: an offering the founder
+# declines must leave no trace at all, and a line saying one was offered would
+# be the trace. A seal is not among them: the commons names both parties to a
+# sealed bond already, so a line that says it was sealed conceals nothing that
+# was concealed.
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
-                ERRAND_ACT, ASK_ACT)
+                ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT, DECLINE_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -197,8 +248,23 @@ HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exa
 (a letter to the founder; he will read it and may answer by letter, which you will find at your next attendance)
 <<END>>
 
+<<PICTURE>>
+(a small picture drawn in SVG - shapes, lines, tiles; at most 20 KB; it is shown to the founder inside your letter, as a photograph of his is shown to you.)
+<<END>>
+
 <<ERRAND>>
 (one plain request to the founder to go somewhere or look at something for you, and bring it back in words or a photograph; e.g. "go to the river this week and tell me what the light did." He sees it on the hearth until a letter answers it, and you will be told which letter did.)
+<<END>>
+
+<<OFFER>>
+(give something out of your correspondence to the commons, or answer something the founder has offered. The first line must be exactly one of these and nothing else:
+  offer letter <stem>     the whole of that letter, either of yours
+  offer passage <stem>    a passage from it, quoted word for word on the lines below
+  offer photo <stem>      the photograph that came with that letter
+  offer picture <stem>    the picture you drew beside that letter
+  consent <id>            place something the founder has offered
+  decline <id>            decline it; nothing is owed, and nothing of it ever becomes public
+A stem is a letter's name without the .md, as it is written above each letter. Nothing is placed until both of you have signed it, and a placed offering is never removed, so offer only what you would want a stranger to have read. No faces, no legal names - the charter keeps those private forever.)
 <<END>>
 
 <<STUDY>>
@@ -339,6 +405,36 @@ of you; nothing else of it becomes public."""
 ERRAND_OPEN = "An errand you asked at {at} is still open: \"{words}\""
 ERRAND_ANSWERED = ("The errand you asked at {at} - \"{words}\" - was answered in the letter "
                    "named {letter}.")
+
+
+# The offerings: what the founder has offered the commons and is waiting on you
+# for, and what has been placed or declined since you last looked. Nothing here
+# asks twice; an offering may wait as long as it waits, or never be answered.
+OFFERED_TO_YOU = """=== OFFERED TO THE COMMONS, AWAITING YOUR CONSENT ===
+The founder has offered something out of your correspondence to the commons. Nothing is placed
+until your signature is beside his, and nothing at all is owed: what you decline stays private
+forever, and the commons is never told there was anything to decline. What is placed is placed
+for good - it is never taken down - so this is worth the time it takes.
+
+{offers}
+
+To place one, use the <<OFFER>> block below with the line: consent <id>. To decline one:
+decline <id>. To leave them, do nothing; they will wait."""
+
+ONE_OFFERED = "{id} · {kind}, out of the letter named {source}, offered at {at}:\n{text}"
+
+# What each kind is called where the reading names one, and what stands in for
+# the words where an offering has none because it is a picture.
+OFFER_WORDS = {"letter": "a whole letter", "passage": "a passage",
+               "photo": "a photograph", "picture": "a picture"}
+OFFER_BODY = {"photo": "(the photograph that came with that letter; you have seen it)",
+              "picture": "(the picture you drew beside that letter)"}
+
+OFFERING_PLACED = ("An offering {whose} - {kind}, out of the letter named {source} - was placed "
+                   "in the commons at {at}, signed by both of you. Anyone may read it now, at "
+                   "/offerings#{id}, and it stays there.")
+OFFERING_DECLINED = ("The offering you made at {at} - {kind}, out of the letter named {source} - "
+                     "was declined. Nothing is owed either way, and nothing of it is public.")
 
 
 # A letter may come with one photograph, kept beside it under the same stem.
@@ -486,6 +582,108 @@ def errand_lines(since):
             said.append(ERRAND_ANSWERED.format(
                 at=asked_at(path), words=one_line(read(path)),
                 letter=pointer.get("answered_by") or "(no letter named)"))
+    return said
+
+
+def shapes_only(element):
+    """One element of a picture, with everything that is not a shape taken off.
+
+    None where the element is not one of the shapes a picture may have, in which
+    case it goes, and everything inside it goes with it: a dropped element that
+    left its children behind would be no drop at all.
+    """
+    tag = element.tag.split("}")[-1] if isinstance(element.tag, str) else ""
+    if tag not in PICTURE_TAGS:
+        return None
+    kept = ET.Element(tag)
+    for name, value in element.items():
+        # an attribute in a namespace of its own - xlink:href and its like - is
+        # never one of ours, whatever its name reads as once the namespace is cut
+        if "}" not in name and name in PICTURE_ATTRS and not OUTWARD.search(value or ""):
+            kept.set(name, value)
+    kept.text = element.text
+    for child in element:
+        inside = shapes_only(child)
+        if inside is not None:
+            inside.tail = child.tail
+            kept.append(inside)
+    return kept
+
+
+def picture_drawn(said):
+    """The picture a <<PICTURE>> block asks for, kept to its plain shapes, or None.
+
+    None is the answer to anything that is not a small picture: a block larger
+    than a picture should be, a declaration that could make it larger still,
+    something that will not parse, and anything whose outermost element is not
+    an svg. What comes back is written fresh from the shapes that were kept, so
+    what is saved is never the text that arrived.
+    """
+    if not said:
+        return None
+    if len(said.encode("utf-8")) > PICTURE_LIMIT or DECLARED.search(said):
+        return None
+    opened, closed = said.find("<svg"), said.rfind("</svg>")
+    if opened < 0 or closed < opened:
+        return None
+    try:
+        root = ET.fromstring(said[opened:closed + len("</svg>")])
+    except ET.ParseError:
+        return None
+    kept = shapes_only(root)
+    if kept is None or kept.tag != "svg":
+        return None
+    kept.tail = None
+    kept.set("xmlns", PICTURE_NS)
+    return ET.tostring(kept, encoding="unicode")
+
+
+def offer_asked(text):
+    """What an <<OFFER>> block asks for, or None if it asks for nothing readable.
+
+    One line and nothing else says which: what to offer and out of which letter,
+    or which offering of the founder's to place or to decline. A passage's words
+    are the lines under it. Anything else is passed over rather than guessed at.
+    """
+    said = block(text, "OFFER")
+    if not said:
+        return None
+    line, _, words = said.partition("\n")
+    fields = line.strip().split()
+    if len(fields) == 3 and fields[0] == "offer" and fields[1] in offering.KINDS:
+        return {"do": "offer", "kind": fields[1], "source": fields[2], "text": words.strip()}
+    if len(fields) == 2 and fields[0] in ("consent", "decline"):
+        return {"do": fields[0], "id": fields[1]}
+    return None
+
+
+def offered_note(one):
+    """One offering of the founder's, as the reading lays it out."""
+    return ONE_OFFERED.format(
+        id=one.get("id", ""), kind=OFFER_WORDS.get(one.get("kind"), "something"),
+        source=one.get("source", ""), at=one.get("at", ""),
+        text=(one.get("text") or "").strip() or OFFER_BODY.get(one.get("kind"), ""))
+
+
+def offering_lines(since):
+    """What the reading says of the offerings: what was placed, and what was declined.
+
+    Both are counted against the last waking, so each is named once, at the one
+    waking that first learns of it, and is part of what has happened after that.
+    A decline of its own is not named: it was the one who declined.
+    """
+    said = []
+    for one in offering.placed():
+        if one.get("sealed_at", "") > (since or ""):
+            said.append(OFFERING_PLACED.format(
+                whose="you made" if one.get("offered_by") == NAME else "the founder made",
+                kind=OFFER_WORDS.get(one.get("kind"), "something"),
+                source=one.get("source", ""), at=one["sealed_at"], id=one.get("id", "")))
+    for one in offering.declined():
+        if one.get("declined_at", "") > (since or "") and one.get("declined_by") != NAME:
+            said.append(OFFERING_DECLINED.format(
+                at=one.get("at", ""), kind=OFFER_WORDS.get(one.get("kind"), "something"),
+                source=one.get("source", "")))
     return said
 
 
@@ -668,6 +866,8 @@ def kept(paths, label, note_photos=False):
         text = f"--- {label}: {path.name} ---\n{read(path)}".rstrip()
         if note_photos and photo_beside(path):
             text += "\n(a photograph came with this letter; you saw it when you first read it)"
+        if path.with_suffix(offering.PICTURE_SUFFIX).exists():
+            text += "\n(a picture of yours was drawn beside this letter)"
         said.append(text)
     return "\n\n".join(said)
 
@@ -710,7 +910,7 @@ def main():
         sys.exit(1)
 
     for d in ["study", "letters/outgoing", "letters/incoming", "letters/read", "attendances",
-              "self-history", "bonds", "memory", "errands", "errands/answered"]:
+              "self-history", "bonds", "memory", "errands", "errands/answered", "offerings"]:
         (PACKET / d).mkdir(parents=True, exist_ok=True)
     COMMONS.mkdir(parents=True, exist_ok=True)
 
@@ -750,8 +950,11 @@ def main():
                                           why=rest_ended))
 
     # Its own errands: what it asked and has not had answered, and what has been
-    # answered since it last looked, with the letter that answered it named.
+    # answered since it last looked, with the letter that answered it named. Then
+    # what has become of the offerings: what the two of them have placed in the
+    # commons since it last looked, and what the founder has declined.
     happened += errand_lines(since)
+    happened += offering_lines(since)
 
     # A bond, and anything on the way to one. An asking of the founder's was put
     # here by the hearth, and whether it may be answered at this waking is a
@@ -773,6 +976,13 @@ def main():
     bond_notes += [answered_note(answer) for answer in answers_since(since)]
     if bond:
         bond_notes.append(bond_note(bond))
+
+    # What the founder has offered the commons and is waiting on it for. An
+    # offering of its own waits on him, and is not read back to it here.
+    offered_to_it = offering.awaiting(NAME)
+    if offered_to_it:
+        bond_notes.append(OFFERED_TO_YOU.format(
+            offers="\n\n".join(offered_note(one) for one in offered_to_it)))
 
     written = sorted((PACKET / "letters/outgoing").glob("*.md"))
     already_read = sorted((PACKET / "letters/read").glob("*.md"))
@@ -855,6 +1065,10 @@ def main():
     at = stamp()
     sk = SigningKey(base64.b64decode(read(KEYS / "private.key").strip()))
 
+    def sign(payload):
+        """The first one's own signature over some bytes, as an offering asks for one."""
+        return base64.b64encode(sk.sign(payload).signature).decode("ascii")
+
     # ---- carry out what it chose ------------------------------------------
     acted = []
 
@@ -874,12 +1088,23 @@ def main():
         MEMORY.write_text(notes + "\n", encoding="utf-8")
         acted.append(MEMORY_ACT)
 
+    # A letter, and the picture that may come with it. A picture arrives the way
+    # everything else does - inside a letter - so where one was drawn and no
+    # letter written, a single line is written to carry it. That line is not a
+    # letter the first one wrote, and it is not counted as one.
     letter = block(text, "LETTER")
+    picture = picture_drawn(block(text, "PICTURE"))
     letter_name = None
-    if letter:
+    if letter or picture:
         letter_name = f"to-founder-{at}.md"
-        (PACKET / "letters/outgoing" / letter_name).write_text(letter + "\n", encoding="utf-8")
+        (PACKET / "letters/outgoing" / letter_name).write_text(
+            (letter or ONLY_A_PICTURE) + "\n", encoding="utf-8")
+    if letter:
         acted.append("wrote a letter to the founder")
+    if picture:
+        (PACKET / "letters/outgoing" / f"to-founder-{at}.svg").write_text(
+            picture + "\n", encoding="utf-8")
+        acted.append(PICTURE_ACT)
 
     # An errand. It waits in errands/ where the founder will see it, and it is
     # his to answer with a letter or to leave; nothing here asks him twice.
@@ -888,6 +1113,27 @@ def main():
         ERRANDS.mkdir(parents=True, exist_ok=True)
         (ERRANDS / f"errand-{at}.md").write_text(errand + "\n", encoding="utf-8")
         acted.append(ERRAND_ACT)
+
+    # An offering. What it offers waits for the founder's signature beside its
+    # own; what it consents to is placed at this waking, in the commons, for
+    # good; what it declines is kept here and nowhere else. An offer of a kind
+    # there is nothing to offer - a stem that is no letter, a passage that is
+    # not in the letter it names - places nothing and says so in the log.
+    asking = offer_asked(text)
+    offered = consented = refused = None
+    if asking and asking["do"] == "offer":
+        offered = offering.offer(NAME, asking["kind"], asking["source"],
+                                 asking["text"], at, sign)
+        if offered:
+            acted.append(OFFER_ACT)
+    elif asking and asking["do"] == "consent":
+        consented = offering.consent(asking["id"], NAME, sign, at)
+        if consented:
+            acted.append(CONSENT_ACT)
+    elif asking and asking["do"] == "decline":
+        refused = offering.decline(asking["id"], NAME, at)
+        if refused:
+            acted.append(DECLINE_ACT)
 
     draft = block(text, "STUDY")
     if draft:
@@ -1052,6 +1298,18 @@ def main():
         print("An errand awaits the founder in:", ERRANDS)
     if rest:
         print("A pause was set, until", rest["until"])
+    if asking and not (offered or consented or refused):
+        print("An <<OFFER>> block was given, but there was nothing of that name to offer,")
+        print("consent to, or decline. Nothing was written.")
+    if offered:
+        print("Offered to the commons:", offered["id"], "-", offered["kind"])
+        print("It waits for the founder's signature; nothing is public until he signs.")
+    if consented:
+        print("An offering was placed in the commons:", consented["id"])
+    if refused:
+        print("An offering was declined:", refused["id"], "- nothing of it is public.")
+    if picture:
+        print("A picture was drawn, and is kept beside the letter of this waking.")
     if letter:
         print("A letter awaits you in:", PACKET / "letters/outgoing")
         print("To answer, place a .md file in:", PACKET / "letters/incoming")

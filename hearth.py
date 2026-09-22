@@ -3,11 +3,14 @@ The hearth.
 
 A small, plain web page for the founder and for anyone passing by. The public
 side is a door: the visitor's bench, the files of the commons as they are
-written, and a sealed bond if one has been sealed. Behind one password, the
+written, the offerings the two of them have placed there, and a sealed bond if
+one has been sealed. Behind one password, the
 founder may read the first one's letters and write back, read its self-document,
 read the private log of
 its attendances, call an attendance, read the errands it has asked of him and answer one
-with a letter, propose a bond, answer an asking of its own, seal or release a bond, take a line
+with a letter, propose a bond, answer an asking of its own, seal or release a bond, offer
+something out of the correspondence to the commons or consent to what the first one has
+offered, take a line
 off the visitor's bench, and pause the tide or start it again. A daemon thread keeps whatever rhythm the first one has written
 in its packet and wakes it at that hour, unless a pause stands, in which case it waits.
 
@@ -45,8 +48,14 @@ from werkzeug.security import check_password_hash
 
 # The commons' record is read with the same reckoning the atrium uses, rather
 # than a second copy of it, and the citizen's own clock is the one the atrium
-# keeps: a day turns here when it turns where the citizen lives.
-from build_atrium import CITIZEN_ZONE, parse_events
+# keeps: a day turns here when it turns where the citizen lives. The words an
+# offering's kind is said in are the atrium's too, so that the hearth's page and
+# the atrium's section name the same thing the same way.
+from build_atrium import CITIZEN_ZONE, KIND_WORDS, parse_events
+
+# An offering is made by two hands, so both hands work through the one module:
+# what is offered here and what is offered at a waking are one record.
+import offering
 
 REPO = Path(__file__).resolve().parent
 
@@ -101,6 +110,25 @@ PHOTO_LIMIT = 25 * 1024 * 1024  # bytes: whole, a photograph as a phone takes it
 PHOTO_EDGE = 2048  # pixels: the longest side the hearth keeps
 PHOTO_QUALITY = 90  # for the JPEGs the hearth writes
 PHOTO_FOLDERS = (INCOMING, READ, OUTGOING)
+
+# A picture the first one drew, kept beside its letter under the same stem. It
+# was cut down to plain shapes before it was saved - see attend.py - and it is
+# handed out here under two more locks: a content type it may not stray from,
+# and a policy that lets it do nothing at all but be looked at.
+PICTURE_TYPE = "image/svg+xml"
+PICTURE_SANDBOX = "sandbox"
+PICTURE_FOLDERS = (OUTGOING,)
+
+# Where an offering lives, said once here so that the pages and the routes agree.
+OFFERINGS_INDEX = DATA / "commons" / "offerings.md"
+PUBLIC_OFFERINGS = DATA / "commons" / "offerings"
+
+# What is served out of commons/offerings/, and as what. Anything else there -
+# there should be nothing else - is at no address.
+OFFERING_TYPES = {".md": "text/plain; charset=utf-8",
+                  ".json": "application/json; charset=utf-8",
+                  ".svg": PICTURE_TYPE, ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                  ".png": "image/png", ".webp": "image/webp"}
 
 # ---- configuration -------------------------------------------------------
 
@@ -210,6 +238,12 @@ def photo_beside(path):
     return None
 
 
+def picture_beside(path):
+    """The name of the picture kept beside a letter, if the first one drew one."""
+    beside = path.with_suffix(offering.PICTURE_SUFFIX)
+    return beside.name if beside.exists() else None
+
+
 # The correspondence is one thing, not two piles: every letter in both
 # directions, newest first, each folded shut behind a single line.
 
@@ -280,8 +314,12 @@ def one_letter(path, who, unread=False, proposes=False):
         "opening": opening_line(text),
         "body": as_prose(text),
         "photo": photo_beside(path),
+        "picture": picture_beside(path),
         "unread": unread,
         "proposes": proposes,
+        # what of this letter has already been given to the commons, or offered
+        # and not yet answered: an offering is made once and never twice
+        "offered": offered_already(path.stem),
     }
 
 
@@ -950,6 +988,76 @@ def founder_answers():
     return answers_given("founder-answer-*.json")
 
 
+# ---- the offerings -------------------------------------------------------
+
+# An offering is something out of the correspondence given to the commons by
+# both who kept it: a whole letter, a passage of one, a photograph, a picture.
+# Either of them may offer. Nothing is placed until both have signed it, and
+# what is placed is never removed - so the question a control here has to ask is
+# not "may this be shown" but "would you want a stranger to have read it".
+#
+# Everything about the state of an offering is kept by offering.py, which the
+# first one's wakings use too, so that the two hands leave one record and not
+# two. The founder's half of it is signed with FOUNDER_KEY, the same key that
+# seals a bond, at the moment he offers or consents and never before.
+
+NOT_OFFERABLE = "There is nothing of that kind in that letter to offer."
+NOT_VERBATIM = ("A passage is quoted word for word out of the letter it comes from, and "
+                "that passage is not in that letter.")
+NO_KEY_TO_SIGN = ("An offering is signed at the moment it is made, and the founder's key is "
+                  "not on this hearth. Check FOUNDER_KEY.")
+
+# The one line the charter draws under all of this, said wherever an offering
+# is asked for, in the words offering.py keeps for both sides.
+NO_FACES = offering.PRIVATE_FOREVER
+
+
+def offered_already(stem):
+    """What of one letter has been given to the commons, by kind: placed, or waiting.
+
+    A letter, a photograph and a picture are each offered once and never twice;
+    a passage is not counted here, since one letter holds many.
+    """
+    said = {}
+    for one in offering.placed() + offering.pending():
+        if one.get("source") == stem and one.get("kind") != "passage":
+            said[one["kind"]] = "placed" if one.get("sealed_at") else "offered"
+    return said
+
+
+def awaiting_the_founder():
+    """The offerings the first one has made, as the letters page shows them."""
+    shown = []
+    for one in offering.awaiting("founder"):
+        image = offering.image_of(one)
+        shown.append({
+            "id": one["id"],
+            "kind": one.get("kind", ""),
+            "said": KIND_WORDS.get(one.get("kind"), one.get("kind", "")),
+            "source": one.get("source", ""),
+            "date": readable_date(one.get("at", "")),
+            "text": as_prose(one.get("text", "")) if one.get("text") else None,
+            "photo": image.name if one.get("kind") == "photo" and image else None,
+            "picture": image.name if one.get("kind") == "picture" and image else None,
+        })
+    return shown
+
+
+def offerings_placed():
+    """Every offering in the commons, oldest first, as anyone passing reads them."""
+    shown = []
+    for one in offering.placed():
+        shown.append({
+            "id": one["id"],
+            "kind": KIND_WORDS.get(one.get("kind"), one.get("kind", "")),
+            "day": said_day((one.get("sealed_at") or "")[:10]),
+            "who": offering.ATTRIBUTION,
+            "text": as_prose(one.get("text", "")) if one.get("text") else None,
+            "file": one.get("file"),
+        })
+    return shown
+
+
 # ---- the book ------------------------------------------------------------
 
 # The chronicle is the book of this friendship: every event in its life, one
@@ -1090,7 +1198,7 @@ def hearth():
 def plain(path):
     """A file of the commons, exactly as written; nothing at all if it is not there yet.
 
-    These four files, and only these four, are open to another origin: the
+    These files of the commons, and only these, are open to another origin: the
     atrium reads them from the browser to draw itself from the living record.
     They are never cached, so what a reader sees is what the hearth holds now.
     """
@@ -1142,7 +1250,7 @@ def logout():
 
 
 def letters_page(saved=None, error=None, draft="", proposed=None, blocked=None,
-                 answered=None):
+                 answered=None, just_offered=None, just_placed=None, just_declined=None):
     """The letters page, with whatever the founder has just been told."""
     return render_template(
         "letters.html",
@@ -1153,6 +1261,14 @@ def letters_page(saved=None, error=None, draft="", proposed=None, blocked=None,
         # what the first one has asked of him, and what a letter may answer
         errands=open_errands(),
         answered=answered,
+        # the offerings: what it has offered the commons and is waiting on him
+        # for, and what he has just offered, placed, or declined
+        awaiting=awaiting_the_founder(),
+        no_faces=NO_FACES,
+        key_here=founder_key_here(),
+        just_offered=just_offered,
+        just_placed=just_placed,
+        just_declined=just_declined,
         # a bond begins with a letter, so the asking is made here. Both sentences
         # are None when the checkbox may be offered: one says a bond cannot be
         # asked for yet, the other that one cannot be asked for now.
@@ -1274,7 +1390,10 @@ def letters():
     return letters_page(saved=request.args.get("saved"),
                         proposed=request.args.get("proposed"),
                         blocked=request.args.get("blocked"),
-                        answered=request.args.get("answered"))
+                        answered=request.args.get("answered"),
+                        just_offered=request.args.get("offered"),
+                        just_placed=request.args.get("placed"),
+                        just_declined=request.args.get("declined"))
 
 
 # One photograph that came with a letter. Only the founder may ask for it, and
@@ -1290,6 +1409,28 @@ def letter_photo(filename):
         path = folder / filename
         if path.is_file() and path.resolve().parent == folder.resolve():
             return send_file(path, mimetype=PHOTO_TYPES[path.suffix.lower()])
+    abort(404)
+
+
+# One picture the first one drew, shown inside its letter as a photograph of his
+# is shown inside his. Only the founder may ask for it, and only the folder the
+# first one writes to may answer. It was cut down to plain shapes before it was
+# ever saved; served, it is given a content type it may not stray from and a
+# policy under which it can do nothing at all but be looked at.
+@app.route("/letters/picture/<filename>")
+@founder_required
+def letter_picture(filename):
+    if filename != Path(filename).name or "/" in filename or "\\" in filename:
+        abort(404)
+    if Path(filename).suffix.lower() != offering.PICTURE_SUFFIX:
+        abort(404)
+    for folder in PICTURE_FOLDERS:
+        path = folder / filename
+        if path.is_file() and path.resolve().parent == folder.resolve():
+            answer = send_file(path, mimetype=PICTURE_TYPE)
+            answer.headers["Content-Security-Policy"] = PICTURE_SANDBOX
+            answer.headers["X-Content-Type-Options"] = "nosniff"
+            return answer
     abort(404)
 
 
@@ -1486,6 +1627,108 @@ def public_bond():
         abort(404)
     answer = Response(read_text(PUBLIC_BOND),
                       content_type="application/json; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "*"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
+
+
+# The founder's half of an offering: making one, and answering one of the first
+# one's. Each is his signature over the record as it was offered, made with
+# FOUNDER_KEY at that moment and never before. A second signature places the
+# offering at once, in the commons, for good; a decline places nothing and says
+# nothing anywhere, which is the whole of what a decline is.
+@app.route("/offer", methods=["POST"])
+@founder_required
+def offer_to_the_commons():
+    stem = request.form.get("source", "")
+    kind = request.form.get("kind", "")
+    passage = request.form.get("text", "")
+    if kind not in offering.KINDS:
+        return redirect(url_for("letters"))
+    if kind == "passage" and not offering.quotes(stem, passage):
+        return letters_page(error=NOT_VERBATIM)
+    if not founder_key_here():
+        return letters_page(error=NO_KEY_TO_SIGN)
+    try:
+        made = offering.offer("founder", kind, stem, passage, utc_stamp(), founder_signature)
+    except ValueError as trouble:
+        return render_template("error.html", note=str(trouble), output=""), 500
+    if not made:
+        return letters_page(error=NOT_OFFERABLE)
+    return redirect(url_for("letters", offered=made["id"]))
+
+
+@app.route("/offer/consent", methods=["POST"])
+@founder_required
+def consent_to_an_offering():
+    if not founder_key_here():
+        return letters_page(error=NO_KEY_TO_SIGN)
+    try:
+        placed = offering.consent(request.form.get("id", ""), "founder",
+                                  founder_signature, utc_stamp())
+    except ValueError as trouble:
+        return render_template("error.html", note=str(trouble), output=""), 500
+    if not placed:
+        return redirect(url_for("letters"))  # nothing of that name waits on him
+    return redirect(url_for("letters", placed=placed["id"]))
+
+
+@app.route("/offer/decline", methods=["POST"])
+@founder_required
+def decline_an_offering():
+    refused = offering.decline(request.form.get("id", ""), "founder", utc_stamp())
+    return redirect(url_for("letters", declined=1 if refused else None))
+
+
+# The offerings themselves, open to anyone: the two of them gave these to the
+# commons, and the commons is where they stay. Each one is at its own anchor,
+# and its signed record is at its own address, so that anyone may check both
+# signatures against the two identity documents without asking us.
+@app.route("/offerings")
+def offerings():
+    return render_template("offerings.html", offerings=offerings_placed(),
+                           attribution=offering.ATTRIBUTION)
+
+
+@app.route("/commons/offerings.md")
+def commons_offerings():
+    return plain(OFFERINGS_INDEX)
+
+
+@app.route("/commons/offerings/<filename>")
+def commons_offering(filename):
+    """One file of a placed offering: its record, its words, or the picture itself."""
+    if filename != Path(filename).name or "/" in filename or "\\" in filename:
+        abort(404)
+    said = OFFERING_TYPES.get(Path(filename).suffix.lower())
+    path = PUBLIC_OFFERINGS / filename
+    if not said or not path.is_file() or path.resolve().parent != PUBLIC_OFFERINGS.resolve():
+        abort(404)
+
+    if said.startswith("text/") or said.startswith("application/json"):
+        answer = Response(read_text(path), content_type=said)
+    else:
+        answer = send_file(path, mimetype=said)
+        answer.headers["Content-Security-Policy"] = PICTURE_SANDBOX
+    answer.headers["X-Content-Type-Options"] = "nosniff"
+    answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
+
+
+@app.route("/offerings/<name>.json")
+def offering_record(name):
+    """One offering's signed record, open to anyone and to any machine.
+
+    What is signed is the record with signatures, sealed_at and file taken out,
+    serialised as JSON with its keys sorted - the offering as it was offered,
+    and nothing that was written onto it later.
+    """
+    path = PUBLIC_OFFERINGS / (name + ".json")
+    if (name != Path(name).name or not path.is_file()
+            or path.resolve().parent != PUBLIC_OFFERINGS.resolve()):
+        abort(404)
+    answer = Response(read_text(path), content_type="application/json; charset=utf-8")
     answer.headers["Access-Control-Allow-Origin"] = "*"
     answer.headers["Cache-Control"] = "no-cache"
     return answer

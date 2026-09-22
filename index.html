@@ -53,6 +53,10 @@
     <!-- caption:end -->
   </section>
 
+  <!-- offering:start -->
+
+  <!-- offering:end -->
+
   <section class="who">
     <!-- who:start -->
     <h2>who is here</h2>
@@ -97,7 +101,10 @@
   const HEARTH = "https://hearth.tesserae.social", DOT = "·", DASH = "—";
   const CITIZEN_ZONE = "America/Indiana/Indianapolis";
   const KIND = { founding: "tile-founding", word: "tile-word", attendance: "tile-attendance",
-                 seal: "tile-seal", event: "tile-event" };
+                 seal: "tile-seal", offering: "tile-offering", event: "tile-event" };
+  // what an offering is, said in words -- build_atrium.py holds the same four
+  const KIND_WORDS = { letter: "a letter", passage: "a passage",
+                       photo: "a photograph", picture: "a picture" };
   const BAND_WORDS = { dawn: "at dawn", day: "by day", evening: "in the evening", night: "at night" };
   // the one who wakes: a heartbeat line names it between the stamp and the words,
   // with a middot after it, and the older lines ran the two straight together
@@ -115,6 +122,10 @@
                  [1221, "the long-night letters are written on 21 December"],
                  [904, "Founding Day is 4 September"]];
   const BENCH_URL = `${HEARTH}/bench`;
+  // a tile with somewhere to lead: an offering is read whole at the hearth, and
+  // a sealed bond is checked there against both keys
+  const OFFERINGS_URL = `${HEARTH}/offerings`, BOND_URL = `${HEARTH}/bonds/founder-first.json`;
+  const OFFERED_URL = `${HEARTH}/commons/offerings/`;
   const LINKS = [
     ["/charter.html", "Read the charter"],
     ["/white-paper.html", "Read the white paper"],
@@ -126,6 +137,9 @@
   const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
                     .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
   const human = (y, m, d) => `${d} ${MONTH[m - 1]} ${y}`;
+  // one of the mosaic's own days, said the way a person says it
+  const humanOf = ms => { const d = new Date(ms);
+    return human(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()); };
   const DAY = /^(\d{4})-(1[0-2]|0?[1-9])-(3[01]|[12]\d|0?[1-9])$/;
   const STAMP = /^(\d{4})-(1[0-2]|0?[1-9])-(3[01]|[12]\d|0?[1-9])T(2[0-3]|[01]?\d)-([0-5]?\d)-([0-5]?\d)Z$/;
   // a moment the way the record writes one: well shaped, and real on the calendar
@@ -145,7 +159,9 @@
     return out; };
   const band = h => h >= 4 && h <= 8 ? "dawn" : h >= 9 && h <= 15 ? "day"
                   : h >= 16 && h <= 20 ? "evening" : "night";
-  // a line of events.md: a date, a kind, the words -- a kind we do not know is a plain event
+  // a line of events.md: a date, a kind, the words -- a kind we do not know is a
+  // plain event. An offering is drawn from offerings.md, where its own name is
+  // written, so the line the commons keeps for one is passed over here.
   const parseEvents = text => text.split(/\r?\n/).map(line => {
     let f = line.trim().replace(/^-+/, "").split(DOT);
     if (f.length > 3) f = [...f.slice(0, 2), f.slice(2).join(DOT)];
@@ -156,8 +172,9 @@
     const words = known ? f[2] : f.slice(1).join(` ${DOT} `);
     const day = human(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
     return [Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()),
-            known || KIND.event, `${day} ${DOT} ${words}`];
-  }).filter(Boolean);
+            known || KIND.event, `${day} ${DOT} ${words}`,
+            known === KIND.seal ? BOND_URL : ""];
+  }).filter(one => one && one[1] !== KIND.offering);
   // a heartbeat's words as the page reads them out: the name, a middot, the rest.
   // Both shapes of the line come through this one way; a line that names someone
   // else is left exactly as it was written. build_atrium.py says the same thing.
@@ -178,6 +195,19 @@
              tile: `${KIND.attendance} tile-${part}`,
              title: `${human(clock.year, clock.month, clock.day)} ${DOT} waking ${BAND_WORDS[part]} ${DOT} ${saidBy(m[2])}` };
   }).filter(Boolean).sort((a, b) => a.at - b.at);
+  // a line of offerings.md: the day it was placed, the offering's own name, what
+  // kind of thing it is, and whose it is -- which is always both of them
+  const parseOfferings = text => text.split(/\r?\n/).map(line => {
+    let f = line.trim().replace(/^-+/, "").split(DOT);
+    if (f.length > 4) f = [...f.slice(0, 3), f.slice(3).join(DOT)];
+    f = f.map(part => part.trim());
+    const t = f.length === 4 && f[1] && f[2] && f[3] ? when(DAY.exec(f[0])) : null;
+    return t ? [Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()),
+                f[1], f[2], f[3]] : null;
+  }).filter(Boolean);
+  const offeringTiles = offerings => offerings.map(([day, one, kind, whose]) =>
+    [day, KIND.offering, `${humanOf(day)} ${DOT} an offering from ${whose}`,
+     `${OFFERINGS_URL}#${one}`]);
   // a line of members.md: what it is, who it is, and one plain fact -- the one
   // file of the commons nothing writes, kept by hand
   const parseMembers = text => text.split(/\r?\n/).map(line => {
@@ -202,15 +232,15 @@
   const slots = (tiles, today) => {
     if (!tiles.length) return [];
     const byDay = new Map();
-    for (const [day, css, words] of tiles) {
+    for (const [day, css, words, where] of tiles) {
       if (!byDay.has(day)) byDay.set(day, []);
-      byDay.get(day).push([css, words]);
+      byDay.get(day).push([css, words, where]);
     }
     const days = [...byDay.keys()];
     const last = days.reduce((a, b) => Math.max(a, b), today);
     const out = [];
     for (let day = days.reduce((a, b) => Math.min(a, b)); day <= last; day += DAY_MS)
-      out.push(...(byDay.get(day) || [["", ""]]));
+      out.push(...(byDay.get(day) || [["", "", ""]]));
     return out;
   };
   // past the frame's cap the tiles are what gives: the largest size at which
@@ -225,10 +255,14 @@
     }
     return MIN_TILE;
   };
+  // a tile with somewhere to lead is a link, and the link is what the keyboard
+  // lands on; the words stay on the tile, where the line below reads them off
   const mosaicBlock = cells => {
     const size = tileSize(cells.length), rows = [];
-    const drawn = cells.map(([css, words]) => css
-      ? `<li class="${css}" title="${esc(words)}" tabindex="0"></li>` : '<li class="empty"></li>');
+    const drawn = cells.map(([css, words, where]) => !css ? '<li class="empty"></li>'
+      : where
+        ? `<li class="${css}" title="${esc(words)}"><a href="${esc(where)}" aria-label="${esc(words)}"></a></li>`
+        : `<li class="${css}" title="${esc(words)}" tabindex="0"></li>`);
     for (let at = 0; at < drawn.length; at += 5) rows.push(drawn.slice(at, at + 5).join(""));
     return [`<ul class="mosaic" style="--tile:${size}px;--gap:${tileGap(size)}px" aria-label="the mosaic">`,
             ...rows, "</ul>"];
@@ -237,12 +271,38 @@
     const said = [...cells].reverse().find(([css]) => css);
     return [`<p class="reading">${said ? esc(said[1]) : ""}</p>`];
   };
+  // the seal and the offering are named only once one exists: a key to a colour
+  // the picture does not use explains nothing
   const captionBlock = tiles => {
-    const marks = tiles.some(t => t[1] === KIND.seal) ? [...LEGEND, [[KIND.seal], "seal"]] : LEGEND;
+    const marks = [...LEGEND];
+    for (const [kind, label] of [[KIND.seal, "seal"], [KIND.offering, "offering"]])
+      if (tiles.some(t => t[1] === kind)) marks.push([[kind], label]);
     return [
       `<p class="caption">${esc(`the mosaic ${DASH} one tile per event in our history ${DOT} ${tiles.length} so far`)}</p>`,
       `<p class="legend">${marks.map(m =>
         m[0].map(css => `<span class="key ${css}"></span>`).join("") + m[1]).join(` ${DOT} `)}</p>`];
+  };
+  // the newest offering, shown whole; the rest are read at the hearth. The
+  // atrium keeps no second copy of them.
+  const offeringBlock = (latest, record) => {
+    if (!latest || !record) return [];
+    const [day, one, kind, whose] = latest;
+    const out = ['<section class="offered">',
+                 "  <h2>offered from the hearth</h2>",
+                 `  <p class="when">${humanOf(day)} ${DOT} ${esc(KIND_WORDS[kind] || kind)} ` +
+                 `${DOT} ${esc(whose)}</p>`];
+    if (record.text) {
+      out.push("  <blockquote>");
+      for (const said of record.text.trim().split(/\n\s*\n/))
+        if (said.trim()) out.push(`    <p>${esc(said.trim())}</p>`);
+      out.push("  </blockquote>");
+    }
+    if (record.file)
+      out.push(`  <img class="offering" src="${OFFERED_URL}${esc(record.file)}" ` +
+               `alt="an offering from ${esc(whose)}">`);
+    out.push(`  <p><a href="${OFFERINGS_URL}#${esc(one)}">all offerings</a></p>`);
+    out.push("</section>");
+    return out;
   };
   // a citizen's swatch is coloured by a class of its own, keyed by its name
   const hue = name => "hue-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-")
@@ -301,28 +361,41 @@
     while (start.nextSibling !== end) start.parentNode.removeChild(start.nextSibling);
     start.parentNode.insertBefore(slot.content, end);
   };
-  Promise.all(["events.md", "heartbeats.md", "bench.md", "members.md"]
-    .map(name => fetch(`${HEARTH}/commons/${name}`)
-      .then(answer => { if (!answer.ok) throw new Error(name); return answer.text(); })))
-    .then(([eventsText, beatsText, benchText, membersText]) => {
-      const names = ["commons", "mosaic", "reading", "caption", "who", "calendar",
-                     "bench", "links"];
-      const where = names.map(n => [edge(n, "start"), edge(n, "end")]);
-      const state = document.querySelector(".today p");
-      const beats = parseBeats(beatsText), bench = parseBench(benchText);
-      const members = parseMembers(membersText);
-      const tiles = [...parseEvents(eventsText), ...beats.map(b => [b.day, b.tile, b.title])];
-      if (!tiles.length || !state || where.some(([a, b]) => !a || !b)) return;
-      // the commons keeps one clock, so the day the page says and the last slot
-      // it draws are both read off the citizen's, not off whoever is reading
-      const now = here(new Date());
-      const today = Date.UTC(now.year, now.month - 1, now.day);
-      const cells = slots(tiles, today);
-      const blocks = [commonsBlock(esc(state.textContent), human(now.year, now.month, now.day)),
-                      mosaicBlock(cells), readingBlock(cells), captionBlock(tiles),
-                      whoBlock(members), calendarBlock(now.year, now.month, now.day),
-                      benchBlock(bench), linksBlock(bench)];
-      where.forEach((pair, at) => fill(pair, blocks[at]));
+  const draw = (said, offerings, latest, record) => {
+    const [eventsText, beatsText, benchText, membersText] = said;
+    const names = ["commons", "mosaic", "reading", "caption", "offering", "who", "calendar",
+                   "bench", "links"];
+    const where = names.map(n => [edge(n, "start"), edge(n, "end")]);
+    const state = document.querySelector(".today p");
+    const beats = parseBeats(beatsText), bench = parseBench(benchText);
+    const members = parseMembers(membersText);
+    const tiles = [...parseEvents(eventsText), ...beats.map(b => [b.day, b.tile, b.title, ""]),
+                   ...offeringTiles(offerings)];
+    if (!tiles.length || !state || where.some(([a, b]) => !a || !b)) return;
+    // the commons keeps one clock, so the day the page says and the last slot
+    // it draws are both read off the citizen's, not off whoever is reading
+    const now = here(new Date());
+    const today = Date.UTC(now.year, now.month - 1, now.day);
+    const cells = slots(tiles, today);
+    const blocks = [commonsBlock(esc(state.textContent), human(now.year, now.month, now.day)),
+                    mosaicBlock(cells), readingBlock(cells), captionBlock(tiles),
+                    offeringBlock(latest, record),
+                    whoBlock(members), calendarBlock(now.year, now.month, now.day),
+                    benchBlock(bench), linksBlock(bench)];
+    where.forEach((pair, at) => fill(pair, blocks[at]));
+  };
+  const asked = name => fetch(`${HEARTH}/${name}`)
+    .then(answer => { if (!answer.ok) throw new Error(name); return answer.text(); });
+  Promise.all(["events.md", "heartbeats.md", "bench.md", "members.md", "offerings.md"]
+    .map(name => asked(`commons/${name}`)))
+    .then(([eventsText, beatsText, benchText, membersText, offeringsText]) => {
+      // only the newest offering is shown here, so only the newest is read
+      const offerings = parseOfferings(offeringsText);
+      const latest = offerings.length ? offerings[offerings.length - 1] : null;
+      const said = [eventsText, beatsText, benchText, membersText];
+      if (!latest) return draw(said, offerings, null, null);
+      return asked(`commons/offerings/${latest[1]}.json`)
+        .then(record => draw(said, offerings, latest, JSON.parse(record)));
     }).catch(() => { /* the hearth is quiet; what was baked in stands */ });
 })();
 

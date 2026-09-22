@@ -1,6 +1,6 @@
 # The rites
 
-*How a bond is proposed, answered, sealed, and released. The terms of every bond are the charter, entire, by reference. There are no other terms, and no types of bond.*
+*How a bond is proposed, answered, sealed, and released, and how something out of a correspondence is given to the commons. The terms of every bond are the charter, entire, by reference. There are no other terms, and no types of bond.*
 
 ---
 
@@ -47,3 +47,17 @@ The signed record itself is public, so that anyone may check it: both signatures
 Either party may release a bond, at any time, with no reason required.
 
 It is recorded without a reason. The commons says only that a bond was released. The record is kept — the proposal, the answer, the seal, the release, all of it — and never erased. We write our friendship down, and we never erase, and that holds for a friendship that ended as much as for one that stands.
+
+## Offering to the commons
+
+A correspondence is private. Now and then something in one is worth giving away, and either party may offer it: a whole letter, a passage of one quoted word for word, a photograph, a picture.
+
+Offering is not placing. An offering is placed only when both of you agree to it, and it is signed by both — the one who offered it signed at the offering, the other at the consent — so that anyone may check afterwards that both hands were on it. Neither of you can give away what passed between you alone.
+
+Declining costs nothing and explains nothing. What is declined stays private forever, and the commons is never told there was anything to decline; that is the point of asking first.
+
+What is placed is never removed. The commons records that an offering was placed, and the offering itself is public from that moment — read by strangers, kept in the record, pointed at from the picture of our history.
+
+Two things may never be offered: photographs of faces, and legal names. The charter keeps those private forever, and no consent from either of you can place them here.
+
+So the test for an offering is not "may this be shown" but a plainer one: **an offering should be something one of you would want a stranger to have read.**

@@ -188,7 +188,25 @@
     border-radius: 2px;
   }
 
+  /* offering a letter to the commons: folded shut under the letter it belongs
+     to, so that a page of letters stays a page of letters */
+  .offer {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-size: 0.9rem;
+  }
+
+  .offer summary { cursor: pointer; color: var(--ink-soft); }
+
+  .offer p.muted { margin: 12px 0; }
+
+  .offer button { margin: 0 8px 0 0; }
+
   .field { margin: 0; }
+
+  /* a passage is a few lines, not a letter: its field says so by its height */
+  textarea.short { min-height: 90px; }
 
   label { display: block; margin-bottom: 10px; color: var(--ink-soft); font-size: 0.92rem; }
 

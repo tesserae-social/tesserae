@@ -7,6 +7,7 @@ Rewrites only the text between the marker comments in index.html:
     <!-- mosaic:start -->   ...  <!-- mosaic:end -->
     <!-- reading:start -->  ...  <!-- reading:end -->
     <!-- caption:start -->  ...  <!-- caption:end -->
+    <!-- offering:start --> ...  <!-- offering:end -->
     <!-- who:start -->      ...  <!-- who:end -->
     <!-- calendar:start --> ...  <!-- calendar:end -->
     <!-- bench:start -->    ...  <!-- bench:end -->
@@ -20,6 +21,9 @@ It reads:
     commons/events.md              the history (created if missing)
     commons/bench.md               the lines passersby have left
     commons/members.md             who is here
+    commons/offerings.md           what the two of them have given the commons,
+                                   and commons/offerings/<id>.json beside it for
+                                   the newest one, which is shown whole
 
 commons/members.md is the one file of the commons nothing writes: the founder
 keeps it by hand, one line per citizen or member, and the hearth serves it
@@ -27,7 +31,7 @@ beside the rest. A copy lives on the hearth's disk as well as in the repository;
 when there is none, the section is simply left off. Some later hand will grow
 this out of the bonds instead, and can drop the file then.
 
-With --from URL it takes the last four from a running hearth instead
+With --from URL it takes everything under commons/ from a running hearth instead
 (URL/commons/heartbeats.md and so on), and writes nothing at all if that
 hearth cannot be reached.
 
@@ -38,6 +42,7 @@ is only ever read.
 import argparse
 import datetime
 import html
+import json
 import os
 import re
 import sys
@@ -56,9 +61,22 @@ HEARTBEATS = os.path.join(DATA, "commons", "heartbeats.md")
 EVENTS = os.path.join(DATA, "commons", "events.md")
 BENCH = os.path.join(DATA, "commons", "bench.md")
 MEMBERS = os.path.join(DATA, "commons", "members.md")
+OFFERINGS = os.path.join(DATA, "commons", "offerings.md")
+OFFERED = os.path.join(DATA, "commons", "offerings")
+
+HEARTH = "https://hearth.tesserae.social"
 
 # where a passerby goes to leave one
-BENCH_URL = "https://hearth.tesserae.social/bench"
+BENCH_URL = HEARTH + "/bench"
+
+# where an offering is read whole, and where a sealed bond is checked. A tile
+# for either is a way in: the others are hover-only, because there is nowhere
+# for them to lead.
+OFFERINGS_URL = HEARTH + "/offerings"
+BOND_URL = HEARTH + "/bonds/founder-first.json"
+
+# where the file of a placed offering is served from
+OFFERED_URL = HEARTH + "/commons/offerings/"
 
 # the standing links, in the order the atrium offers them
 LINKS = [
@@ -94,8 +112,14 @@ KIND_CLASS = {
     "word": "tile-word",
     "attendance": "tile-attendance",
     "seal": "tile-seal",
+    "offering": "tile-offering",
     "event": "tile-event",
 }
+
+# What an offering is, said in words. The hearth says the same words on its own
+# page for them, out of this one dictionary, so that the two never part.
+KIND_WORDS = {"letter": "a letter", "passage": "a passage",
+              "photo": "a photograph", "picture": "a picture"}
 
 # What the legend says, and in what order: the marks shown, then the words. A waking
 # is four marks, dawn to night. The seal is added only once one exists.
@@ -126,8 +150,10 @@ MIN_TILE = 4    # and the size below which a tile is no longer a square anyone c
                 # thirty years of days; past that the tile stays 4px and the frame
                 # scrolls. Nothing needs doing about that for a long while.
 
-# A slot with nothing in it: a day the record is silent on.
-EMPTY = ("", "")
+# A slot with nothing in it: a day the record is silent on. A slot that holds
+# something holds three things: its class, its words, and where it leads, which
+# is nowhere for all but the two kinds that have somewhere to lead.
+EMPTY = ("", "", "")
 
 # who is here: the kinds of line commons/members.md may carry.
 MEMBER_KINDS = ("citizen", "member")
@@ -203,6 +229,26 @@ def members_text(hearth):
     return read_text(MEMBERS) if os.path.exists(MEMBERS) else ""
 
 
+def offerings_text(hearth):
+    """The text of offerings.md: from a hearth if one is named, else from the disk."""
+    if hearth:
+        return fetch(hearth, "offerings.md")
+    return read_text(OFFERINGS) if os.path.exists(OFFERINGS) else ""
+
+
+def offered_record(hearth, one):
+    """One placed offering's signed record, which is where its words are kept.
+
+    The index says that an offering exists and what kind it is; the record
+    itself carries what was given. The page's own script reads the same file
+    from the same address, so both paths show the same offering.
+    """
+    if hearth:
+        return json.loads(fetch(hearth, "offerings/%s.json" % one))
+    where = os.path.join(OFFERED, "%s.json" % one)
+    return json.loads(read_text(where)) if os.path.exists(where) else None
+
+
 def parse_events(text):
     """One (date, kind, words) per line of events.md, in the order written.
 
@@ -258,6 +304,26 @@ def parse_heartbeats(text):
             continue
         out.append((when, said_by(words)))
     out.sort(key=lambda row: row[0])
+    return out
+
+
+def parse_offerings(text):
+    """One (day, id, kind, whose) per line of offerings.md, in the order written.
+
+    A line names the day it was placed, the offering's own name, what kind of
+    thing it is, and whose it is - which is always both of them. A line shaped
+    any other way is passed over.
+    """
+    out = []
+    for line in text.splitlines():
+        fields = [part.strip() for part in line.strip().lstrip("-").split(DOT, 3)]
+        if len(fields) < 4 or not all(fields[1:]):
+            continue
+        try:
+            when = datetime.datetime.strptime(fields[0], "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        out.append((when, fields[1], fields[2], fields[3]))
     return out
 
 
@@ -320,16 +386,27 @@ def commons_block(state, today):
     ]
 
 
-def tiles_from(events, heartbeats):
-    """One (day, class, words) tile per thing that happened: the history, then the wakings.
+def tiles_from(events, heartbeats, offerings=()):
+    """One (day, class, words, where) tile per thing: the history, the wakings, the offerings.
 
     The day is the citizen's own calendar day, and it is what the mosaic is laid
     out by. Every tile's words open with that day too, because they are read out
     whole under the mosaic. A waking carries the part of the citizen's day it fell
     in twice over: in its class, so the tile is toned by it, and in its words.
+
+    Where is nowhere for most tiles, which are hover-only because there is
+    nowhere for them to lead. A seal leads to the signed bond, and an offering
+    to the offering itself: both are things a reader can go and check.
+
+    An offering is drawn from offerings.md and not from the line the commons
+    keeps for it in events.md, because only the fuller record carries the
+    offering's own name, and without that name a tile could lead nowhere. The
+    line in events.md is the commons' plain record that it happened, and it is
+    passed over here so that one offering is one tile.
     """
-    tiles = [(when, KIND_CLASS[kind], "%s %s %s" % (human(when), DOT, words))
-             for when, kind, words in events]
+    tiles = [(when, KIND_CLASS[kind], "%s %s %s" % (human(when), DOT, words),
+              BOND_URL if kind == "seal" else "")
+             for when, kind, words in events if kind != "offering"]
     for when, words in heartbeats:
         clock = here(when)
         part = band(clock.hour)
@@ -337,6 +414,14 @@ def tiles_from(events, heartbeats):
             clock.date(),
             "%s tile-%s" % (KIND_CLASS["attendance"], part),
             "%s %s waking %s %s %s" % (human(clock.date()), DOT, BAND_WORDS[part], DOT, words),
+            "",
+        ))
+    for when, one, _, whose in offerings:
+        tiles.append((
+            when,
+            KIND_CLASS["offering"],
+            "%s %s an offering from %s" % (human(when), DOT, whose),
+            "%s#%s" % (OFFERINGS_URL, one),
         ))
     return tiles
 
@@ -353,8 +438,8 @@ def slots(tiles, today):
         return []
 
     by_day = {}
-    for day, css, words in tiles:
-        by_day.setdefault(day, []).append((css, words))
+    for day, css, words, where in tiles:
+        by_day.setdefault(day, []).append((css, words, where))
 
     day, last = min(by_day), max(max(by_day), today)
     out = []
@@ -391,10 +476,15 @@ def tile_size(count):
 
 
 def legend_marks(tiles):
-    """The kinds named under the mosaic: three always, and the seal once one exists."""
+    """The kinds named under the mosaic: three always, then the seal and the offering.
+
+    The last two are named only once one exists. A legend is a key to the
+    picture, and a key to a colour the picture does not use explains nothing.
+    """
     marks = list(LEGEND)
-    if any(css == KIND_CLASS["seal"] for _, css, _ in tiles):
-        marks.append(([KIND_CLASS["seal"]], "seal"))
+    for kind, label in (("seal", "seal"), ("offering", "offering")):
+        if any(css == KIND_CLASS[kind] for _, css, _, _ in tiles):
+            marks.append(([KIND_CLASS[kind]], label))
     return marks
 
 
@@ -412,12 +502,16 @@ def mosaic_block(cells):
     """
     size = tile_size(len(cells))
     drawn = []
-    for css, words in cells:
-        if css:
-            drawn.append(
-                '<li class="%s" title="%s" tabindex="0"></li>'
-                % (css, html.escape(words, quote=True))
-            )
+    for css, words, where in cells:
+        said = html.escape(words, quote=True)
+        if css and where:
+            # a tile with somewhere to lead is a link, and the link is what the
+            # keyboard lands on; the words stay on the tile, where the line
+            # under the mosaic reads them off
+            drawn.append('<li class="%s" title="%s"><a href="%s" aria-label="%s"></a></li>'
+                         % (css, said, html.escape(where, quote=True), said))
+        elif css:
+            drawn.append('<li class="%s" title="%s" tabindex="0"></li>' % (css, said))
         else:
             drawn.append('<li class="empty"></li>')
 
@@ -428,7 +522,7 @@ def mosaic_block(cells):
 
 def reading_text(cells):
     """The line under the mosaic at rest: the newest tile's words, holes passed over."""
-    for css, words in reversed(cells):
+    for css, words, _ in reversed(cells):
         if css:
             return words
     return ""
@@ -447,6 +541,40 @@ def caption_block(tiles):
         '<p class="caption">%s</p>' % html.escape(caption_text(len(tiles))),
         '<p class="legend">%s</p>' % keys,
     ]
+
+
+def offering_paragraphs(text):
+    """The words of an offering, as paragraphs: a letter is not one long line."""
+    return [part.strip() for part in re.split(r"\n\s*\n", text.strip()) if part.strip()]
+
+
+def offering_block(latest, record):
+    """The newest offering, shown whole, or nothing at all where there is none.
+
+    The atrium does not keep a second copy of the offerings: it shows the one
+    most lately placed and points at the hearth for the rest.
+    """
+    if not latest or not record:
+        return []
+    when, one, kind, whose = latest
+    out = ['<section class="offered">',
+           "  <h2>offered from the hearth</h2>",
+           '  <p class="when">%s %s %s %s %s</p>'
+           % (human(when), DOT, html.escape(KIND_WORDS.get(kind, kind)), DOT,
+              html.escape(whose))]
+    if record.get("text"):
+        out.append("  <blockquote>")
+        for said in offering_paragraphs(record["text"]):
+            out.append("    <p>%s</p>" % html.escape(said))
+        out.append("  </blockquote>")
+    if record.get("file"):
+        out.append('  <img class="offering" src="%s%s" alt="an offering from %s">'
+                   % (OFFERED_URL, html.escape(record["file"], quote=True),
+                      html.escape(whose, quote=True)))
+    out.append('  <p><a href="%s#%s">all offerings</a></p>'
+               % (OFFERINGS_URL, html.escape(one, quote=True)))
+    out.append("</section>")
+    return out
 
 
 def hue(name):
@@ -591,13 +719,17 @@ def main():
         heartbeats = parse_heartbeats(heartbeats_text(hearth))
         bench = parse_bench(bench_text(hearth))
         members = parse_members(members_text(hearth))
+        offerings = parse_offerings(offerings_text(hearth))
+        # only the newest is shown here, so only the newest is read
+        latest = offerings[-1] if offerings else None
+        record = offered_record(hearth, latest[1]) if latest else None
     except (OSError, ValueError) as trouble:
         if not hearth:  # a local file going wrong is a fault, not a closed door
             raise
         sys.exit("build_atrium: could not read the commons from %s (%s). "
                  "index.html is untouched." % (hearth, trouble))
 
-    tiles = tiles_from(events, heartbeats)
+    tiles = tiles_from(events, heartbeats, offerings)
     cells = slots(tiles, today)
 
     page = read_text(PAGE)
@@ -607,6 +739,7 @@ def main():
     page = splice(page, "mosaic", mosaic_block(cells), newline)
     page = splice(page, "reading", reading_block(cells), newline)
     page = splice(page, "caption", caption_block(tiles), newline)
+    page = splice(page, "offering", offering_block(latest, record), newline)
     page = splice(page, "who", who_block(members), newline)
     page = splice(page, "calendar", calendar_block(today), newline)
     page = splice(page, "bench", bench_block(bench), newline)
@@ -615,10 +748,10 @@ def main():
     write_text(PAGE, page)
 
     print(
-        "atrium: %d tiles in %d slots at %dpx (%d events, %d attendances), "
+        "atrium: %d tiles in %d slots at %dpx (%d events, %d attendances, %d offerings), "
         "%d on the bench, %d here, as of %s"
         % (len(tiles), len(cells), tile_size(len(cells)), len(events), len(heartbeats),
-           len(bench), len(members), human(today))
+           len(offerings), len(bench), len(members), human(today))
     )
 
 

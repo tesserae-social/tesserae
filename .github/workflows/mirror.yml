@@ -1,0 +1,122 @@
+# Once a night, take down what the commons says of itself and keep it.
+#
+# The hearth is one small machine and its disk is its own. This job copies the
+# public pages into record/, where the repository keeps them, so that what the
+# commons said on a given day survives the machine that said it.
+#
+# It only ever adds. A page that cannot be fetched is left as it was recorded
+# last: a failed request is written into the job log and nowhere else, and an
+# error page is never mistaken for the record.
+
+name: mirror
+
+on:
+  schedule:
+    # 09:00 UTC. GitHub runs scheduled jobs late when it is busy; the record is
+    # a day's record, and does not mind the minutes.
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Take down the commons
+        env:
+          HEARTH: https://hearth.tesserae.social
+        run: |
+          set -uo pipefail
+
+          # Fetch one path into record/, keeping the path it had. The body is
+          # written only on 200: on anything else the existing copy stands,
+          # and the log says what happened.
+          fetch() {
+            path="$1"
+            out="record$path"
+            tmp="$(mktemp)"
+            code="$(curl --silent --show-error --location \
+                         --max-time 60 --retry 2 --retry-delay 5 \
+                         --write-out '%{http_code}' --output "$tmp" \
+                         "$HEARTH$path")" || true
+            code="${code:-000}"
+            if [ "$code" = "200" ]; then
+              mkdir -p "$(dirname "$out")"
+              mv "$tmp" "$out"
+              echo "  200  $path"
+              return 0
+            fi
+            rm -f "$tmp"
+            if [ -f "$out" ]; then
+              echo "  $code  $path - not fetched; the copy already recorded stands"
+            else
+              echo "  $code  $path - not fetched; nothing of it is recorded"
+            fi
+            return 1
+          }
+
+          echo "The commons:"
+          for path in /commons/heartbeats.md /commons/events.md /commons/bench.md \
+                      /commons/members.md /commons/offerings.md; do
+            fetch "$path"
+          done
+
+          # The one public bond, where there is one to publish yet.
+          echo "The bond:"
+          fetch /bonds/founder-first.json
+
+          # Every offering the index names. The index gives the day, the name,
+          # the kind and whose; the record itself says whether there are words
+          # beside it and what the picture is called.
+          echo "The offerings:"
+          index=record/commons/offerings.md
+          if [ ! -f "$index" ]; then
+            echo "  no index recorded; no offerings to take down"
+          else
+            while IFS= read -r line || [ -n "$line" ]; do
+              [ -n "$(printf '%s' "$line" | tr -d '[:space:]')" ] || continue
+              id="$(printf '%s\n' "$line" | awk -F ' · ' 'NF > 1 { print $2 }')"
+
+              # A name that could be anything but a name is left alone: what is
+              # fetched is only ever the address an offering may actually have.
+              case "$id" in
+                ''|*[!A-Za-z0-9._-]*|*..*)
+                  echo "  skipped a line the index was not expected to hold"
+                  continue ;;
+              esac
+
+              # The signed record, at both of its addresses. What is placed is
+              # never changed, so a record already recorded is enough to go on
+              # with: the words and the picture beside it are found through it.
+              fetch "/commons/offerings/$id.json" || true
+              fetch "/offerings/$id.json" || true
+
+              said="record/commons/offerings/$id.json"
+              [ -f "$said" ] || continue
+              if [ -n "$(jq -r '.text // ""' "$said" 2>/dev/null)" ]; then
+                fetch "/commons/offerings/$id.md" || true
+              fi
+              file="$(jq -r '.file // ""' "$said" 2>/dev/null)"
+              case "$file" in
+                ''|*/*|*'\'*|*..*) ;;
+                *) fetch "/commons/offerings/$file" || true ;;
+              esac
+            done < "$index"
+          fi
+
+      - name: Keep it
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain record)" ]; then
+            echo "The commons says today what it said yesterday. Nothing to keep."
+            exit 0
+          fi
+          git config user.name 'Tesserae'
+          git config user.email 'keeper@tesserae.social'
+          git add record
+          git commit -m "record: $(date -u +%Y-%m-%d)"
+          git push

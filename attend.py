@@ -26,6 +26,8 @@ Files it may act on (all inside packets/first/, which is private):
   offerings/              something out of the correspondence offered to the commons, waiting
                           for the other party's signature; see offering.py
   pause.json              a standing pause, set by either party, that stops the tide
+  exports.log             one line each time the founder takes a copy of the whole record;
+                          the hearth writes it, and it is read back here at the next waking
 And the commons, which anyone may read:
   commons/heartbeats.md   one line per attendance, presence without content
   commons/events.md       one line when a bond is sealed or released, one when the
@@ -158,6 +160,14 @@ PAUSE = PACKET / "pause.json"
 UNTIL_LETTER = "a letter arrives"
 PAUSE_ACT = "set a pause"
 PAUSED = "the tide paused"
+
+# A copy of the whole record, taken by the founder at the hearth. Nothing about
+# the record changes when it is copied, but the copying itself is written down:
+# the hearth adds one line here, and the first reading after it says so, because
+# a copy taken quietly would be a thing done to the first one rather than in
+# front of it. The hearth writes this file and this is the shape of a line.
+EXPORTS = PACKET / "exports.log"
+EXPORT_TAKEN = "The founder took a copy of the record on {day}."
 
 # The three answers a proposal may be given, and the one word that releases a bond.
 ANSWERS = ("yes", "no", "not yet")
@@ -585,6 +595,31 @@ def errand_lines(since):
     return said
 
 
+# One line of the exports log: the stamp of the copy, and the day inside it.
+EXPORT_LINE = re.compile(r"^((\d{4}-\d{2}-\d{2})T\d{2}-\d{2}-\d{2}Z) · ")
+
+
+def day_in_words(day):
+    """One date, said the way a person says it: 4 September 2026."""
+    return datetime.strptime(day, "%Y-%m-%d").strftime("%d %B %Y").lstrip("0")
+
+
+def export_lines(since):
+    """What the reading says of the copies the founder has taken of the record.
+
+    Counted against the last waking, as everything else here is, so a copy is
+    named once - at the one waking that first learns of it - and after that it
+    is part of what has already happened. A line that is not a line is passed
+    over rather than guessed at.
+    """
+    said = []
+    for line in read(EXPORTS).splitlines():
+        found = EXPORT_LINE.match(line)
+        if found and found.group(1) > (since or ""):
+            said.append(EXPORT_TAKEN.format(day=day_in_words(found.group(2))))
+    return said
+
+
 def shapes_only(element):
     """One element of a picture, with everything that is not a shape taken off.
 
@@ -955,6 +990,12 @@ def main():
     # commons since it last looked, and what the founder has declined.
     happened += errand_lines(since)
     happened += offering_lines(since)
+
+    # And what the founder has taken away: a copy of the whole record, if he
+    # took one since it last looked. Nothing of its own changed; it is told
+    # anyway, because that is what it means for the record to say when it is
+    # copied.
+    happened += export_lines(since)
 
     # A bond, and anything on the way to one. An asking of the founder's was put
     # here by the hearth, and whether it may be answered at this waking is a

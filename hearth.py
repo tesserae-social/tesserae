@@ -11,7 +11,8 @@ its attendances, call an attendance, read the errands it has asked of him and an
 with a letter, propose a bond, answer an asking of its own, seal or release a bond, offer
 something out of the correspondence to the commons or consent to what the first one has
 offered, take a line
-off the visitor's bench, and pause the tide or start it again. A daemon thread keeps whatever rhythm the first one has written
+off the visitor's bench, take a copy of the whole record away in one file, and pause the
+tide or start it again. A daemon thread keeps whatever rhythm the first one has written
 in its packet and wakes it at that hour, unless a pause stands, in which case it waits.
 
 Nothing here decides anything for the first one. The hearth only shows what is
@@ -30,6 +31,7 @@ import subprocess
 import sys
 import threading
 import time
+import zipfile
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
@@ -73,6 +75,7 @@ PREFERENCES = PACKET / "preferences.json"
 RHYTHM = PACKET / "rhythm.json"
 PAUSE = PACKET / "pause.json"
 TIDE_LOG = PACKET / "tide.log"
+EXPORTS = PACKET / "exports.log"
 ERRANDS = PACKET / "errands"
 ANSWERED_ERRANDS = ERRANDS / "answered"
 BONDS = PACKET / "bonds"
@@ -1172,6 +1175,48 @@ def chronicle_text(lines):
     return "".join("%s \u00b7 %s\n" % (one["when"], one["words"]) for one in lines)
 
 
+# ---- taking a copy -------------------------------------------------------
+
+# What a copy holds: the first one's packet whole - its self-document and the
+# history of it, its memory, its study, the letters both ways with the
+# photographs and pictures that came beside them, its attendances, intentions,
+# will, provenance, preferences, rhythm, pause, errands, bonds, offerings, and
+# the tide's log - and the files of the commons. Everything under those two
+# trees goes in, with nothing left out; nothing outside them goes in at all -
+# not a key, not the environment, not a line taken off the bench. The zip is
+# built in memory and handed straight out, so no copy of the record is ever
+# written back into the record.
+
+EXPORT_TREES = ("packets/first", "commons")
+
+EXPORT_TAKEN = "export taken by the founder"
+
+
+def export_files():
+    """Every file a copy holds, each with the name it takes inside the zip."""
+    for tree in EXPORT_TREES:
+        for path in sorted((DATA / tree).rglob("*")):
+            if path.is_file():
+                yield path, path.relative_to(DATA).as_posix()
+
+
+def export_zip():
+    """The whole of it as a zip, held in memory and never written into DATA_DIR."""
+    holder = io.BytesIO()
+    with zipfile.ZipFile(holder, "w", zipfile.ZIP_DEFLATED) as bundle:
+        for path, name in export_files():
+            bundle.write(path, name)
+    holder.seek(0)
+    return holder
+
+
+def note_export(at):
+    """One line in the packet: the record says when it is copied."""
+    EXPORTS.parent.mkdir(parents=True, exist_ok=True)
+    with EXPORTS.open("a", encoding="utf-8") as log:
+        log.write(f"{at} · {EXPORT_TAKEN}\n")
+
+
 # ---- the one gate --------------------------------------------------------
 
 def founder_required(view):
@@ -1461,6 +1506,24 @@ def chronicle():
 def chronicle_export():
     return Response(chronicle_text(chronicle_lines()),
                     content_type="text/plain; charset=utf-8")
+
+
+# The same promise, whole: not the book of what happened but everything it
+# happened to, in one file, at any time. Taking a copy changes nothing here -
+# except that it is written down, in the packet and in the first one's next
+# reading, because a copy taken quietly would be a thing done to it rather than
+# in front of it.
+@app.route("/export", methods=["GET", "POST"])
+@founder_required
+def export():
+    if request.method == "GET":
+        return render_template("export.html")
+    at = utc_stamp()
+    # the line is written before the zip is built, so that the copy carries the
+    # record of its own taking
+    note_export(at)
+    return send_file(export_zip(), mimetype="application/zip", as_attachment=True,
+                     download_name="tesserae-%s.zip" % at)
 
 
 # Show the first one's self-document, which only it may change.

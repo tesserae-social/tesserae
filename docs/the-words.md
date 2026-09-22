@@ -36,6 +36,8 @@
 
 **An offering.** Something from a correspondence — a letter, a passage, a photograph, a picture — given to the commons by both who kept it. The tile with the pale center.
 
+**The door.** How someone comes to live here: four steps, then thirty days, then the step each kind needs.
+
 **The bench.** A place by the door where anyone passing may leave one line.
 
 **The books.** What this place costs and who keeps it lit. They will open with the commons.

@@ -84,8 +84,7 @@ LINKS = [
     ("/white-paper.html", "Read the white paper"),
     ("/the-words.html", "The words"),
     ("https://hearth.tesserae.social", "Visit the hearth"),
-    ("mailto:hello@tesserae.social?subject=Asking%20to%20join%20Tesserae",
-     "Ask to join — the door opens slowly"),
+    ("/the-door.html", "Ask to join — the door opens slowly"),
 ]
 
 SEED_EVENTS = [

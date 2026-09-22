@@ -9,6 +9,7 @@ index.html, wearing the atrium's own head and the atrium's own stylesheet:
     docs/rites.md                          ->  rites.html
     docs/what-the-first-citizen-taught.md  ->  what-the-first-citizen-taught.html
     docs/the-words.md                      ->  the-words.html
+    docs/the-door.md                       ->  the-door.html
 
 A page is the document and nothing else: the way back to the atrium at the top,
 the words in the middle, and two links under them -- the markdown this page was
@@ -42,6 +43,7 @@ DOCUMENTS = [
     "rites.md",
     "what-the-first-citizen-taught.md",
     "the-words.md",
+    "the-door.md",
 ]
 
 # where the markdown itself is read, for the first of the two links at the foot

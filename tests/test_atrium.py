@@ -385,8 +385,7 @@ OFFERED = [
     ("/the-words.html", "The words"),
     ("https://hearth.tesserae.social", "Visit the hearth"),
     ("https://hearth.tesserae.social/bench", "Leave a line"),
-    ("mailto:hello@tesserae.social?subject=Asking%20to%20join%20Tesserae",
-     "Ask to join — the door opens slowly"),
+    ("/the-door.html", "Ask to join — the door opens slowly"),
 ]
 
 
@@ -399,7 +398,8 @@ def test_the_documents_are_read_on_this_site(atrium):
     """A document is a page here now, not a file on someone else's server."""
     links = "".join(atrium.links_block([]))
     assert "github.com" not in links
-    for page in ("/charter.html", "/white-paper.html", "/the-words.html"):
+    for page in ("/charter.html", "/white-paper.html", "/the-words.html",
+                 "/the-door.html"):
         assert 'href="%s"' % page in links
 
 

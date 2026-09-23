@@ -240,6 +240,25 @@ def from_elsewhere():
     return urlsplit(origin).netloc.lower() != request.host.lower()
 
 
+# A member's sign-in holds good only while the member does: before anything
+# else is asked of a request, a session naming a member is checked against the
+# record on disk, and is cleared if that member is gone or their vault has been
+# sealed again since (a recovery, a new password) - so a sign-in left open on
+# another device ends at its next request. The founder's password session names
+# no member and is not touched.
+@app.before_request
+def member_still_here():
+    name = session.get("member")
+    if not name:
+        return None
+    record = member_record(name)
+    held = session.get("seal")
+    now = vault.fingerprint(record.get("vault")) if record else None
+    if not held or not now or not hmac.compare_digest(str(held), now):
+        session.clear()
+    return None
+
+
 @app.before_request
 def sent_from_here():
     if request.method not in CHANGING:
@@ -1566,6 +1585,9 @@ def start_backups():
 # keeper. The keeper is looked for on disk at every request, so a keeper whose
 # record is gone, or is no longer a keeper's, is turned away at the next one.
 # A member who is not the keeper passes no further than a visitor does.
+#
+# That the session's vault fingerprint still matches the record is checked for
+# every member before the request gets this far, by member_still_here.
 
 def keeper_here():
     """Whether the one signed in is a member who is, on disk, still the keeper."""
@@ -1659,24 +1681,41 @@ def forget_misses(key):
         LOGIN_MISSES.pop(key, None)
 
 
+def member_record(name):
+    """The member's record, or None for a name no one has or could have."""
+    try:
+        record = members.load_member(name)
+    except MemberError:  # a name no one could have, or a record that cannot be read
+        return None
+    return record if isinstance(record, dict) else None
+
+
 def member_opens(name, password):
-    """The member's role if this password opens their vault, or None.
+    """The member's record if this password opens their vault, or None.
 
     One derivation either way. The key the vault gives up is dropped the moment
     it is given: that it opened is the whole of what is wanted from it.
     """
-    try:
-        record = members.load_member(name)
-    except MemberError:  # a name no one could have, or a record that cannot be read
-        record = None
-    sealed = record.get("vault") if isinstance(record, dict) else None
+    record = member_record(name)
+    sealed = record.get("vault") if record else None
     try:
         vault.unlock(sealed if sealed is not None else vault.decoy_vault(), password)
     except VaultError:
         return None
     if sealed is None or record.get("role") not in members.ROLES:
         return None
-    return record["role"]
+    return record
+
+
+def sign_in_member(name, record):
+    """Remember this member, and nothing from before, and go where they belong."""
+    session.clear()
+    session.permanent = True
+    session["member"] = name
+    session["role"] = record["role"]
+    session["seal"] = vault.fingerprint(record["vault"])
+    new_csrf_token()
+    return redirect(url_for("letters" if record["role"] == "keeper" else "hearth"))
 
 
 # ---- the pages -----------------------------------------------------------
@@ -1738,15 +1777,10 @@ def login():
         if locked_out(counted, now):
             return render_template("login.html", error=NOT_THE_PASSWORD)
         if name:
-            role = member_opens(name, password)
-            if role:
+            record = member_opens(name, password)
+            if record:
                 forget_misses(counted[0])
-                session.clear()
-                session.permanent = True
-                session["member"] = name
-                session["role"] = role
-                new_csrf_token()
-                return redirect(url_for("letters" if role == "keeper" else "hearth"))
+                return sign_in_member(name, record)
         elif check_password_hash(FOUNDER_PASSWORD_HASH, password):
             forget_misses(counted[0])
             session.permanent = True
@@ -1756,6 +1790,66 @@ def login():
         note_miss(counted, now)
         error = NOT_THE_PASSWORD
     return render_template("login.html", error=error)
+
+
+# A forgotten password: the twelve words open the key, and a new password seals
+# it again. The key is the same key, so nothing public is written of it; the
+# member's record is the one file that changes.
+#
+# Words whose checksum fails could be no one's, so they may be named as such.
+# Every other refusal - a name no one has or could have, words that do not open
+# that name's key, too many tries - is the one line, and a name that is no one's
+# still costs its derivation, on a vault no words open. The tries are counted
+# with the login page's, by name and by address, and a shut name or address is
+# refused with nothing tried.
+WORDS_INCOMPLETE = "Those words are not complete; check each one against your paper."
+WORDS_REFUSED = "Those words do not open that name's key."
+PASSWORDS_DIFFER = "The two new passwords are not the same."
+
+
+@app.route("/recover", methods=["GET", "POST"])
+def recover():
+    error = None
+    if request.method == "POST":
+        name = request.form.get("pseudonym", "").strip().lower()
+        phrase = request.form.get("phrase", "")
+        password = request.form.get("password", "")
+        again = request.form.get("password_again", "")
+        now = datetime.now(timezone.utc)
+        # an empty name is counted as a name here, not as the founder's password
+        counted = (("name", name[:members.PSEUDONYM_MAX + 1]),
+                   tries_counted(name, now)[1])
+        if locked_out(counted, now):
+            return render_template("recover.html", error=WORDS_REFUSED)
+        try:
+            vault.check_phrase(phrase)
+        except VaultError:
+            return render_template("recover.html", error=WORDS_INCOMPLETE)
+        if password != again:
+            return render_template("recover.html", error=PASSWORDS_DIFFER)
+        try:
+            vault.check_password(password)
+        except VaultError as reason:
+            return render_template("recover.html", error=str(reason).capitalize() + ".")
+
+        record = member_record(name) if name else None
+        sealed = record.get("vault") if record else None
+        try:
+            resealed = vault.recover(sealed if sealed is not None else vault.decoy_vault(),
+                                     phrase, password)
+        except VaultError:
+            resealed = None
+        if resealed is not None and record.get("role") in members.ROLES:
+            try:
+                record = members.replace_vault(name, resealed)
+            except MemberError:
+                record = None
+            if record:
+                forget_misses(counted[0])
+                return sign_in_member(name, record)
+        note_miss(counted, now)
+        error = WORDS_REFUSED
+    return render_template("recover.html", error=error)
 
 
 # Forget whoever was signed in, wholly - the form token with the rest - and

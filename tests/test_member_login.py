@@ -100,7 +100,8 @@ def test_a_pseudonym_is_taken_however_it_is_capitalised(people, visitor):
 def test_the_key_is_not_kept_anywhere_in_the_session(people, visitor):
     sign_in(visitor, KEEPER, KEEPER_PASSWORD)
     with visitor.session_transaction() as held:
-        assert set(held) == {"member", "role", "csrf_token", "_permanent"}
+        assert set(held) == {"member", "role", "seal", "csrf_token", "_permanent"}
+        assert len(held["seal"]) == 16  # the vault's fingerprint, not the vault
 
 
 def test_signing_in_clears_whatever_session_was_there(people, visitor):
@@ -141,9 +142,12 @@ def test_a_member_signs_in_but_cannot_reach_the_founder_s_pages(people, visitor,
 
 def test_a_member_session_claiming_to_be_keeper_is_checked_against_the_record(people,
                                                                               visitor):
+    sign_in(visitor, MEMBER, MEMBER_PASSWORD)  # a real sign-in, fingerprint and all
     with visitor.session_transaction() as held:
-        held["member"], held["role"] = MEMBER, "keeper"
+        held["role"] = "keeper"
     assert shut_out(visitor)
+    with visitor.session_transaction() as held:
+        assert held["member"] == MEMBER  # turned away by the role, not signed out
 
 
 def test_the_founder_s_password_still_works_with_the_pseudonym_left_empty(people, visitor):
@@ -166,6 +170,30 @@ def test_a_keeper_whose_folder_is_gone_loses_the_gate_at_the_next_request(people
     assert visitor.get("/letters").status_code == 200
     shutil.rmtree(data_dir / "members" / KEEPER)
     assert shut_out(visitor)
+
+
+def test_a_deleted_member_s_session_is_cleared_at_the_next_request(people, visitor,
+                                                                   data_dir):
+    sign_in(visitor, MEMBER, MEMBER_PASSWORD)
+    assert "You are logged in" in page(visitor.get("/"))
+    shutil.rmtree(data_dir / "members" / MEMBER)
+    assert "You are logged in" not in page(visitor.get("/"))
+    with visitor.session_transaction() as held:
+        assert dict(held) == {}
+
+
+def test_a_member_session_with_no_fingerprint_is_cleared(people, visitor):
+    sign_in(visitor, MEMBER, MEMBER_PASSWORD)
+    with visitor.session_transaction() as held:
+        del held["seal"]
+    assert "You are logged in" not in page(visitor.get("/"))
+
+
+def test_the_founder_s_session_names_no_member_and_is_left_alone(people, visitor):
+    sign_in(visitor, "", PASSWORD)
+    assert visitor.get("/letters").status_code == 200
+    with visitor.session_transaction() as held:
+        assert held["founder"] is True and "member" not in held
 
 
 def test_the_nav_is_shown_to_the_keeper_and_not_to_a_member(people, hearth):

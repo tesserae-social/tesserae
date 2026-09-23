@@ -13,7 +13,7 @@ from markupsafe import escape
 from nacl.pwhash import argon2id
 
 import vault
-from conftest import PASSWORD, page, post, read_json, token
+from conftest import page, post, read_json, token
 
 KEEPER = "ash"
 KEEPER_PASSWORD = "the keeper's own password"
@@ -391,12 +391,13 @@ def test_a_recovery_clears_the_name_s_count(people, visitor):
     assert sign_in(visitor, KEEPER, NEW_PASSWORD).status_code == 302
 
 
-def test_an_empty_name_does_not_count_against_the_founder(people, hearth, visitor):
+def test_an_empty_name_does_not_count_against_the_keeper(people, hearth, visitor):
     for _ in range(5):
         refused(recover(visitor, "", people.phrases[KEEPER]))
     other = hearth.app.test_client()
     other.environ_base["REMOTE_ADDR"] = "203.0.113.9"
-    assert post(other, "/login", data={"password": PASSWORD}).status_code == 302
+    assert post(other, "/login", data={"pseudonym": KEEPER,
+                                       "password": KEEPER_PASSWORD}).status_code == 302
 
 
 # ---- the token -----------------------------------------------------------

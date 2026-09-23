@@ -174,7 +174,7 @@ def test_the_archive_holds_the_three_trees_whole(hearth, bucket, packet, commons
 def test_nothing_outside_the_three_trees_is_in_the_archive(hearth, bucket, packet, commons,
                                                          data_dir, clock):
     a_whole_world(packet, commons)
-    write(data_dir / ".env", "FOUNDER_PASSWORD_HASH=not the real one\n")
+    write(data_dir / ".env", "HEARTH_SECRET=not the real one\n")
     write(data_dir / "bench-removed.md", "2026-10-09 · a line taken off\n")
     write(data_dir / "backup.log", "2026-10-14T13-00-00Z · backed up · 10 bytes · kept 1\n")
     hearth.back_up(clock.at)

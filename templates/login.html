@@ -11,7 +11,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="pseudonym">pseudonym</label>
     <input type="text" id="pseudonym" name="pseudonym" autocomplete="username"
-           autocapitalize="none" spellcheck="false">
+           autocapitalize="none" spellcheck="false" required>
     <label for="password">password</label>
     <input type="password" id="password" name="password" autocomplete="current-password" autofocus>
     <button type="submit">Sign in</button>

@@ -136,7 +136,7 @@ def test_the_copy_holds_the_packet_and_the_commons_whole(founder, packet, common
 def test_nothing_outside_the_two_trees_is_in_the_copy(founder, packet, commons, data_dir):
     a_whole_world(packet, commons)
     # the things that live beside the record and are no part of it
-    write(data_dir / ".env", "FOUNDER_PASSWORD_HASH=not the real one\n")
+    write(data_dir / ".env", "HEARTH_SECRET=not the real one\n")
     write(data_dir / "bench-removed.md", "2026-10-09 · a line taken off\n")
 
     inside = set(taken(founder)[1].namelist())

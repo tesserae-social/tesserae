@@ -30,7 +30,7 @@ from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
-from werkzeug.security import generate_password_hash
+from nacl.pwhash import argon2id
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -45,6 +45,10 @@ WORD_LINE = "2026-09-02 · word · the word was published"
 NOW = datetime(2026, 10, 15, 12, 0, 0, tzinfo=timezone.utc)
 
 PASSWORD = "the password for the tests and nothing else"
+
+# The founder comes in as the keeper, by a pseudonym and a vault of their own.
+# The name is not one the members' store reserves, and not one any test takes.
+FOUNDER_NAME = "rowan"
 
 SELF_TEXT = """# The first one
 
@@ -224,12 +228,13 @@ def commons(data_dir):
 def env(monkeypatch, data_dir, keys_cut):
     """The environment the modules read themselves out of.
 
-    FOUNDER_KEY is the throwaway founder's key, never the real one. The password
-    hash is cut here, so no test needs the real one either.
+    FOUNDER_KEY is the throwaway founder's key, never the real one. The old
+    founder password is gone from the hearth, and is taken out of the
+    environment here too, so that nothing can lean on it.
     """
     monkeypatch.setenv("DATA_DIR", str(data_dir))
     monkeypatch.setenv("HEARTH_SECRET", "a secret for the tests")
-    monkeypatch.setenv("FOUNDER_PASSWORD_HASH", generate_password_hash(PASSWORD))
+    monkeypatch.delenv("FOUNDER_PASSWORD_HASH", raising=False)
     monkeypatch.setenv("FOUNDER_KEY", private_key(keys_cut, "founder"))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "not-a-key; every client here is stubbed")
     return data_dir
@@ -331,12 +336,31 @@ def post(client, path, data=None, **how):
     return client.post(path, data=data, **how)
 
 
+@pytest.fixture(scope="session")
+def founder_vault():
+    """The founder's vault, sealed once under the test password at argon2id's
+    minimum cost - the cost is written into the vault, so it opens as cheaply in
+    every test, whatever the limits stand at there."""
+    import vault
+
+    held = vault.OPSLIMIT, vault.MEMLIMIT
+    vault.OPSLIMIT, vault.MEMLIMIT = argon2id.OPSLIMIT_MIN, argon2id.MEMLIMIT_MIN
+    try:
+        sealed, _, _ = vault.make_vault(PASSWORD)
+    finally:
+        vault.OPSLIMIT, vault.MEMLIMIT = held
+    return sealed
+
+
 @pytest.fixture
-def founder(hearth):
-    """The founder, signed in."""
+def founder(hearth, founder_vault):
+    """The founder, signed in as the keeper."""
+    hearth.members.create_member(FOUNDER_NAME, json.loads(json.dumps(founder_vault)),
+                                 "keeper", [])
     client = hearth.app.test_client()
-    answer = post(client, "/login", data={"password": PASSWORD})
-    assert answer.status_code == 302, "the test password did not sign in"
+    answer = post(client, "/login", data={"pseudonym": FOUNDER_NAME, "password": PASSWORD})
+    signed_in = answer.status_code == 302 and answer.headers["Location"].endswith("/letters")
+    assert signed_in, "the test keeper did not sign in"
     return client
 
 

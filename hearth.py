@@ -1188,18 +1188,23 @@ def chronicle_text(lines):
 # will, provenance, preferences, rhythm, pause, errands, bonds, offerings, and
 # the tide's log - and the files of the commons. Everything under those two
 # trees goes in, with nothing left out; nothing outside them goes in at all -
-# not a key, not the environment, not a line taken off the bench. The zip is
-# built in memory and handed straight out, so no copy of the record is ever
-# written back into the record.
+# not a key, not the environment, not a line taken off the bench, and not the
+# members, whose vaults go only where they are encrypted. The zip is built in
+# memory and handed straight out, so no copy of the record is ever written back
+# into the record.
 
 EXPORT_TREES = ("packets/first", "commons")
+
+# What a backup holds: the same two trees, and the members beside them, each
+# with the vault their key is sealed in. A backup is encrypted; a copy is not.
+BACKUP_TREES = EXPORT_TREES + ("members",)
 
 EXPORT_TAKEN = "export taken by the founder"
 
 
-def export_files():
+def export_files(trees=EXPORT_TREES):
     """Every file a copy holds, each with the name it takes inside the zip."""
-    for tree in EXPORT_TREES:
+    for tree in trees:
         for path in sorted((DATA / tree).rglob("*")):
             if path.is_file():
                 yield path, path.relative_to(DATA).as_posix()
@@ -1224,8 +1229,8 @@ def note_export(at):
 
 # ---- the nightly backup --------------------------------------------------
 
-# Once a day the record is copied off this machine: the same two trees a copy
-# holds, as a tar.gz built in memory, encrypted with a key this machine is
+# Once a day the record is copied off this machine: the trees a copy holds and
+# the members, as a tar.gz built in memory, encrypted with a key this machine is
 # handed and never writes down, and given to a bucket the founder keeps. The
 # bucket holds the newest thirty and lets the older ones go.
 #
@@ -1273,10 +1278,10 @@ def bucket_client():
 
 
 def backup_archive():
-    """The two trees of a copy as a tar.gz, held in memory and written nowhere."""
+    """The trees of a backup as a tar.gz, held in memory and written nowhere."""
     holder = io.BytesIO()
     with tarfile.open(fileobj=holder, mode="w:gz") as bundle:
-        for path, name in export_files():
+        for path, name in export_files(BACKUP_TREES):
             bundle.add(path, arcname=name)
     return holder.getvalue()
 
@@ -1775,8 +1780,8 @@ BACKUPS_PAGE = """{% extends "base.html" %}
 {% block tagline %}the record, off this machine{% endblock %}
 
 {% block content %}
-<p class="note">Each of these is the packet and the commons whole, as they stood at the
-  hour it was taken: a tar.gz, encrypted with the backup key. The key is not here and is
+<p class="note">Each of these is the packet, the commons and the members' records whole,
+  as they stood at the hour it was taken: a tar.gz, encrypted with the backup key. The key is not here and is
   not on this page. Take one down and open it with restore_backup.py, on your own machine.</p>
 
 {% if not configured %}

@@ -155,19 +155,22 @@ def files_now(where):
 
 # ---- what is in a backup -------------------------------------------------
 
-def test_the_archive_holds_the_two_trees_whole(hearth, bucket, packet, commons, clock):
+def test_the_archive_holds_the_three_trees_whole(hearth, bucket, packet, commons, data_dir,
+                                                clock):
     a_whole_world(packet, commons)
     hearth.back_up(clock.at)
 
     with bucket.only as bundle:
         held = {member.name for member in bundle.getmembers() if member.isfile()}
-        assert held == files_under(packet, "packets/first/") | files_under(commons, "commons/")
+        assert held == (files_under(packet, "packets/first/") | files_under(commons, "commons/")
+                        | files_under(data_dir / "members", "members/"))
         # and what is in it is the file itself, byte for byte
-        for name in ("packets/first/self.md", "commons/members.md"):
+        for name in ("packets/first/self.md", "commons/members.md", "members/ada/member.json",
+                     "members/ada/key-history.json"):
             assert bundle.extractfile(name).read() == (packet.parents[1] / name).read_bytes()
 
 
-def test_nothing_outside_the_two_trees_is_in_the_archive(hearth, bucket, packet, commons,
+def test_nothing_outside_the_three_trees_is_in_the_archive(hearth, bucket, packet, commons,
                                                          data_dir, clock):
     a_whole_world(packet, commons)
     write(data_dir / ".env", "FOUNDER_PASSWORD_HASH=not the real one\n")
@@ -177,8 +180,10 @@ def test_nothing_outside_the_two_trees_is_in_the_archive(hearth, bucket, packet,
 
     with bucket.only as bundle:
         for name in bundle.getnames():
-            assert name.startswith(("packets/first/", "commons/")), name
-        assert not [name for name in bundle.getnames() if "key" in name]
+            assert name.startswith(("packets/first/", "commons/", "members/")), name
+        # a member's key history names public keys; no key in the clear goes in
+        assert not [name for name in bundle.getnames()
+                    if name.startswith("keys/") or "private" in name]
         assert "backup.log" not in bundle.getnames()  # not even its own log
 
 
@@ -411,6 +416,11 @@ def test_only_the_founder_may_see_the_backups(visitor, bucket):
         assert answer.headers["Location"].endswith("/login")
 
 
+def test_the_page_says_what_a_backup_holds(founder, bucket):
+    said = " ".join(page(founder.get("/backups")).split())
+    assert "Each of these is the packet, the commons and the members' records whole" in said
+
+
 def test_the_page_lists_what_is_in_the_bucket_newest_first(founder, bucket, hearth):
     take_many(hearth, 3)
     said = page(founder.get("/backups"))
@@ -596,7 +606,8 @@ def backup_file(hearth, bucket, packet, commons, tmp_path, clock):
     return archive, key_file
 
 
-def test_a_backup_opens_again_into_the_same_two_trees(backup_file, packet, commons, tmp_path):
+def test_a_backup_opens_again_into_the_same_three_trees(backup_file, packet, commons, data_dir,
+                                                        tmp_path):
     archive, key_file = backup_file
     out = tmp_path / "restored"
     done = run_restore(str(archive), str(key_file), str(out))
@@ -604,10 +615,14 @@ def test_a_backup_opens_again_into_the_same_two_trees(backup_file, packet, commo
 
     came_back = {path.relative_to(out).as_posix()
                  for path in out.rglob("*") if path.is_file()}
-    assert came_back == files_under(packet, "packets/first/") | files_under(commons, "commons/")
+    assert came_back == (files_under(packet, "packets/first/") | files_under(commons, "commons/")
+                         | files_under(data_dir / "members", "members/"))
     # byte for byte, and the list of them printed
     assert (out / "packets/first/self.md").read_bytes() == (packet / "self.md").read_bytes()
+    assert ((out / "members/ada/member.json").read_bytes()
+            == (data_dir / "members/ada/member.json").read_bytes())
     assert "packets/first/self.md" in done.stdout
+    assert "members/ada/member.json" in done.stdout
     assert "commons/members.md" in done.stdout
     assert "%d files" % len(came_back) in done.stdout
 

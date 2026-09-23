@@ -48,7 +48,7 @@
 
   /* The one type system the atrium keeps, and the hearth mirrors in base.html:
      the body's own sans for every word on the page, four sizes and no more --
-     2rem for the name, 1.3rem for the opening sentence and the section labels,
+     2rem for the name, 1.3rem for the section labels,
      1.05rem for everything that is read, 0.9rem for the lines that only murmur.
      One line-height, one weight but the name's, and no italic and no serif
      anywhere. What sets a thing apart here is its colour and its size, never a
@@ -64,7 +64,7 @@
   /* one rhythm between everything at the top level: 64px, whatever follows what */
   section { margin-top: 64px; }
 
-  /* a section's label: the opening sentence's size, the body's weight, and quiet
+  /* a section's label: the second size, the body's weight, and quiet
      ink. Its own top margin is smaller than the rhythm, so where a label opens a
      section the two collapse and the rhythm is what shows. */
   h2 {
@@ -76,23 +76,15 @@
     color: var(--ink-soft);
   }
 
-  /* The intro: one sentence at the opening size, and two paragraphs of the body
-     under it. It stands on the page's own paper, in the page's own ink -- no
-     ground of its own, no border, and no box, because what it says is the page
-     and not a quotation inside it. */
-  .intro { margin-top: 64px; }
+  /* The intro: four paragraphs of the body, all at the body's own size. It
+     stands on the page's own paper, in the page's own ink -- no ground of its
+     own, no border, and no box, because what it says is the page and not a
+     quotation inside it. It sits under the name at the paragraphs' own gap. */
+  .intro { margin-top: 1.1rem; }
 
   .intro p { margin: 0 0 1.1rem; }
 
   .intro p:last-child { margin-bottom: 0; }
-
-  .intro .opening {
-    font-size: 1.3rem;
-    font-weight: 400;
-    color: var(--ink);
-  }
-
-  .today p { margin: 0; }
 
   /* The mosaic's frame, as wide as the page's own text. All of history is drawn
      inside it, oldest at the top left. The frame is as tall as the rows it holds

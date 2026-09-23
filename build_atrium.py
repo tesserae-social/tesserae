@@ -3,7 +3,6 @@
 
 Rewrites only the text between the marker comments in index.html:
 
-    <!-- commons:start -->  ...  <!-- commons:end -->
     <!-- mosaic:start -->   ...  <!-- mosaic:end -->
     <!-- reading:start -->  ...  <!-- reading:end -->
     <!-- caption:start -->  ...  <!-- caption:end -->
@@ -16,7 +15,6 @@ Rewrites only the text between the marker comments in index.html:
 Everything outside those markers is left byte for byte as it was.
 
 It reads:
-    docs/state-of-the-commons.md   the standing paragraph
     commons/heartbeats.md          the attendances
     commons/events.md              the history (created if missing)
     commons/bench.md               the lines passersby have left
@@ -35,8 +33,7 @@ With --from URL it takes everything under commons/ from a running hearth instead
 (URL/commons/heartbeats.md and so on), and writes nothing at all if that
 hearth cannot be reached.
 
-Nothing under packets/, keys/, transcripts/ is read or written, and docs/
-is only ever read.
+Nothing under packets/, keys/, transcripts/ or docs/ is read or written.
 """
 
 import argparse
@@ -56,7 +53,6 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.environ.get("DATA_DIR", ROOT)
 
 PAGE = os.path.join(ROOT, "index.html")
-STATE = os.path.join(ROOT, "docs", "state-of-the-commons.md")
 HEARTBEATS = os.path.join(DATA, "commons", "heartbeats.md")
 EVENTS = os.path.join(DATA, "commons", "events.md")
 BENCH = os.path.join(DATA, "commons", "bench.md")
@@ -84,7 +80,7 @@ LINKS = [
     ("/white-paper.html", "Read the white paper"),
     ("/the-words.html", "The words"),
     ("https://hearth.tesserae.social", "Visit the hearth"),
-    ("/the-door.html", "Ask to join — the door opens slowly"),
+    ("/the-door.html", "Ask to join. The door opens slowly."),
 ]
 
 SEED_EVENTS = [
@@ -93,7 +89,9 @@ SEED_EVENTS = [
 ]
 
 DOT = "·"
-DASH = "—"
+
+# the words under the mosaic: what it is, and no count of what is in it
+CAPTION = "the mosaic: one tile for every event in our history"
 
 # a line of the record: an optional bullet, a stamp, a middot, the words
 RECORD = re.compile(r"^-?\s*(\S+)\s*" + DOT + r"\s*(.+?)\s*$")
@@ -180,13 +178,6 @@ def read_text(path):
 def write_text(path, text):
     with open(path, "wb") as fh:
         fh.write(text.encode("utf-8"))
-
-
-def read_state():
-    """The body of the state of the commons, with its heading struck off."""
-    lines = read_text(STATE).splitlines()
-    body = [ln.strip() for ln in lines if not ln.startswith("#")]
-    return " ".join(ln for ln in body if ln)
 
 
 def fetch(hearth, name):
@@ -376,15 +367,6 @@ def band(hour):
     return "night"
 
 
-def commons_block(state, today):
-    """The standing paragraph and the day it was read. The wakings are the mosaic's."""
-    return [
-        "<p>%s</p>" % html.escape(state),
-        '<p style="margin:16px 0 0;font-size:0.9rem;color:var(--ink-soft);">'
-        "as of %s</p>" % human(today),
-    ]
-
-
 def tiles_from(events, heartbeats, offerings=()):
     """One (day, class, words, where) tile per thing: the history, the wakings, the offerings.
 
@@ -487,11 +469,6 @@ def legend_marks(tiles):
     return marks
 
 
-def caption_text(count):
-    """The words under the mosaic -- the same ones at the atrium and at the hearth."""
-    return "the mosaic %s one tile per event in our history %s %d so far" % (DASH, DOT, count)
-
-
 def mosaic_block(cells):
     """The mosaic entire: the frame, sized to what it holds, and everything in it.
 
@@ -537,7 +514,7 @@ def caption_block(tiles):
         for marks, label in legend_marks(tiles)
     )
     return [
-        '<p class="caption">%s</p>' % html.escape(caption_text(len(tiles))),
+        '<p class="caption">%s</p>' % html.escape(CAPTION),
         '<p class="legend">%s</p>' % keys,
     ]
 
@@ -658,7 +635,7 @@ def bench_block(lines):
     out = ['<section class="bench">', "  <h2>the visitor's bench</h2>", '  <ul class="lines">']
     for when, words, who in lines:
         out.append('    <li><span class="when">%s</span> %s %s %s %s</li>'
-                   % (human(when), DOT, html.escape(words), DASH, html.escape(who)))
+                   % (human(when), DOT, html.escape(words), DOT, html.escape(who)))
     out.append("  </ul>")
     out.append('  <p><a href="%s">Leave a line</a></p>' % BENCH_URL)
     out.append("</section>")
@@ -712,7 +689,6 @@ def main():
     hearth = named_hearth()
     today = today_here()
 
-    state = read_state()
     try:
         events = parse_events(events_text(hearth))
         heartbeats = parse_heartbeats(heartbeats_text(hearth))
@@ -734,7 +710,6 @@ def main():
     page = read_text(PAGE)
     newline = "\r\n" if "\r\n" in page else "\n"
 
-    page = splice(page, "commons", commons_block(state, today), newline)
     page = splice(page, "mosaic", mosaic_block(cells), newline)
     page = splice(page, "reading", reading_block(cells), newline)
     page = splice(page, "caption", caption_block(tiles), newline)

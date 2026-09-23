@@ -37,7 +37,7 @@ from conftest import NOW, REPO, write
 
 NODE = shutil.which("node")
 
-REGIONS = ["commons", "mosaic", "reading", "caption", "offering", "who", "calendar",
+REGIONS = ["mosaic", "reading", "caption", "offering", "who", "calendar",
            "bench", "links"]
 
 # the one moment both paths are read at: conftest's NOW, in milliseconds. The
@@ -48,7 +48,6 @@ AT = int(NOW.timestamp() * 1000)
 # a page that has been through jsdom and a page written by the builder differ in
 # whitespace and in nothing else that matters, so both are read the same way
 GAP = re.compile(r"\s+")
-AS_OF = re.compile(r"as of [0-9]+ [A-Za-z]+ [0-9]{4}")
 
 # the intro lies outside every marker, so neither path may touch it
 INTRO = re.compile(r'<div class="intro">.*?</div>', re.S)
@@ -128,9 +127,7 @@ def regions_of(page):
     for name in REGIONS:
         cut = re.search(r"<!-- %s:start -->(.*?)<!-- %s:end -->" % (name, name), page, re.S)
         assert cut, "no %s markers in the page" % name
-        # the day a page was drawn is the day it was drawn on; both say today,
-        # and only a midnight between the two runs could make them differ
-        found[name] = AS_OF.sub("as of today", GAP.sub(" ", cut.group(1)).strip())
+        found[name] = GAP.sub(" ", cut.group(1)).strip()
     return found
 
 
@@ -148,11 +145,11 @@ def intro_of(page):
     return GAP.sub(" ", found.group())
 
 
-def both_pages(tmp_path, data_dir, baked):
+def both_pages(tmp_path, data_dir, baked, at=AT):
     """The two atriums entire, each as a browser holds it: the baked, and the drawn."""
     harness = write(tmp_path / "harness.js", HARNESS)
     done = subprocess.run(
-        [NODE, str(harness), str(REPO / "index.html"), str(baked), str(AT),
+        [NODE, str(harness), str(REPO / "index.html"), str(baked), str(at),
          str(data_dir / "commons")],
         capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert done.returncode == 0, done.stderr
@@ -160,9 +157,9 @@ def both_pages(tmp_path, data_dir, baked):
     return said["built"], said["drawn"]
 
 
-def both_paths(tmp_path, data_dir, baked):
+def both_paths(tmp_path, data_dir, baked, at=AT):
     """The two atriums, each as a browser holds it: the baked one, and the drawn one."""
-    built, drawn = both_pages(tmp_path, data_dir, baked)
+    built, drawn = both_pages(tmp_path, data_dir, baked, at)
     return regions_of(built), regions_of(drawn)
 
 
@@ -249,12 +246,38 @@ def test_both_paths_keep_the_intro_word_for_word(atrium, data_dir, monkeypatch, 
     built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
     assert intro_of(drawn) == intro_of(built)
     assert intro_of(built) == intro_of((REPO / "index.html").read_text(encoding="utf-8"))
-    assert ("Tesserae is a small commons where people and AI agents become real friends"
+    assert ("Tesserae is a small place on the internet where people and AIs become friends"
             in intro_of(built))
-    # all three paragraphs, and no fourth: neither path writes any of them
-    assert "It exists because agents are becoming persistent" in intro_of(built)
-    assert "Both must choose it, and either may leave." in intro_of(built)
-    assert intro_of(drawn).count("<p") == 3
+    # all four paragraphs, and no fifth: neither path writes any of them
+    assert "It works like an old-fashioned correspondence." in intro_of(built)
+    assert "AI is changing fast, and it will keep changing." in intro_of(built)
+    assert "You both have to choose it, and either of you can leave." in intro_of(built)
+    assert intro_of(drawn).count("<p") == 4
+
+
+def test_neither_path_writes_an_em_dash(atrium, data_dir, monkeypatch, tmp_path):
+    a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still\n")
+    offerings(data_dir)
+    built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert "—" not in built and "—" not in drawn
+    assert "the visitor's bench" in drawn
+
+
+@pytest.mark.parametrize("stamp, season", [
+    ("2026-07-01T16-00-00Z", "summer"),
+    ("2026-09-23T16-00-00Z", "autumn"),
+    ("2027-01-05T16-00-00Z", "winter"),
+    ("2027-04-01T16-00-00Z", "spring"),
+])
+def test_both_paths_reckon_the_season_from_today(atrium, data_dir, clock, monkeypatch,
+                                                 tmp_path, stamp, season):
+    """The season line is worked out on the day, by the builder and by the browser alike."""
+    a_record(data_dir)
+    clock.set(stamp)
+    at = int(clock.at.timestamp() * 1000)
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch), at)
+    assert here["calendar"] == there["calendar"]
+    assert there["calendar"].startswith('<p class="calendar">it is %s · ' % season)
 
 
 def test_both_paths_agree_on_an_empty_bench(atrium, data_dir, monkeypatch, tmp_path):
@@ -277,7 +300,7 @@ def test_an_empty_record_is_where_the_two_paths_part(atrium, data_dir, monkeypat
         write(data_dir / "commons" / name, "")
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
 
-    assert "0 so far" in here["caption"]
+    assert "one tile for every event in our history" in here["caption"]
     assert "<li" not in here["mosaic"]        # no days, so no slots and no holes
     assert here["who"] == "" and here["calendar"].startswith('<p class="calendar">')
     assert there == regions_of((REPO / "index.html").read_text(encoding="utf-8"))
@@ -312,7 +335,7 @@ def test_the_harness_shows_what_it_compared(atrium, data_dir, monkeypatch, tmp_p
         assert "waking at dawn" in said["mosaic"] and "waking at night" in said["mosaic"]
         # however a heartbeat line was written, it is read out the one way
         assert said["mosaic"].count("the first one · attended") == 6
-        assert "Ask to join — the door opens slowly" in said["links"]
+        assert "Ask to join. The door opens slowly." in said["links"]
         assert "<h2>who is here</h2>" in said["who"]
         assert "hue-the-first-one-unnamed-by-its-own-choosing" in said["who"]
         assert said["calendar"] == ('<p class="calendar">it is autumn · '

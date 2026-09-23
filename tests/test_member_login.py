@@ -196,13 +196,14 @@ def test_the_founder_s_session_names_no_member_and_is_left_alone(people, visitor
         assert held["founder"] is True and "member" not in held
 
 
-def test_the_nav_is_shown_to_the_keeper_and_not_to_a_member(people, hearth):
+def test_the_founder_s_nav_is_shown_to_the_keeper_and_not_to_a_member(people, hearth):
     keeper, member = hearth.app.test_client(), hearth.app.test_client()
     sign_in(keeper, KEEPER, KEEPER_PASSWORD)
     sign_in(member, MEMBER, MEMBER_PASSWORD)
-    assert "<nav>" in page(keeper.get("/"))
-    assert "<nav>" not in page(member.get("/"))
-    assert "You are logged in" in page(member.get("/"))
+    assert 'href="/letters"' in page(keeper.get("/"))
+    said = page(member.get("/"))
+    assert 'href="/letters"' not in said and 'href="/export"' not in said
+    assert "You are logged in" in said
 
 
 # ---- guessing ------------------------------------------------------------

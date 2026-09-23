@@ -4,7 +4,7 @@ The hearth.
 A small, plain web page for the founder and for anyone passing by. The public
 side is a door: the visitor's bench, the files of the commons as they are
 written, the offerings the two of them have placed there, and a sealed bond if
-one has been sealed. Behind one password, the
+one has been sealed. Behind the keeper's own sign-in, the
 founder may read the first one's letters and write back, read its self-document,
 read the private log of
 its attendances, call an attendance, read the errands it has asked of him and answer one
@@ -53,7 +53,6 @@ from flask import (Flask, Response, abort, redirect, render_template,
                    render_template_string, request, send_file, session, url_for)
 from markupsafe import Markup, escape
 from PIL import Image, ImageOps
-from werkzeug.security import check_password_hash
 
 # The commons' record is read with the same reckoning the atrium uses, rather
 # than a second copy of it, and the citizen's own clock is the one the atrium
@@ -157,12 +156,10 @@ OFFERING_TYPES = {".md": "text/plain; charset=utf-8",
 if (REPO / ".env").exists():  # locally the secrets sit in a file; on a host they are in the environment
     load_dotenv(REPO / ".env")
 HEARTH_SECRET = os.environ.get("HEARTH_SECRET")
-FOUNDER_PASSWORD_HASH = os.environ.get("FOUNDER_PASSWORD_HASH")
 
-if not HEARTH_SECRET or not FOUNDER_PASSWORD_HASH:
-    print("The hearth cannot start. It needs two lines in .env:")
+if not HEARTH_SECRET:
+    print("The hearth cannot start. It needs one line in .env:")
     print("  HEARTH_SECRET=...            (any long random string)")
-    print("  FOUNDER_PASSWORD_HASH=...    (from werkzeug.security.generate_password_hash)")
     sys.exit(1)
 
 app = Flask(__name__)
@@ -245,10 +242,16 @@ def from_elsewhere():
 # else is asked of a request, a session naming a member is checked against the
 # record on disk, and is cleared if that member is gone or their vault has been
 # sealed again since (a recovery, a new password) - so a sign-in left open on
-# another device ends at its next request. The founder's password session names
-# no member and is not touched.
+# another device ends at its next request.
+#
+# The founder's old password sign-in is gone, and so is what it left behind: a
+# session that still says "founder" grants nothing, and is cleared at its next
+# request exactly as if its holder had signed out.
 @app.before_request
 def member_still_here():
+    if "founder" in session:
+        session.clear()
+        return None
     name = session.get("member")
     if not name:
         return None
@@ -1607,9 +1610,10 @@ def start_backups():
 
 # ---- the one gate --------------------------------------------------------
 
-# Two may pass it: the founder, by the one password, and a member whose role is
-# keeper. The keeper is looked for on disk at every request, so a keeper whose
-# record is gone, or is no longer a keeper's, is turned away at the next one.
+# One may pass it: a member whose role is keeper, signed in with their own
+# vault - which is how the founder comes in. The keeper is looked for on disk at
+# every request, so a keeper whose record is gone, or is no longer a keeper's,
+# is turned away at the next one.
 # A member who is not the keeper passes no further than a visitor does.
 #
 # That the session's vault fingerprint still matches the record is checked for
@@ -1629,7 +1633,7 @@ def keeper_here():
 
 def founder_powers():
     """Whether whoever is signed in may open the founder's pages."""
-    return bool(session.get("founder")) or keeper_here()
+    return keeper_here()
 
 
 def founder_required(view):
@@ -1645,8 +1649,7 @@ def founder_required(view):
 @app.context_processor
 def who_is_here():
     """What every page may know of who is signed in: whether the gate would open,
-    and whether it is a member (who has an account page) rather than the founder's
-    password (which has none)."""
+    and whether it is a member (who has an account page)."""
     return {"founder_here": founder_powers(), "member_here": bool(session.get("member"))}
 
 
@@ -1660,8 +1663,8 @@ NOT_THE_PASSWORD = "That is not the password."
 
 # Guessing is slowed where it is counted: five misses at one name, or ten from
 # one address in a day, within a quarter of an hour, and that name or address is
-# refused for a quarter of an hour without anything being tried at all. The
-# founder's password is counted as one more name, which no member can take.
+# refused for a quarter of an hour without anything being tried at all. A blank
+# name is counted as one more name, which no member can take.
 # All of it is kept in memory and nowhere else, and a deploy forgets it; the
 # address is kept as the bench keeps it, hashed with the day, and never itself.
 TRIES_AT_A_NAME = 5
@@ -1669,15 +1672,13 @@ TRIES_FROM_AN_ADDRESS = 10
 TRIES_WINDOW = timedelta(minutes=15)
 LOCKED_FOR = timedelta(minutes=15)
 
-FOUNDER_TRIES = ("founder",)
-
 LOGIN_MISSES = {}
 LOGIN_LOCK = threading.Lock()
 
 
 def tries_counted(name, now):
     """The two counts one attempt belongs to: its name's, and its address's."""
-    by_name = ("name", name[:members.PSEUDONYM_MAX + 1]) if name else FOUNDER_TRIES
+    by_name = ("name", name[:members.PSEUDONYM_MAX + 1])
     return by_name, ("address", visitor_key(now.strftime("%Y-%m-%d")))
 
 
@@ -1814,8 +1815,10 @@ def member_identity(name):
     return answer
 
 
-# Ask for the password, and remember whoever it opens for. With a pseudonym it
-# is a member's own, and opens their vault; without one it is the founder's.
+# Ask for the pseudonym and password, and remember whoever they open for: the
+# password is a member's own, and opens their vault. A blank pseudonym is no
+# one's, and is refused as a wrong password is - after the same one derivation,
+# on a vault no password opens.
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
@@ -1826,17 +1829,10 @@ def login():
         counted = tries_counted(name, now)
         if locked_out(counted, now):
             return render_template("login.html", error=NOT_THE_PASSWORD)
-        if name:
-            record = member_opens(name, password)
-            if record:
-                forget_misses(counted[0])
-                return sign_in_member(name, record)
-        elif check_password_hash(FOUNDER_PASSWORD_HASH, password):
+        record = member_opens(name, password)
+        if record:
             forget_misses(counted[0])
-            session.permanent = True
-            session["founder"] = True
-            new_csrf_token()
-            return redirect(url_for("letters"))
+            return sign_in_member(name, record)
         note_miss(counted, now)
         error = NOT_THE_PASSWORD
     return render_template("login.html", error=error)
@@ -1866,9 +1862,7 @@ def recover():
         password = request.form.get("password", "")
         again = request.form.get("password_again", "")
         now = datetime.now(timezone.utc)
-        # an empty name is counted as a name here, not as the founder's password
-        counted = (("name", name[:members.PSEUDONYM_MAX + 1]),
-                   tries_counted(name, now)[1])
+        counted = tries_counted(name, now)
         if locked_out(counted, now):
             return render_template("recover.html", error=WORDS_REFUSED)
         try:
@@ -1903,8 +1897,8 @@ def recover():
 
 
 # A new password, for a member who knows the one they have: the same key, sealed
-# again. Only a member has one - the founder's password is not a vault, and a
-# visitor has nothing to change - so both are sent to the login page.
+# again. Only a member has one - a visitor has nothing to change, and is sent to
+# the login page.
 #
 # The current password is guessed at here as surely as at the login page, so it
 # is counted with the login page's tries, by name and by address, and a shut name
@@ -1964,7 +1958,7 @@ def logout():
     if request.method == "POST":
         session.clear()
         return redirect(url_for("hearth"))
-    if not (founder_powers() or session.get("member")):
+    if not session.get("member"):
         return redirect(url_for("hearth"))
     return render_template("logout.html")
 

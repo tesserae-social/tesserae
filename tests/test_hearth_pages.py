@@ -1,10 +1,11 @@
 """The pages: what each one shows, what it withholds, and who may open it."""
 
+import os
 import re
 
 import pytest
 
-from conftest import PASSWORD, lines_of, page, post, token, write, write_json
+from conftest import FOUNDER_NAME, PASSWORD, lines_of, load, page, post, token, write, write_json
 
 REFLECTION = "What I thought about at this waking."
 OLDER = "2026-10-01T09-00-00Z"
@@ -439,6 +440,53 @@ def test_every_founder_route_asks_for_the_password(visitor, hearth):
         assert answer.headers["Location"].endswith("/login"), path
 
 
+def test_an_old_founder_session_is_refused_at_every_founder_route(hearth):
+    for path, method in guarded_paths(hearth):
+        old = hearth.app.test_client()
+        with old.session_transaction() as held:
+            held["founder"] = True
+            held["csrf_token"] = "a token from the old sign-in"
+        form = {"csrf_token": "a token from the old sign-in"} if method != "GET" else None
+        answer = old.open(path, method=method, data=form)
+        if method == "GET":
+            assert answer.status_code == 302, path
+            assert answer.headers["Location"].endswith("/login"), path
+        else:  # signed out before the form is read, so its token is no one's now
+            assert answer.status_code == 400, path
+        with old.session_transaction() as held:
+            assert dict(held) == {}, path
+
+
+def test_the_keeper_reaches_every_founder_page(founder, hearth):
+    pages = [path for path, method in guarded_paths(hearth) if method == "GET"]
+    assert "/letters" in pages and "/export" in pages and "/bonds" in pages
+    for path in pages:
+        answer = founder.get(path)
+        assert not answer.headers.get("Location", "").endswith("/login"), path
+        # the pages proper open; a photograph that is not there is simply not found
+        assert answer.status_code == (404 if "photo.jpg" in path else 200), path
+
+
+def test_the_hearth_starts_and_works_without_the_old_founder_password(
+        env, clock, monkeypatch, founder_vault):
+    import dotenv
+
+    # nothing from a .env on this machine may put it back
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda *a, **k: False)
+    monkeypatch.delenv("FOUNDER_PASSWORD_HASH", raising=False)
+    started = load("hearth")
+    clock.pin(started, monkeypatch)
+    started.app.config["TESTING"] = True
+    assert not hasattr(started, "FOUNDER_PASSWORD_HASH")
+
+    started.members.create_member(FOUNDER_NAME, founder_vault, "keeper", [])
+    client = started.app.test_client()
+    signing_in = {"pseudonym": FOUNDER_NAME, "password": PASSWORD}
+    assert post(client, "/login", data=signing_in).headers["Location"] == "/letters"
+    assert client.get("/letters").status_code == 200
+    assert "FOUNDER_PASSWORD_HASH" not in os.environ
+
+
 def test_what_is_open_is_open(visitor, hearth):
     guarded = {path for path, _ in guarded_paths(hearth)}
     for path in OPEN_PATHS:
@@ -446,13 +494,15 @@ def test_what_is_open_is_open(visitor, hearth):
         assert visitor.get(path).status_code == 200
 
 
-def test_the_password_lets_the_founder_in_and_out(hearth):
+def test_the_keeper_s_password_lets_the_founder_in_and_out(hearth, founder_vault):
+    hearth.members.create_member(FOUNDER_NAME, founder_vault, "keeper", [])
     client = hearth.app.test_client()
-    wrong = post(client, "/login", data={"password": "not it"})
+    wrong = post(client, "/login", data={"pseudonym": FOUNDER_NAME, "password": "not it"})
     assert "That is not the password." in page(wrong)
     assert client.get("/letters").status_code == 302
 
-    assert post(client, "/login", data={"password": PASSWORD}).headers["Location"] == "/letters"
+    signing_in = {"pseudonym": FOUNDER_NAME, "password": PASSWORD}
+    assert post(client, "/login", data=signing_in).headers["Location"] == "/letters"
     assert client.get("/letters").status_code == 200
 
     assert post(client, "/logout").headers["Location"] == "/"

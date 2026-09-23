@@ -11,7 +11,7 @@ from markupsafe import escape
 from nacl.pwhash import argon2id
 
 import vault
-from conftest import PASSWORD, page, post, read_json, token
+from conftest import page, post, read_json, token
 
 KEEPER = "ash"
 KEEPER_PASSWORD = "the keeper's own password"
@@ -124,10 +124,13 @@ def test_visitors_are_sent_to_login(visitor, people):
     assert to_login(change(visitor, KEEPER_PASSWORD))
 
 
-def test_the_founder_s_password_session_is_sent_to_login(founder, people, data_dir):
+def test_an_old_founder_session_is_sent_to_login(people, hearth, data_dir):
     before = record_of(data_dir, KEEPER)
-    assert to_login(founder.get("/account"))
-    assert to_login(change(founder, KEEPER_PASSWORD))
+    old = hearth.app.test_client()
+    with old.session_transaction() as held:
+        held["founder"] = True
+    assert to_login(old.get("/account"))
+    assert to_login(change(old, KEEPER_PASSWORD))
     assert record_of(data_dir, KEEPER) == before
 
 
@@ -140,11 +143,6 @@ def test_the_nav_names_the_account_to_a_member(member):
 def test_the_nav_names_the_account_to_the_keeper(keeper):
     text = page(keeper.get("/letters"))
     assert '<a href="/account">account</a>' in text and 'href="/export"' in text
-
-
-def test_the_nav_does_not_name_it_to_the_founder_s_password(founder):
-    text = page(founder.get("/letters"))
-    assert "<nav>" in text and 'href="/account"' not in text
 
 
 def test_the_nav_does_not_name_it_to_a_visitor(visitor):
@@ -318,12 +316,12 @@ def test_a_change_clears_the_name_s_count(member, people):
     assert sign_in(guesser, MEMBER, NEW_PASSWORD).status_code == 302
 
 
-def test_the_founder_s_count_is_not_touched(member, people):
+def test_another_name_s_count_is_not_touched(member, people):
     for _ in range(5):
         said(change(member, WRONG), NOT_THE_PASSWORD)
     other = people.app.test_client()
     other.environ_base["REMOTE_ADDR"] = "203.0.113.9"
-    assert post(other, "/login", data={"password": PASSWORD}).status_code == 302
+    assert sign_in(other, KEEPER, KEEPER_PASSWORD).status_code == 302
 
 
 # ---- the token -----------------------------------------------------------

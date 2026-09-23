@@ -11,7 +11,7 @@ from flask import url_for
 from nacl.pwhash import argon2id
 
 import vault
-from conftest import PASSWORD, lines_of, page, post, token
+from conftest import lines_of, page, post, token
 
 KEEPER = "ash"
 KEEPER_PASSWORD = "the keeper's own password"
@@ -119,14 +119,21 @@ def test_the_bench_take_off_without_its_token_takes_nothing(founder, hearth, com
     assert lines_of(commons / "bench.md") == [raw]
 
 
-def test_signing_in_with_its_token_signs_in(visitor):
-    answer = post(visitor, "/login", data={"password": PASSWORD})
+def a_keeper(hearth):
+    """A keeper on disk, and what signs them in."""
+    sealed, _, _ = vault.make_vault(KEEPER_PASSWORD)
+    hearth.members.create_member(KEEPER, sealed, "keeper", [])
+    return {"pseudonym": KEEPER, "password": KEEPER_PASSWORD}
+
+
+def test_signing_in_with_its_token_signs_in(hearth, visitor):
+    answer = post(visitor, "/login", data=a_keeper(hearth))
     assert answer.status_code == 302
     assert visitor.get("/letters").status_code == 200
 
 
-def test_signing_in_without_a_token_is_refused(visitor):
-    assert refused(visitor.post("/login", data={"password": PASSWORD}))
+def test_signing_in_without_a_token_is_refused(hearth, visitor):
+    assert refused(visitor.post("/login", data=a_keeper(hearth)))
     assert visitor.get("/letters").status_code == 302
 
 
@@ -170,7 +177,6 @@ def test_an_empty_token_is_refused(founder):
 
 def test_a_token_from_another_session_is_refused(hearth, founder, packet):
     other = hearth.app.test_client()
-    post(other, "/login", data={"password": PASSWORD})
     theirs = token(other)
     assert theirs != token(founder)
     answer = founder.post("/pause", data={"confirm": "yes", "csrf_token": theirs})
@@ -181,7 +187,7 @@ def test_a_token_from_another_session_is_refused(hearth, founder, packet):
 def test_a_token_with_no_session_behind_it_is_refused(hearth, founder):
     stolen = token(founder)
     stranger = hearth.app.test_client()
-    assert refused(stranger.post("/login", data={"password": PASSWORD, "csrf_token": stolen}))
+    assert refused(stranger.post("/login", data={**a_keeper(hearth), "csrf_token": stolen}))
 
 
 def test_a_foreign_origin_is_refused_even_with_the_token(founder, packet):
@@ -221,20 +227,12 @@ def test_the_bench_takes_a_visitors_line_without_a_token(visitor, hearth, common
 
 # ---- the token's life ----------------------------------------------------
 
-def test_the_token_rotates_on_the_founders_sign_in(visitor):
+def test_the_token_rotates_on_a_keepers_sign_in(hearth, visitor):
+    signing_in = a_keeper(hearth)
     before = token(visitor)
-    post(visitor, "/login", data={"password": PASSWORD})
-    after = token(visitor)
-    assert after != before
-    assert refused(visitor.post("/pause", data={"confirm": "yes", "csrf_token": before}))
-
-
-def test_the_token_rotates_on_a_members_sign_in(hearth, visitor):
-    sealed, _, _ = vault.make_vault(KEEPER_PASSWORD)
-    hearth.members.create_member(KEEPER, sealed, "keeper", [])
-    before = token(visitor)
-    post(visitor, "/login", data={"pseudonym": KEEPER, "password": KEEPER_PASSWORD})
+    post(visitor, "/login", data=signing_in)
     assert token(visitor) != before
+    assert refused(visitor.post("/pause", data={"confirm": "yes", "csrf_token": before}))
 
 
 def test_signing_out_forgets_the_token(founder):

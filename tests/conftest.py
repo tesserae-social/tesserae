@@ -255,12 +255,14 @@ def load(name):
     Every path these modules use is worked out once, at import, from the
     environment - so a test that wants its own world must import them again
     after setting it, and so must offering.py, which both of the others import
-    and which reads DATA_DIR the same way. hearth.py also sets its tide going at
+    and which reads DATA_DIR the same way, and members.py, which the hearth
+    signs members in from. hearth.py also sets its tide going at
     import; here it is imported with no thread able to start, and the tide is
     tested on purpose instead.
     """
     sys.modules.pop(name, None)
     sys.modules.pop("offering", None)
+    sys.modules.pop("members", None)
     with no_threads():
         return importlib.import_module(name)
 

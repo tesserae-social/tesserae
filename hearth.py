@@ -67,6 +67,13 @@ import offering
 # setup_keeper.py alike.
 from vault import key_from_text
 
+# A member signs in by opening their own vault with their own password, read
+# out of the members' store; the hearth keeps neither the vault nor the key.
+import members
+import vault
+from members import MemberError
+from vault import VaultError
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept. Locally this is the repo itself; on a host
@@ -159,6 +166,20 @@ app.secret_key = HEARTH_SECRET
 # Refuse anything far past the limit before reading it, so that one enormous
 # upload cannot fill the small machine's memory.
 app.config["MAX_CONTENT_LENGTH"] = PHOTO_LIMIT + 1024 * 1024
+
+# A sign-in lasts fourteen days from the moment it was made, and then the
+# password is asked for again: the cookie is not renewed by being used. It goes
+# only over https, is out of reach of the page's scripts, and is not sent along
+# when another site posts here. Run by hand on this machine, over plain http,
+# the https-only flag is lifted - see the foot of this file.
+SESSION_DAYS = 14
+app.config.update(
+    PERMANENT_SESSION_LIFETIME=timedelta(days=SESSION_DAYS),
+    SESSION_REFRESH_EACH_REQUEST=False,
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+)
 
 
 # ---- small helpers -------------------------------------------------------
@@ -1464,14 +1485,121 @@ def start_backups():
 
 # ---- the one gate --------------------------------------------------------
 
+# Two may pass it: the founder, by the one password, and a member whose role is
+# keeper. The keeper is looked for on disk at every request, so a keeper whose
+# record is gone, or is no longer a keeper's, is turned away at the next one.
+# A member who is not the keeper passes no further than a visitor does.
+
+def keeper_here():
+    """Whether the one signed in is a member who is, on disk, still the keeper."""
+    name = session.get("member")
+    if not name or session.get("role") != "keeper":
+        return False
+    try:
+        record = members.load_member(name)
+    except MemberError:
+        return False
+    return isinstance(record, dict) and record.get("role") == "keeper"
+
+
+def founder_powers():
+    """Whether whoever is signed in may open the founder's pages."""
+    return bool(session.get("founder")) or keeper_here()
+
+
 def founder_required(view):
-    """Send anyone who is not the signed-in founder to the login page."""
+    """Send anyone without the founder's powers to the login page."""
     @wraps(view)
     def guarded(*args, **kwargs):
-        if not session.get("founder"):
+        if not founder_powers():
             return redirect(url_for("login"))
         return view(*args, **kwargs)
     return guarded
+
+
+@app.context_processor
+def who_is_here():
+    """What every page may know of who is signed in: whether the gate would open."""
+    return {"founder_here": founder_powers()}
+
+
+# ---- signing in ----------------------------------------------------------
+
+# One sentence for every refusal - a wrong password, a name that belongs to no
+# one, a name no one could have, too many tries - so that the page says nothing
+# about which it was. A name that belongs to no one is still made to cost what
+# a real one costs: its password is tried on a vault no password opens.
+NOT_THE_PASSWORD = "That is not the password."
+
+# Guessing is slowed where it is counted: five misses at one name, or ten from
+# one address in a day, within a quarter of an hour, and that name or address is
+# refused for a quarter of an hour without anything being tried at all. The
+# founder's password is counted as one more name, which no member can take.
+# All of it is kept in memory and nowhere else, and a deploy forgets it; the
+# address is kept as the bench keeps it, hashed with the day, and never itself.
+TRIES_AT_A_NAME = 5
+TRIES_FROM_AN_ADDRESS = 10
+TRIES_WINDOW = timedelta(minutes=15)
+LOCKED_FOR = timedelta(minutes=15)
+
+FOUNDER_TRIES = ("founder",)
+
+LOGIN_MISSES = {}
+LOGIN_LOCK = threading.Lock()
+
+
+def tries_counted(name, now):
+    """The two counts one attempt belongs to: its name's, and its address's."""
+    by_name = ("name", name[:members.PSEUDONYM_MAX + 1]) if name else FOUNDER_TRIES
+    return by_name, ("address", visitor_key(now.strftime("%Y-%m-%d")))
+
+
+def tries_allowed(key):
+    return TRIES_FROM_AN_ADDRESS if key[0] == "address" else TRIES_AT_A_NAME
+
+
+def locked_out(keys, now):
+    """Whether any of these counts stands refused."""
+    with LOGIN_LOCK:
+        return any(key in LOGIN_MISSES and LOGIN_MISSES[key]["until"] > now for key in keys)
+
+
+def note_miss(keys, now):
+    """Count one miss against each of these, and refuse any that has reached its limit."""
+    with LOGIN_LOCK:
+        for key, held in list(LOGIN_MISSES.items()):  # what has gone quiet is let go
+            if held["until"] <= now and not any(now - at < TRIES_WINDOW for at in held["at"]):
+                del LOGIN_MISSES[key]
+        for key in keys:
+            held = LOGIN_MISSES.setdefault(key, {"at": [], "until": now})
+            held["at"] = [at for at in held["at"] if now - at < TRIES_WINDOW] + [now]
+            if len(held["at"]) >= tries_allowed(key):
+                held["at"], held["until"] = [], now + LOCKED_FOR
+
+
+def forget_misses(key):
+    with LOGIN_LOCK:
+        LOGIN_MISSES.pop(key, None)
+
+
+def member_opens(name, password):
+    """The member's role if this password opens their vault, or None.
+
+    One derivation either way. The key the vault gives up is dropped the moment
+    it is given: that it opened is the whole of what is wanted from it.
+    """
+    try:
+        record = members.load_member(name)
+    except MemberError:  # a name no one could have, or a record that cannot be read
+        record = None
+    sealed = record.get("vault") if isinstance(record, dict) else None
+    try:
+        vault.unlock(sealed if sealed is not None else vault.decoy_vault(), password)
+    except VaultError:
+        return None
+    if sealed is None or record.get("role") not in members.ROLES:
+        return None
+    return record["role"]
 
 
 # ---- the pages -----------------------------------------------------------
@@ -1520,19 +1648,38 @@ def commons_members():
     return plain(MEMBERS)
 
 
-# Ask the founder for the password, and remember him if it is right.
+# Ask for the password, and remember whoever it opens for. With a pseudonym it
+# is a member's own, and opens their vault; without one it is the founder's.
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
     if request.method == "POST":
-        if check_password_hash(FOUNDER_PASSWORD_HASH, request.form.get("password", "")):
+        name = request.form.get("pseudonym", "").strip().lower()
+        password = request.form.get("password", "")
+        now = datetime.now(timezone.utc)
+        counted = tries_counted(name, now)
+        if locked_out(counted, now):
+            return render_template("login.html", error=NOT_THE_PASSWORD)
+        if name:
+            role = member_opens(name, password)
+            if role:
+                forget_misses(counted[0])
+                session.clear()
+                session.permanent = True
+                session["member"] = name
+                session["role"] = role
+                return redirect(url_for("letters" if role == "keeper" else "hearth"))
+        elif check_password_hash(FOUNDER_PASSWORD_HASH, password):
+            forget_misses(counted[0])
+            session.permanent = True
             session["founder"] = True
             return redirect(url_for("letters"))
-        error = "That is not the password."
+        note_miss(counted, now)
+        error = NOT_THE_PASSWORD
     return render_template("login.html", error=error)
 
 
-# Forget the founder and return to the public hearth.
+# Forget whoever was signed in, wholly, and return to the public hearth.
 @app.route("/logout")
 def logout():
     session.clear()
@@ -1729,7 +1876,7 @@ def letter_picture(filename):
 # letters page itself is his alone.
 @app.errorhandler(413)
 def too_large(error):
-    if not session.get("founder"):
+    if not founder_powers():
         return render_template("error.html", note="That was too much to send.",
                                output=""), 413
     return letters_page(error="That photograph is larger than 25 MB. "
@@ -2331,4 +2478,6 @@ start_backups()
 
 
 if __name__ == "__main__":
+    # by hand, on this machine, over plain http: an https-only cookie would never come back
+    app.config["SESSION_COOKIE_SECURE"] = False
     app.run(debug=True, port=5000)

@@ -1618,8 +1618,10 @@ def founder_required(view):
 
 @app.context_processor
 def who_is_here():
-    """What every page may know of who is signed in: whether the gate would open."""
-    return {"founder_here": founder_powers()}
+    """What every page may know of who is signed in: whether the gate would open,
+    and whether it is a member (who has an account page) rather than the founder's
+    password (which has none)."""
+    return {"founder_here": founder_powers(), "member_here": bool(session.get("member"))}
 
 
 # ---- signing in ----------------------------------------------------------
@@ -1707,14 +1709,19 @@ def member_opens(name, password):
     return record
 
 
-def sign_in_member(name, record):
-    """Remember this member, and nothing from before, and go where they belong."""
+def remember_member(name, record):
+    """Remember this member, and nothing from before, by the vault they hold now."""
     session.clear()
     session.permanent = True
     session["member"] = name
     session["role"] = record["role"]
     session["seal"] = vault.fingerprint(record["vault"])
     new_csrf_token()
+
+
+def sign_in_member(name, record):
+    """Remember this member, and go where they belong."""
+    remember_member(name, record)
     return redirect(url_for("letters" if record["role"] == "keeper" else "hearth"))
 
 
@@ -1850,6 +1857,58 @@ def recover():
         note_miss(counted, now)
         error = WORDS_REFUSED
     return render_template("recover.html", error=error)
+
+
+# A new password, for a member who knows the one they have: the same key, sealed
+# again. Only a member has one - the founder's password is not a vault, and a
+# visitor has nothing to change - so both are sent to the login page.
+#
+# The current password is guessed at here as surely as at the login page, so it
+# is counted with the login page's tries, by name and by address, and a shut name
+# or address is refused with nothing tried. New passwords that differ or will not
+# do are the member's own slip, not a guess, and are not counted. On a change
+# the record is the one file written, and this session is signed in again by the
+# new seal; every other session of this member ends at its next request.
+PASSWORD_CHANGED = "Your password is changed."
+
+
+@app.route("/account", methods=["GET", "POST"])
+def account():
+    name = session.get("member")
+    if not name:
+        return redirect(url_for("login"))
+    if request.method == "POST":
+        current = request.form.get("current_password", "")
+        password = request.form.get("password", "")
+        again = request.form.get("password_again", "")
+        now = datetime.now(timezone.utc)
+        counted = tries_counted(name, now)
+        if locked_out(counted, now):
+            return render_template("account.html", error=NOT_THE_PASSWORD)
+        if password != again:
+            return render_template("account.html", error=PASSWORDS_DIFFER)
+        try:
+            vault.check_password(password)
+        except VaultError as reason:
+            return render_template("account.html", error=str(reason).capitalize() + ".")
+
+        record = member_record(name)
+        try:
+            resealed = vault.change_password(record["vault"], current, password)
+        except (VaultError, KeyError, TypeError):
+            resealed = None
+        if resealed is not None:
+            try:
+                record = members.replace_vault(name, resealed)
+            except MemberError:
+                record = None
+            if record:
+                forget_misses(counted[0])
+                remember_member(name, record)
+                return render_template("account.html", changed=PASSWORD_CHANGED)
+        note_miss(counted, now)
+        return render_template("account.html", error=NOT_THE_PASSWORD)
+    return render_template("account.html")
 
 
 # Forget whoever was signed in, wholly - the form token with the rest - and

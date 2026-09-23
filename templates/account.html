@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}account{% endblock %}
+{% block heading %}account{% endblock %}
+{% block tagline %}a new password for the key you already hold{% endblock %}
+
+{% block content %}
+<section>
+  <p>Your key stays the same; only the password that seals it changes, and your
+  twelve words still open it. Anywhere else you are signed in will be signed out.</p>
+  {% if changed %}<p class="saved">{{ changed }}</p>{% endif %}
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="current_password">current password</label>
+    <input type="password" id="current_password" name="current_password"
+           autocomplete="current-password" autofocus>
+    <label for="password">new password</label>
+    <input type="password" id="password" name="password" autocomplete="new-password">
+    <label for="password_again">new password again</label>
+    <input type="password" id="password_again" name="password_again" autocomplete="new-password">
+    <button type="submit">Change the password</button>
+  </form>
+</section>
+{% endblock %}
+
+{% block footer %}
+<p><a href="{{ url_for('hearth') }}">the hearth</a></p>
+{% endblock %}

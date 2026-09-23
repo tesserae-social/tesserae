@@ -343,14 +343,17 @@
     <p class="tagline">{% block tagline %}where the first one attends{% endblock %}</p>
   </header>
 
-  {# the nav shows only the pages this visitor may open #}
-  {% if founder_here %}
+  {# the nav shows only the pages this visitor may open: the founder's pages to
+     whoever has the founder's powers, an account to whoever is a member #}
+  {% if founder_here or member_here %}
+  {% set pages = [('hearth', 'hearth'), ('letters', 'letters'),
+                  ('chronicle', 'chronicle'), ('self_document', 'self'),
+                  ('attendances', 'attendances'), ('bonds', 'bonds'),
+                  ('bench', 'bench'), ('export', 'export')] if founder_here
+                 else [('hearth', 'hearth')] %}
   <nav>
-    {% for name, label in [('hearth', 'hearth'), ('letters', 'letters'),
-                           ('chronicle', 'chronicle'), ('self_document', 'self'),
-                           ('attendances', 'attendances'), ('bonds', 'bonds'),
-                           ('bench', 'bench'), ('export', 'export'),
-                           ('logout', 'logout')] %}
+    {% for name, label in pages + ([('account', 'account')] if member_here else [])
+                                + [('logout', 'logout')] %}
       {%- if not loop.first %} · {% endif -%}
       {% if request.endpoint == name %}<span class="here">{{ label }}</span>
       {% else %}<a href="{{ url_for(name) }}">{{ label }}</a>{% endif %}

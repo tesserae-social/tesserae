@@ -1,0 +1,3 @@
+{# The way out, drawn as a link but sent as a post with the form token, so that
+   no link on another site can sign anyone out. `label` is the word it shows. #}
+<form method="post" action="{{ url_for('logout') }}" class="as-link"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="as-link">{{ label }}</button></form>

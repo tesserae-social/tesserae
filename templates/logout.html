@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}log out{% endblock %}
+{% block heading %}log out{% endblock %}
+{% block tagline %}leaving the hearth for now{% endblock %}
+
+{% block content %}
+<section>
+  <p>Leave the hearth for now? The fire keeps without you, and the door opens again
+    whenever you come back with your password.</p>
+  <form method="post" action="{{ url_for('logout') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">Log out</button>
+  </form>
+  <p class="muted" style="margin-top: 24px"><a href="{{ url_for('hearth') }}">back to the hearth</a></p>
+</section>
+{% endblock %}

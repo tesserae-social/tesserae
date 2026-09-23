@@ -21,7 +21,8 @@ made from, and the atrium. The markdown is the document; this only dresses it.
 
 The check rebuilds every page in memory and compares it to what is on the disk,
 so an edited document, an edited stylesheet link, or an edited head all show up
-as staleness. Nothing outside the pages named here is read or written, and
+as staleness. Line endings alone do not: CRLF and LF are taken as the same, so
+that a checkout which converts them leaves a current page current. Nothing outside the pages named here is read or written, and
 docs/ is only ever read.
 """
 
@@ -141,6 +142,12 @@ def page_for(name, head):
     ])
 
 
+def same_lines(text):
+    """A page with its line endings made one kind, so that a checkout that turns
+    LF into CRLF (core.autocrlf) does not make a current page look behind."""
+    return text.replace("\r\n", "\n")
+
+
 def page_name(name):
     """The page one document becomes: the same name, in html."""
     return name[:-len(".md")] + ".html"
@@ -165,7 +172,8 @@ def main():
     for name in DOCUMENTS:
         made = page_for(name, head)
         if asked.check:
-            if standing(name) != made:
+            there = standing(name)
+            if there is None or same_lines(there) != same_lines(made):
                 stale.append(page_name(name))
             continue
         write_text(os.path.join(ROOT, page_name(name)), made)

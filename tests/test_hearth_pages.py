@@ -395,7 +395,8 @@ def test_a_visitor_is_shown_the_way_in_and_the_founder_is_not(visitor, founder):
     assert "You are logged in" in said
     assert "For the founder:" not in said
     assert "<nav>" in said  # the nav the founder is shown on every page
-    assert 'href="/logout"' in said  # and the way out is in it
+    assert 'action="/logout"' in said  # and the way out is in it
+    assert 'href="/logout"' not in said  # as a post, never a link
     assert "the books will open with the commons" in said
 
 
@@ -444,5 +445,5 @@ def test_the_password_lets_the_founder_in_and_out(hearth):
     assert post(client, "/login", data={"password": PASSWORD}).headers["Location"] == "/letters"
     assert client.get("/letters").status_code == 200
 
-    assert client.get("/logout").headers["Location"] == "/"
+    assert post(client, "/logout").headers["Location"] == "/"
     assert client.get("/letters").status_code == 302

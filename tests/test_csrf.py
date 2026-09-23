@@ -72,7 +72,7 @@ def test_every_post_without_a_token_is_refused_but_the_exempt(hearth, keeper):
     routes = changing_routes(hearth)
     endpoints = {endpoint for endpoint, _, _ in routes}
     # the walk found what it should: a sanity check on the walk, not the list
-    assert {"login", "letters", "attend", "take_off_bench", "bench"} <= endpoints
+    assert {"login", "logout", "letters", "attend", "take_off_bench", "bench"} <= endpoints
 
     let_through = set()
     for endpoint, method, path in routes:
@@ -238,10 +238,105 @@ def test_the_token_rotates_on_a_members_sign_in(hearth, visitor):
 
 
 def test_signing_out_forgets_the_token(founder):
-    token(founder)
-    founder.get("/logout")
+    post(founder, "/logout")
     with founder.session_transaction() as held:
         assert "csrf_token" not in held
+
+
+def signed_out(client):
+    with client.session_transaction() as held:
+        empty = dict(held) == {}
+    return empty and client.get("/letters").status_code == 302
+
+
+def the_way_out(client):
+    """The logout form, as the nav and the footers draw it, with this session's token."""
+    return ('<form method="post" action="/logout" class="as-link">'
+            f'<input type="hidden" name="csrf_token" value="{token(client)}">'
+            '<button type="submit" class="as-link">')
+
+
+# ---- signing out ---------------------------------------------------------
+
+def test_signing_out_with_its_token_signs_the_founder_out(founder):
+    answer = post(founder, "/logout")
+    assert answer.status_code == 302 and answer.headers["Location"] == "/"
+    assert signed_out(founder)
+
+
+def test_signing_out_with_its_token_signs_a_member_out(hearth):
+    sealed, _, _ = vault.make_vault(KEEPER_PASSWORD)
+    hearth.members.create_member("birch", sealed, "member", [])
+    member = hearth.app.test_client()
+    post(member, "/login", data={"pseudonym": "birch", "password": KEEPER_PASSWORD})
+    assert member.get("/account").status_code == 200
+    answer = post(member, "/logout")
+    assert answer.status_code == 302 and answer.headers["Location"] == "/"
+    with member.session_transaction() as held:
+        assert dict(held) == {}
+    assert member.get("/account").headers["Location"].endswith("/login")
+
+
+def test_signing_out_without_a_token_is_refused_and_signs_no_one_out(founder, keeper):
+    for client in (founder, keeper):
+        assert refused(client.post("/logout"))
+        assert refused(client.post("/logout", data={"csrf_token": "not the token at all"}))
+        assert client.get("/letters").status_code == 200
+
+
+def test_a_visit_to_logout_asks_first_and_signs_no_one_out(founder, keeper):
+    for client in (founder, keeper):
+        held = token(client)
+        answer = client.get("/logout")
+        said = page(answer)
+        assert answer.status_code == 200
+        assert '<form method="post" action="/logout">' in said
+        assert f'name="csrf_token" value="{held}"' in said
+        assert '<button type="submit">Log out</button>' in said
+        assert '<a href="/">back to the hearth</a>' in said
+        assert client.get("/letters").status_code == 200
+        assert token(client) == held
+
+
+def test_a_visitor_at_logout_is_sent_to_the_hearth_with_no_cookie(visitor):
+    answer = visitor.get("/logout")
+    assert answer.status_code == 302 and answer.headers["Location"] == "/"
+    assert "Set-Cookie" not in answer.headers
+
+
+def test_the_founders_nav_signs_out_by_a_form_with_the_token(founder):
+    for path in ("/", "/letters", "/bench"):
+        said = page(founder.get(path))
+        assert the_way_out(founder) + "logout</button>" in said, path
+        assert 'href="/logout"' not in said, path
+
+
+def test_a_members_nav_signs_out_by_a_form_with_the_token(keeper, hearth):
+    sealed, _, _ = vault.make_vault(KEEPER_PASSWORD)
+    hearth.members.create_member("birch", sealed, "member", [])
+    member = hearth.app.test_client()
+    post(member, "/login", data={"pseudonym": "birch", "password": KEEPER_PASSWORD})
+    for client in (keeper, member):
+        said = page(client.get("/"))
+        assert the_way_out(client) + "logout</button>" in said
+        assert 'href="/logout"' not in said
+
+
+def test_the_bench_footer_signs_out_by_a_form_with_the_token(founder, keeper):
+    for client in (founder, keeper):
+        said = page(client.get("/bench"))
+        footer = said[said.index("<footer>"):]
+        assert the_way_out(client) + "log out</button>" in footer
+        assert 'href="/login"' not in footer
+
+
+def test_a_visitor_is_shown_log_in_and_no_way_out(visitor):
+    for path in ("/", "/bench"):
+        answer = visitor.get(path)
+        said = page(answer)
+        assert '<a href="/login">log in</a>' in said, path
+        assert "/logout" not in said, path
+        assert "Set-Cookie" not in answer.headers, path
 
 
 def test_a_refusal_changes_nothing_and_shows_no_page_behind_it(founder, hearth, commons):

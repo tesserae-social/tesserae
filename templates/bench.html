@@ -74,7 +74,7 @@
 {% block footer %}
 <p>
   <a href="{{ url_for('hearth') }}">the hearth</a> &middot;
-  {% if founder_here or session.member %}<a href="{{ url_for('logout') }}">log out</a>
+  {% if founder_here or session.member %}{% with label = 'log out' %}{% include "logout_button.html" %}{% endwith %}
   {% else %}<a href="{{ url_for('login') }}">log in</a>{% endif %}
 </p>
 {% endblock %}

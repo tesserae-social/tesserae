@@ -53,6 +53,34 @@ def test_a_page_left_behind_is_not_let_through(monkeypatch):
         assert "charter.html" in str(gone.value.code)
 
 
+def check_against(monkeypatch, standing):
+    """Run the check with the pages on the disk replaced by what `standing` says."""
+    monkeypatch.setattr(build_docs, "standing", standing)
+    monkeypatch.setattr(sys, "argv", ["build_docs.py", "--check"])
+    build_docs.main()
+
+
+def test_a_page_that_differs_only_in_line_endings_is_current(monkeypatch, capsys):
+    """A checkout under core.autocrlf turns LF into CRLF; the page is still current."""
+    head = build_docs.shared_head()
+    check_against(monkeypatch,
+                  lambda name: build_docs.page_for(name, head).replace("\n", "\r\n"))
+    assert "all of them current" in capsys.readouterr().out
+
+
+def test_a_page_that_differs_in_its_words_is_still_behind(monkeypatch):
+    head = build_docs.shared_head()
+
+    def standing(name):
+        made = build_docs.page_for(name, head).replace("\n", "\r\n")
+        return made.replace("</article>", "an old line</article>") if name == "rites.md" else made
+
+    with pytest.raises(SystemExit) as gone:
+        check_against(monkeypatch, standing)
+    assert gone.value.code == ("build_docs: rites.html behind the record; "
+                               "run python build_docs.py")
+
+
 @pytest.mark.parametrize("name, page", PAGES, ids=IDS)
 def test_the_page_on_the_disk_is_the_page_the_builder_makes(name, page):
     assert said(page) == build_docs.page_for(name, build_docs.shared_head())

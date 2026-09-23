@@ -1771,6 +1771,23 @@ def commons_members():
     return plain(MEMBERS)
 
 
+# A member's identity document, open to anyone and to any machine: their DID and
+# the key they sign with, and nothing else of their record. The keeper has none
+# here - the keeper is the founder, whose document is at tesserae.social - and
+# asking under the keeper's name is answered exactly as a name no one has, by
+# the one plain 404, so that no public answer ever tells the keeper's name.
+@app.route("/ids/<name>/did.json")
+def member_identity(name):
+    document = members.did_document(name)
+    if document is None:
+        abort(404)
+    answer = Response(json.dumps(document, indent=2) + "\n",
+                      content_type="application/json; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
+
+
 # Ask for the password, and remember whoever it opens for. With a pseudonym it
 # is a member's own, and opens their vault; without one it is the founder's.
 @app.route("/login", methods=["GET", "POST"])

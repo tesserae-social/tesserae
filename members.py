@@ -13,11 +13,13 @@ and, once a member's key has ever been changed for another, a history of it:
     members/<pseudonym>/key-history.json
         [{"old_key": hex, "new_key": hex, "at": ISO UTC}, ...]
 
-Storage only: no route, no page. The name is checked before it is ever made into
+Storage only: no route, no page. A member's public identity document is shaped
+here from their record (did_document), and served by the hearth. The name is checked before it is ever made into
 a path, and that check is the whole of the path's safety. Nothing here logs or
 prints a vault, and no error raised here carries one.
 """
 
+import base64
 import json
 import os
 import re
@@ -59,6 +61,12 @@ DEVICES = frozenset({"con", "prn", "aux", "nul"}
                     | {"lpt%d" % n for n in range(1, 10)})
 
 VERIFY_KEY = re.compile(r"[0-9a-f]{64}")
+
+# Who a member is to anyone outside. A member's identity document is served by
+# the hearth, under their pseudonym; the keeper is the founder, whose document
+# has always been at tesserae.social, and is never named under the hearth.
+FOUNDER_DID = "did:web:tesserae.social:ids:founder"
+HEARTH_DID = "did:web:hearth.tesserae.social:ids:"
 
 
 class MemberError(Exception):
@@ -177,6 +185,50 @@ def member_by_key(verify_key_hex):
         if isinstance(record, dict) and record.get("verify_key") == wanted:
             return name
     return None
+
+
+# ---------------------------------------------------------------- identities
+
+
+def did_for(pseudonym):
+    """The DID a member signs as: the founder's for the keeper, the hearth's for a member."""
+    record = load_member(pseudonym)
+    if not isinstance(record, dict) or record.get("role") not in ROLES:
+        raise MemberError("there is no member by that name")
+    if record["role"] == "keeper":
+        return FOUNDER_DID
+    return HEARTH_DID + pseudonym
+
+
+def did_document(pseudonym):
+    """A member's public identity document, or None for anyone who has no such document.
+
+    The same shape as the documents under ids/, and nothing more of the record
+    than the key: no vault, no day of arrival, no vouchers, no role. The keeper,
+    a name no one has, and a name no one could have all come back as None alike.
+    """
+    try:
+        record = load_member(pseudonym)
+    except MemberError:
+        return None
+    if not isinstance(record, dict) or record.get("role") != "member":
+        return None
+    key = record.get("verify_key")
+    if not isinstance(key, str) or not VERIFY_KEY.fullmatch(key):
+        return None
+    did = HEARTH_DID + pseudonym
+    return {
+        "@context": ["https://www.w3.org/ns/did/v1"],
+        "id": did,
+        "verificationMethod": [
+            {
+                "id": did + "#key-1",
+                "type": "Ed25519VerificationKey2020",
+                "controller": did,
+                "publicKeyBase64": base64.b64encode(bytes.fromhex(key)).decode("ascii"),
+            }
+        ],
+    }
 
 
 # ---------------------------------------------------------------- writing

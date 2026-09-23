@@ -25,10 +25,12 @@ Usage:  python hearth.py     (then open http://127.0.0.1:5000)
 
 import base64
 import hashlib
+import hmac
 import io
 import json
 import os
 import re
+import secrets
 import subprocess
 import sys
 import tarfile
@@ -38,6 +40,7 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import boto3
@@ -180,6 +183,80 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
 )
+
+
+# ---- forms sent from the hearth, and from nowhere else --------------------
+
+# Every form that changes anything carries a token kept in the session, and a
+# post without the same token is refused before it reaches any page: another
+# site can make a browser post here, but it cannot read the page the token is
+# written on. A new one is cut at every sign-in and forgotten at sign-out. The
+# Origin a browser names is checked as well, where it names one.
+#
+# One post is let through without a token: the bench's own form, which anyone
+# may use with no account and no password. It reads nothing from the session,
+# so a forged post there can do no more than the visitor could do by hand, and
+# asking a passerby for a token would mean handing every passerby a cookie. Its
+# honeypot and its three a day still stand, and so does the Origin check.
+# Nothing the founder does is here - not the take-off button on the same page.
+CSRF_EXEMPT = frozenset({"bench"})
+CHANGING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+NOT_FROM_HERE = "This form was not sent from the hearth. Go back, refresh, and try again."
+
+NOT_FROM_HERE_PAGE = """{% extends "base.html" %}
+{% block title %}not sent from here{% endblock %}
+{% block heading %}not sent from here{% endblock %}
+{% block content %}
+<section><p class="error">{{ note }}</p></section>
+{% endblock %}
+"""
+
+
+def csrf_token():
+    """This session's token, cut the first time a form asks for it."""
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+    return session["csrf_token"]
+
+
+def new_csrf_token():
+    """A fresh token, in place of whatever the session held before."""
+    session["csrf_token"] = secrets.token_urlsafe(32)
+
+
+app.jinja_env.globals["csrf_token"] = csrf_token
+
+
+def from_elsewhere():
+    """Whether the browser says this came from a page that is not the hearth's.
+
+    Only the host is compared: the hearth sits behind a proxy that speaks https
+    to the world and plain http to it, so the scheme it sees is not the one the
+    browser saw. An Origin of "null" is from nowhere, and nowhere is elsewhere.
+    """
+    origin = request.headers.get("Origin")
+    if origin is None:
+        return False
+    return urlsplit(origin).netloc.lower() != request.host.lower()
+
+
+@app.before_request
+def sent_from_here():
+    if request.method not in CHANGING:
+        return None
+    if from_elsewhere():
+        return refused_as_foreign()
+    if request.endpoint in CSRF_EXEMPT:
+        return None
+    held = session.get("csrf_token")
+    sent = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token") or ""
+    if not held or not hmac.compare_digest(sent.encode("utf-8"), held.encode("utf-8")):
+        return refused_as_foreign()
+    return None
+
+
+def refused_as_foreign():
+    return render_template_string(NOT_FROM_HERE_PAGE, note=NOT_FROM_HERE), 400
 
 
 # ---- small helpers -------------------------------------------------------
@@ -1668,18 +1745,21 @@ def login():
                 session.permanent = True
                 session["member"] = name
                 session["role"] = role
+                new_csrf_token()
                 return redirect(url_for("letters" if role == "keeper" else "hearth"))
         elif check_password_hash(FOUNDER_PASSWORD_HASH, password):
             forget_misses(counted[0])
             session.permanent = True
             session["founder"] = True
+            new_csrf_token()
             return redirect(url_for("letters"))
         note_miss(counted, now)
         error = NOT_THE_PASSWORD
     return render_template("login.html", error=error)
 
 
-# Forget whoever was signed in, wholly, and return to the public hearth.
+# Forget whoever was signed in, wholly - the form token with the rest - and
+# return to the public hearth.
 @app.route("/logout")
 def logout():
     session.clear()

@@ -5,7 +5,7 @@ import io
 import pytest
 from PIL import Image
 
-from conftest import page, read_json, write, write_json
+from conftest import page, post, read_json, write, write_json
 
 LETTER = "Dear first one,\n\nThe lake was still this morning.\n"
 
@@ -31,8 +31,8 @@ def leave(client, text=LETTER, photo=None, name="photo.jpg", proposes=False, fol
         form["errand"] = errand
     if photo is not None:
         form["photo"] = (io.BytesIO(photo), name)
-    return client.post("/letters", data=form, content_type="multipart/form-data",
-                       follow_redirects=follow)
+    return post(client, "/letters", data=form, content_type="multipart/form-data",
+                follow_redirects=follow)
 
 
 def incoming(packet):

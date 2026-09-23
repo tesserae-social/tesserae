@@ -17,7 +17,7 @@ import pytest
 from nacl.pwhash import argon2id
 
 import vault
-from conftest import PASSWORD, page
+from conftest import PASSWORD, page, post
 
 KEEPER = "ash"
 KEEPER_PASSWORD = "the keeper's own password"
@@ -59,7 +59,7 @@ def derivations(hearth, monkeypatch):
 
 
 def sign_in(client, name, password):
-    return client.post("/login", data={"pseudonym": name, "password": password})
+    return post(client, "/login", data={"pseudonym": name, "password": password})
 
 
 def refused(answer):
@@ -100,7 +100,7 @@ def test_a_pseudonym_is_taken_however_it_is_capitalised(people, visitor):
 def test_the_key_is_not_kept_anywhere_in_the_session(people, visitor):
     sign_in(visitor, KEEPER, KEEPER_PASSWORD)
     with visitor.session_transaction() as held:
-        assert set(held) == {"member", "role", "_permanent"}
+        assert set(held) == {"member", "role", "csrf_token", "_permanent"}
 
 
 def test_signing_in_clears_whatever_session_was_there(people, visitor):
@@ -135,7 +135,7 @@ def test_a_member_signs_in_but_cannot_reach_the_founder_s_pages(people, visitor,
         assert held["role"] == "member"
     for path in ("/letters", "/chronicle", "/attendances", "/bonds", "/export", "/backups"):
         assert shut_out(visitor, path), path
-    assert visitor.post("/pause", data={"confirm": "yes"}).status_code == 302
+    assert post(visitor, "/pause", data={"confirm": "yes"}).status_code == 302
     assert not (hearth.PAUSE).exists()
 
 

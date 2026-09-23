@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from conftest import lines_of, write, write_json
+from conftest import lines_of, post, write, write_json
 
 ZONE = ZoneInfo("America/Indiana/Indianapolis")
 
@@ -294,7 +294,7 @@ def test_only_one_attendance_is_held_at_a_time(hearth, monkeypatch):
 def test_the_founder_is_turned_away_while_the_first_one_rests(founder, hearth, packet):
     write_json(packet / "pause.json", {"by": "first", "since": "2026-10-10T09-00-00Z",
                                        "until": "2026-10-20", "words": ""})
-    answer = founder.post("/attend")
+    answer = post(founder, "/attend")
     assert answer.status_code == 409
     assert "The first one is resting" in answer.get_data(as_text=True)
 

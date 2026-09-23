@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from conftest import lines_of, page, write
+from conftest import lines_of, page, post, write
 
 LINE = "The lake was still this morning."
 
@@ -274,7 +274,7 @@ def test_a_day_that_is_no_day_is_left_as_it_was_written(visitor, commons):
 def test_only_the_founder_may_take_a_line_off(visitor, reader, commons):
     leave(visitor)
     raw = bench_lines(commons)[0]
-    answer = visitor.post("/bench/take-off", data={"line": raw, "confirm": "yes"})
+    answer = post(visitor, "/bench/take-off", data={"line": raw, "confirm": "yes"})
     assert answer.status_code == 302
     assert answer.headers["Location"].endswith("/login")
     assert bench_lines(commons) == [raw]
@@ -284,11 +284,11 @@ def test_taking_a_line_off_takes_one_plain_question_first(founder, visitor, read
     leave(visitor)
     raw = bench_lines(commons)[0]
 
-    asked = founder.post("/bench/take-off", data={"line": raw})
+    asked = post(founder, "/bench/take-off", data={"line": raw})
     assert "Take this line off the bench?" in page(asked)
     assert bench_lines(commons) == [raw]
 
-    done = founder.post("/bench/take-off", data={"line": raw, "confirm": "yes"})
+    done = post(founder, "/bench/take-off", data={"line": raw, "confirm": "yes"})
     assert done.status_code == 302
     assert bench_lines(commons) == []
 
@@ -297,7 +297,7 @@ def test_what_is_taken_off_is_kept_outside_the_commons_and_the_commons_is_told(
         founder, visitor, reader, commons, data_dir, hearth):
     leave(visitor)
     raw = bench_lines(commons)[0]
-    founder.post("/bench/take-off", data={"line": raw, "confirm": "yes"})
+    post(founder, "/bench/take-off", data={"line": raw, "confirm": "yes"})
 
     assert lines_of(data_dir / "bench-removed.md") == [raw]
     assert lines_of(commons / "events.md")[-1].endswith("event · " + hearth.TAKEN_OFF)
@@ -308,8 +308,8 @@ def test_what_is_taken_off_is_kept_outside_the_commons_and_the_commons_is_told(
 def test_the_same_line_is_not_taken_off_twice(founder, visitor, reader, commons, hearth):
     leave(visitor)
     raw = bench_lines(commons)[0]
-    founder.post("/bench/take-off", data={"line": raw, "confirm": "yes"})
-    founder.post("/bench/take-off", data={"line": raw, "confirm": "yes"})
+    post(founder, "/bench/take-off", data={"line": raw, "confirm": "yes"})
+    post(founder, "/bench/take-off", data={"line": raw, "confirm": "yes"})
     told = [line for line in lines_of(commons / "events.md") if hearth.TAKEN_OFF in line]
     assert len(told) == 1
 
@@ -319,7 +319,7 @@ def test_the_lines_that_stay_are_left_as_they_were(founder, visitor, reader, com
     leave(visitor, line="The second line.")
     leave(visitor, line="The third line.")
     raw = bench_lines(commons)[1]
-    founder.post("/bench/take-off", data={"line": raw, "confirm": "yes"})
+    post(founder, "/bench/take-off", data={"line": raw, "confirm": "yes"})
     kept = bench_lines(commons)
     assert len(kept) == 2
     assert "The first line." in kept[0] and "The third line." in kept[1]

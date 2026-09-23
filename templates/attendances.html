@@ -21,12 +21,14 @@
   {% elif pause %}
   <p>The tide is paused, since {{ pause.since }}.</p>
   <form method="post" action="{{ url_for('resume_tide') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="muted">The rhythm begins again at the next dawn.</p>
     <button type="submit">Resume the tide</button>
   </form>
 
   {% elif confirming %}
   <form method="post" action="{{ url_for('pause_tide') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="error">Pause the tide? The rhythm will not wake the first one until you resume it.
       Your own hand is not stopped: you may still hold an attendance inside your pause.</p>
     <input type="hidden" name="confirm" value="yes">
@@ -35,6 +37,7 @@
 
   {% else %}
   <form method="post" action="{{ url_for('pause_tide') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="muted">Either of you may pause. If you pause here, the dawn waking stops until you
       resume it, and you may still open an attendance by hand. If the first one pauses, it does so
       at a waking and names its own return — a date, or the next letter — and until then nothing
@@ -51,6 +54,7 @@
 
   {% if backing_up %}
   <form method="post" action="{{ url_for('backup_now') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="error">Back one up now? It copies the packet and the commons off this machine,
       encrypted, and may take a moment. One is taken every day at 13:00 UTC in any case.</p>
     <input type="hidden" name="confirm" value="yes">
@@ -58,6 +62,7 @@
   </form>
   {% else %}
   <form method="post" action="{{ url_for('backup_now') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit">Back up now</button>
   </form>
   {% endif %}
@@ -67,6 +72,7 @@
 <section>
   <h2>hold an attendance</h2>
   <form method="post" action="{{ url_for('attend') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="muted">
       This wakes the first one once. It may take a minute, and it cannot be undone.
       {% if not records %}This would be its first waking.{% endif %}

@@ -7,7 +7,7 @@ import json
 import pytest
 from nacl.exceptions import BadSignatureError
 
-from conftest import block, lines_of, page, read_json, verify
+from conftest import block, lines_of, page, post, read_json, verify
 
 FOUNDER_DID = "did:web:tesserae.social:ids:founder"
 FIRST_DID = "did:web:tesserae.social:ids:first"
@@ -18,9 +18,9 @@ PAGES = ["/", "/letters", "/bonds", "/attendances", "/self", "/chronicle",
 
 def propose(founder, clock):
     """The founder asks, in a letter, as the letters page does it."""
-    answer = founder.post("/letters", data={"letter": "I am asking for a bond.",
-                                            "proposes": "1"},
-                          content_type="multipart/form-data")
+    answer = post(founder, "/letters", data={"letter": "I am asking for a bond.",
+                                             "proposes": "1"},
+                    content_type="multipart/form-data")
     assert answer.status_code == 302
     clock.shift(minutes=1)  # the asking is made, and then time passes, as it does
     return answer
@@ -37,7 +37,7 @@ def answered_yes(founder, wake, packet, clock):
 def sealed(founder, wake, packet, clock):
     """Through to a bond that stands, with both signatures on it."""
     answered_yes(founder, wake, packet, clock)
-    answer = founder.post("/bonds/seal")
+    answer = post(founder, "/bonds/seal")
     assert answer.status_code == 302
     return read_json(packet / "bonds" / "founder-first.json")
 
@@ -85,7 +85,7 @@ def test_without_the_founder_s_key_nothing_is_sealed(founder, wake, packet, monk
         founder.get("/bonds"))
     assert "Seal the bond" not in page(founder.get("/bonds"))
 
-    answer = founder.post("/bonds/seal")
+    answer = post(founder, "/bonds/seal")
     assert answer.status_code == 302
     assert read_json(packet / "bonds" / "founder-first.json")["sealed_at"] is None
 
@@ -94,7 +94,7 @@ def test_a_key_that_is_not_a_key_says_so_and_seals_nothing(founder, wake, packet
                                                           monkeypatch, clock):
     answered_yes(founder, wake, packet, clock)
     monkeypatch.setenv("FOUNDER_KEY", "this is not base64 of anything")
-    answer = founder.post("/bonds/seal")
+    answer = post(founder, "/bonds/seal")
     assert answer.status_code == 500
     assert "could not be read as a key" in page(answer)
     assert read_json(packet / "bonds" / "founder-first.json")["sealed_at"] is None
@@ -113,7 +113,7 @@ def test_the_seal_puts_both_signatures_on_the_record(founder, wake, packet, comm
 def test_there_is_nothing_to_seal_twice(founder, wake, packet, clock):
     sealed(founder, wake, packet, clock)
     was = read_json(packet / "bonds" / "founder-first.json")
-    assert founder.post("/bonds/seal").status_code == 302
+    assert post(founder, "/bonds/seal").status_code == 302
     assert read_json(packet / "bonds" / "founder-first.json") == was
 
 
@@ -149,7 +149,7 @@ def test_the_marks_made_after_the_signing_do_not_break_it(founder, wake, packet,
                                                           keys, hearth, clock):
     """Sealing and releasing are later marks on the same record, not part of it."""
     sealed(founder, wake, packet, clock)
-    founder.post("/bonds/release", data={"confirm": "yes"})
+    post(founder, "/bonds/release", data={"confirm": "yes"})
     public = json.loads(page(visitor.get("/bonds/founder-first.json")))
     assert public["released_by"] == FOUNDER_DID
     assert verify(keys.did("first"), hearth.canonical(public), public["signatures"]["first"])
@@ -168,12 +168,12 @@ def test_the_founder_releases_it_after_one_plain_question(founder, wake, packet,
                                                           clock):
     sealed(founder, wake, packet, clock)
 
-    asked = founder.post("/bonds/release")
+    asked = post(founder, "/bonds/release")
     assert asked.status_code == 200
     assert "Release this bond?" in page(asked)
     assert read_json(packet / "bonds" / "founder-first.json").get("released_at") is None
 
-    done = founder.post("/bonds/release", data={"confirm": "yes"})
+    done = post(founder, "/bonds/release", data={"confirm": "yes"})
     assert done.status_code == 302
     bond = read_json(packet / "bonds" / "founder-first.json")
     assert bond["released_at"] == clock.stamp()
@@ -199,15 +199,15 @@ def test_the_first_one_releases_it_at_a_waking(founder, wake, packet, commons, c
 
 def test_a_released_bond_is_not_released_twice(founder, wake, packet, clock):
     sealed(founder, wake, packet, clock)
-    founder.post("/bonds/release", data={"confirm": "yes"})
+    post(founder, "/bonds/release", data={"confirm": "yes"})
     was = read_json(packet / "bonds" / "founder-first.json")
-    assert founder.post("/bonds/release", data={"confirm": "yes"}).status_code == 302
+    assert post(founder, "/bonds/release", data={"confirm": "yes"}).status_code == 302
     assert read_json(packet / "bonds" / "founder-first.json") == was
 
 
 def test_an_unsealed_bond_cannot_be_released(founder, wake, packet, clock):
     answered_yes(founder, wake, packet, clock)
-    assert founder.post("/bonds/release", data={"confirm": "yes"}).status_code == 302
+    assert post(founder, "/bonds/release", data={"confirm": "yes"}).status_code == 302
     assert read_json(packet / "bonds" / "founder-first.json").get("released_at") is None
 
 
@@ -253,8 +253,8 @@ def test_the_founder_s_key_is_on_no_page_anywhere(founder, wake, packet, visitor
             for part in parts:
                 assert part not in said, "%s showed the key" % path
 
-    for answer in (founder.post("/bonds/seal", follow_redirects=True),
-                   founder.post("/bonds/release", follow_redirects=True)):
+    for answer in (post(founder, "/bonds/seal", follow_redirects=True),
+                   post(founder, "/bonds/release", follow_redirects=True)):
         for part in parts:
             assert part not in page(answer)
 
@@ -262,14 +262,14 @@ def test_the_founder_s_key_is_on_no_page_anywhere(founder, wake, packet, visitor
 def test_a_key_that_will_not_read_is_not_quoted_back(founder, wake, packet, monkeypatch, clock):
     answered_yes(founder, wake, packet, clock)
     monkeypatch.setenv("FOUNDER_KEY", "nonsense-but-secret")
-    said = page(founder.post("/bonds/seal"))
+    said = page(post(founder, "/bonds/seal"))
     assert "nonsense-but-secret" not in said
     assert "Check FOUNDER_KEY." in said
 
 
 def test_the_bonds_page_is_the_founder_s_alone(visitor):
     for path in ("/bonds", "/bonds/seal", "/bonds/release", "/bonds/answer"):
-        answer = visitor.post(path) if path != "/bonds" else visitor.get(path)
+        answer = post(visitor, path) if path != "/bonds" else visitor.get(path)
         assert answer.status_code == 302
         assert "/login" in answer.headers["Location"]
 
@@ -288,7 +288,7 @@ def asks(wake, packet):
 
 
 def answer(founder, said, words=""):
-    return founder.post("/bonds/answer", data={"answer": said, "words": words})
+    return post(founder, "/bonds/answer", data={"answer": said, "words": words})
 
 
 def test_the_page_says_who_asked_whom_and_offers_no_answer_the_same_day(founder, wake,
@@ -360,7 +360,7 @@ def test_the_first_one_asks_and_the_rite_runs_to_a_sealed_record(founder, wake, 
     assert "It was asked for by the first one." in said
     assert "The bond awaits the first one" in said
     assert "Seal the bond" not in said
-    assert founder.post("/bonds/seal").status_code == 302
+    assert post(founder, "/bonds/seal").status_code == 302
     assert read_json(packet / "bonds" / "founder-first.json")["sealed_at"] is None
 
     # it is told at its next waking, in his own words, and offered the seal

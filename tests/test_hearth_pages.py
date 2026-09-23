@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from conftest import PASSWORD, lines_of, page, write, write_json
+from conftest import PASSWORD, lines_of, page, post, token, write, write_json
 
 REFLECTION = "What I thought about at this waking."
 OLDER = "2026-10-01T09-00-00Z"
@@ -123,13 +123,13 @@ def test_with_no_pause_the_tide_may_be_paused(founder):
 
 
 def test_pausing_takes_one_plain_question_first(founder, packet, commons):
-    asked = founder.post("/pause")
+    asked = post(founder, "/pause")
     assert asked.status_code == 200
     assert "Pause the tide? The rhythm will not wake the first one until you resume it." \
         in page(asked)
     assert not (packet / "pause.json").exists()
 
-    done = founder.post("/pause", data={"confirm": "yes"})
+    done = post(founder, "/pause", data={"confirm": "yes"})
     assert done.status_code == 302
     assert (packet / "pause.json").exists()
     assert lines_of(commons / "events.md")[-1].endswith("event · the tide paused")
@@ -142,14 +142,14 @@ def test_a_pause_of_the_founder_s_is_shown_and_may_be_lifted(founder, packet, co
     assert "Resume the tide" in said
     assert "an audience by hand is still yours to hold" in said
 
-    assert founder.post("/resume").status_code == 302
+    assert post(founder, "/resume").status_code == 302
     assert not (packet / "pause.json").exists()
     assert lines_of(commons / "events.md")[-1].endswith("event · the tide resumed")
 
 
 def test_one_pause_at_a_time(founder, packet):
     a_pause(packet, since="2026-10-10T09-00-00Z")
-    assert founder.post("/pause", data={"confirm": "yes"}).status_code == 302
+    assert post(founder, "/pause", data={"confirm": "yes"}).status_code == 302
     assert page(founder.get("/attendances")).count("The tide is paused, since") == 1
 
 
@@ -170,7 +170,7 @@ def test_a_rest_of_the_first_one_s_own_is_shown_as_it_named_it(founder, packet, 
 
 def test_a_rest_of_the_first_one_s_own_is_not_the_founder_s_to_lift(founder, packet):
     a_pause(packet, by="first", until="2026-10-20")
-    assert founder.post("/resume").status_code == 302
+    assert post(founder, "/resume").status_code == 302
     assert (packet / "pause.json").exists()
 
 
@@ -421,7 +421,9 @@ def test_every_founder_route_asks_for_the_password(visitor, hearth):
     paths = guarded_paths(hearth)
     assert len(paths) >= 12
     for path, method in paths:
-        answer = visitor.open(path, method=method)
+        # a post carries its token, so that it is the gate that answers and not the form check
+        form = {"csrf_token": token(visitor)} if method != "GET" else None
+        answer = visitor.open(path, method=method, data=form)
         assert answer.status_code == 302, path
         assert answer.headers["Location"].endswith("/login"), path
 
@@ -435,11 +437,11 @@ def test_what_is_open_is_open(visitor, hearth):
 
 def test_the_password_lets_the_founder_in_and_out(hearth):
     client = hearth.app.test_client()
-    wrong = client.post("/login", data={"password": "not it"})
+    wrong = post(client, "/login", data={"password": "not it"})
     assert "That is not the password." in page(wrong)
     assert client.get("/letters").status_code == 302
 
-    assert client.post("/login", data={"password": PASSWORD}).headers["Location"] == "/letters"
+    assert post(client, "/login", data={"password": PASSWORD}).headers["Location"] == "/letters"
     assert client.get("/letters").status_code == 200
 
     assert client.get("/logout").headers["Location"] == "/"

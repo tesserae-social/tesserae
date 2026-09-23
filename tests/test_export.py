@@ -5,7 +5,7 @@ what is written down when one is taken.
 import io
 import zipfile
 
-from conftest import lines_of, page, write, write_json
+from conftest import lines_of, page, post, write, write_json
 
 SENTENCE = ("Everything that is yours and the first one's, as it stands: the first one's "
             "packet and the commons, with the founder's letters and the bond and offering "
@@ -85,7 +85,7 @@ def files_under(root, prefix):
 
 def taken(founder):
     """One copy, taken as the founder takes it: the answer, and the zip inside it."""
-    answer = founder.post("/export")
+    answer = post(founder, "/export")
     assert answer.status_code == 200
     return answer, zipfile.ZipFile(io.BytesIO(answer.get_data()))
 
@@ -98,7 +98,7 @@ def flowing(answer):
 # ---- the gate ------------------------------------------------------------
 
 def test_only_the_founder_may_take_a_copy(visitor, packet):
-    for answer in (visitor.get("/export"), visitor.post("/export")):
+    for answer in (visitor.get("/export"), post(visitor, "/export")):
         assert answer.status_code == 302
         assert answer.headers["Location"].endswith("/login")
     assert not (packet / "exports.log").exists()

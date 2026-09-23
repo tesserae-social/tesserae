@@ -15,6 +15,7 @@
       {% if founder_here %}
         {% if confirming == one.raw %}
         <form method="post" action="{{ url_for('take_off_bench') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <p class="error">Take this line off the bench? It will be kept, out of the commons,
             and the commons will be told that a line was taken — not which.</p>
           <input type="hidden" name="line" value="{{ one.raw }}">
@@ -23,6 +24,7 @@
         </form>
         {% else %}
         <form method="post" action="{{ url_for('take_off_bench') }}" class="beside">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="line" value="{{ one.raw }}">
           <button type="submit" class="small">take off the bench</button>
         </form>
@@ -44,6 +46,8 @@
 
   <p class="note">{{ invitation }}</p>
 
+  {# no form token here: this form reads no session, and a token would hand every
+     passerby a cookie. hearth.py's CSRF_EXEMPT says why at more length. #}
   <form method="post" action="{{ url_for('bench') }}">
     <div class="field">
       <label for="line">a line</label>

@@ -31,10 +31,12 @@
          alt="the picture that is offered">
     {% endif %}
     <form method="post" action="{{ url_for('consent_to_an_offering') }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="id" value="{{ one.id }}">
       <button type="submit">Consent, and place it in the commons</button>
     </form>
     <form method="post" action="{{ url_for('decline_an_offering') }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="id" value="{{ one.id }}">
       <button type="submit">Decline</button>
     </form>
@@ -77,6 +79,7 @@
   <p class="error">{{ error }}</p>
   {% endif %}
   <form method="post" class="field" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="letter">It will be read at the next attendance, then kept.</label>
     <textarea id="letter" name="letter">{{ draft }}</textarea>
     <label for="photo">You may send one photograph with it: JPEG, PNG or WebP, up to 25 MB.
@@ -170,6 +173,7 @@
         <p class="muted">Placed only when the first one signs it too, and never removed
           afterwards. Offer what you would want a stranger to have read. {{ no_faces }}</p>
         <form method="post" action="{{ url_for('offer_to_the_commons') }}" class="field">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="source" value="{{ letter.stem }}">
           <p class="muted">
             {%- if letter.offered.letter %}The whole letter: already {{ letter.offered.letter }}.

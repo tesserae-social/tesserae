@@ -18,7 +18,7 @@ from datetime import timedelta
 import pytest
 from cryptography.fernet import Fernet
 
-from conftest import NOW, REPO, lines_of, no_threads, page, write
+from conftest import NOW, REPO, lines_of, no_threads, page, post, write
 from test_export import a_whole_world, files_under
 
 KEY = Fernet.generate_key().decode("ascii")
@@ -378,7 +378,7 @@ def test_a_line_that_is_not_a_line_is_stepped_over(hearth, bucket, data_dir):
 # ---- backing up by hand --------------------------------------------------
 
 def test_only_the_founder_may_back_up_by_hand(visitor, bucket, hearth):
-    answer = visitor.post("/backup-now", data={"confirm": "yes"})
+    answer = post(visitor, "/backup-now", data={"confirm": "yes"})
     assert answer.status_code == 302
     assert answer.headers["Location"].endswith("/login")
     assert bucket.keys == []
@@ -386,7 +386,7 @@ def test_only_the_founder_may_back_up_by_hand(visitor, bucket, hearth):
 
 
 def test_backing_up_by_hand_takes_one_question_first(founder, bucket, hearth):
-    asked = founder.post("/backup-now")
+    asked = post(founder, "/backup-now")
     assert asked.status_code == 200
     assert "Back one up now?" in page(asked)
     assert bucket.keys == []  # nothing has been done yet
@@ -394,7 +394,7 @@ def test_backing_up_by_hand_takes_one_question_first(founder, bucket, hearth):
 
 
 def test_backing_up_by_hand_runs_it_and_shows_the_line(founder, bucket, hearth, clock):
-    done = founder.post("/backup-now", data={"confirm": "yes"})
+    done = post(founder, "/backup-now", data={"confirm": "yes"})
     assert done.status_code == 200
     assert bucket.keys == ["backups/" + NAME]
 
@@ -404,7 +404,7 @@ def test_backing_up_by_hand_runs_it_and_shows_the_line(founder, bucket, hearth, 
 
 
 def test_backing_up_by_hand_with_nothing_set_up_says_so(founder, unconfigured):
-    done = founder.post("/backup-now", data={"confirm": "yes"})
+    done = post(founder, "/backup-now", data={"confirm": "yes"})
     assert UNCONFIGURED in " ".join(page(done).split())
 
 

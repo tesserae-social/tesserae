@@ -314,11 +314,28 @@ def visitor(hearth):
     return hearth.app.test_client()
 
 
+def token(client):
+    """The form token this client's session holds, asking the hearth to cut one if none."""
+    with client.session_transaction() as held:
+        if "csrf_token" in held:
+            return held["csrf_token"]
+    client.get("/login")  # a page with a form on it, which is where a token is cut
+    with client.session_transaction() as held:
+        return held["csrf_token"]
+
+
+def post(client, path, data=None, **how):
+    """A post, as a form on one of the hearth's own pages would send it: with its token."""
+    data = dict(data or {})
+    data.setdefault("csrf_token", token(client))
+    return client.post(path, data=data, **how)
+
+
 @pytest.fixture
 def founder(hearth):
     """The founder, signed in."""
     client = hearth.app.test_client()
-    answer = client.post("/login", data={"password": PASSWORD})
+    answer = post(client, "/login", data={"password": PASSWORD})
     assert answer.status_code == 302, "the test password did not sign in"
     return client
 

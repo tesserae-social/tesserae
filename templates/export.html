@@ -7,6 +7,7 @@
 {% block content %}
 <section>
   <form method="post" action="{{ url_for('export') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p>Everything that is yours and the first one's, as it stands: the first one's packet and the
       commons, with the founder's letters and the bond and offering records. Nothing is changed by
       taking it.</p>

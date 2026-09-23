@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from conftest import (block, blocks, lines_of, page, read_json, verify,
+from conftest import (block, blocks, lines_of, page, post, read_json, verify,
                       write, write_json)
 
 HIS = "founder-2026-10-14T09-00-00Z"
@@ -47,7 +47,7 @@ def a_correspondence(packet):
 
 def offer(client, kind, source, text=""):
     """Offer something, as the founder's control does."""
-    return client.post("/offer", data={"kind": kind, "source": source, "text": text})
+    return post(client, "/offer", data={"kind": kind, "source": source, "text": text})
 
 
 def pending(packet):
@@ -139,7 +139,7 @@ def test_the_first_one_offers_and_the_founder_places_it(founder, wake, packet, c
     assert "offered, awaiting you" in said_page
     assert waiting["id"] in said_page
 
-    answer = founder.post("/offer/consent", data={"id": waiting["id"]})
+    answer = post(founder, "/offer/consent", data={"id": waiting["id"]})
     assert answer.status_code == 302
 
     one = only_placed(packet)
@@ -204,7 +204,7 @@ def test_the_founder_declines_and_nothing_of_it_is_public(founder, wake, packet,
     wake(block("OFFER", "offer letter %s" % HERS))
     one = only_pending(packet)
 
-    answer = founder.post("/offer/decline", data={"id": one["id"]})
+    answer = post(founder, "/offer/decline", data={"id": one["id"]})
     assert answer.status_code == 302
     assert not pending(packet)
     assert not placed(packet)
@@ -234,7 +234,7 @@ def test_the_first_one_is_told_what_was_declined_and_what_was_placed(wake, found
     a_correspondence(packet)
     wake()  # one waking to count what has happened since
     wake(block("OFFER", "offer passage %s\n%s" % (HIS, PASSAGE)))
-    founder.post("/offer/decline", data={"id": only_pending(packet)["id"]})
+    post(founder, "/offer/decline", data={"id": only_pending(packet)["id"]})
 
     said = wake().opening
     assert "was declined. Nothing is owed either way" in said
@@ -243,7 +243,7 @@ def test_the_first_one_is_told_what_was_declined_and_what_was_placed(wake, found
 
     # and what the founder placed between two wakings is told at the next one
     wake(block("OFFER", "offer letter %s" % HERS))
-    founder.post("/offer/consent", data={"id": only_pending(packet)["id"]})
+    post(founder, "/offer/consent", data={"id": only_pending(packet)["id"]})
     said = wake().opening
     assert "was placed in the commons at" in said
     assert "An offering you made" in said
@@ -319,7 +319,7 @@ def test_neither_may_consent_to_their_own_offering(founder, wake, packet, common
     offer(founder, "letter", HIS)
     one = only_pending(packet)
 
-    assert founder.post("/offer/consent", data={"id": one["id"]}).status_code == 302
+    assert post(founder, "/offer/consent", data={"id": one["id"]}).status_code == 302
     assert pending(packet)                     # still waiting on the first one
     assert not placed(packet)
 
@@ -335,8 +335,8 @@ def test_an_offering_is_answered_once(founder, wake, packet):
     a_correspondence(packet)
     wake(block("OFFER", "offer letter %s" % HERS))
     one = only_pending(packet)
-    founder.post("/offer/consent", data={"id": one["id"]})
-    assert founder.post("/offer/consent", data={"id": one["id"]}).status_code == 302
+    post(founder, "/offer/consent", data={"id": one["id"]})
+    assert post(founder, "/offer/consent", data={"id": one["id"]}).status_code == 302
     assert len(placed(packet)) == 1
 
 
@@ -394,7 +394,7 @@ def test_nothing_can_be_signed_without_the_founder_s_key(founder, packet, monkey
     # the sentence is rendered, so its apostrophe is written the way markup writes one
     assert "the founder&#39;s key is not on this hearth" in page(answer)
     assert not pending(packet)
-    assert not founder.post("/offer/consent", data={"id": "anything"}).status_code == 302
+    assert not post(founder, "/offer/consent", data={"id": "anything"}).status_code == 302
 
 
 # ---- the offerings, open to anyone ---------------------------------------

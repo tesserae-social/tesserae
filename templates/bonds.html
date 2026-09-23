@@ -33,6 +33,7 @@
       its next waking; they never go to the commons. A yes puts your signature on the bond,
       and the seal is then the first one's to give at a waking of its own.</p>
     <form method="post" action="{{ url_for('answer_asking') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label for="words">Your words about it, if you have any.</label>
       <textarea id="words" name="words"></textarea>
       {# a yes is a signature, so only a yes needs the key to be here #}
@@ -151,6 +152,7 @@
       stands unfinished, and the record is public only once it is sealed.</p>
     {% elif key_here %}
     <form method="post" action="{{ url_for('seal_bond') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <p class="muted">The first one has answered yes and signed. Sealing adds your signature,
         writes the record, and says in the commons that a bond was sealed. It cannot be undone,
         though either of you may release the bond afterwards, at any time.</p>
@@ -162,6 +164,7 @@
 
   {% elif confirming %}
   <form method="post" action="{{ url_for('release_bond') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="error">Release this bond? The record is kept, and the commons will say that a
       bond was released - no reason, no names. It cannot be undone.</p>
     <input type="hidden" name="confirm" value="yes">
@@ -169,6 +172,7 @@
   </form>
   {% else %}
   <form method="post" action="{{ url_for('release_bond') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="muted">Either of you may release this bond at any time, with no reason given.</p>
     <button type="submit">Release the bond</button>
   </form>

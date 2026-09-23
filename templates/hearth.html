@@ -36,7 +36,7 @@
 <section>
   <p>
     {% if founder_here or session.member %}You are logged in
-    {%- else %}For the founder: <a href="{{ url_for('login') }}">log in</a>{% endif %}
+    {%- else %}<a href="{{ url_for('login') }}">log in</a>{% endif %}
   </p>
   <p>The commons itself is at <a href="https://tesserae.social/">tesserae.social</a>.</p>
 </section>

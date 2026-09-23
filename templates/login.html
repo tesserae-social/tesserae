@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}the founder{% endblock %}
-{% block heading %}the founder{% endblock %}
-{% block tagline %}one password, for the one who keeps this lit{% endblock %}
+{% block title %}log in{% endblock %}
+{% block heading %}log in{% endblock %}
+{% block tagline %}{% endblock %}
 
 {% block content %}
 <section>
@@ -12,7 +12,6 @@
     <label for="pseudonym">pseudonym</label>
     <input type="text" id="pseudonym" name="pseudonym" autocomplete="username"
            autocapitalize="none" spellcheck="false">
-    <p class="muted">A member gives their pseudonym here. The founder leaves it empty.</p>
     <label for="password">password</label>
     <input type="password" id="password" name="password" autocomplete="current-password" autofocus>
     <button type="submit">Sign in</button>

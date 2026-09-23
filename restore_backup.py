@@ -3,11 +3,11 @@
 
 Usage:  python restore_backup.py <file.tar.gz.enc> <path to backup.key> <output dir>
 
-A backup is the packet and the commons whole, as they stood at the hour it was
-taken: a tar.gz, encrypted with the backup key. This decrypts one, unpacks it
-into a directory of your choosing, and prints what came out. It refuses to
-unpack into a directory that already has anything in it, so that a restore can
-never write over a record you still want.
+A backup is the packet, the commons and the members' records whole, as they
+stood at the hour it was taken: a tar.gz, encrypted with the backup key. This
+decrypts one, unpacks it into a directory of your choosing, and prints what came
+out. It refuses to unpack into a directory that already has anything in it, so
+that a restore can never write over a record you still want.
 
 It needs the cryptography package and nothing else:
 

@@ -9,6 +9,7 @@ Pure functions only: nothing here touches a file, a route, a log or the screen,
 and no error raised here carries a password, a phrase or a key.
 
     vault, phrase, verify_key_hex = make_vault(password)
+    vault, phrase = vault_from_key(signing_key, password)
     signing_key = unlock(vault, password)
     vault = change_password(vault, old_password, new_password)
     vault = recover(vault, phrase, new_password)
@@ -221,13 +222,22 @@ def _vault(key, by_password, by_phrase):
     }
 
 
+def vault_from_key(signing_key, password):
+    """(vault, phrase) for a key that already exists, such as the founder's.
+
+    The same vault make_vault makes; the phrase is handed back once, never kept.
+    """
+    if not isinstance(signing_key, SigningKey):
+        raise VaultError("only a signing key can be kept in a vault")
+    check_password(password)
+    phrase = new_recovery_phrase()
+    seed = bytes(signing_key)
+    return _vault(signing_key, seal(seed, password), seal(seed, phrase)), phrase
+
+
 def make_vault(password):
     """(vault, phrase, verify_key_hex). The phrase is handed back once, never kept."""
-    check_password(password)
-    key = cut_key()
-    phrase = new_recovery_phrase()
-    seed = bytes(key)
-    vault = _vault(key, seal(seed, password), seal(seed, phrase))
+    vault, phrase = vault_from_key(cut_key(), password)
     return vault, phrase, vault["verify_key"]
 
 

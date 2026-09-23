@@ -230,6 +230,22 @@ def test_make_and_unlock(made):
     key.verify_key.verify(signed)
 
 
+def test_an_existing_key_is_sealed_as_it_is():
+    key = vault.cut_key()
+    v, phrase = vault.vault_from_key(key, PASSWORD)
+    assert set(v) == {"v", "verify_key", "by_password", "by_phrase"}
+    assert v["verify_key"] == key.verify_key.encode().hex()
+    assert bytes(vault.unlock(v, PASSWORD)) == bytes(key)
+    recovered = vault.recover(v, phrase, NEW_PASSWORD)
+    assert bytes(vault.unlock(recovered, NEW_PASSWORD)) == bytes(key)
+
+
+def test_vault_from_key_checks_what_it_is_given():
+    refused(vault.vault_from_key, vault.cut_key(), "short")
+    refused(vault.vault_from_key, bytes(vault.cut_key()), PASSWORD)
+    refused(vault.vault_from_key, None, PASSWORD)
+
+
 def test_unlock_refuses_a_wrong_password(made):
     v, _, _ = made
     message = refused(vault.unlock, v, "the wrong password")

@@ -7,9 +7,11 @@ import zipfile
 
 from conftest import lines_of, page, write, write_json
 
-SENTENCE = ("Everything that is yours and the first one's, as it stands: the packet, the "
-            "commons files, the founder's letters, the bond and offering records. Nothing "
-            "is changed by taking it.")
+SENTENCE = ("Everything that is yours and the first one's, as it stands: the first one's "
+            "packet and the commons, with the founder's letters and the bond and offering "
+            "records. Nothing is changed by taking it.")
+NO_MEMBERS = ("Members' records are not in this copy; they are kept only in the encrypted "
+              "backup.")
 
 TAKEN = "2026-10-15T12-00-00Z · export taken by the founder"
 SAID = "The founder took a copy of the record on 15 October 2026."
@@ -63,6 +65,17 @@ def a_whole_world(packet, commons):
     ]:
         write(commons / where, text)
 
+    # a member, as members.py keeps one: the record with its sealed vault, and
+    # the history of a key once changed
+    members = packet.parents[1] / "members"
+    write_json(members / "ada" / "member.json",
+               {"v": 1, "pseudonym": "ada", "role": "member", "verify_key": "ab" * 32,
+                "arrived_at": "2026-10-11T09:00:00Z", "vouched_by": ["bram"],
+                "vault": {"v": 1, "verify_key": "ab" * 32,
+                          "by_password": {"box": "sealed"}, "by_phrase": {"box": "sealed"}}})
+    write_json(members / "ada" / "key-history.json",
+               [{"old_key": "cd" * 32, "new_key": "ab" * 32, "at": "2026-10-12T09:00:00Z"}])
+
 
 def files_under(root, prefix):
     """Every file under a tree, named as a copy would name it."""
@@ -94,6 +107,7 @@ def test_only_the_founder_may_take_a_copy(visitor, packet):
 def test_the_page_says_what_a_copy_is_and_offers_it(founder):
     said = flowing(founder.get("/export"))
     assert SENTENCE in said
+    assert NO_MEMBERS in said
     assert "Take a copy" in said
     assert 'href="/export"' in page(founder.get("/letters"))  # and the nav names it
 
@@ -134,6 +148,16 @@ def test_nothing_outside_the_two_trees_is_in_the_copy(founder, packet, commons, 
     assert ".env" not in inside
     assert "bench-removed.md" not in inside
     assert "transcripts/founding-2026-09-04.md" not in inside
+
+
+def test_the_members_are_not_in_the_copy(founder, packet, commons, data_dir):
+    # a copy is not encrypted, and a member's vault goes only where it is
+    a_whole_world(packet, commons)
+    assert (data_dir / "members" / "ada" / "member.json").is_file()
+    _, bundle = taken(founder)
+    assert not [name for name in bundle.namelist() if name.startswith("members/")]
+    for name in bundle.namelist():
+        assert b"by_password" not in bundle.read(name), name
 
 
 def test_the_copy_is_handed_out_and_never_written_into_the_record(founder, packet, data_dir):

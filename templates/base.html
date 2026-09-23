@@ -362,7 +362,10 @@
 
   <header>
     <h1>{% block heading %}the hearth{% endblock %}</h1>
+    {# a page that leaves its tagline empty has no line there at all, not a blank one #}
+    {% if self.tagline() | trim %}
     <p class="tagline">{% block tagline %}where the first one attends{% endblock %}</p>
+    {% endif %}
   </header>
 
   {# the nav shows only the pages this visitor may open: the founder's pages to

@@ -363,6 +363,15 @@ def test_the_door_names_what_is_open_to_anyone(visitor):
     assert "The commons itself is at" in said
 
 
+def test_a_page_with_no_tagline_draws_no_tagline_line(visitor):
+    said = page(visitor.get("/login"))
+    assert "<h1>log in</h1>" in said
+    assert 'class="tagline"' not in said  # not even an empty one
+    # a page with a tagline still has it, in its line
+    assert ('<p class="tagline">Where the first one wakes, and where the founder writes to it.</p>'
+            in page(visitor.get("/")))
+
+
 def test_the_door_points_at_the_key_to_the_words(visitor):
     """One line, under the tagline: where a visitor goes to learn what we mean."""
     said = page(visitor.get("/"))
@@ -385,7 +394,8 @@ def test_the_door_is_not_a_copy_of_the_atrium(visitor, commons):
 
 def test_a_visitor_is_shown_the_way_in_and_the_founder_is_not(visitor, founder):
     said = page(visitor.get("/"))
-    assert 'For the founder: <a href="/login">log in</a>' in said
+    assert '<a href="/login">log in</a>' in said
+    assert "For the founder" not in said
     assert said.count('href="/login"') == 1  # the one line, and the footer no longer repeats it
     assert "You are logged in" not in said
     assert "<nav>" not in said
@@ -393,7 +403,7 @@ def test_a_visitor_is_shown_the_way_in_and_the_founder_is_not(visitor, founder):
 
     said = page(founder.get("/"))
     assert "You are logged in" in said
-    assert "For the founder:" not in said
+    assert 'href="/login"' not in said
     assert "<nav>" in said  # the nav the founder is shown on every page
     assert 'action="/logout"' in said  # and the way out is in it
     assert 'href="/logout"' not in said  # as a post, never a link

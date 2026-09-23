@@ -336,7 +336,7 @@ def test_being_used_does_not_stretch_a_sign_in(people, visitor):
 
 def test_logging_out_clears_the_member_s_session(people, visitor):
     sign_in(visitor, KEEPER, KEEPER_PASSWORD)
-    visitor.get("/logout")
+    post(visitor, "/logout")
     with visitor.session_transaction() as held:
         assert dict(held) == {}
     assert shut_out(visitor)

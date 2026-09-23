@@ -1955,11 +1955,18 @@ def account():
 
 
 # Forget whoever was signed in, wholly - the form token with the rest - and
-# return to the public hearth.
-@app.route("/logout")
+# return to the public hearth. Only a post with the form token does it, so that
+# another site cannot sign anyone out with a link or an image. A plain visit
+# asks first, with the one button; a visitor with nothing to leave is sent on
+# to the hearth, and is handed no cookie on the way.
+@app.route("/logout", methods=["GET", "POST"])
 def logout():
-    session.clear()
-    return redirect(url_for("hearth"))
+    if request.method == "POST":
+        session.clear()
+        return redirect(url_for("hearth"))
+    if not (founder_powers() or session.get("member")):
+        return redirect(url_for("hearth"))
+    return render_template("logout.html")
 
 
 def letters_page(saved=None, error=None, draft="", proposed=None, blocked=None,

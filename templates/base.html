@@ -289,6 +289,28 @@
 
   form.beside { display: inline; }
 
+  /* the way out is a post, but it is drawn exactly as the link it once was:
+     no chrome, the link's colour and rule, the words around it setting the size */
+  form.as-link { display: inline; margin: 0; }
+
+  button.as-link, button.as-link:hover, button.as-link:focus {
+    margin: 0;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    font: inherit;
+    line-height: inherit;
+    color: var(--link);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--link);
+    cursor: pointer;
+  }
+
+  button.as-link:hover, button.as-link:focus { color: var(--mark); text-decoration-color: var(--mark); }
+
   /* holding an attendance is the one consequential act, so it is filled in */
   button.consequential {
     background: var(--mark);
@@ -356,6 +378,7 @@
                                 + [('logout', 'logout')] %}
       {%- if not loop.first %} · {% endif -%}
       {% if request.endpoint == name %}<span class="here">{{ label }}</span>
+      {% elif name == 'logout' %}{% include "logout_button.html" %}
       {% else %}<a href="{{ url_for(name) }}">{{ label }}</a>{% endif %}
     {%- endfor %}
   </nav>

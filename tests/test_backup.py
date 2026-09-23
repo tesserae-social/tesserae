@@ -9,6 +9,7 @@ backup this hearth actually made and asked to open it.
 """
 
 import io
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -625,6 +626,29 @@ def test_a_backup_opens_again_into_the_same_three_trees(backup_file, packet, com
     assert "members/ada/member.json" in done.stdout
     assert "commons/members.md" in done.stdout
     assert "%d files" % len(came_back) in done.stdout
+
+
+def test_a_machine_with_no_members_yet_backs_up_and_restores(hearth, bucket, packet, commons,
+                                                           data_dir, tmp_path, clock):
+    """The live disk has no members folder until member one is made."""
+    a_whole_world(packet, commons)
+    shutil.rmtree(data_dir / "members")
+    said = hearth.back_up(clock.at)
+    assert said.startswith("%s · backed up · " % STAMP), said
+
+    with bucket.only as bundle:
+        held = {member.name for member in bundle.getmembers() if member.isfile()}
+    assert held == files_under(packet, "packets/first/") | files_under(commons, "commons/")
+
+    archive = tmp_path / NAME
+    archive.write_bytes(bucket.objects["backups/" + NAME])
+    key_file = tmp_path / "backup.key"
+    key_file.write_text(KEY + "\n", encoding="utf-8")
+    out = tmp_path / "restored"
+    done = run_restore(str(archive), str(key_file), str(out))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert {path.relative_to(out).as_posix() for path in out.rglob("*") if path.is_file()} == held
+    assert not (out / "members").exists()
 
 
 def test_it_refuses_a_directory_with_anything_in_it(backup_file, tmp_path):

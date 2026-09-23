@@ -49,7 +49,6 @@ from dotenv import load_dotenv
 from flask import (Flask, Response, abort, redirect, render_template,
                    render_template_string, request, send_file, session, url_for)
 from markupsafe import Markup, escape
-from nacl.signing import SigningKey
 from PIL import Image, ImageOps
 from werkzeug.security import check_password_hash
 
@@ -63,6 +62,10 @@ from build_atrium import CITIZEN_ZONE, KIND_WORDS, parse_events
 # An offering is made by two hands, so both hands work through the one module:
 # what is offered here and what is offered at a waking are one record.
 import offering
+
+# The founder's key is read out of FOUNDER_KEY the one way, here and in
+# setup_keeper.py alike.
+from vault import key_from_text
 
 REPO = Path(__file__).resolve().parent
 
@@ -757,7 +760,7 @@ def founder_signature(payload):
     if not given:
         return None
     try:
-        signature = SigningKey(base64.b64decode(given)).sign(payload).signature
+        signature = key_from_text(given).sign(payload).signature
         return base64.b64encode(signature).decode("ascii")
     except Exception:
         raise ValueError("The founder's key on this hearth could not be read as a key. "

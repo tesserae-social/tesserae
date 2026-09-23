@@ -63,6 +63,18 @@ def cut_key():
     return SigningKey.generate()
 
 
+def key_from_text(text):
+    """The signing key a base64 seed names, as FOUNDER_KEY holds one.
+
+    Nothing that goes wrong in here may carry the text outward, so the original
+    error is dropped and a plain one raised.
+    """
+    try:
+        return SigningKey(base64.b64decode(text))
+    except Exception:
+        raise VaultError("that cannot be read as a signing key") from None
+
+
 # ---------------------------------------------------------------- sealing
 
 

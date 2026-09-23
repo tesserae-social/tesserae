@@ -60,7 +60,8 @@ from werkzeug.security import check_password_hash
 # keeps: a day turns here when it turns where the citizen lives. The words an
 # offering's kind is said in are the atrium's too, so that the hearth's page and
 # the atrium's section name the same thing the same way.
-from build_atrium import CITIZEN_ZONE, KIND_WORDS, parse_events
+from build_atrium import (CITIZEN_ZONE, KIND_WORDS, band, is_letter_line, letter_words,
+                          parse_events)
 
 # An offering is made by two hands, so both hands work through the one module:
 # what is offered here and what is offered at a waking are one record.
@@ -884,12 +885,37 @@ def founder_signature(payload):
                          "Check FOUNDER_KEY.") from None
 
 
-def note_event(kind, words):
-    """One line of the public record: the day, the kind of thing, and the plain words."""
+def note_event(kind, words, day=None):
+    """One line of the public record: the day, the kind of thing, and the plain words.
+
+    The day is the UTC one unless another is named.
+    """
     EVENTS.parent.mkdir(parents=True, exist_ok=True)
-    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     with EVENTS.open("a", encoding="utf-8") as record:
         record.write(f"{day} · {kind} · {words}\n")
+
+
+# A letter from the founder is a tile in the mosaic, and one tile a day however
+# many he writes. The day is the citizen's own, as the mosaic's is, and the line
+# says only that he wrote and in which part of that day the first letter fell,
+# by the wakings' own bounds: nothing of what, to whom, at what hour, or with
+# what beside it. The lock is so that two letters left at once cannot both find
+# the day empty.
+LETTER_LOCK = threading.Lock()
+
+
+def note_letter():
+    """The commons' line for today's letters, unless today already has one."""
+    now = datetime.now(ZoneInfo(CITIZEN_ZONE))
+    day = now.date()
+    with LETTER_LOCK:
+        if EVENTS.exists() and any(
+                when == day and is_letter_line(kind, words)
+                for when, kind, words in parse_events(read_text(EVENTS))):
+            return False
+        note_event("letter", letter_words(band(now.hour)), day.isoformat())
+        return True
 
 
 def write_bond(bond):
@@ -2058,6 +2084,7 @@ def letters():
         (INCOMING / f"{stem}.md").write_text(text + "\n", encoding="utf-8")
         if photo:
             (INCOMING / f"{stem}{suffix}").write_bytes(photo)
+        note_letter()
 
         # The letter is left either way. If it was to propose a bond, and nothing
         # stands in the way of one, the asking is written beside it.

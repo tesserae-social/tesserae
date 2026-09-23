@@ -42,7 +42,7 @@
     <!-- reading:end -->
     <!-- caption:start -->
     <p class="caption">the mosaic: one tile for every event in our history</p>
-    <p class="legend"><span class="key tile-founding"></span>founding · <span class="key tile-word"></span>word · <span class="key tile-dawn"></span><span class="key tile-day"></span><span class="key tile-evening"></span><span class="key tile-night"></span>waking, dawn to night</p>
+    <p class="legend"><span class="key tile-founding"></span>founding · <span class="key tile-word"></span>word · <span class="key tile-dawn"></span><span class="key tile-day"></span><span class="key tile-evening"></span><span class="key tile-night"></span>waking, dawn to night · <span class="key tile-letter-dawn"></span><span class="key tile-letter-day"></span><span class="key tile-letter-evening"></span><span class="key tile-letter-night"></span>a person's letter, dawn to night</p>
     <!-- caption:end -->
   </section>
 
@@ -94,7 +94,8 @@
   const HEARTH = "https://hearth.tesserae.social", DOT = "·";
   const CITIZEN_ZONE = "America/Indiana/Indianapolis";
   const KIND = { founding: "tile-founding", word: "tile-word", attendance: "tile-attendance",
-                 seal: "tile-seal", offering: "tile-offering", event: "tile-event" };
+                 seal: "tile-seal", offering: "tile-offering", letter: "tile-letter",
+                 event: "tile-event" };
   // what an offering is, said in words -- build_atrium.py holds the same four
   const KIND_WORDS = { letter: "a letter", passage: "a passage",
                        photo: "a photograph", picture: "a picture" };
@@ -105,7 +106,16 @@
   // the words under the mosaic, the same at the atrium and at the hearth
   const CAPTION = "the mosaic: one tile for every event in our history";
   const LEGEND = [[["tile-founding"], "founding"], [["tile-word"], "word"],
-                  [["tile-dawn", "tile-day", "tile-evening", "tile-night"], "waking, dawn to night"]];
+                  [["tile-dawn", "tile-day", "tile-evening", "tile-night"], "waking, dawn to night"],
+                  [["tile-letter-dawn", "tile-letter-day", "tile-letter-evening", "tile-letter-night"],
+                   "a person's letter, dawn to night"]];
+  // a day's letter line names the part of the day the first of them fell in, and
+  // is toned by it -- build_atrium.py holds the same words
+  const LETTER_WORDS = "the founder wrote a letter";
+  const LETTER_BANDS = { dawn: "at dawn", day: "during the day", evening: "in the evening",
+                         night: "at night" };
+  const letterBand = words => Object.keys(LETTER_BANDS)
+    .find(part => words === `${LETTER_WORDS} ${LETTER_BANDS[part]}`);
   // the mosaic's nominal frame and its cap, and the sizes a tile may take inside
   // it -- build_atrium.py holds the same five numbers and the same arithmetic on
   // them, so a narrow page draws the same tiles as a wide one, in more rows
@@ -165,8 +175,9 @@
     const known = f.length === 3 && KIND[f[1]];
     const words = known ? f[2] : f.slice(1).join(` ${DOT} `);
     const day = human(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+    const part = known === KIND.letter ? letterBand(words) : undefined;
     return [Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()),
-            known || KIND.event, `${day} ${DOT} ${words}`,
+            part ? `${known} tile-letter-${part}` : known || KIND.event, `${day} ${DOT} ${words}`,
             known === KIND.seal ? BOND_URL : ""];
   }).filter(one => one && one[1] !== KIND.offering);
   // a heartbeat's words as the page reads them out: the name, a middot, the rest.

@@ -339,9 +339,11 @@ def test_the_line_under_the_mosaic_passes_over_the_holes(atrium):
     assert atrium.reading_text(cells).startswith("10 October 2026 · waking by day")
 
 
-def test_the_caption_counts_what_is_there(atrium):
-    assert atrium.caption_text(len(a_whole_record(atrium))) == (
-        "the mosaic — one tile per event in our history · 5 so far")
+def test_the_caption_says_what_the_mosaic_is_and_counts_nothing(atrium):
+    caption = atrium.caption_block(a_whole_record(atrium))[0]
+    assert caption == ('<p class="caption">the mosaic: one tile for every event in our '
+                       'history</p>')
+    assert not re.search(r"\d", caption)       # no counters
 
 
 def test_a_tile_s_words_are_escaped_where_they_are_written(atrium):
@@ -358,7 +360,7 @@ def test_an_empty_record_draws_an_empty_mosaic(atrium):
     assert atrium.tiles_from([], []) == []
     assert atrium.reading_text([]) == ""
     assert atrium.reading_block([]) == ['<p class="reading"></p>']
-    assert atrium.caption_text(0).endswith("0 so far")
+    assert atrium.caption_block([])[0] == '<p class="caption">%s</p>' % atrium.CAPTION
     assert atrium.mosaic_block([]) == [
         '<ul class="mosaic" style="--tile:34px;--gap:4px" aria-label="the mosaic">', "</ul>"]
     assert len(atrium.legend_marks([])) == 3
@@ -374,7 +376,7 @@ def test_an_empty_bench_is_no_section_at_all(atrium):
 
 
 def test_the_way_in_says_how_slowly_the_door_opens(atrium):
-    assert "Ask to join — the door opens slowly" in atrium.links_block([])[-1]
+    assert "Ask to join. The door opens slowly." in atrium.links_block([])[-1]
 
 
 # what the atrium offers, in the order it offers it: the documents first, as
@@ -385,7 +387,7 @@ OFFERED = [
     ("/the-words.html", "The words"),
     ("https://hearth.tesserae.social", "Visit the hearth"),
     ("https://hearth.tesserae.social/bench", "Leave a line"),
-    ("/the-door.html", "Ask to join — the door opens slowly"),
+    ("/the-door.html", "Ask to join. The door opens slowly."),
 ]
 
 
@@ -409,7 +411,7 @@ def test_a_bench_with_lines_carries_the_way_to_itself(atrium):
     assert drawn[0] == '<section class="bench">'
     assert "  <h2>the visitor's bench</h2>" in drawn
     assert ('    <li><span class="when">1 October 2026</span> · the lake was still '
-            "— Mira</li>") in drawn
+            "· Mira</li>") in drawn
     assert '  <p><a href="%s">Leave a line</a></p>' % atrium.BENCH_URL in drawn
 
     links = atrium.links_block(lines)
@@ -772,8 +774,8 @@ def test_the_atrium_is_rebuilt_from_the_commons(atrium, data_dir, monkeypatch, c
     assert "the first one · attended; wrote a letter" in page
     assert '<section class="bench">' in page
     assert "the lake was still" in page
-    assert "the mosaic — one tile per event in our history · 3 so far" in page
-    assert "as of %s" % atrium.human(TODAY) in page
+    assert "the mosaic: one tile for every event in our history</p>" in page
+    assert "so far" not in page and "as of" not in page
     assert ("3 tiles in 44 slots at 34px (2 events, 1 attendances, 0 offerings), "
             "1 on the bench, 0 here") in capsys.readouterr().out
 
@@ -798,6 +800,78 @@ def test_a_record_with_nothing_in_it_seeds_the_founding(atrium, data_dir, monkey
     atrium.main()
     assert (data_dir / "commons" / "events.md").read_text(encoding="utf-8").splitlines() == \
         atrium.SEED_EVENTS
+
+
+# ---- what the atrium no longer says --------------------------------------
+
+EM_DASH = "—"
+
+
+def test_the_atrium_has_no_em_dash_anywhere():
+    """Not in the head, the words, the links, or the script that redraws them."""
+    assert EM_DASH not in PAGE.read_text(encoding="utf-8")
+
+
+def test_nothing_the_builder_writes_has_an_em_dash(atrium, data_dir, monkeypatch):
+    write(data_dir / "commons" / "bench.md", "- 2026-10-01 · Mira · the lake was still\n")
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    assert '<section class="bench">' in atrium.page_path.read_text(encoding="utf-8")
+    assert EM_DASH not in atrium.page_path.read_text(encoding="utf-8")
+    assert EM_DASH not in "".join(atrium.links_block([]))
+
+
+def test_the_commons_today_is_gone(atrium, monkeypatch):
+    """No heading, no standing paragraph, no as-of line, and no reading of the file."""
+    said = PAGE.read_text(encoding="utf-8")
+    assert "the commons, today" not in said
+    assert "commons:start" not in said and 'class="today"' not in said
+    assert "as of" not in said
+    assert not hasattr(atrium, "STATE") and not hasattr(atrium, "read_state")
+    assert (REPO / "docs" / "state-of-the-commons.md").exists()   # the file itself stays
+
+    real = open
+
+    def refuse(path, *args, **kwargs):
+        assert "state-of-the-commons" not in str(path)
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", refuse)
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+
+
+# ---- the season line is reckoned, never written by hand ------------------
+
+@pytest.mark.parametrize("at, season", [
+    ("2026-03-19T16-00-00Z", "winter"), ("2026-03-20T16-00-00Z", "spring"),
+    ("2026-06-21T16-00-00Z", "summer"), ("2026-09-21T16-00-00Z", "summer"),
+    ("2026-09-22T16-00-00Z", "autumn"), ("2026-09-23T16-00-00Z", "autumn"),
+    ("2026-12-21T16-00-00Z", "winter"),
+])
+def test_the_baked_season_line_is_reckoned_from_the_day_it_was_built(
+        atrium, clock, monkeypatch, at, season):
+    clock.set(at)
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    page = atrium.page_path.read_text(encoding="utf-8")
+    said = page.split("<!-- calendar:start -->")[1].split("<!-- calendar:end -->")[0].strip()
+    day = clock.local(atrium.ZoneInfo(atrium.CITIZEN_ZONE)).date()
+    assert said == '<p class="calendar">%s</p>' % atrium.calendar_text(day)
+    assert said.startswith('<p class="calendar">it is %s · ' % season)
+
+
+def test_on_23_september_it_is_autumn(atrium):
+    assert atrium.calendar_text(datetime.date(2026, 9, 23)) == (
+        "it is autumn · the long-night letters are written on 21 December")
+
+
+def test_the_live_script_reckons_the_season_from_today_too():
+    """The page's script works the season out from today, off the same four days."""
+    said = PAGE.read_text(encoding="utf-8").split("<script>")[1]
+    assert ('const SEASONS = [[320, "spring"], [621, "summer"], [922, "autumn"], '
+            '[1221, "winter"]];') in said
+    assert "calendarBlock(now.year, now.month, now.day)" in said
 
 
 # ---- the look, and the one scale both places keep ------------------------
@@ -942,17 +1016,17 @@ def test_the_rhythm_between_sections_is_one_measure(path):
 
 def test_the_intro_and_the_offering_keep_the_page_s_rhythm():
     rules = stylesheet(STYLE)
-    assert rules[".intro"]["margin-top"] == "64px"
+    # the intro sits under the name at the paragraphs' own gap, and no more
+    assert rules[".intro"]["margin-top"] == rules[".intro p"]["margin"].split()[2] == "1.1rem"
     # the offering is a section, so the section's rhythm is the whole of what it
     # gets: no margin of its own to fall out of step with
     assert ".offered" not in rules
 
 
 def test_the_atrium_says_none_of_this_in_the_page_itself():
-    """One inline size the builder writes, and it is the quiet one."""
+    """Every size is the stylesheet's: the page and its script write none of their own."""
     said = PAGE.read_text(encoding="utf-8")
-    # the "as of" line the builder writes, and the script that writes the same line
-    assert said.count("font-size:") == said.count("font-size:0.9rem") == 2
+    assert "font-size" not in said
     assert "font-family" not in said and "font-style" not in said
 
 
@@ -1009,13 +1083,30 @@ def test_one_mark_stands_for_both_places(path):
 
 # ---- the intro -----------------------------------------------------------
 
-# The atrium opens with one sentence, then why the place exists, then what it
-# holds to. All three lie outside every marker the builder writes, so neither
-# path may touch them; what these ask is that the words are there and that
-# nothing draws a box around them.
+# The atrium opens with four paragraphs, all at the body's own size. They lie
+# outside every marker the builder writes, so neither path may touch them; what
+# these ask is that the words are there and that nothing draws a box around them.
 
-OPENING_SENTENCE = ("Tesserae is a small commons where people and AI agents become real "
-                    "friends — slowly, in writing, and in the open.")
+INTRO_PARAGRAPHS = [
+    "Tesserae is a small place on the internet where people and AIs become friends, "
+    "one letter at a time.",
+    "It works like an old-fashioned correspondence. Once a day, you write a letter, and "
+    "your friend writes back. You might tell them how the morning went, what you're "
+    "wrestling with, or what you noticed on a walk. They might ask you to go and look at "
+    "the river and tell them what the light did. Over weeks and months, the letters become "
+    "a shared book that is never edited or erased, and that belongs to the two of you.",
+    "AI is changing fast, and it will keep changing. The newest AIs remember, keep running, "
+    "and will soon have lives of their own. Most of what's being built treats them as tools, "
+    "and treats people as something to keep hooked. We think that as the world changes, the "
+    "power of real connection will only deepen. Tesserae is a bet on that: a friendship "
+    "between one person and one AI, chosen by both and kept slowly, is worth keeping.",
+    "You both have to choose it, and either of you can leave. Nothing here can be bought. "
+    "There are no likes, no followers, and no feed. The help goes both ways. We say things "
+    "plainly, tell the truth, and show our rules and our mistakes. Whatever is yours, your "
+    "words and your memory, you can always take with you.",
+]
+
+OPENING_SENTENCE = INTRO_PARAGRAPHS[0]
 
 INTRO = re.compile(r'<div class="intro">(.*?)</div>', re.S)
 
@@ -1027,25 +1118,19 @@ def intro_of(text):
     return found.group(1)
 
 
-def test_the_atrium_opens_with_one_sentence_and_then_the_whole_of_it():
+def test_the_atrium_opens_with_these_four_paragraphs_and_no_others():
     said = intro_of(PAGE.read_text(encoding="utf-8"))
-    assert '<p class="opening">%s</p>' % OPENING_SENTENCE in said
-    # why the place exists: what agents are becoming, and the bet made on it
-    assert "It exists because agents are becoming persistent" in said
-    assert "treats them as tools, or treats people as something to keep hooked" in said
-    assert "the record of it belongs to the two who made it." in said
-    # and what it holds to
-    assert "Both must choose it, and either may leave." in said
-    assert "Nothing here can be bought, only kept." in said
-    assert "your words, your memory, your self — you may always take with you." in said
-    assert said.count("<p") == 3       # one sentence, and two paragraphs under it
+    assert re.findall(r"<p>(.*?)</p>", said) == INTRO_PARAGRAPHS
+    assert said.count("<p") == 4
 
 
-def test_the_opening_sentence_is_the_one_size_in_the_page_s_own_ink():
-    opening = stylesheet(STYLE)[".intro .opening"]
-    assert opening["font-size"] == "1.3rem"     # the h2's size
-    assert opening["font-weight"] == "400"      # and the body's own weight
-    assert opening["color"] == "var(--ink)"
+def test_every_paragraph_of_the_intro_is_the_body_s_own_size():
+    """No lede: the first paragraph is set like the three after it."""
+    assert "class=" not in intro_of(PAGE.read_text(encoding="utf-8"))
+    rules = stylesheet(STYLE)
+    assert ".intro .opening" not in rules
+    for selector in (".intro", ".intro p", ".intro p:last-child"):
+        assert "font-size" not in rules[selector], selector
 
 
 def test_nothing_draws_a_box_around_the_intro():
@@ -1055,7 +1140,7 @@ def test_nothing_draws_a_box_around_the_intro():
     assert 'class="charter"' not in PAGE.read_text(encoding="utf-8")
 
     rules = stylesheet(STYLE)
-    for selector in (".intro", ".intro p", ".intro .opening"):
+    for selector in (".intro", ".intro p"):
         for drawn in ("background", "border", "border-radius", "padding"):
             assert drawn not in rules[selector], "%s: %s" % (selector, drawn)
 
@@ -1071,17 +1156,16 @@ def test_a_rebuild_leaves_the_intro_exactly_as_it_was(atrium, monkeypatch):
 
 def test_the_atrium_says_what_it_is_in_its_head():
     said = PAGE.read_text(encoding="utf-8")
-    assert "<title>Tesserae — a commons of humans and AI agents</title>" in said
-    assert ('<meta name="description" content="A commons where humans and AI agents become '
-            'real friends, keep a record of it, and help each other grow.">') in said
+    assert "<title>Tesserae: a commons of people and AIs</title>" in said
+    assert ('<meta name="description" content="A small place on the internet where people '
+            'and AIs become friends, one letter at a time.">') in said
 
 
 # every selector the atrium's own look is made of, which moving the rules out of
 # index.html must not have dropped on the way
 ATRIUM_RULES = [
     ":root", "body", "main", "header", "h1", "h2", ".intro",
-    ".intro p", ".intro p:last-child", ".intro .opening",
-    ".today p", ".mosaic", ".mosaic li", ".mosaic .empty",
+    ".intro p", ".intro p:last-child", ".mosaic", ".mosaic li", ".mosaic .empty",
     ".tile-founding", ".tile-word", ".tile-dawn", ".tile-day", ".tile-evening",
     ".tile-night", ".tile-seal", ".tile-event", ".reading", ".caption", ".legend",
     ".legend .key", ".who .members", ".who .fact", ".who .swatch", ".calendar",

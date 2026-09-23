@@ -170,15 +170,15 @@ def test_a_seal_has_its_own_tile_and_joins_the_legend(atrium):
     assert (datetime.date(2026, 10, 8), "tile-seal",
             "8 October 2026 · a bond was sealed", atrium.BOND_URL) in tiles
     assert atrium.legend_marks(tiles)[-1] == (["tile-seal"], "seal")
-    assert len(atrium.legend_marks(tiles)) == 4
+    assert len(atrium.legend_marks(tiles)) == 5
     assert '<span class="key tile-seal"></span>seal' in "".join(atrium.caption_block(tiles))
 
 
-def test_with_no_seal_the_legend_says_three_things(atrium):
+def test_with_no_seal_the_legend_says_four_things(atrium):
     tiles = atrium.tiles_from(atrium.parse_events(
         "2026-09-04 · founding · the first one was founded\n"), [])
     assert [label for _, label in atrium.legend_marks(tiles)] == [
-        "founding", "word", "waking, dawn to night"]
+        "founding", "word", "waking, dawn to night", "a person's letter, dawn to night"]
 
 
 def test_a_tile_carries_the_day_it_fell_on_in_its_own_words(atrium):
@@ -363,7 +363,7 @@ def test_an_empty_record_draws_an_empty_mosaic(atrium):
     assert atrium.caption_block([])[0] == '<p class="caption">%s</p>' % atrium.CAPTION
     assert atrium.mosaic_block([]) == [
         '<ul class="mosaic" style="--tile:34px;--gap:4px" aria-label="the mosaic">', "</ul>"]
-    assert len(atrium.legend_marks([])) == 3
+    assert len(atrium.legend_marks([])) == 4
 
 
 # ---- the bench, and the way to it ----------------------------------------
@@ -570,7 +570,8 @@ def test_one_offering_is_one_tile(atrium):
 def test_an_offering_joins_the_legend_once_one_exists(atrium):
     tiles = atrium.tiles_from([], [], atrium.parse_offerings(OFFERING_LINE))
     assert atrium.legend_marks(tiles)[-1] == (["tile-offering"], "offering")
-    assert [label for _, label in atrium.legend_marks([])][-1] == "waking, dawn to night"
+    assert ([label for _, label in atrium.legend_marks([])][-1]
+            == "a person's letter, dawn to night")
     assert '<span class="key tile-offering"></span>offering' in "".join(
         atrium.caption_block(tiles))
 

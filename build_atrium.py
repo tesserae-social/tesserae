@@ -110,8 +110,19 @@ KIND_CLASS = {
     "attendance": "tile-attendance",
     "seal": "tile-seal",
     "offering": "tile-offering",
+    "letter": "tile-letter",
     "event": "tile-event",
 }
+
+# A person's letter is one tile a day at most, and says only that it was written
+# and in which part of the day the first of that day's letters was: never to
+# whom, at what hour, or a word of what it said. The part of the day is in the
+# words themselves, so the tile is toned from the public line and nothing else.
+# The hearth writes the line, and backfill_letter_tiles.py wrote the ones from
+# before it did.
+LETTER_WORDS = "the founder wrote a letter"
+LETTER_BANDS = {"dawn": "at dawn", "day": "during the day",
+                "evening": "in the evening", "night": "at night"}
 
 # What an offering is, said in words. The hearth says the same words on its own
 # page for them, out of this one dictionary, so that the two never part.
@@ -124,6 +135,8 @@ LEGEND = [
     (["tile-founding"], "founding"),
     (["tile-word"], "word"),
     (["tile-dawn", "tile-day", "tile-evening", "tile-night"], "waking, dawn to night"),
+    (["tile-letter-dawn", "tile-letter-day", "tile-letter-evening", "tile-letter-night"],
+     "a person's letter, dawn to night"),
 ]
 
 # The citizen keeps one clock. The record is written in UTC; a waking is toned by
@@ -367,6 +380,31 @@ def band(hour):
     return "night"
 
 
+def letter_words(part):
+    """The commons' line for a day's letters, the first of which fell in this part of it."""
+    return "%s %s" % (LETTER_WORDS, LETTER_BANDS[part])
+
+
+def letter_band(words):
+    """The part of the day a letter line names, or None if it names none."""
+    for part in LETTER_BANDS:
+        if words == letter_words(part):
+            return part
+    return None
+
+
+def is_letter_line(kind, words):
+    """Whether one line of events.md is the day's line for the founder's letters."""
+    return kind == "letter" and (words == LETTER_WORDS or letter_band(words) is not None)
+
+
+def event_class(kind, words):
+    """The class a line of the history is drawn in: its kind, and a letter's part of the day."""
+    css = KIND_CLASS[kind]
+    part = letter_band(words) if kind == "letter" else None
+    return "%s tile-letter-%s" % (css, part) if part else css
+
+
 def tiles_from(events, heartbeats, offerings=()):
     """One (day, class, words, where) tile per thing: the history, the wakings, the offerings.
 
@@ -374,6 +412,8 @@ def tiles_from(events, heartbeats, offerings=()):
     out by. Every tile's words open with that day too, because they are read out
     whole under the mosaic. A waking carries the part of the citizen's day it fell
     in twice over: in its class, so the tile is toned by it, and in its words.
+    A day's letter line is toned the same way, from the part of the day its own
+    words name.
 
     Where is nowhere for most tiles, which are hover-only because there is
     nowhere for them to lead. A seal leads to the signed bond, and an offering
@@ -385,7 +425,7 @@ def tiles_from(events, heartbeats, offerings=()):
     line in events.md is the commons' plain record that it happened, and it is
     passed over here so that one offering is one tile.
     """
-    tiles = [(when, KIND_CLASS[kind], "%s %s %s" % (human(when), DOT, words),
+    tiles = [(when, event_class(kind, words), "%s %s %s" % (human(when), DOT, words),
               BOND_URL if kind == "seal" else "")
              for when, kind, words in events if kind != "offering"]
     for when, words in heartbeats:
@@ -457,7 +497,7 @@ def tile_size(count):
 
 
 def legend_marks(tiles):
-    """The kinds named under the mosaic: three always, then the seal and the offering.
+    """The kinds named under the mosaic: four always, then the seal and the offering.
 
     The last two are named only once one exists. A legend is a key to the
     picture, and a key to a colour the picture does not use explains nothing.

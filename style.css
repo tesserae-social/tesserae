@@ -128,6 +128,17 @@
   .tile-night      { background: #B8471F; }
   .tile-seal       { background: #1D9E75; }  /* reserved: a bond sealed */
   .tile-event      { background: #B4B2A9; }
+  /* a person's letter, toned like a waking by the part of the day the first one
+     fell in, but in sand and stone rather than the waking's orange. Every one
+     carries a stone edge dark enough to stand off the paper (3.5:1 against it),
+     where the paler sands alone would all but vanish. */
+  .tile-letter,
+  .tile-letter-dawn,
+  .tile-letter-day,
+  .tile-letter-evening { background: #DDCDB0; border: 1px solid #97805A; }
+  .tile-letter-dawn    { background: #EEE5D5; }
+  .tile-letter-evening { background: #C4AE88; }
+  .tile-letter-night   { background: #97805A; border: 1px solid #6F5C3E; }
   /* an offering: the citizen's own hue, with a pale square set in the middle of
      it -- a third of the tile, whatever size the tile has shrunk to */
   .tile-offering   {

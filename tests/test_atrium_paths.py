@@ -350,6 +350,47 @@ def test_both_paths_agree_when_no_one_says_who_is_here(atrium, data_dir, monkeyp
     assert here["calendar"] == there["calendar"] != ""
 
 
+# ---- a person's letter, on both paths ------------------------------------
+
+LETTERS = ("2026-10-02 · letter · the founder wrote a letter at dawn\n"
+           "2026-10-03 · letter · the founder wrote a letter during the day\n"
+           "2026-10-04 · letter · the founder wrote a letter in the evening\n"
+           "2026-10-05 · letter · the founder wrote a letter at night\n"
+           "2026-10-06 · letter · the founder wrote a letter\n")   # a line naming no part
+
+
+def test_both_paths_draw_a_letter_toned_by_its_part_of_the_day(atrium, data_dir, monkeypatch,
+                                                                tmp_path):
+    a_record(data_dir)
+    with (data_dir / "commons" / "events.md").open("a", encoding="utf-8") as record:
+        record.write(LETTERS)
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    for name in REGIONS:
+        assert here[name] == there[name], name
+    for said in (here, there):
+        for day, part, words in [("2", "dawn", "at dawn"), ("3", "day", "during the day"),
+                                 ("4", "evening", "in the evening"), ("5", "night", "at night")]:
+            assert ('<li class="tile-letter tile-letter-%s" title="%s October 2026 · the founder '
+                    'wrote a letter %s" tabindex="0"></li>' % (part, day, words)) in said["mosaic"]
+        assert ('<li class="tile-letter" title="6 October 2026 · the founder wrote a letter" '
+                'tabindex="0"></li>') in said["mosaic"]
+        # named always, after the wakings; the seal this record holds follows it
+        assert ('<span class="key tile-letter-night"></span>a person\'s letter, dawn to night · '
+                '<span class="key tile-seal"></span>seal</p>') in said["caption"]
+
+
+def test_both_paths_read_out_a_letter_as_the_newest_tile(atrium, data_dir, monkeypatch,
+                                                         tmp_path):
+    for name in ("heartbeats.md", "bench.md", "members.md", "offerings.md"):
+        write(data_dir / "commons" / name, "")
+    write(data_dir / "commons" / "events.md",
+          "2026-10-15 · letter · the founder wrote a letter in the evening\n")
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here == there
+    assert here["reading"] == ('<p class="reading">15 October 2026 · the founder wrote '
+                               'a letter in the evening</p>')
+
+
 # ---- the offerings, on both paths ----------------------------------------
 
 def test_both_paths_show_the_newest_offering_and_no_other(atrium, data_dir, monkeypatch,

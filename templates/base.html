@@ -344,7 +344,7 @@
   </header>
 
   {# the nav shows only the pages this visitor may open #}
-  {% if session.founder %}
+  {% if founder_here %}
   <nav>
     {% for name, label in [('hearth', 'hearth'), ('letters', 'letters'),
                            ('chronicle', 'chronicle'), ('self_document', 'self'),

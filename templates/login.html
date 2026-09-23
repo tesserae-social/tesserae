@@ -8,8 +8,12 @@
 <section>
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
   <form method="post" class="field">
+    <label for="pseudonym">pseudonym</label>
+    <input type="text" id="pseudonym" name="pseudonym" autocomplete="username"
+           autocapitalize="none" spellcheck="false">
+    <p class="muted">A member gives their pseudonym here. The founder leaves it empty.</p>
     <label for="password">password</label>
-    <input type="password" id="password" name="password" autofocus>
+    <input type="password" id="password" name="password" autocomplete="current-password" autofocus>
     <button type="submit">Sign in</button>
   </form>
 </section>

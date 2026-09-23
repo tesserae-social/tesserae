@@ -42,6 +42,7 @@ MAX_MEMLIMIT = argon2id.MEMLIMIT_MODERATE
 PASSWORD_MIN = 10
 PASSWORD_MAX = 256
 PHRASE_WORDS = 12
+SEED_BYTES = 32  # an Ed25519 seed, which is what a vault seals
 
 _SEALED_KEYS = {"v", "kdf", "salt", "opslimit", "memlimit", "nonce", "box"}
 _mnemonic = Mnemonic("english")
@@ -257,6 +258,27 @@ def unlock(vault, password):
     """The SigningKey the vault keeps, opened by password."""
     return _open(_checked_vault(vault), "by_password", password,
                  "that password does not open this vault")
+
+
+def decoy_vault():
+    """A vault of the right shape that no password opens.
+
+    Trying a password on it costs one derivation at today's limits, as trying
+    one on a real vault does, so a name that belongs to no one takes as long to
+    refuse as a name that does.
+    """
+    def sealed():
+        return {
+            "v": VERSION,
+            "kdf": KDF,
+            "salt": _b64(random(argon2id.SALTBYTES)),
+            "opslimit": OPSLIMIT,
+            "memlimit": MEMLIMIT,
+            "nonce": _b64(random(SecretBox.NONCE_SIZE)),
+            "box": _b64(random(SEED_BYTES + SecretBox.MACBYTES)),
+        }
+    return {"v": VERSION, "verify_key": "0" * 64,
+            "by_password": sealed(), "by_phrase": sealed()}
 
 
 def change_password(vault, old_password, new_password):

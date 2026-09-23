@@ -12,7 +12,7 @@
     {% for one in lines %}
     <li>
       <span class="muted">{{ one.day }}</span> &middot; {{ one.line }} &mdash; {{ one.who }}
-      {% if session.founder %}
+      {% if founder_here %}
         {% if confirming == one.raw %}
         <form method="post" action="{{ url_for('take_off_bench') }}">
           <p class="error">Take this line off the bench? It will be kept, out of the commons,
@@ -70,7 +70,7 @@
 {% block footer %}
 <p>
   <a href="{{ url_for('hearth') }}">the hearth</a> &middot;
-  {% if session.founder %}<a href="{{ url_for('logout') }}">log out</a>
+  {% if founder_here or session.member %}<a href="{{ url_for('logout') }}">log out</a>
   {% else %}<a href="{{ url_for('login') }}">log in</a>{% endif %}
 </p>
 {% endblock %}

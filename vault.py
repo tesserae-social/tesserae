@@ -13,10 +13,13 @@ and no error raised here carries a password, a phrase or a key.
     signing_key = unlock(vault, password)
     vault = change_password(vault, old_password, new_password)
     vault = recover(vault, phrase, new_password)
+    check_phrase(phrase)
+    fingerprint(vault)
 """
 
 import base64
 import binascii
+import hashlib
 
 from mnemonic import Mnemonic
 from nacl.exceptions import CryptoError
@@ -185,6 +188,14 @@ def _checked_phrase(phrase):
     return phrase
 
 
+def check_phrase(phrase):
+    """Raise VaultError unless phrase is twelve words whose checksum holds.
+
+    Nothing is derived: this says only whether the words could be anyone's.
+    """
+    _checked_phrase(phrase)
+
+
 # ---------------------------------------------------------------- passwords
 
 
@@ -279,6 +290,21 @@ def decoy_vault():
         }
     return {"v": VERSION, "verify_key": "0" * 64,
             "by_password": sealed(), "by_phrase": sealed()}
+
+
+def fingerprint(vault):
+    """Sixteen hex characters that change whenever the vault is sealed again.
+
+    Taken from the password copy's box, which a new seal always changes; it
+    says nothing of the key or the password. None for a vault of the wrong shape.
+    """
+    try:
+        box = _checked_vault(vault)["by_password"]["box"]
+    except (VaultError, KeyError, TypeError):
+        return None
+    if not isinstance(box, str):
+        return None
+    return hashlib.sha256(box.encode("ascii", "replace")).hexdigest()[:16]
 
 
 def change_password(vault, old_password, new_password):

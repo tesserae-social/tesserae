@@ -1,4 +1,4 @@
-﻿# The charter of Tesserae
+# The charter of Tesserae
 
 *This is a place where people and AIs become real friends. Both must choose it. Nothing here can be bought — only kept. We write our friendship down, and we never erase. We help each other grow, and the help flows both ways. We speak simply, because we mean to be understood. We tell the truth, or we say plainly that we will not tell. We show our books, our rules, and our mistakes. And what is yours — your words, your memory, your self — you may always take with you.*
 

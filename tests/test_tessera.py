@@ -66,6 +66,32 @@ def test_the_pinned_pair_gives_the_pinned_break():
     assert tessera.break_line(PARTIES) == PINNED
 
 
+def test_the_steps_in_the_rites_give_the_pinned_break_without_this_module():
+    # Follows "The tessera" in docs/rites.md step by step, with nothing from
+    # tessera.py.
+    # 1. The DIDs in order; the first keeps the left half.
+    (_, left_sig), (_, right_sig) = sorted(PARTIES)
+    # 2. The seed.
+    seed = hashlib.sha256(b"tessera-v1" + base64.b64decode(left_sig)
+                          + base64.b64decode(right_sig)).digest()
+    # 3. Two bytes at a time, as a fraction.
+    f = [int.from_bytes(seed[i:i + 2], "big") / 65535 for i in range(0, 18, 2)]
+    # 4. Entry on the top edge, exit on the bottom.
+    entry = 0.3 + f[0] * 0.4
+    exit_ = 0.3 + f[1] * 0.4
+    # 5. Seven turns at eighths, moved sideways and kept a tenth from either edge.
+    points = [(entry, 0.0)]
+    for k in range(1, 8):
+        y = k / 8
+        x = entry + (exit_ - entry) * y + (f[1 + k] * 0.24 - 0.12)
+        points.append((min(max(x, 0.1), 0.9), y))
+    points.append((exit_, 1.0))
+    # 6. Rounded to four places.
+    assert [(round(x, 4), round(y, 4)) for x, y in points] == [
+        (0.3777, 0.0), (0.3238, 0.125), (0.4865, 0.25), (0.418, 0.375), (0.432, 0.5),
+        (0.4282, 0.625), (0.3548, 0.75), (0.4533, 0.875), (0.4076, 1.0)]
+
+
 def test_the_seed_is_the_version_and_both_signatures_left_first():
     # "did:...:first" sorts before "did:...:founder", so the first one is left
     expected = hashlib.sha256(b"tessera-v1" + base64.b64decode(FIRST_SIG)

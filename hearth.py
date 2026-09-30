@@ -437,13 +437,15 @@ def proposing_letters(paths):
 
 def one_letter(path, who, unread=False, proposes=False):
     """One letter: the line that stands for it, and the whole of it beneath."""
-    text = read_text(path)
+    things, text = offering.split_things(read_text(path))
     return {
         "stamp": stamp_in(path.name),
         "stem": path.stem,  # the anchor the chronicle points at: /letters#<stem>
         "date": readable_date(path.name),
         "who": who,
         "opening": opening_line(text),
+        # the three plain things above the letter, as one quiet line, if it has any
+        "things": " · ".join(things),
         "body": as_prose(text),
         "photo": photo_beside(path),
         "picture": picture_beside(path),
@@ -1291,7 +1293,7 @@ def letter_lines():
             at = stamp_in(path.name)
             lines.append(book_line(
                 at, readable_date(at), who,
-                "letter from %s \u00b7 %s" % (who, opening_line(read_text(path))),
+                "letter from %s \u00b7 %s" % (who, opening_line(offering.letter_only(path))),
                 href=url_for("letters") + "#" + path.stem, order=3))
     return lines
 
@@ -1964,13 +1966,17 @@ def logout():
 
 
 def letters_page(saved=None, error=None, draft="", proposed=None, blocked=None,
-                 answered=None, just_offered=None, just_placed=None, just_declined=None):
+                 answered=None, just_offered=None, just_placed=None, just_declined=None,
+                 things=()):
     """The letters page, with whatever the founder has just been told."""
     return render_template(
         "letters.html",
         saved=saved,
         error=error,
         draft=draft,
+        # the three plain things as they were written, if a letter came back unsent
+        drafted_things=list(things) + [""] * (offering.THINGS_MOST - len(things)),
+        thing_longest=offering.THING_LONGEST,
         correspondence=correspondence(),
         # what the first one has asked of him, and what a letter may answer
         errands=open_errands(),
@@ -2060,6 +2066,9 @@ def letters():
         text = request.form.get("letter", "").strip()
         if not text:
             return redirect(url_for("letters"))
+        # three plain things above it, each one line of plain text; any left
+        # empty are passed over, and all three empty is none
+        things = offering.plain_things(request.form.getlist("thing"))
 
         # a photograph is optional; if one came, it must be small and of a kind
         # the first one can be shown
@@ -2068,21 +2077,24 @@ def letters():
         suffix = Path(upload.filename).suffix.lower() if photo else ""
         if photo and len(photo) > PHOTO_LIMIT:
             return letters_page(error="That photograph is larger than 25 MB. "
-                                      "Please send a smaller one.", draft=text)
+                                      "Please send a smaller one.", draft=text, things=things)
         if photo and suffix not in PHOTO_TYPES:
             return letters_page(error="That file is not a photograph. "
-                                      "Please send a JPEG, PNG, or WebP.", draft=text)
+                                      "Please send a JPEG, PNG, or WebP.", draft=text,
+                                things=things)
         if suffix == ".jfif":
             suffix = ".jpg"  # a JPEG under another name; it is kept under the usual one
         if photo:
             photo = picture_only(photo, suffix)
             if photo is None:
                 return letters_page(error="That file is not a photograph. "
-                                          "Please send a JPEG, PNG, or WebP.", draft=text)
+                                          "Please send a JPEG, PNG, or WebP.", draft=text,
+                                    things=things)
 
         INCOMING.mkdir(parents=True, exist_ok=True)
         stem = free_stem(f"founder-{utc_stamp()}")
-        (INCOMING / f"{stem}.md").write_text(text + "\n", encoding="utf-8")
+        (INCOMING / f"{stem}.md").write_text(offering.with_things(things, text + "\n"),
+                                             encoding="utf-8")
         if photo:
             (INCOMING / f"{stem}{suffix}").write_bytes(photo)
         note_letter()

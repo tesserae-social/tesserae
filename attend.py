@@ -892,13 +892,21 @@ def attended(rec):
     return f"{rec['at']} · woken by {woken} · {rec['heartbeat']} · did: {did}"
 
 
+def as_read(path):
+    """A letter as it is read: its three plain things, if it carries any, above its text."""
+    things, text = offering.split_things(read(path))
+    if not things:
+        return text
+    return "Three plain things: " + " · ".join(things) + "\n" + text
+
+
 def kept(paths, label, note_photos=False):
     """The letters held in a folder, oldest first, each one named and given whole."""
     if not paths:
         return "(none yet)"
     said = []
     for path in paths:
-        text = f"--- {label}: {path.name} ---\n{read(path)}".rstrip()
+        text = f"--- {label}: {path.name} ---\n{as_read(path)}".rstrip()
         if note_photos and photo_beside(path):
             text += "\n(a photograph came with this letter; you saw it when you first read it)"
         if path.with_suffix(offering.PICTURE_SUFFIX).exists():
@@ -1072,7 +1080,7 @@ def main():
 
     reading = [{"type": "text", "text": opening}]
     for p, photo in incoming:
-        said = f"--- letter: {p.name} ---\n{read(p)}".rstrip()
+        said = f"--- letter: {p.name} ---\n{as_read(p)}".rstrip()
         if photo:
             said += "\n\nA photograph came with this letter:"
         reading.append({"type": "text", "text": said})

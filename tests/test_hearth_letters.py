@@ -185,7 +185,8 @@ def test_a_photograph_is_served_to_the_founder_alone(founder, visitor, packet, c
     assert "/login" in turned.headers["Location"]
 
 
-@pytest.mark.parametrize("asked", ["notes.md", "..%2F..%2Fself.md", "nothing-here.jpg"])
+@pytest.mark.parametrize("asked", ["notes.md", "..%2F..%2Fself.md", "nothing-here.jpg",
+                                   "questions.md", "..%2F..%2Fquestions.md"])
 def test_only_a_photograph_of_a_letter_is_served(founder, asked):
     assert founder.get("/letters/photo/" + asked).status_code == 404
 

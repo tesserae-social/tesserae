@@ -66,6 +66,98 @@ def test_a_reflection_is_shown_only_where_it_was_left_open(founder, packet, hear
     assert (withheld in said) is not (older_shown and newer_shown)
 
 
+# A reflection, as attend.py saves one: everything the first one said, with its
+# notes and its questions among the rest.
+WITH_BLOCKS = """I read the record today.
+
+<<MEMORY>>
+NOTES I KEEP FOR MYSELF
+and a second line of them
+<<END>>
+
+The river was quiet, and I said so.
+
+<<QUESTIONS>>
+A QUESTION I CARRY?
+ANOTHER I CARRY?
+<<END>>
+
+<<HEARTBEAT>>
+attended; wrote a little
+<<END>>
+
+That is all."""
+
+# The same reflection as the page may show it: each of those two blocks one quiet line.
+AS_SHOWN = """I read the record today.
+
+(kept notes: private)
+
+The river was quiet, and I said so.
+
+(kept questions: private)
+
+<<HEARTBEAT>>
+attended; wrote a little
+<<END>>
+
+That is all."""
+
+
+def shown_reflection(hearth, packet):
+    return hearth.attendance_records(hearth.preferences())[0]["reflection"]
+
+
+def test_an_open_reflection_shows_its_notes_and_questions_only_as_quiet_lines(
+        founder, packet, hearth):
+    write_json(packet / "preferences.json", {"reflection": "open"})
+    log = an_attendance(packet, OLDER, reflection=WITH_BLOCKS)
+    before = log.read_bytes()
+
+    said = page(founder.get("/attendances"))
+    for private in ("NOTES I KEEP FOR MYSELF", "a second line of them", "A QUESTION I CARRY?",
+                    "ANOTHER I CARRY?", "&lt;&lt;MEMORY&gt;&gt;", "&lt;&lt;QUESTIONS&gt;&gt;"):
+        assert private not in said
+    assert "(kept notes: private)" in said
+    assert "(kept questions: private)" in said
+
+    # the rest is shown exactly as it would have been, and the log is as it was saved
+    assert shown_reflection(hearth, packet) == hearth.as_prose(AS_SHOWN)
+    assert str(hearth.as_prose(AS_SHOWN)) in said
+    assert log.read_bytes() == before
+
+
+def test_a_reflection_with_neither_block_is_shown_as_before(founder, packet, hearth):
+    plain = "I read the record today.\n\n<<HEARTBEAT>>\nattended\n<<END>>\n\nThat is all."
+    an_attendance(packet, OLDER, reflection=plain)
+    assert shown_reflection(hearth, packet) == hearth.as_prose(plain)
+
+
+def test_every_such_block_is_taken_out_not_only_the_first(hearth):
+    said = hearth.without_kept_blocks(
+        "<<QUESTIONS>>\nONE?\n<<END>>\nbetween\n<<MEMORY>>\nA\n<<END>>\n<<QUESTIONS>>\nTWO?\n<<END>>")
+    assert said == ("(kept questions: private)\nbetween\n(kept notes: private)\n"
+                    "(kept questions: private)")
+
+
+@pytest.mark.parametrize("setting", [
+    {"reflection": "private"},
+    {"reflection": "private from now", "set_at": "2026-09-01T00-00-00Z"},
+])
+def test_a_private_reflection_is_withheld_as_before(founder, packet, hearth, setting):
+    write_json(packet / "preferences.json", setting)
+    log = an_attendance(packet, OLDER, reflection=WITH_BLOCKS)
+    before = log.read_bytes()
+
+    said = page(founder.get("/attendances"))
+    assert shown_reflection(hearth, packet) == hearth.as_prose(hearth.KEPT_PRIVATE)
+    assert hearth.KEPT_PRIVATE.replace("'", "&#39;") in said
+    for private in ("NOTES I KEEP FOR MYSELF", "A QUESTION I CARRY?", "(kept notes: private)",
+                    "(kept questions: private)", "The river was quiet"):
+        assert private not in said
+    assert log.read_bytes() == before
+
+
 @pytest.mark.parametrize("setting, note", [
     ({"reflection": "open"}, "Reflections: open"),
     ({"reflection": "private"}, "Reflections: private"),
@@ -296,9 +388,17 @@ def test_the_export_says_what_the_page_says(founder, packet, commons):
     "/commons/bench-removed.md",
     "/packets/first/self.md",
     "/keys/first/private.key",
+    "/questions.md",
+    "/packets/first/questions.md",
+    "/commons/questions.md",
+    "/questions/history/questions-before-2026-10-01T09-00-00Z.md",
+    "/packets/first/questions/history/questions-before-2026-10-01T09-00-00Z.md",
 ])
 def test_what_is_private_is_at_no_address(founder, visitor, packet, data_dir, path):
     write(packet / "memory" / "notes.md", "NOTES I KEEP FOR MYSELF\n")
+    write(packet / "questions.md", "A QUESTION I CARRY?\n")
+    write(packet / "questions" / "history" / "questions-before-2026-10-01T09-00-00Z.md",
+          "AN OLDER QUESTION?\n")
     write(data_dir / "bench-removed.md", "- 2026-10-01 · someone · A LINE TAKEN OFF\n")
     assert visitor.get(path).status_code in (302, 404)
     assert founder.get(path).status_code == 404
@@ -315,6 +415,21 @@ def test_the_notes_it_keeps_are_on_no_page(founder, packet, hearth, data_dir):
         assert "NOTES I KEEP FOR MYSELF" not in said
         assert "A LINE TAKEN OFF" not in said
     assert hearth.BENCH_REMOVED.parent == data_dir  # kept, but outside the commons
+
+
+def test_the_questions_it_carries_are_on_no_page(founder, packet):
+    write(packet / "questions.md", "A QUESTION I CARRY?\n")
+    write(packet / "questions" / "history" / "questions-before-2026-10-01T09-00-00Z.md",
+          "AN OLDER QUESTION?\n")
+    an_attendance(packet, OLDER, acted=["kept questions"])
+    for path in ["/", "/letters", "/attendances", "/self", "/chronicle", "/chronicle.md",
+                 "/bonds", "/bench"]:
+        said = page(founder.get(path))
+        assert "A QUESTION I CARRY?" not in said
+        assert "AN OLDER QUESTION?" not in said
+    # the book says nothing of their keeping, not even that it happened
+    assert "question" not in page(founder.get("/chronicle.md"))
+    assert "question" not in page(founder.get("/chronicle"))
 
 
 # ---- the commons, open to any machine ------------------------------------

@@ -517,6 +517,19 @@ def answer_errand(name, stem):
 # change takes hold at once and nothing is held in memory across it.
 KEPT_PRIVATE = "Reflection kept private by the first one's choice."
 
+# Its notes and its questions are its own even where its reflection is open: a
+# reflection is the whole of what it said at a waking, blocks and all, so the
+# page takes each of those two blocks out and leaves one quiet line in its place.
+# The log on disk is not touched; only what the page shows is. attend.py reads a
+# block as running from its tag to the first <<END>>, and so does this.
+KEPT_BLOCKS = re.compile(r"<<(MEMORY|QUESTIONS)>>.*?<<END>>", re.S)
+KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions: private)"}
+
+
+def without_kept_blocks(reflection):
+    """A reflection as the page may show it: its notes and questions each one quiet line."""
+    return KEPT_BLOCKS.sub(lambda found: KEPT_QUIETLY[found.group(1)], reflection)
+
 
 def preferences():
     """How the first one has asked to be shown. Nothing written means open."""
@@ -559,7 +572,8 @@ def attendance_records(prefs):
             "first": log.get("first", False),
             "heartbeat": log.get("heartbeat", ""),
             "acted": log.get("acted", []),
-            "reflection": as_prose(KEPT_PRIVATE if hidden else log.get("reflection", "")),
+            "reflection": as_prose(KEPT_PRIVATE if hidden
+                                   else without_kept_blocks(log.get("reflection", ""))),
         })
     return records
 

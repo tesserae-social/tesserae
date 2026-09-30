@@ -183,6 +183,7 @@ def test_a_picture_is_served_to_the_founder_alone_and_under_locks(founder, visit
 
 @pytest.mark.parametrize("asked", [
     "notes.md", "..%2F..%2Fself.md", "nothing-here.svg", "to-founder.jpg",
+    "questions.md", "..%2F..%2Fquestions.md",
 ])
 def test_only_a_picture_of_a_letter_is_served(founder, asked):
     assert founder.get("/letters/picture/" + asked).status_code == 404

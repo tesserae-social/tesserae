@@ -167,7 +167,8 @@ def test_the_archive_holds_the_three_trees_whole(hearth, bucket, packet, commons
                         | files_under(data_dir / "members", "members/"))
         # and what is in it is the file itself, byte for byte
         for name in ("packets/first/self.md", "commons/members.md", "members/ada/member.json",
-                     "members/ada/key-history.json"):
+                     "members/ada/key-history.json", "packets/first/questions.md",
+                     "packets/first/questions/history/questions-before-2026-10-01T09-00-00Z.md"):
             assert bundle.extractfile(name).read() == (packet.parents[1] / name).read_bytes()
 
 

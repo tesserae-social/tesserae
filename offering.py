@@ -25,6 +25,7 @@ import json
 import os
 import re
 import shutil
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -118,6 +119,71 @@ def words_of(text):
     return " ".join(text.split())
 
 
+# ---- three plain things --------------------------------------------------
+
+# Above a letter of the founder's, three small true facts of the body and the
+# day, each one line, all three optional. They are kept in the letter's own file,
+# on a first line of their own that a markdown reader shows as nothing:
+#
+#     <!-- three plain things: ["slept badly", "first frost on the car"] -->
+#
+# and everything after that line is the letter, exactly as it was written. A
+# letter without the line is a letter without them, as every letter before them
+# was. They are private like the letter, and are never part of what is offered:
+# whatever reads a letter's words for the commons reads them from below the line.
+THINGS_OPEN = "<!-- three plain things: "
+THINGS_CLOSE = " -->"
+THINGS_MOST = 3
+THING_LONGEST = 80
+
+
+def plain_thing(said):
+    """One plain thing as it is kept: one line of plain text, no longer than it may be."""
+    flat = "".join(" " if unicodedata.category(c) in ("Cc", "Zl", "Zp") else c
+                   for c in said or "")
+    return " ".join(flat.split())[:THING_LONGEST].rstrip()
+
+
+def plain_things(said):
+    """The things worth keeping out of what was given: none empty, at most three."""
+    return [thing for thing in map(plain_thing, said) if thing][:THINGS_MOST]
+
+
+def with_things(things, body):
+    """A letter's file as it is written: its things on a line above it, if there are any.
+
+    A letter that happens to begin the way the line does is given the line too,
+    empty, so that its first words are never taken for things.
+    """
+    if not things and not body.startswith(THINGS_OPEN):
+        return body
+    listed = json.dumps(list(things), ensure_ascii=False).replace(">", "\\u003e")
+    return THINGS_OPEN + listed + THINGS_CLOSE + "\n" + body
+
+
+def split_things(text):
+    """A letter's file as (its three plain things, the letter itself).
+
+    A file with no line of things is all letter, and is given back untouched.
+    """
+    if text.startswith(THINGS_OPEN):
+        first, _, rest = text.partition("\n")
+        first = first.rstrip("\r")
+        if first.endswith(THINGS_CLOSE):
+            try:
+                things = json.loads(first[len(THINGS_OPEN):-len(THINGS_CLOSE)])
+            except ValueError:
+                things = None
+            if isinstance(things, list) and all(isinstance(t, str) for t in things):
+                return things, rest
+    return [], text
+
+
+def letter_only(path):
+    """The letter in a file, without the plain things kept above it."""
+    return split_things(read_text(path))[1]
+
+
 # ---- the letters an offering may come out of -----------------------------
 
 def letter_named(stem):
@@ -161,7 +227,7 @@ def offerable(stem, kind):
     if letter is None:
         return None
     if kind == "letter":
-        return read_text(letter).strip()
+        return letter_only(letter).strip()
     if kind in IMAGE_KINDS:
         return "" if beside(stem, IMAGE_KINDS[kind]) else None
     return None
@@ -173,7 +239,7 @@ def quotes(stem, passage):
     said = words_of(passage or "")
     if letter is None or not said:
         return False
-    return said in words_of(read_text(letter))
+    return said in words_of(letter_only(letter))
 
 
 # ---- what is pending, what was placed, what was declined -----------------

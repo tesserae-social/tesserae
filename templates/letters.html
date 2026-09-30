@@ -80,6 +80,13 @@
   {% endif %}
   <form method="post" class="field" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {# three small true facts of the body and the day, above the letter; private like it #}
+    <label for="thing-1">three plain things (optional)</label>
+    {% for thing in drafted_things %}
+    <input type="text" class="thing" id="thing-{{ loop.index }}" name="thing"
+           maxlength="{{ thing_longest }}" value="{{ thing }}"
+           {%- if loop.first %} placeholder="slept badly"{% endif %}>
+    {% endfor %}
     <label for="letter">It will be read at the next attendance, then kept.</label>
     <textarea id="letter" name="letter">{{ draft }}</textarea>
     <label for="photo">You may send one photograph with it: JPEG, PNG or WebP, up to 25 MB.
@@ -158,6 +165,7 @@
         {{ letter.who }} · {{ letter.opening }}{% if letter.unread %}<span class="mark"> ·
         waiting to be read</span>{% endif %}{% if letter.proposes %}<span class="mark"> ·
         proposes a bond</span>{% endif %}</summary>
+      {% if letter.things %}<p class="muted things">{{ letter.things }}</p>{% endif %}
       <div class="words">{{ letter.body }}</div>
       {% if letter.photo %}
       <img class="photo" src="{{ url_for('letter_photo', filename=letter.photo) }}"

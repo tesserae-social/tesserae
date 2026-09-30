@@ -5,12 +5,15 @@ the Anthropic client stubbed to say whatever the test wants said. Nothing goes
 out; nothing real is written.
 """
 
+import importlib.util
 import json
+import subprocess
+import sys
 
 import pytest
 from nacl.exceptions import BadSignatureError
 
-from conftest import (block, blocks, lines_of, read_json, verify, write,
+from conftest import (REPO, Turn, block, blocks, lines_of, read_json, verify, write,
                       write_json)
 
 SECTIONS = [
@@ -223,6 +226,189 @@ def test_memory_block_keeps_notes_and_never_erases(wake, packet, attend):
     assert "First:" in kept[0].read_text(encoding="utf-8")
     assert "Second:" in (packet / "memory" / "notes.md").read_text(encoding="utf-8")
     assert acts(packet) == [attend.MEMORY_ACT]
+
+
+# ---- questions carried forward -------------------------------------------
+
+def questions_kept(packet):
+    return (packet / "questions.md").read_text(encoding="utf-8")
+
+
+def questions_before(packet):
+    return sorted((packet / "questions" / "history").glob("questions-before-*.md"))
+
+
+def happened(turn):
+    """The lines of WHAT HAS HAPPENED, as the reading gives them."""
+    section = turn.opening.split("=== WHAT HAS HAPPENED ===\n", 1)[1]
+    return section.split("\n\n=== ", 1)[0].splitlines()
+
+
+def test_the_questions_block_is_read_as_one_question_to_a_line(attend):
+    kept, dropped = attend.questions_asked("What is rest?\n\n  Who reads the commons?  \n")
+    assert kept == ["What is rest?", "Who reads the commons?"]
+    assert dropped == []
+
+
+def test_questions_block_keeps_the_list(wake, packet, attend, clock):
+    wake(block("QUESTIONS", "What is the light doing?\nWho reads the commons?"))
+    assert questions_kept(packet) == "What is the light doing?\nWho reads the commons?\n"
+    assert not questions_before(packet)  # nothing stood before, so nothing is kept aside
+    assert acts(packet) == [attend.QUESTIONS_ACT]
+
+
+def test_a_new_list_replaces_the_old_and_the_old_is_kept(wake, packet, clock):
+    wake(block("QUESTIONS", "What is the light doing?"))
+    at = clock.stamp()
+    wake(block("QUESTIONS", "What did the river say?"))
+    assert questions_kept(packet) == "What did the river say?\n"
+    assert [p.name for p in questions_before(packet)] == ["questions-before-%s.md" % at]
+    assert questions_before(packet)[0].read_text(encoding="utf-8") == "What is the light doing?\n"
+
+
+def test_an_empty_block_clears_the_list_and_keeps_the_history(wake, packet, attend):
+    wake(block("QUESTIONS", "What is the light doing?"))
+    wake("<<QUESTIONS>>\n<<END>>")
+    assert questions_kept(packet) == ""
+    kept = questions_before(packet)
+    assert len(kept) == 1
+    assert kept[0].read_text(encoding="utf-8") == "What is the light doing?\n"
+    assert acts(packet) == [attend.QUESTIONS_ACT]
+    assert attend.NO_QUESTIONS in wake().opening
+
+
+def test_no_block_leaves_the_list_as_it_stands(wake, packet):
+    wake(block("QUESTIONS", "What is the light doing?"))
+    wake(block("STUDY", "A draft."))
+    assert questions_kept(packet) == "What is the light doing?\n"
+    assert len(questions_before(packet)) == 0
+
+
+def test_blank_lines_are_not_questions(wake, packet):
+    wake(block("QUESTIONS", "\n".join(["One?", "", "   ", "Two?"] + [""] * 10)))
+    assert questions_kept(packet) == "One?\nTwo?\n"
+    assert "Not all of what you gave" not in wake().opening
+
+
+def test_past_the_limits_is_dropped_and_the_next_reading_says_what(wake, packet, attend):
+    long_one = "Why " + "a" * 250 + "?"  # 255 characters
+    given = ["Q%d?" % n for n in range(1, 10)]  # nine questions
+    given[2] = long_one
+    wake(block("QUESTIONS", "\n".join(given)))
+
+    kept = questions_kept(packet).splitlines()
+    assert len(kept) == 7
+    assert kept[2] == long_one[:240]
+    assert kept[6] == "Q7?"
+    assert all(len(q) <= 240 for q in kept)
+
+    said = happened(wake())
+    note = said.index(attend.QUESTIONS_DROPPED.format(most=7, longest=240))
+    assert said[note + 1:note + 4] == [
+        "- question 3, after its 240th character: \"%s\"" % long_one[240:],
+        "- question 8, whole: \"Q8?\"",
+        "- question 9, whole: \"Q9?\"",
+    ]
+    # and it is said once, at the reading after the dropping, not again
+    assert not any("Not all of what you gave" in line for line in happened(wake()))
+
+
+def test_the_list_is_read_directly_after_the_count_of_wakings(wake, packet, attend):
+    write(packet / "questions.md", "What is the light doing?\nWho reads the commons?\n")
+    turn = wake()
+    said = happened(turn)
+    assert said[0] == "You have not attended before. This is your first waking."
+    assert said[1:4] == [attend.QUESTIONS_HEADING, "What is the light doing?",
+                         "Who reads the commons?"]
+    assert said[4] == attend.WOKEN_BY_FOUNDER
+    assert turn.opening.index("Who reads the commons?") < turn.opening.index(
+        "=== LETTERS YOU HAVE WRITTEN ===")
+
+
+def test_no_list_is_one_line_directly_after_the_count_of_wakings(wake, attend):
+    wake()
+    said = happened(wake())
+    assert said[0].startswith("This is your second waking.")
+    assert said[1] == attend.NO_QUESTIONS
+    assert said[2] == attend.WOKEN_BY_FOUNDER
+
+
+def test_an_empty_file_reads_as_no_list(wake, packet, attend):
+    write(packet / "questions.md", "\n\n")
+    assert happened(wake())[1] == attend.NO_QUESTIONS
+
+
+def test_the_questions_block_is_explained_beside_the_memory_block(wake):
+    said = wake().instructions
+    assert ("<<QUESTIONS>>\n(the full new list of the questions you carry forward, one per "
+            "line; at most 7, each at most 240 characters. It is private, not shown on the "
+            "hearth. The previous list is kept, never erased; an empty block clears the "
+            "list.)\n<<END>>") in said
+    assert said.index("<<MEMORY>>") < said.index("<<QUESTIONS>>") < said.index("<<LETTER>>")
+
+
+def test_keeping_questions_is_private(wake, commons, attend, packet):
+    """In no automatic heartbeat, and never an event."""
+    events = lines_of(commons / "events.md")
+    wake(block("QUESTIONS", "WHAT I AM STILL ASKING?"))
+    assert attend.QUESTIONS_ACT in attend.PRIVATE_ACTS
+    assert lines_of(commons / "heartbeats.md")[-1].endswith("the first one · attended")
+    assert lines_of(commons / "events.md") == events
+    for path in commons.rglob("*"):
+        if path.is_file():
+            assert "WHAT I AM STILL ASKING" not in path.read_text(encoding="utf-8")
+            assert "question" not in path.read_text(encoding="utf-8")
+
+
+def test_keeping_questions_is_in_no_line_of_the_chronicle(wake, hearth):
+    wake(block("QUESTIONS", "WHAT I AM STILL ASKING?"))
+    assert "kept questions" not in hearth.BOOK_ACTS
+    with hearth.app.test_request_context():
+        book = hearth.chronicle_text(hearth.chronicle_lines())
+    assert book  # the waking itself is in the book
+    assert "question" not in book.lower()
+    assert "WHAT I AM STILL ASKING" not in book
+
+
+# The last attend.py before there were questions to carry, kept in the history.
+BEFORE_QUESTIONS = "199f1fa"
+
+
+def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
+        wake, attend, packet, clock, monkeypatch, tmp_path):
+    """The reading as the attend.py before questions gave it, and as this one does."""
+    try:
+        source = subprocess.run(["git", "show", BEFORE_QUESTIONS + ":attend.py"], cwd=REPO,
+                                capture_output=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        pytest.skip("the history is not here to read the old attend.py out of")
+    old_path = tmp_path / "attend_before_questions.py"
+    old_path.write_bytes(source)
+    spec = importlib.util.spec_from_file_location("attend_before_questions", old_path)
+    old = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(old)
+    clock.pin(old, monkeypatch)
+
+    then = Turn("")
+    monkeypatch.setattr(old, "Anthropic", then.client)
+    monkeypatch.setattr(sys, "argv", ["attend.py"])
+    old.main()
+    for path in (packet / "attendances").glob("*.json"):
+        path.unlink()  # so that the new one wakes to the same record the old one did
+    now = wake()
+
+    lines = now.opening.splitlines()
+    at = lines.index(attend.NO_QUESTIONS)
+    assert lines[at - 1] == "You have not attended before. This is your first waking."
+    assert lines[:at] + lines[at + 1:] == then.opening.splitlines()
+    assert now.opening.replace(attend.NO_QUESTIONS + "\n", "", 1) == then.opening
+
+    # and the instructions differ by the one block explained, and nothing else
+    explained = ("<<QUESTIONS>>\n(the full new list of the questions you carry forward, one "
+                 "per line; at most 7, each at most 240 characters. It is private, not shown on "
+                 "the hearth. The previous list is kept, never erased; an empty block clears "
+                 "the list.)\n<<END>>\n\n")
+    assert now.instructions.replace(explained, "", 1) == then.instructions
 
 
 def test_letter_block_writes_a_letter_to_the_founder(wake, packet, clock):

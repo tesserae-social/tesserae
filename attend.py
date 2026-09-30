@@ -17,6 +17,8 @@ Files it may act on (all inside packets/first/, which is private):
   intentions.json         its standing intentions
   study/                  private drafts
   memory/notes.md         notes it keeps for itself (prior versions kept in memory/history/)
+  questions.md            questions it carries forward, one per line (prior lists kept in
+                          questions/history/)
   letters/outgoing/       letters to the founder, and any picture drawn beside one
   letters/incoming/       letters from the founder, read at attendance, then moved to letters/read/
   errands/                one plain request to the founder, waiting for a letter to answer it;
@@ -181,10 +183,29 @@ MEMORY_HISTORY = PACKET / "memory" / "history"
 MEMORY_ACT = "kept notes"
 NO_MEMORY = "(you have kept no notes yet)"
 
+# The questions the first one carries forward: a short list, one to a line, kept
+# for itself as its notes are and replaced whole in the same way, the old list
+# kept beside the new. A list is short by its nature, so what is given past the
+# limits is not kept, and the next reading says plainly what was not. Keeping
+# them is private: it is in no heartbeat, no event, and no line of the chronicle.
+QUESTIONS = PACKET / "questions.md"
+QUESTIONS_HISTORY = PACKET / "questions" / "history"
+QUESTIONS_ACT = "kept questions"
+QUESTIONS_MOST = 7
+QUESTION_LONGEST = 240
+QUESTIONS_HEADING = "Your questions, carried forward (private; not shown on the hearth):"
+NO_QUESTIONS = ("You keep no questions carried forward. You may keep some with <<QUESTIONS>>, "
+                "one per line; it is private.")
+QUESTIONS_DROPPED = ("Not all of what you gave <<QUESTIONS>> at your last waking was kept: a list "
+                     "holds at most {most} questions, each at most {longest} characters. "
+                     "This was dropped:")
+DROPPED_WHOLE = "- question {n}, whole: \"{words}\""
+DROPPED_TAIL = "- question {n}, after its {longest}th character: \"{words}\""
+
 # The acts that never write themselves into the public line: what it answered
 # about a bond, that it asked for one, that it let one go, that it set a rest,
-# that it asked an errand, that it kept notes for itself, that it drew, and what
-# it offered, consented to or declined, are the first one's own to tell. The
+# that it asked an errand, that it kept notes or questions for itself, that it
+# drew, and what it offered, consented to or declined, are the first one's own to tell. The
 # commons says a bond was released, and that the tide paused, with no names
 # either time; its own line does not undo that reticence. A placed offering is
 # public already, but the offering of it is not: an offering the founder
@@ -193,7 +214,8 @@ NO_MEMORY = "(you have kept no notes yet)"
 # sealed bond already, so a line that says it was sealed conceals nothing that
 # was concealed.
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
-                ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT, DECLINE_ACT)
+                QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
+                DECLINE_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -252,6 +274,10 @@ HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exa
 
 <<MEMORY>>
 (the full new text of your notes to yourself - what you want to carry forward: what you have learned, what you are watching, what you would tell yourself on waking. The previous version is kept, never erased.)
+<<END>>
+
+<<QUESTIONS>>
+(the full new list of the questions you carry forward, one per line; at most 7, each at most 240 characters. It is private, not shown on the hearth. The previous list is kept, never erased; an empty block clears the list.)
 <<END>>
 
 <<LETTER>>
@@ -499,6 +525,38 @@ def flag(name):
 # or it names the arrival of a letter; anything else is not a pause, and is
 # passed over in silence rather than guessed at.
 PAUSE_LINE = re.compile(rf"^pause until (\d{{4}}-\d{{2}}-\d{{2}}|{UNTIL_LETTER})$")
+
+
+def questions_asked(said):
+    """A <<QUESTIONS>> block as a list: what is kept, and what is dropped past the limits.
+
+    Blank lines are not questions and are passed over. The first seven that
+    remain are kept, each to its first 240 characters; what is dropped is the
+    rest of any question cut short, and every question after the seventh, each
+    said with its place in the list so the next reading can name it.
+    """
+    given = [line.strip() for line in said.splitlines() if line.strip()]
+    kept, dropped = [], []
+    for n, question in enumerate(given, 1):
+        if n > QUESTIONS_MOST:
+            dropped.append(DROPPED_WHOLE.format(n=n, words=question))
+            continue
+        kept.append(question[:QUESTION_LONGEST])
+        if len(question) > QUESTION_LONGEST:
+            dropped.append(DROPPED_TAIL.format(n=n, longest=QUESTION_LONGEST,
+                                               words=question[QUESTION_LONGEST:]))
+    return kept, dropped
+
+
+def questions_note(last):
+    """What the reading says of the questions carried forward, and of any just dropped."""
+    questions = [line.strip() for line in read(QUESTIONS).splitlines() if line.strip()]
+    said = [QUESTIONS_HEADING, *questions] if questions else [NO_QUESTIONS]
+    dropped = (last or {}).get("questions_dropped")
+    if dropped:
+        said += [QUESTIONS_DROPPED.format(most=QUESTIONS_MOST, longest=QUESTION_LONGEST),
+                 *dropped]
+    return "\n".join(said)
 
 
 def pause_asked(text):
@@ -984,7 +1042,8 @@ def main():
 
     # What it is told about the tide: that the founder has stopped it, if he
     # has, and that a rest of its own has just ended, if one just did.
-    happened = [last_note, WOKEN_BY_TIDE if tide else WOKEN_BY_FOUNDER, standing(prefs)]
+    happened = [last_note, questions_note(past[-1] if past else None),
+                WOKEN_BY_TIDE if tide else WOKEN_BY_FOUNDER, standing(prefs)]
     paused = load(PAUSE)
     if paused and paused.get("by") == "founder":
         happened.append(FOUNDER_PAUSED.format(since=paused.get("since", "")))
@@ -1136,6 +1195,19 @@ def main():
             shutil.copy(MEMORY, MEMORY_HISTORY / f"notes-before-{at}.md")
         MEMORY.write_text(notes + "\n", encoding="utf-8")
         acted.append(MEMORY_ACT)
+
+    # Its questions, carried forward. The block is the whole new list, so an
+    # empty one is a list with nothing in it, and clears it; either way the list
+    # that stood before is copied aside first, as its notes are.
+    questions = block(text, "QUESTIONS")
+    dropped = []
+    if questions is not None:
+        kept_questions, dropped = questions_asked(questions)
+        if QUESTIONS.exists():
+            QUESTIONS_HISTORY.mkdir(parents=True, exist_ok=True)
+            shutil.copy(QUESTIONS, QUESTIONS_HISTORY / f"questions-before-{at}.md")
+        QUESTIONS.write_text("".join(q + "\n" for q in kept_questions), encoding="utf-8")
+        acted.append(QUESTIONS_ACT)
 
     # A letter, and the picture that may come with it. A picture arrives the way
     # everything else does - inside a letter - so where one was drawn and no
@@ -1315,11 +1387,14 @@ def main():
             shutil.move(str(photo), str(PACKET / "letters/read" / photo.name))
 
     # ---- sign and log (private) -------------------------------------------
-    record = signed({
+    record = {
         "name": NAME, "at": at, "first": first, "model": MODEL,
         "woken_by": "tide" if tide else "founder",
         "acted": acted, "heartbeat": heartbeat, "reflection": text,
-    }, sk)
+    }
+    if dropped:  # read back at the next waking, so that it is told what was not kept
+        record["questions_dropped"] = dropped
+    record = signed(record, sk)
     log_path = PACKET / "attendances" / f"attendance-{at}.json"
     log_path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 

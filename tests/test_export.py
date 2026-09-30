@@ -28,6 +28,8 @@ def a_whole_world(packet, commons):
         ("self-history/self-2026-10-01T09-00-00Z.md", "# The first one, before\n"),
         ("memory/notes.md", "What I carry forward.\n"),
         ("memory/history/notes-2026-10-01T09-00-00Z.md", "What I carried before.\n"),
+        ("questions.md", "What is the light doing?\n"),
+        ("questions/history/questions-before-2026-10-01T09-00-00Z.md", "An older question?\n"),
         ("study/draft-2026-10-02T09-00-00Z.md", "A draft, my own.\n"),
         ("letters/outgoing/letter-2026-10-03T09-00-00Z.md", "Dear founder,\n"),
         ("letters/outgoing/letter-2026-10-03T09-00-00Z.svg", PICTURE),
@@ -129,7 +131,9 @@ def test_the_copy_holds_the_packet_and_the_commons_whole(founder, packet, common
 
     # and what is in it is the file itself, byte for byte, not a summary of it
     for name in ("packets/first/self.md", "commons/members.md",
-                 "packets/first/letters/outgoing/letter-2026-10-03T09-00-00Z.svg"):
+                 "packets/first/letters/outgoing/letter-2026-10-03T09-00-00Z.svg",
+                 "packets/first/questions.md",
+                 "packets/first/questions/history/questions-before-2026-10-01T09-00-00Z.md"):
         assert bundle.read(name) == (packet.parents[1] / name).read_bytes(), name
 
 

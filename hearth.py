@@ -521,14 +521,30 @@ KEPT_PRIVATE = "Reflection kept private by the first one's choice."
 # reflection is the whole of what it said at a waking, blocks and all, so the
 # page takes each of those two blocks out and leaves one quiet line in its place.
 # The log on disk is not touched; only what the page shows is. attend.py reads a
-# block as running from its tag to the first <<END>>, and so does this.
-KEPT_BLOCKS = re.compile(r"<<(MEMORY|QUESTIONS)>>.*?<<END>>", re.S)
+# block as opening on a line that is its tag alone and closing on the next line
+# that is <<END>> alone, a tag inside a line of text or inside an open block
+# being only words, and so does this. A kept block never closed is hidden to the
+# end, since what it held was meant for itself.
+BLOCK_LINE = re.compile(r"<<([A-Z_]+)>>")
 KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions: private)"}
 
 
 def without_kept_blocks(reflection):
     """A reflection as the page may show it: its notes and questions each one quiet line."""
-    return KEPT_BLOCKS.sub(lambda found: KEPT_QUIETLY[found.group(1)], reflection)
+    shown, open_tag = [], None
+    for line in reflection.split("\n"):
+        said = line.strip()
+        if open_tag is None:
+            found = BLOCK_LINE.fullmatch(said)
+            if found and found.group(1) != "END":
+                open_tag = found.group(1)
+            shown.append(KEPT_QUIETLY.get(open_tag, line))
+        else:
+            if open_tag not in KEPT_QUIETLY:
+                shown.append(line)
+            if said == "<<END>>":
+                open_tag = None
+    return "\n".join(shown)
 
 
 def preferences():

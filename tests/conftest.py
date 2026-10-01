@@ -374,8 +374,9 @@ def page(answer):
 class Turn:
     """One stubbed attendance: what the first one was shown, and what it said."""
 
-    def __init__(self, said):
+    def __init__(self, said, stop_reason=None):
         self.said = said
+        self.stop_reason = stop_reason  # None stands for an API that gives none
         self.asked = []
 
     # the client attend.py reaches for
@@ -385,7 +386,10 @@ class Turn:
         class Messages:
             def create(self, **asked):
                 turn.asked.append(asked)
-                return SimpleNamespace(content=[SimpleNamespace(text=turn.said)])
+                reply = SimpleNamespace(content=[SimpleNamespace(text=turn.said)])
+                if turn.stop_reason is not None:
+                    reply.stop_reason = turn.stop_reason
+                return reply
 
         return SimpleNamespace(messages=Messages())
 

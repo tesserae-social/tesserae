@@ -259,6 +259,12 @@ FOUNDER_PAUSED = ("The founder has paused the tide since {since}; this attendanc
                   "by hand.")
 REST_ENDED = "You rested from {since} until now; the rest ended because {why}."
 
+# What the record says was carried out at the last waking, said beside its
+# heartbeat: the heartbeat is its own words, and this is what was done.
+LETTER_ACT = "wrote a letter to the founder"
+CARRIED_OUT = "What was carried out at your last waking: {acts}."
+NO_LETTER_SENT = "No letter was sent."
+
 # The self-document is the one private file the founder may read, and the first
 # one is told so where it reads it, rather than left to find it out.
 SELF_OPEN = ("The founder can read this document on the hearth, including any revision you make; "
@@ -493,9 +499,30 @@ def stamp():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
 
 
+# A block opens on a line that is its tag and nothing else, and closes on the
+# next line that is <<END>> and nothing else. A tag named inside a line of text
+# is only words, and so is any line inside a block that is still open: a letter
+# may speak of <<QUESTIONS>>, or of <<END>>, without keeping or ending anything.
+# hearth.py hides its notes and questions by the very same rule.
+BLOCK_LINE = re.compile(r"<<([A-Z_]+)>>")
+
+
 def block(text, tag):
-    m = re.search(rf"<<{tag}>>\s*(.*?)\s*<<END>>", text, re.S)
-    return m.group(1).strip() if m else None
+    """The words of the first block of a tag, or None if no such block was closed."""
+    open_tag, body = None, []
+    for line in text.split("\n"):
+        said = line.strip()
+        if open_tag is None:
+            found = BLOCK_LINE.fullmatch(said)
+            if found and found.group(1) != "END":
+                open_tag, body = found.group(1), []
+        elif said == "<<END>>":
+            if open_tag == tag:
+                return "\n".join(body).strip()
+            open_tag = None
+        else:
+            body.append(line)
+    return None
 
 
 def wrote_block(text, tag):
@@ -1036,6 +1063,11 @@ def main():
         last_note = (f"This is your {ordinal(len(past) + 1)} waking. "
                      f"Your last attendance was {last['at']}. "
                      f"Your heartbeat then: \"{last['heartbeat']}\".")
+        # what the record says was done, beside the words it chose for the day
+        carried = last.get("acted") or []
+        last_note += "\n" + CARRIED_OUT.format(acts=", ".join(carried) if carried else "nothing")
+        if carried and LETTER_ACT not in carried:
+            last_note += " " + NO_LETTER_SENT
     else:
         since = ""
         last_note = "You have not attended before. This is your first waking."
@@ -1221,7 +1253,7 @@ def main():
         (PACKET / "letters/outgoing" / letter_name).write_text(
             (letter or ONLY_A_PICTURE) + "\n", encoding="utf-8")
     if letter:
-        acted.append("wrote a letter to the founder")
+        acted.append(LETTER_ACT)
     if picture:
         (PACKET / "letters/outgoing" / f"to-founder-{at}.svg").write_text(
             picture + "\n", encoding="utf-8")
@@ -1394,6 +1426,9 @@ def main():
     }
     if dropped:  # read back at the next waking, so that it is told what was not kept
         record["questions_dropped"] = dropped
+    stop_reason = getattr(resp, "stop_reason", None)
+    if stop_reason:  # why the reply ended, for the record only; it is read back nowhere
+        record["stop_reason"] = stop_reason
     record = signed(record, sk)
     log_path = PACKET / "attendances" / f"attendance-{at}.json"
     log_path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")

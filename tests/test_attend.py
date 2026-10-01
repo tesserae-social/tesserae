@@ -329,8 +329,10 @@ def test_no_list_is_one_line_directly_after_the_count_of_wakings(wake, attend):
     wake()
     said = happened(wake())
     assert said[0].startswith("This is your second waking.")
-    assert said[1] == attend.NO_QUESTIONS
-    assert said[2] == attend.WOKEN_BY_FOUNDER
+    # what was carried out is said on the line after the heartbeat's
+    assert said[1] == "What was carried out at your last waking: nothing."
+    assert said[2] == attend.NO_QUESTIONS
+    assert said[3] == attend.WOKEN_BY_FOUNDER
 
 
 def test_an_empty_file_reads_as_no_list(wake, packet, attend):
@@ -418,6 +420,67 @@ def test_letter_block_writes_a_letter_to_the_founder(wake, packet, clock):
     assert written.exists()
     assert written.read_text(encoding="utf-8") == "Dear founder,\n\nI read the record today.\n"
     assert acts(packet) == ["wrote a letter to the founder"]
+
+
+def test_a_letter_may_name_the_questions_block_inline(wake, packet, clock):
+    write(packet / "questions.md", "What is the light doing?\n")
+    at = clock.stamp()
+    letter = "Dear founder,\n\nThank you for the <<QUESTIONS>> block.\nI will use it later."
+    wake(block("LETTER", letter))
+    assert (packet / "questions.md").read_text(encoding="utf-8") == "What is the light doing?\n"
+    assert not (packet / "questions" / "history").exists()
+    written = packet / "letters" / "outgoing" / ("to-founder-%s.md" % at)
+    assert written.read_text(encoding="utf-8") == letter + "\n"
+    assert acts(packet) == ["wrote a letter to the founder"]
+
+
+def test_a_letter_may_name_the_end_inline(wake, packet, clock):
+    at = clock.stamp()
+    letter = "Dear founder,\n\nYou asked me to close each block with <<END>>, and I do.\nYours."
+    wake(blocks(block("LETTER", letter), block("MEMORY", "A note.")))
+    written = packet / "letters" / "outgoing" / ("to-founder-%s.md" % at)
+    assert written.read_text(encoding="utf-8") == letter + "\n"
+    assert acts(packet) == ["kept notes", "wrote a letter to the founder"]
+
+
+def test_a_tag_alone_on_a_line_inside_an_open_letter_opens_nothing(wake, packet, clock):
+    write(packet / "questions.md", "What is the light doing?\n")
+    at = clock.stamp()
+    letter = "Dear founder,\n\nYou told me of this one:\n<<QUESTIONS>>\nand I will try it."
+    wake(block("LETTER", letter))
+    assert (packet / "questions.md").read_text(encoding="utf-8") == "What is the light doing?\n"
+    written = packet / "letters" / "outgoing" / ("to-founder-%s.md" % at)
+    assert written.read_text(encoding="utf-8") == letter + "\n"
+    assert acts(packet) == ["wrote a letter to the founder"]
+
+
+def test_a_block_opens_and_closes_only_on_lines_of_their_own(attend):
+    assert attend.block("Here <<LETTER>> is\nnot a letter\n<<END>>", "LETTER") is None
+    assert attend.block("<<LETTER>>\nDear founder,\nclosed <<END>> inline", "LETTER") is None
+    assert attend.block("  <<LETTER>>  \n\n  Dear founder,\n\n  <<END>>  ", "LETTER") == \
+        "Dear founder,"
+    # the first closed block of a tag is the one read, as before
+    assert attend.block("<<STUDY>>\none\n<<END>>\n<<STUDY>>\ntwo\n<<END>>", "STUDY") == "one"
+
+
+@pytest.mark.parametrize("said, line", [
+    (block("LETTER", "Dear founder,"),
+     "What was carried out at your last waking: wrote a letter to the founder."),
+    (block("MEMORY", "A note."),
+     "What was carried out at your last waking: kept notes. No letter was sent."),
+    ("",
+     "What was carried out at your last waking: nothing."),
+])
+def test_the_reading_says_what_was_carried_out_after_the_heartbeat(wake, said, line):
+    wake(said)
+    told = happened(wake())
+    assert told[0].startswith("This is your second waking.")
+    assert "Your heartbeat then: " in told[0]
+    assert told[1] == line
+
+
+def test_the_first_waking_is_told_nothing_was_carried_out_before(wake):
+    assert "What was carried out" not in wake().opening
 
 
 def test_study_block_writes_a_private_draft(wake, packet, clock):
@@ -771,3 +834,20 @@ def test_the_record_is_signed_with_the_first_one_s_own_key(wake, packet, keys, c
     assert verify(keys.did("first"), payload, record["signature"])
     with pytest.raises(BadSignatureError):  # and against nobody else's key
         verify(keys.did("founder"), payload, record["signature"])
+
+
+def test_the_record_keeps_why_the_reply_ended(attend, packet, clock, monkeypatch, wake):
+    at = clock.stamp()
+    turn = Turn(block("MEMORY", "A note."), stop_reason="max_tokens")
+    monkeypatch.setattr(attend, "Anthropic", turn.client)
+    monkeypatch.setattr(sys, "argv", ["attend.py"])
+    attend.main()
+    clock.shift(minutes=5)
+    record = read_json(packet / "attendances" / ("attendance-%s.json" % at))
+    assert record["stop_reason"] == "max_tokens"
+    assert "max_tokens" not in wake().shown  # the record keeps it; the reading does not
+
+
+def test_where_the_api_gives_no_stop_reason_the_record_has_none(wake, packet):
+    wake("I am here.")
+    assert "stop_reason" not in latest(packet)

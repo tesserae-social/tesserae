@@ -140,6 +140,31 @@ def test_every_such_block_is_taken_out_not_only_the_first(hearth):
                     "(kept questions: private)")
 
 
+def test_notes_that_name_the_end_inline_are_hidden_whole(hearth):
+    said = hearth.without_kept_blocks(
+        "before\n<<MEMORY>>\nI close blocks with <<END>> now.\nSTILL MINE\n<<END>>\nafter")
+    assert said == "before\n(kept notes: private)\nafter"
+
+
+def test_a_letter_that_names_a_kept_block_is_shown_whole(hearth):
+    shown = ("<<LETTER>>\nThank you for the <<QUESTIONS>> block.\n<<MEMORY>>\n"
+             "is where I keep notes.\n<<END>>\n<<QUESTIONS>>\nMINE?\n<<END>>")
+    assert hearth.without_kept_blocks(shown) == (
+        "<<LETTER>>\nThank you for the <<QUESTIONS>> block.\n<<MEMORY>>\n"
+        "is where I keep notes.\n<<END>>\n(kept questions: private)")
+
+
+def test_a_kept_block_never_closed_is_hidden_to_the_end(hearth):
+    assert hearth.without_kept_blocks("before\n<<MEMORY>>\nMINE, and no end") == \
+        "before\n(kept notes: private)"
+
+
+def test_why_a_reply_ended_is_not_shown(founder, packet):
+    write_json(packet / "preferences.json", {"reflection": "open"})
+    an_attendance(packet, OLDER, stop_reason="max_tokens")
+    assert "max_tokens" not in page(founder.get("/attendances"))
+
+
 @pytest.mark.parametrize("setting", [
     {"reflection": "private"},
     {"reflection": "private from now", "set_at": "2026-09-01T00-00-00Z"},

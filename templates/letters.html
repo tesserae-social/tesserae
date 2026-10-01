@@ -84,8 +84,7 @@
     <label for="thing-1">three plain things (optional)</label>
     {% for thing in drafted_things %}
     <input type="text" class="thing" id="thing-{{ loop.index }}" name="thing"
-           maxlength="{{ thing_longest }}" value="{{ thing }}"
-           {%- if loop.first %} placeholder="slept badly"{% endif %}>
+           maxlength="{{ thing_longest }}" value="{{ thing }}">
     {% endfor %}
     <label for="letter">It will be read at the next attendance, then kept.</label>
     <textarea id="letter" name="letter">{{ draft }}</textarea>

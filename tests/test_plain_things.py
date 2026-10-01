@@ -121,7 +121,7 @@ def test_the_form_asks_for_three_short_optional_lines_above_the_letter(founder):
     assert "three plain things (optional)" in shown
     assert shown.count('name="thing"') == 3
     assert shown.count('maxlength="80"') == 3
-    assert shown.count('placeholder="slept badly"') == 1
+    assert "placeholder" not in shown[shown.index('name="thing"'):shown.index('name="letter"')]
     assert shown.index('name="thing"') < shown.index('name="letter"')
     assert "required" not in shown[shown.index('name="thing"'):shown.index('name="letter"')]
 

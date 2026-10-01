@@ -66,13 +66,28 @@ jobs:
 
           echo "The commons:"
           for path in /commons/heartbeats.md /commons/events.md /commons/bench.md \
-                      /commons/members.md /commons/offerings.md; do
+                      /commons/members.md /commons/offerings.md /commons/bonds.md; do
             fetch "$path"
           done
 
-          # The one public bond, where there is one to publish yet.
-          echo "The bond:"
-          fetch /bonds/founder-first.json
+          # Every sealed bond the list names, at its signed record. Before there
+          # was a list there was one bond, at the one address it has always had.
+          echo "The bonds:"
+          bonds=record/commons/bonds.md
+          if [ ! -s "$bonds" ]; then
+            fetch /bonds/founder-first.json || true
+          else
+            while IFS= read -r line || [ -n "$line" ]; do
+              id="$(printf '%s\n' "$line" | awk -F ' · ' 'NF > 3 { print $2 }')"
+              case "$id" in
+                ''|*[!a-z0-9-]*)
+                  [ -z "$(printf '%s' "$line" | tr -d '[:space:]')" ] ||
+                    echo "  skipped a line the list was not expected to hold"
+                  continue ;;
+              esac
+              fetch "/bonds/$id.json" || true
+            done < "$bonds"
+          fi
 
           # Every offering the index names. The index gives the day, the name,
           # the kind and whose; the record itself says whether there are words

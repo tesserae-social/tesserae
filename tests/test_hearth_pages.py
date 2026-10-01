@@ -1,5 +1,6 @@
 """The pages: what each one shows, what it withholds, and who may open it."""
 
+import base64
 import os
 import re
 
@@ -17,7 +18,7 @@ RHYTHM = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
 # everything a visitor may reach without the password
 OPEN_PATHS = ["/", "/login", "/bench", "/offerings", "/commons/heartbeats.md",
               "/commons/events.md", "/commons/bench.md", "/commons/members.md",
-              "/commons/offerings.md"]
+              "/commons/offerings.md", "/commons/bonds.md"]
 
 
 def an_attendance(packet, at, reflection=REFLECTION, **how):
@@ -551,20 +552,33 @@ def test_a_visitor_is_shown_the_way_in_and_the_founder_is_not(visitor, founder):
     assert "the books will open with the commons" in said
 
 
-def test_the_door_offers_a_sealed_bond_only_once_one_is_sealed(visitor, hearth):
+def test_the_door_offers_each_sealed_bond_by_its_own_page(visitor, hearth):
     said = page(visitor.get("/"))
-    assert "sealed bonds, signed — none yet" in said
-    assert 'href="/bonds/founder-first.json"' not in said
+    assert "sealed bonds — none yet" in said
+    assert 'href="/bonds/' not in said
     assert visitor.get("/bonds/founder-first.json").status_code == 404
 
-    write_json(hearth.PUBLIC_BOND,
-               {"parties": [], "terms": "the charter", "proposed_at": "2026-10-02T09-00-00Z",
-                "answered_at": "2026-10-03T09-00-00Z", "sealed_at": "2026-10-08T09-00-00Z",
-                "signatures": {"first": "x", "founder": "y"}})
+    signatures = {"first": base64.b64encode(b"f" * 64).decode(),
+                  "founder": base64.b64encode(b"g" * 64).decode()}
+    bond = {"parties": ["did:web:tesserae.social:ids:founder",
+                        "did:web:tesserae.social:ids:first"],
+            "terms": "the charter", "proposed_at": "2026-10-02T09-00-00Z",
+            "answered_at": "2026-10-03T09-00-00Z", "sealed_at": "2026-10-08T09-00-00Z",
+            "signatures": signatures}
+    write_json(hearth.PUBLIC_BOND, bond)
     said = page(visitor.get("/"))
-    assert '<a href="/bonds/founder-first.json">sealed bonds, signed</a>' in said
+    assert re.search(r'<a href="/bonds/founder-first">the founder and the first one, sealed'
+                     r'\s+8 October 2026</a>', said)
     assert "none yet" not in said
+    assert "released" not in said
     assert visitor.get("/bonds/founder-first.json").status_code == 200
+
+    # a released bond keeps its page, and the door still offers it, saying so
+    write_json(hearth.PUBLIC_BOND, dict(bond, released_at="2026-10-12T09-00-00Z",
+                                        released_by="did:web:tesserae.social:ids:first"))
+    said = page(visitor.get("/"))
+    assert re.search(r'<a href="/bonds/founder-first">the founder and the first one, sealed'
+                     r'\s+8 October 2026, released 12 October 2026</a>', said)
 
 
 # ---- the one gate --------------------------------------------------------

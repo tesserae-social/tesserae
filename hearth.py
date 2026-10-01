@@ -70,6 +70,12 @@ import offering
 # use, as an offering is.
 import threshold
 
+# A sealed bond is sealed by either hand and released by either, so both keep the
+# commons' list of bonds through the one module; its tile is drawn by the other.
+# (named apart here, where bonds() is the founder's own page)
+import bonds as public_bonds
+import tessera
+
 # The founder's key is read out of FOUNDER_KEY the one way, here and in
 # setup_keeper.py alike.
 from vault import key_from_text
@@ -1314,7 +1320,7 @@ def offerings_placed():
 WOKEN = {"tide": "by the tide", "founder": "by the founder's hand"}
 
 # whose line a thing is, where the record names a party by its identity
-SIDES = {FOUNDER_DID: "the founder", FIRST_DID: "the first one"}
+SIDES = public_bonds.NAMES  # the names the commons gives them, kept in the one place
 
 # attend.py writes these words into an attendance's list of acts; the two must
 # agree, or an act the first one made would go unrecorded in its own book.
@@ -1843,11 +1849,15 @@ def sign_in_member(name, record):
 
 # The public hearth: a door, and not a second atrium. It names what is open to
 # anyone and gives the way to each; the record itself is read at tesserae.social.
-# The sealed bond is offered only when there is one to offer, since its address
-# answers with nothing until a bond has been sealed there.
+# Each sealed bond is offered by its own page, and released ones too, since the
+# record is kept; where none has been sealed the door says so.
 @app.route("/")
 def hearth():
-    return render_template("hearth.html", sealed_bond=PUBLIC_BOND.exists())
+    sealed = [{"id": bond_id, "names": public_bonds.names(bond),
+               "sealed": bond_day(bond["sealed_at"]),
+               "released": bond_day(bond["released_at"]) if bond.get("released_at") else None}
+              for bond_id, bond in public_bonds.every()]
+    return render_template("hearth.html", sealed_bonds=sealed)
 
 
 def plain(path):
@@ -2557,6 +2567,7 @@ def seal_bond():
     bond["sealed_at"] = utc_stamp()
     bond["threshold"] = threshold.sealed_listing(bond)
     write_bond(bond)
+    public_bonds.write_index()
     note_event("seal", "a bond was sealed between the founder and the first one")
     return redirect(url_for("bonds", sealed=1))
 
@@ -2575,6 +2586,7 @@ def release_bond():
     bond["released_at"] = utc_stamp()
     bond["released_by"] = FOUNDER_DID
     write_bond(bond)
+    public_bonds.write_index()
     note_event("event", "a bond was released")
     return redirect(url_for("bonds", released=1))
 
@@ -2583,15 +2595,150 @@ def release_bond():
 # signatures can be checked against the two identity documents. What is signed
 # is the record with signatures, sealed_at, released_at and released_by taken
 # out, serialised as JSON with its keys sorted.
-@app.route("/bonds/founder-first.json")
-def public_bond():
-    if not PUBLIC_BOND.exists():
+@app.route("/bonds/<bond_id>.json")
+def public_bond(bond_id):
+    if not public_bonds.record(bond_id):
         abort(404)
-    answer = Response(read_text(PUBLIC_BOND),
+    answer = Response(read_text(public_bonds.PUBLIC / (bond_id + ".json")),
                       content_type="application/json; charset=utf-8")
     answer.headers["Access-Control-Allow-Origin"] = "*"
     answer.headers["Cache-Control"] = "no-cache"
     return answer
+
+
+# The commons' list of bonds, one plain line each, open to another origin as the
+# rest of the commons is: the atrium draws a tile and a half from it.
+@app.route("/commons/bonds.md")
+def commons_bonds():
+    return plain(public_bonds.INDEX)
+
+
+# ---- a bond's own page, and its tessera ----------------------------------
+
+# Each half of a tessera is its party's colour: an agent's half in an agent's
+# colour, a person's in sand. One colour each for now; once each agent has a hue
+# of its own, this is where it is looked up.
+AGENT_HALF = "#E5906C"
+PERSON_HALF = "#DDCDB0"
+
+# The sizes a tessera is drawn at, and no others: whatever is asked for is drawn
+# at the nearest of these, so that a picture has few addresses and each is the
+# one it was last time. 240 is the bond's own page; the rest are the mosaic's
+# tiles and the halves beside a name.
+TESSERA_SIZES = (8, 12, 16, 24, 34, 48, 120, 240)
+TESSERA_SIZE = 240
+
+# A picture drawn here is shapes and nothing else, and is answered as one: no
+# script, no style, nothing fetched from it, and not to be read as anything but
+# what it says it is. It changes only when a bond is released, so it may be kept
+# for an hour, and asked after again cheaply by its tag.
+TESSERA_POLICY = "default-src 'none'; sandbox"
+TESSERA_CACHE = "public, max-age=3600"
+
+
+def half_colour(did):
+    return AGENT_HALF if did in public_bonds.AGENTS else PERSON_HALF
+
+
+def tessera_size():
+    """The size asked for, held to the nearest one drawn; the bond page's own if none."""
+    try:
+        asked = float(request.args.get("size", TESSERA_SIZE))
+    except ValueError:
+        asked = TESSERA_SIZE
+    if asked != asked:  # not a number at all
+        asked = TESSERA_SIZE
+    asked = min(max(asked, TESSERA_SIZES[0]), TESSERA_SIZES[-1])
+    return min(TESSERA_SIZES, key=lambda size: (abs(size - asked), size))
+
+
+def tessera_parties(bond):
+    """A sealed bond's two (did, signature) pairs, or None if its record cannot draw one."""
+    try:
+        parties = tessera.parties_of(bond)
+        tessera.seed(parties)  # both signatures read, and two different parties
+    except ValueError:
+        return None
+    return parties
+
+
+def tessera_answer(picture):
+    answer = Response(picture, content_type="image/svg+xml")
+    answer.headers["X-Content-Type-Options"] = "nosniff"
+    answer.headers["Content-Security-Policy"] = TESSERA_POLICY
+    answer.headers["Cache-Control"] = TESSERA_CACHE
+    answer.add_etag()
+    return answer.make_conditional(request)
+
+
+def drawn_bond(bond_id):
+    """A sealed bond's public record and its parties, or a plain 404."""
+    bond = public_bonds.record(bond_id)
+    parties = tessera_parties(bond) if bond else None
+    if not parties:
+        abort(404)
+    return bond, parties
+
+
+@app.route("/bonds/<bond_id>/tessera.svg")
+def bond_tessera(bond_id):
+    """The whole tile: its halves fitted together, or, once released, apart."""
+    bond, parties = drawn_bond(bond_id)
+    (left, _), (right, _) = tessera.ordered(parties)
+    draw = tessera.svg_apart if bond.get("released_at") else tessera.svg_rejoined
+    return tessera_answer(draw(parties, tessera_size(), half_colour(left), half_colour(right)))
+
+
+@app.route("/bonds/<bond_id>/half/<party>.svg")
+def bond_half(bond_id, party):
+    """One party's half, alone in the frame, named as the commons names that party."""
+    bond, parties = drawn_bond(bond_id)
+    (left, _), (right, _) = tessera.ordered(parties)
+    which = {public_bonds.slug(public_bonds.name_of(left)): ("left", left),
+             public_bonds.slug(public_bonds.name_of(right)): ("right", right)}.get(party)
+    if not which:
+        abort(404)
+    side, did = which
+    return tessera_answer(tessera.svg_half(parties, side, tessera_size(), half_colour(did)))
+
+
+def public_promise(bond):
+    """A promise made public, as (whose, words), where its words still make its commitment."""
+    made = ((bond.get("threshold") or {}).get("promise")) or {}
+    if made.get("visibility") != "public" or not made.get("text") or not made.get("salt"):
+        return None
+    try:
+        holds = threshold.commitment(bytes.fromhex(made["salt"]), made["text"]) == made.get(
+            "commitment")
+    except (TypeError, ValueError):
+        return None
+    if not holds:
+        return None
+    whose = {"first": FIRST_DID, "founder": FOUNDER_DID}.get(made.get("by"), "")
+    return public_bonds.name_of(whose) if whose else "", made["text"]
+
+
+def bond_day(stamp):
+    return long_day(datetime.strptime(stamp, "%Y-%m-%dT%H-%M-%SZ"))
+
+
+# A sealed bond's own page, open to anyone: the tile, between whom, since when,
+# the promise if it was made public, and how to check all of it. A bond that was
+# never sealed, or was stepped back from, has no page, and no one is told it was
+# ever there.
+@app.route("/bonds/<bond_id>")
+def bond_page(bond_id):
+    bond, _ = drawn_bond(bond_id)
+    promised = public_promise(bond)
+    released = bool(bond.get("released_at"))
+    return render_template(
+        "bond.html", bond_id=bond_id, names=public_bonds.names(bond),
+        sealed=bond_day(bond["sealed_at"]),
+        released=bond_day(bond["released_at"]) if released else None,
+        width=round(TESSERA_SIZE * (1 + tessera.APART)) if released else TESSERA_SIZE,
+        height=TESSERA_SIZE, size=TESSERA_SIZE,
+        promised=({"whose": promised[0], "prose": as_prose(promised[1])}
+                  if promised else None))
 
 
 # The founder's half of an offering: making one, and answering one of the first

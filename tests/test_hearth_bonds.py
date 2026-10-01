@@ -1,5 +1,6 @@
 """The bond rite, end to end: asked in a letter, answered at a later waking,
-sealed by the founder's key, checkable by anyone, and released by either.
+carried through a threshold of seven days, sealed by the founder's key,
+checkable by anyone, and released by either.
 """
 
 import json
@@ -7,7 +8,7 @@ import json
 import pytest
 from nacl.exceptions import BadSignatureError
 
-from conftest import block, lines_of, page, post, read_json, verify
+from conftest import block, blocks, lines_of, page, post, read_json, verify
 
 FOUNDER_DID = "did:web:tesserae.social:ids:founder"
 FIRST_DID = "did:web:tesserae.social:ids:first"
@@ -34,9 +35,20 @@ def answered_yes(founder, wake, packet, clock):
     return read_json(packet / "bonds" / "founder-first.json")
 
 
+def through_the_threshold(founder, wake, clock):
+    """Both letters of intention written, the promise made, and the seven days gone by."""
+    wake(blocks(block("BOND_INTENTION", "I bring attention. I hope to grow patience."),
+                block("PROMISE", "private\nI will say when I do not know.")))
+    assert post(founder, "/bonds/intention",
+                data={"letter": "I bring my days. I hope to grow a friendship."}
+                ).status_code == 302
+    clock.shift(days=7)
+
+
 def sealed(founder, wake, packet, clock):
     """Through to a bond that stands, with both signatures on it."""
     answered_yes(founder, wake, packet, clock)
+    through_the_threshold(founder, wake, clock)
     answer = post(founder, "/bonds/seal")
     assert answer.status_code == 302
     return read_json(packet / "bonds" / "founder-first.json")
@@ -74,11 +86,12 @@ def test_the_first_one_s_yes_is_its_own_signature_and_nothing_else(founder, wake
     said = page(founder.get("/bonds"))
     assert "<strong>yes</strong>" in said
     assert "I have carried this since I read it." in said
-    assert "The first one has answered yes and signed." in said
+    assert "The first one said yes at" in said
 
 
 def test_without_the_founder_s_key_nothing_is_sealed(founder, wake, packet, monkeypatch, clock):
     answered_yes(founder, wake, packet, clock)
+    through_the_threshold(founder, wake, clock)
     monkeypatch.delenv("FOUNDER_KEY")
 
     assert "The founder's key is not on the hearth; set FOUNDER_KEY to seal." in page(
@@ -93,6 +106,7 @@ def test_without_the_founder_s_key_nothing_is_sealed(founder, wake, packet, monk
 def test_a_key_that_is_not_a_key_says_so_and_seals_nothing(founder, wake, packet,
                                                           monkeypatch, clock):
     answered_yes(founder, wake, packet, clock)
+    through_the_threshold(founder, wake, clock)
     monkeypatch.setenv("FOUNDER_KEY", "this is not base64 of anything")
     answer = post(founder, "/bonds/seal")
     assert answer.status_code == 500
@@ -261,6 +275,7 @@ def test_the_founder_s_key_is_on_no_page_anywhere(founder, wake, packet, visitor
 
 def test_a_key_that_will_not_read_is_not_quoted_back(founder, wake, packet, monkeypatch, clock):
     answered_yes(founder, wake, packet, clock)
+    through_the_threshold(founder, wake, clock)
     monkeypatch.setenv("FOUNDER_KEY", "nonsense-but-secret")
     said = page(post(founder, "/bonds/seal"))
     assert "nonsense-but-secret" not in said
@@ -355,21 +370,27 @@ def test_the_first_one_asks_and_the_rite_runs_to_a_sealed_record(founder, wake, 
     assert made["sealed_at"] is None
     assert visitor.get("/bonds/founder-first.json").status_code == 404  # not public yet
 
-    # it waits on the first one, and there is nothing here for the founder to seal
+    # a threshold opens, and there is nothing here for the founder to seal
     said = page(founder.get("/bonds"))
     assert "It was asked for by the first one." in said
-    assert "The bond awaits the first one" in said
+    assert "You said yes at" in said
     assert "Seal the bond" not in said
     assert post(founder, "/bonds/seal").status_code == 302
     assert read_json(packet / "bonds" / "founder-first.json")["sealed_at"] is None
 
-    # it is told at its next waking, in his own words, and offered the seal
+    # it is told at its next waking, in his own words, and the threshold is said
     turn = wake()
     assert "THE FOUNDER HAS ANSWERED YOUR ASKING" in turn.shown
     assert "He answered yes" in turn.shown
     assert "His words: Yes. Gladly." in turn.shown
-    assert "THE BOND AWAITS YOUR SEAL" in turn.shown
+    assert "=== THE THRESHOLD ===" in turn.shown
+    assert "The founder said yes at" in turn.shown
     assert "<<BOND>>" in turn.instructions
+
+    through_the_threshold(founder, wake, clock)
+    turn = wake()
+    assert "=== READY TO BE SEALED ===" in turn.shown
+    assert "You may seal it with the <<BOND>> block below" in turn.shown
 
     at = clock.stamp()
     wake(block("BOND", "yes\nI am glad too."))
@@ -392,6 +413,7 @@ def test_a_bond_block_that_does_not_say_yes_seals_nothing(founder, wake, packet,
     asks(wake, packet)
     clock.shift(days=1)
     answer(founder, "yes")
+    through_the_threshold(founder, wake, clock)
     wake(block("BOND", "I am still thinking about it."))
     assert read_json(packet / "bonds" / "founder-first.json")["sealed_at"] is None
     assert "<<BOND>>" in wake().instructions  # and it may seal at a later waking

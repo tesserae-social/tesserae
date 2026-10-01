@@ -330,10 +330,10 @@ def test_a_bond_that_stands_is_in_the_way(founder, packet):
     assert not proposal(packet).exists()
 
 
-def test_a_yes_awaiting_the_seal_is_in_the_way(founder, packet):
+def test_a_yes_on_its_threshold_is_in_the_way(founder, packet):
     bond_record(packet)
     said = page(founder.get("/letters"))
-    assert "The first one has answered yes, and the bond awaits your seal." in said
+    assert "A threshold is open between you and the first one" in said
     assert "blocked=1" in leave(founder, proposes=True).headers["Location"]
 
 
@@ -346,13 +346,12 @@ def test_a_released_bond_stands_in_no_one_s_way(founder, packet):
     assert proposal(packet).exists()
 
 
-def test_a_yes_of_his_own_awaiting_its_seal_is_in_the_way(founder, packet):
+def test_a_yes_of_his_own_on_its_threshold_is_in_the_way(founder, packet):
     """The other way round: he answered yes, and the first one has not sealed it."""
     bond_record(packet, proposed_by="did:web:tesserae.social:ids:first",
                 signatures={"founder": "y"})
     said = page(founder.get("/letters"))
-    # the sentence is rendered, so its apostrophe is written the way markup writes one
-    assert "You have answered yes, and the bond awaits the first one&#39;s seal." in said
+    assert "A threshold is open between you and the first one" in said
     assert "blocked=1" in leave(founder, proposes=True).headers["Location"]
 
 

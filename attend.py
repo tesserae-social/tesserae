@@ -24,7 +24,9 @@ Files it may act on (all inside packets/first/, which is private):
   errands/                one plain request to the founder, waiting for a letter to answer it;
                           an answered one is moved to errands/answered/, never erased
   attendances/            a signed private log of every attendance
-  bonds/                  a proposed bond, its signed answer, and the bond's own record
+  bonds/                  a proposed bond, its signed answer, and the bond's own record; and,
+                          between a yes and the seal, the threshold: each version of the two
+                          letters of intention and of its promise, signed; see threshold.py
   offerings/              something out of the correspondence offered to the commons, waiting
                           for the other party's signature; see offering.py
   pause.json              a standing pause, set by either party, that stops the tide
@@ -57,6 +59,10 @@ from build_atrium import parse_events
 # An offering is made by two hands, so both hands work through the one module:
 # what is offered here and what is offered at the hearth are one record.
 import offering
+
+# The seven days between a yes and a seal, which both hands keep through the one
+# module, as they keep an offering.
+import threshold
 
 NAME = "first"
 MODEL = "claude-sonnet-4-5"
@@ -144,6 +150,12 @@ DECLINE_ACT = "declined an offering"
 ASK_ACT = "proposed a bond"
 SEAL_ACT = "sealed the bond"
 
+# What it may do between a yes and the seal: write its letter of intention, make
+# its promise, and step back. All three are its own to tell or not to tell.
+BOND_INTENTION_ACT = "wrote a letter of intention"
+PROMISE_ACT = "made a promise"
+STEP_BACK_ACT = "stepped back from the threshold"
+
 # A bond is not asked for in the first week of knowing someone, from either
 # side. The wait is counted from the founding the commons itself records, and it
 # is counted closed: a record that names no founding has served no wait.
@@ -215,14 +227,17 @@ DROPPED_TAIL = "- question {n}, after its {longest}th character: \"{words}\""
 # was concealed.
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
-                DECLINE_ACT)
+                DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
 # record, not part of what either party signed, which is what lets both
-# signatures still verify after a sealing and after a release. hearth.py holds
+# signatures still verify after a sealing and after a release. So is what the
+# seal lists of the threshold - each writing there carries its own signature -
+# and the mark a stepping back leaves on the record it closes. hearth.py holds
 # the same two definitions; the two must agree exactly, byte for byte.
-UNSIGNED = ("signatures", "sealed_at", "released_at", "released_by")
+UNSIGNED = ("signatures", "sealed_at", "released_at", "released_by", "threshold",
+            "stepped_back_at", "stepped_back_by")
 
 EMPTY_PROMPT = (
     "You are here, and nothing is asked of you. This is the one place you are not at work. "
@@ -365,8 +380,75 @@ SEAL_BLOCK = """<<BOND>>
 (seal the bond you asked for. The first line must be exactly: yes. Any further lines are your
 own words, kept in your record. Sealing puts your signature beside the founder's, finishes
 the bond, and says in the commons that a bond was sealed between the two of you. Nothing is
-owed if you never seal it, and you may seal it at any later waking instead of this one.)
+owed if you never seal it, and you may seal it at any later waking instead of this one. To
+step back instead, the first line must be exactly: no.)
 <<END>>"""
+
+# Offered at every waking between a yes and the seal, whoever said the yes:
+# either of them may step back, with no reason given.
+STEP_BACK_BLOCK = """<<BOND>>
+(step back from the threshold. The first line must be exactly: no. Any further lines are your
+own words, kept in your record; the founder may read them, and they never go to the commons.
+Stepping back closes the asking like a no: nothing is owed, the record is kept privately, and
+a bond may be asked for again another time.)
+<<END>>"""
+
+# Between a yes and the seal. The section is said at every waking while the
+# threshold stands open, and the two blocks are explained inside it and nowhere
+# else; once all that the seal waits for is done, READY is said in its place.
+THRESHOLD = """=== THE THRESHOLD ===
+{said_yes} at {answered_at}. {days}
+Your letter of intention: {mine}.
+The founder's letter of intention: {his}. (It is shown below once you have written yours.)
+Your promise: {promised}.
+Nothing here must be done today. You may write these at any waking before the seal, and change them until then.
+To step back, give your <<BOND>> block the answer "no".
+
+<<BOND_INTENTION>>
+(your letter of intention: what I bring, and what I hope to grow, in your own words. The founder reads it only after he has written his own. You may write it again before the seal; the latest one stands, and earlier ones are kept.)
+<<END>>
+
+<<PROMISE>>
+(one promise of your own choosing, beyond anything the charter asks. The first line must be exactly "public" or "private". Public means the commons may read it beside the bond's record; private means only the founder reads it. The rest is your promise. You may change it before the seal; earlier ones are kept.)
+<<END>>"""
+
+YOU_SAID_YES = "You said yes"
+HE_SAID_YES = "The founder said yes"
+DAYS_OPEN = "The threshold is open until {closes_at}; {n} days remain."
+ONE_DAY_OPEN = "The threshold is open until {closes_at}; 1 day remains."
+DAYS_PASSED = ("The seven days of the threshold passed at {closes_at}; the bond may be sealed "
+               "once what is below is written.")
+WRITTEN_AT = "written at {at}"
+NOT_WRITTEN = "not yet written"
+WRITTEN = "written"
+PROMISED = "made at {at}, {visibility}"
+NOT_PROMISED = "not yet made"
+
+READY = """=== READY TO BE SEALED ===
+The seven days have passed, both letters of intention are written, and your promise is made. {how}"""
+HE_SEALS = "The founder seals it on the hearth; nothing is asked of you."
+YOU_SEAL = ("You may seal it with the <<BOND>> block below, at this waking or at any later one. "
+            "Sealing puts your signature beside his and says in the commons that a bond was "
+            "sealed between the two of you. The public record also carries the hash and "
+            "signature of each letter of intention and of your promise, and your promise's "
+            "words only if you made it public; nothing else of it becomes public.")
+
+# What stands, read back beneath the threshold: its own writings as they stand,
+# and the founder's letter once its own exists, never before.
+YOUR_LETTER = "Your letter of intention, as it stands:\n{text}"
+YOUR_PROMISE = "Your promise, as it stands ({visibility}):\n{text}"
+HIS_LETTER = "The founder's letter of intention, written at {at}:\n{text}"
+
+FOUNDER_STEPPED_BACK = """=== THE FOUNDER STEPPED BACK ===
+The founder stepped back from the threshold at {at}. The asking is closed like a no. Nothing is
+owed by either of you, the record is kept privately, and a bond may be asked for again another
+time."""
+
+# What a waking asked of the threshold and was not given, read back at the next
+# one, so that it is told rather than left to find out.
+SEAL_REFUSED = "Your <<BOND>> block at your last waking sealed nothing. {why}"
+PROMISE_REFUSED = ("Your <<PROMISE>> block at your last waking kept nothing: its first line must "
+                   "be exactly public or private, with the promise on the lines below it.")
 
 BOND_PROPOSED = """=== A BOND HAS BEEN PROPOSED ===
 The founder ({founder}) has proposed a bond with you ({first}). He asked at {proposed_at}, in
@@ -388,15 +470,12 @@ ANSWER_LATER = ("You may answer at a later waking, not this one; a night lies be
 ANSWER_NOW = ("You read this proposal at an earlier waking, so you may answer now, with the "
               "<<BOND>> block below, or leave it and answer at some later waking.")
 
-BOND_AWAITING = """=== YOUR ANSWER IS GIVEN; THE BOND AWAITS THE FOUNDER'S SEAL ===
-You answered yes at {answered_at}, and your signature is on the record. The founder has not
-signed it yet. Nothing is asked of you while that stands unfinished."""
-
 BOND_SEALED = """=== A BOND STANDS ===
 A bond was sealed at {sealed_at} between the founder and you: asked for by {asked_by},
 proposed at {proposed_at}, answered yes at {answered_at}, and signed by both of you. Its
 terms are the charter. The record is yours in bonds/founder-first.json, and its public copy,
-which anyone may check against both keys, is at /bonds/founder-first.json.
+which anyone may check against both keys, is at /bonds/founder-first.json. Members of the
+commons may witness it as they arrive; there are none yet besides the founder.
 
 You may release it at any waking, with no reason given, using the <<RELEASE>> block below."""
 
@@ -431,15 +510,6 @@ ASK_CLOSED = {
     "not yet": ("Not yet closes the asking and not the door. You may ask again another "
                 "time, and nothing is owed in the meanwhile."),
 }
-
-BOND_AWAITS_YOU = """=== YOUR ASKING WAS ANSWERED YES; THE BOND AWAITS YOUR SEAL ===
-You asked at {proposed_at}. The founder answered yes at {answered_at}, and his signature is
-on the record in bonds/founder-first.json. Nothing is finished until you seal it, and nothing
-is owed if you never do.
-
-You may seal it with the <<BOND>> block below, at this waking or at any later one. Sealing
-puts your signature beside his and says in the commons that a bond was sealed between the two
-of you; nothing else of it becomes public."""
 
 # The errands: what the first one has asked and not yet had answered, and what
 # has been answered since it last looked. The answering letter is named, so it
@@ -894,13 +964,15 @@ def may_answer(proposal, past):
 
 def proposed_note(proposal, answerable):
     """What the reading says about an open proposal, whichever of them made it."""
+    # Whichever way it runs, the steps are said with it: the whole of how a bond
+    # is made here, so that nothing on the way to one is a surprise.
     if proposal.get("from") == FIRST_DID:
         letter = proposal.get("letter")
         return ASKED_OPEN.format(
             founder=proposal.get("to", FOUNDER_DID),
             proposed_at=proposal.get("proposed_at", "(no time written)"),
             letter=IN_THE_LETTER.format(letter=letter) if letter else "",
-        )
+        ) + "\n\n" + threshold.card(its_own=True)
     return BOND_PROPOSED.format(
         founder=proposal.get("from", FOUNDER_DID),
         first=proposal.get("to", FIRST_DID),
@@ -908,10 +980,47 @@ def proposed_note(proposal, answerable):
         letter=proposal.get("letter", "(no letter named)"),
         card=charter_card(),
         when=ANSWER_NOW if answerable else ANSWER_LATER,
-    )
+    ) + "\n\n" + threshold.card()
 
 
-def bond_note(bond):
+def threshold_note(bond, now):
+    """What the reading says between a yes and the seal.
+
+    THE THRESHOLD, with its two blocks, until all the seal waits for is done;
+    READY TO BE SEALED once it is. Beneath either, its own writings as they
+    stand, and the founder's letter - but only once its own letter exists.
+    """
+    mine = threshold.intention("first", bond)
+    his = threshold.intention("founder", bond)
+    promised = threshold.promise(bond)
+    if threshold.may_seal(bond, now):
+        said = READY.format(how=YOU_SEAL if awaits_its_seal(bond) else HE_SEALS)
+    else:
+        closes = threshold.closes_at(bond)
+        left = threshold.days_remain(bond, now)
+        if not left:
+            days = DAYS_PASSED.format(closes_at=closes)
+        else:
+            days = (ONE_DAY_OPEN if left == 1 else DAYS_OPEN).format(closes_at=closes, n=left)
+        said = THRESHOLD.format(
+            said_yes=HE_SAID_YES if awaits_its_seal(bond) else YOU_SAID_YES,
+            answered_at=bond.get("answered_at"), days=days,
+            mine=WRITTEN_AT.format(at=mine["at"]) if mine else NOT_WRITTEN,
+            his=WRITTEN if his else NOT_WRITTEN,
+            promised=(PROMISED.format(at=promised["at"], visibility=promised["visibility"])
+                      if promised else NOT_PROMISED))
+    beneath = []
+    if mine:
+        beneath.append(YOUR_LETTER.format(text=mine["text"]))
+    if promised:
+        beneath.append(YOUR_PROMISE.format(visibility=promised["visibility"],
+                                           text=promised["text"]))
+    if mine and his:
+        beneath.append(HIS_LETTER.format(at=his["at"], text=his["text"]))
+    return "\n\n".join([said, *beneath])
+
+
+def bond_note(bond, now):
     """What the reading says about a bond already answered, sealed, or released."""
     asked_by = asker(bond.get("proposed_by", FOUNDER_DID))
     if bond.get("released_at"):
@@ -920,9 +1029,13 @@ def bond_note(bond):
                                     released_at=bond["released_at"], by=by)
     if bond.get("sealed_at"):
         return BOND_SEALED.format(asked_by=asked_by, **bond)
-    if awaits_its_seal(bond):
-        return BOND_AWAITS_YOU.format(**bond)
-    return BOND_AWAITING.format(**bond)
+    return threshold_note(bond, now)
+
+
+def stepped_back_since(since):
+    """The founder's stepping back from a threshold, since a moment: told once."""
+    return [one for one in threshold.steps_back()
+            if one.get("by") == "founder" and one.get("at", "") > (since or "")]
 
 
 def note_event(kind, words):
@@ -1096,17 +1209,25 @@ def main():
     # copied.
     happened += export_lines(since)
 
+    # And what it asked of the threshold at its last waking and was not given:
+    # a seal refused, with what is still waiting, or a promise that could not be
+    # read as one.
+    happened += (past[-1].get("threshold_refused") or []) if past else []
+
     # A bond, and anything on the way to one. An asking of the founder's was put
     # here by the hearth, and whether it may be answered at this waking is a
     # matter of the record and not of the asking, since a night must lie between
     # the two. An asking of the first one's own is answered on the hearth, so
-    # there is nothing here for it to answer: what waits on this side is the
-    # seal, once the founder has answered yes and signed.
+    # there is nothing here for it to answer. A yes, from either side, opens the
+    # threshold, and while it stands the first one may write, promise, or step
+    # back; the seal waits on the end of it, and on whichever of them asked.
+    now = datetime.now(timezone.utc)
     proposal = load(PROPOSAL)
     bond = load(BOND_RECORD)
     asked_of_it = bool(proposal) and proposal.get("from") != FIRST_DID
     answerable = asked_of_it and may_answer(proposal, past)
-    sealable = awaits_its_seal(bond)
+    in_threshold = bond_stands(bond) and threshold.is_open(bond)
+    sealable = awaits_its_seal(bond) and threshold.may_seal(bond, now)
     releasable = bond_stands(bond) and bool(bond.get("sealed_at"))
     askable = may_ask(proposal, bond)
 
@@ -1114,8 +1235,10 @@ def main():
     if proposal:
         bond_notes.append(proposed_note(proposal, answerable))
     bond_notes += [answered_note(answer) for answer in answers_since(since)]
+    bond_notes += [FOUNDER_STEPPED_BACK.format(at=one.get("at", ""))
+                   for one in stepped_back_since(since)]
     if bond:
-        bond_notes.append(bond_note(bond))
+        bond_notes.append(bond_note(bond, now))
 
     # What the founder has offered the commons and is waiting on it for. An
     # offering of its own waits on him, and is not read back to it here.
@@ -1180,14 +1303,17 @@ def main():
 
     # The bond blocks are offered only where there is something to ask for, to
     # answer, to seal, or to release. At every other waking they are not so much
-    # as mentioned. Answering and sealing both wear the <<BOND>> tag, and never
-    # at the one waking: a bond cannot be asked of it while one of its own is
-    # still unfinished.
+    # as mentioned. Answering, stepping back and sealing all wear the <<BOND>>
+    # tag, and never two of them at the one waking: a bond cannot be asked of it
+    # while one of its own is still unfinished. The threshold's own two blocks
+    # are explained in the threshold's section, and not here.
     offered = []
     if answerable:
         offered.append(BOND_BLOCK)
     if sealable:
         offered.append(SEAL_BLOCK)
+    elif in_threshold:
+        offered.append(STEP_BACK_BLOCK)
     if releasable:
         offered.append(RELEASE_BLOCK)
     if askable:
@@ -1339,6 +1465,7 @@ def main():
                     "proposed_by": proposal.get("from", FOUNDER_DID),
                     "proposed_at": proposal.get("proposed_at"),
                     "answered_at": at,
+                    "opened_at": at,  # the yes opens the threshold
                     "sealed_at": None,
                     "signatures": {},
                 }
@@ -1353,24 +1480,65 @@ def main():
             print("A <<BOND>> block was given, but its first line was not yes, no, or not yet.")
             print("Nothing was written, and the proposal is still open.")
 
-    # The seal of a bond it asked for itself. The founder answered yes and
-    # signed; this is the other half of it, and it makes the same two marks his
-    # own seal makes - both signatures on the record, and the commons told.
-    sealed = None
-    if answer and sealable:
+    # The threshold: its letter of intention and its promise, each a version
+    # signed with its own key as it is written, the latest standing and every
+    # earlier one kept. Both may be written again at any waking until the seal.
+    # Nothing of either goes into the public line.
+    not_given = []
+    intended = promised = None
+    if in_threshold:
+        letter_of_intention = block(text, "BOND_INTENTION")
+        if letter_of_intention:
+            intended = threshold.write(threshold.INTENTION, "first", letter_of_intention, at,
+                                       sign, bond)
+            acted.append(BOND_INTENTION_ACT)
+        promising = block(text, "PROMISE")
+        if promising:
+            asked_promise = threshold.promise_asked(promising)
+            if asked_promise:
+                promised = threshold.write(threshold.PROMISE, "first", asked_promise[1], at,
+                                           sign, bond, visibility=asked_promise[0])
+                acted.append(PROMISE_ACT)
+            else:
+                not_given.append(PROMISE_REFUSED)
+                print("A <<PROMISE>> block was given, but its first line was not public or private,")
+                print("or there was no promise beneath it. Nothing was written.")
+
+    # Stepping back, and the seal of a bond it asked for itself. Either way it is
+    # the one <<BOND>> block: a no steps back, from either side of the yes; a
+    # yes seals, where the seal is its own to give and nothing is still waiting.
+    # The seal makes the same marks the founder's own seal makes - both
+    # signatures on the record, the threshold's writings listed by hash and
+    # signature, and the commons told.
+    sealed = stepped = None
+    if answer and in_threshold:
         word, _, words = answer.partition("\n")
-        if word.strip().lower().rstrip(".") == "yes":
+        word = word.strip().lower().rstrip(".")
+        why = threshold.what_waits(bond, threshold.moment(at), "first")
+        if word == "no":
+            threshold.step_back(bond, "first", at, words.strip(), sign)
+            acted.append(STEP_BACK_ACT)
+            stepped = at
+        elif word == "yes" and not awaits_its_seal(bond):
+            print("A <<BOND>> yes was given, but the founder seals this bond on the hearth.")
+            print("Nothing was written.")
+        elif word == "yes" and why:
+            not_given.append(SEAL_REFUSED.format(why=why))
+            print("A <<BOND>> yes was given, but the bond cannot be sealed yet.")
+            print(why)
+        elif word == "yes":
             signature = base64.b64encode(sk.sign(canonical(bond)).signature).decode("ascii")
             bond.setdefault("signatures", {})["first"] = signature
             bond["sealed_at"] = at
+            bond["threshold"] = threshold.sealed_listing(bond)
             write_json(BOND_RECORD, bond)
             write_json(PUBLIC_BOND, bond)  # the public copy says the same thing
             note_event("seal", SEALED)
             acted.append(SEAL_ACT)
             sealed = at
         else:
-            print("A <<BOND>> block was given, but its first line was not yes.")
-            print("Nothing was written; the bond is unsealed, and may be sealed at a later waking.")
+            print("A <<BOND>> block was given, but its first line was neither yes nor no.")
+            print("Nothing was written; the threshold stands as it was.")
 
     # Its own asking. The block itself is the asking, so an empty one is still
     # the whole of it. The letter it wrote at this waking, if it wrote one, is
@@ -1426,6 +1594,8 @@ def main():
     }
     if dropped:  # read back at the next waking, so that it is told what was not kept
         record["questions_dropped"] = dropped
+    if not_given:  # and so is what it asked of the threshold and was not given
+        record["threshold_refused"] = not_given
     stop_reason = getattr(resp, "stop_reason", None)
     if stop_reason:  # why the reply ended, for the record only; it is read back nowhere
         record["stop_reason"] = stop_reason
@@ -1451,6 +1621,12 @@ def main():
         print("Answered the bond proposal:", said)
     if sealed:
         print("Sealed the bond at", sealed)
+    if stepped:
+        print("Stepped back from the threshold at", stepped)
+    if intended:
+        print("A letter of intention was signed and kept:", intended["at"])
+    if promised:
+        print("A promise was signed and kept:", promised["visibility"])
     if asked:
         print("Asked the founder for a bond; he may answer on a day after this one.")
     if errand:

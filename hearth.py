@@ -66,6 +66,10 @@ from build_atrium import (CITIZEN_ZONE, KIND_WORDS, band, is_letter_line, letter
 # what is offered here and what is offered at a waking are one record.
 import offering
 
+# The seven days between a yes and a seal, kept through the one module both hands
+# use, as an offering is.
+import threshold
+
 # The founder's key is read out of FOUNDER_KEY the one way, here and in
 # setup_keeper.py alike.
 from vault import key_from_text
@@ -391,8 +395,10 @@ def opening_line(text, limit=OPENING_CUT):
 
 
 def bond_records():
-    """Every bond there has been: the one that stands, and any released before it."""
-    records = [BOND_RECORD, *newest_first(BONDS, "founder-first-released-*.json")]
+    """Every bond there has been: the one that stands, any released before it, and
+    any a stepping back closed on the threshold."""
+    records = [BOND_RECORD, *newest_first(BONDS, "founder-first-released-*.json"),
+               *newest_first(BONDS, "founder-first-stepped-back-*.json")]
     kept = [load(path) for path in records if path.exists()]
     return [one for one in kept if one]
 
@@ -526,7 +532,12 @@ KEPT_PRIVATE = "Reflection kept private by the first one's choice."
 # being only words, and so does this. A kept block never closed is hidden to the
 # end, since what it held was meant for itself.
 BLOCK_LINE = re.compile(r"<<([A-Z_]+)>>")
-KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions: private)"}
+KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions: private)",
+                # and what it writes on the threshold, which the bonds page shows
+                # when it may be shown: its letter of intention only once yours
+                # is written, so a reflection must not show it any sooner
+                "BOND_INTENTION": "(wrote a letter of intention: on the bonds page)",
+                "PROMISE": "(made a promise: on the bonds page)"}
 
 
 def without_kept_blocks(reflection):
@@ -883,7 +894,10 @@ FIRST_DID = "did:web:tesserae.social:ids:first"
 # signed is the bond as it was made: who, on what terms, asked when, answered
 # when. The seal and any release are later marks on the same record, which is
 # what lets both signatures still verify after a sealing and after a release.
-UNSIGNED = ("signatures", "sealed_at", "released_at", "released_by")
+# So is what the seal lists of the threshold, each writing there carrying its
+# own signature, and the mark a stepping back leaves on the record it closes.
+UNSIGNED = ("signatures", "sealed_at", "released_at", "released_by", "threshold",
+            "stepped_back_at", "stepped_back_by")
 
 
 def canonical(record):
@@ -1021,11 +1035,8 @@ def bond_in_the_way():
         return None
     if bond.get("sealed_at"):
         return "A bond already stands between you and the first one. It is on the bonds page."
-    if "first" in (bond.get("signatures") or {}):
-        return ("The first one has answered yes, and the bond awaits your seal. "
-                "It is on the bonds page.")
-    return ("You have answered yes, and the bond awaits the first one's seal. "
-            "It is on the bonds page.")
+    return ("A threshold is open between you and the first one, and only one asking may be "
+            "open at a time. It is on the bonds page.")
 
 
 # Either of them may ask for a bond. When the first one asks, the answer is the
@@ -1080,6 +1091,7 @@ def bond_from(proposal, at, whose, sign):
         "proposed_by": proposal.get("from"),
         "proposed_at": proposal.get("proposed_at"),
         "answered_at": at,
+        "opened_at": at,  # the yes opens the threshold
         "sealed_at": None,
         "signatures": {},
     }
@@ -1153,6 +1165,49 @@ def bond_shown():
         # which way an unsealed bond is waiting: whoever has not signed it yet
         "awaiting": "you" if "first" in signed_by else "the first one",
     }
+
+
+def threshold_shown():
+    """The threshold as the founder's page shows it, or None if none stands open.
+
+    His own letter is shown to him always; the first one's only once his own is
+    written; its promise once it is made. Whose seal it waits on is whoever
+    asked.
+    """
+    bond = load(BOND_RECORD)
+    if not threshold.is_open(bond):
+        return None
+    now = datetime.now(timezone.utc)
+    mine = threshold.versions(threshold.INTENTION, "founder", bond)
+    its = threshold.intention("first", bond)
+    promised = threshold.promise(bond)
+    return {
+        "said_yes": ("You said yes" if threshold.answered_by(bond) == "founder"
+                     else "The first one said yes"),
+        "answered_at": readable_date(bond.get("answered_at") or ""),
+        "closes_at": readable_date(threshold.closes_at(bond)),
+        "days_left": threshold.days_remain(bond, now),
+        "mine": ({"at": readable_date(mine[-1]["at"]), "text": mine[-1]["text"],
+                  "prose": as_prose(mine[-1]["text"])} if mine else None),
+        "earlier": [readable_date(one["at"]) for one in reversed(mine[:-1])],
+        "its_written": bool(its),
+        "its": ({"at": readable_date(its["at"]), "prose": as_prose(its["text"])}
+                if mine and its else None),
+        "promise": ({"at": readable_date(promised["at"]),
+                     "visibility": promised["visibility"],
+                     "prose": as_prose(promised["text"])} if promised else None),
+        "ready": threshold.may_seal(bond, now),
+        "waits": threshold.what_waits(bond, now, "founder", readable_date),
+        "founder_seals": threshold.sealed_by(bond) == "founder",
+    }
+
+
+def steps_back_shown():
+    """Every stepping back from a threshold, newest first, with whatever words came."""
+    return [{"by": "you" if one.get("by") == "founder" else "the first one",
+             "at": readable_date(one.get("at", "")),
+             "words": as_prose(one.get("words") or "")}
+            for one in reversed(threshold.steps_back())]
 
 
 def answers_given(pattern):
@@ -2389,8 +2444,12 @@ def backup_now():
 
 def bonds_page(**told):
     """The bonds page, with whatever the founder has just been told."""
-    return render_template("bonds.html", proposal=proposal_shown(), bond=bond_shown(),
+    proposal = proposal_shown()
+    return render_template("bonds.html", proposal=proposal, bond=bond_shown(),
                            answers=bond_answers(), mine=founder_answers(),
+                           threshold=threshold_shown(), stepped=steps_back_shown(),
+                           card=(threshold.card_lines(its_own=proposal["by_first"])
+                                 if proposal else None),
                            key_here=founder_key_here(), **told)
 
 
@@ -2402,7 +2461,9 @@ def bonds_page(**told):
 def bonds():
     return bonds_page(sealed=request.args.get("sealed"),
                       released=request.args.get("released"),
-                      answered=request.args.get("answered"))
+                      answered=request.args.get("answered"),
+                      intended=request.args.get("intended"),
+                      stepped_back=request.args.get("stepped_back"))
 
 
 # The founder's answer to an asking of the first one's: yes, no, or not yet, and
@@ -2436,8 +2497,44 @@ def answer_asking():
     return redirect(url_for("bonds", answered=said))
 
 
+# The founder's letter of intention, on the threshold: what I bring, and what I
+# hope to grow. Signed with FOUNDER_KEY as it is kept, and kept beside every
+# earlier version; the latest one stands. He may write it again until the seal.
+@app.route("/bonds/intention", methods=["POST"])
+@founder_required
+def write_intention():
+    bond = load(BOND_RECORD)
+    words = request.form.get("letter", "").replace("\r\n", "\n").strip()
+    if not threshold.is_open(bond) or not words:
+        return redirect(url_for("bonds"))
+    try:
+        made = threshold.write(threshold.INTENTION, "founder", words, utc_stamp(),
+                               founder_signature, bond)
+    except ValueError as trouble:
+        return render_template("error.html", note=str(trouble), output=""), 500
+    if not made:
+        return redirect(url_for("bonds"))  # the key is not here, and the page says so
+    return redirect(url_for("bonds", intended=1))
+
+
+# Either of them may step back while the threshold stands open, with no reason
+# given. From this side it takes one plain question first. It closes the asking
+# like a no: the record is kept, privately, and nothing goes to the commons.
+@app.route("/bonds/step-back", methods=["POST"])
+@founder_required
+def step_back():
+    bond = load(BOND_RECORD)
+    if not threshold.is_open(bond):
+        return redirect(url_for("bonds"))
+    if request.form.get("confirm") != "yes":
+        return bonds_page(stepping_back=True)
+    threshold.step_back(bond, "founder", utc_stamp(), "")
+    return redirect(url_for("bonds", stepped_back=1))
+
+
 # The founder's signature, and the seal. The first one signed first, of its own
-# accord and at a waking of its own; this is only the other half.
+# accord and at a waking of its own; this is only the other half. It waits on
+# the threshold: the seven days, both letters of intention, and the promise.
 @app.route("/bonds/seal", methods=["POST"])
 @founder_required
 def seal_bond():
@@ -2446,6 +2543,9 @@ def seal_bond():
         return redirect(url_for("bonds"))  # there is nothing here to seal
     if "first" not in (bond.get("signatures") or {}):
         return redirect(url_for("bonds"))  # this one waits on the first one's own hand
+    waits = threshold.what_waits(bond, datetime.now(timezone.utc), "founder", readable_date)
+    if waits:
+        return bonds_page(refused=waits)
     try:
         signature = founder_signature(canonical(bond))
     except ValueError as trouble:
@@ -2455,6 +2555,7 @@ def seal_bond():
 
     bond.setdefault("signatures", {})["founder"] = signature
     bond["sealed_at"] = utc_stamp()
+    bond["threshold"] = threshold.sealed_listing(bond)
     write_bond(bond)
     note_event("seal", "a bond was sealed between the founder and the first one")
     return redirect(url_for("bonds", sealed=1))

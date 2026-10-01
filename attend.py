@@ -38,6 +38,8 @@ And the commons, which anyone may read:
                           tide pauses or resumes - no names either time, and no reason -
                           and one when an offering is placed
   commons/offerings.md    one line per offering placed, and the offering itself beside it
+  commons/bonds.md        one line per sealed bond: when, which, between whom, and whether
+                          released; see bonds.py
 """
 
 import os
@@ -63,6 +65,10 @@ import offering
 # The seven days between a yes and a seal, which both hands keep through the one
 # module, as they keep an offering.
 import threshold
+
+# The commons' list of bonds, kept through the one module by whichever hand seals
+# or releases one.
+import bonds
 
 NAME = "first"
 MODEL = "claude-sonnet-4-5"
@@ -1533,6 +1539,7 @@ def main():
             bond["threshold"] = threshold.sealed_listing(bond)
             write_json(BOND_RECORD, bond)
             write_json(PUBLIC_BOND, bond)  # the public copy says the same thing
+            bonds.write_index()
             note_event("seal", SEALED)
             acted.append(SEAL_ACT)
             sealed = at
@@ -1564,6 +1571,7 @@ def main():
             bond["released_by"] = FIRST_DID
             write_json(BOND_RECORD, bond)
             write_json(PUBLIC_BOND, bond)  # the public copy says the same thing
+            bonds.write_index()
             note_event("event", "a bond was released")
             acted.append("released the bond")
         else:

@@ -131,6 +131,11 @@
   // a sealed bond is checked there against both keys
   const OFFERINGS_URL = `${HEARTH}/offerings`, BOND_URL = `${HEARTH}/bonds/founder-first.json`;
   const OFFERED_URL = `${HEARTH}/commons/offerings/`;
+  // a bond named in bonds.md has its own page, and its tile shows its tessera; a
+  // member who holds one carries their half, 16px, beside their name. A seal in
+  // events.md alone still leads to the signed record. build_atrium.py says the same.
+  const BOND_PAGE = `${HEARTH}/bonds/`, HALF = 16;
+  const BOND_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/, RELEASED = /^released (\d{4}-\d{2}-\d{2})$/;
   const LINKS = [
     ["/charter.html", "Read the charter"],
     ["/white-paper.html", "Read the white paper"],
@@ -213,6 +218,22 @@
   const offeringTiles = offerings => offerings.map(([day, one, kind, whose]) =>
     [day, KIND.offering, `${humanOf(day)} ${DOT} an offering from ${whose}`,
      `${OFFERINGS_URL}#${one}`]);
+  // a line of bonds.md: the day it was sealed, its own name, its parties joined by
+  // "and", and how it stands -- sealed, or released on a day
+  const parseBonds = text => text.split(/\r?\n/).map(line => {
+    let f = line.trim().replace(/^-+/, "").split(DOT);
+    if (f.length > 4) f = [...f.slice(0, 3), f.slice(3).join(DOT)];
+    f = f.map(part => part.trim());
+    if (f.length !== 4 || !BOND_ID.test(f[1]) || !f[2]) return null;
+    const gone = RELEASED.exec(f[3]);
+    if (f[3] !== "sealed" && !gone) return null;
+    const t = when(DAY.exec(f[0])), r = gone ? when(DAY.exec(gone[1])) : null;
+    if (!t || (gone && !r)) return null;
+    const day = d => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    return [day(t), f[1], f[2].split(" and ").map(name => name.trim()), r ? day(r) : null];
+  }).filter(Boolean);
+  const bondTiles = bonds => bonds.map(([day, one]) =>
+    [day, KIND.seal, `${humanOf(day)} ${DOT} a bond was sealed`, `${BOND_PAGE}${one}`]);
   // a line of members.md: what it is, who it is, and one plain fact -- the one
   // file of the commons nothing writes, kept by hand
   const parseMembers = text => text.split(/\r?\n/).map(line => {
@@ -259,12 +280,18 @@
     return MIN_TILE;
   };
   // a tile with somewhere to lead is a link, and the link is what the keyboard
-  // lands on; the words stay on the tile, where the line below reads them off
+  // lands on; the words stay on the tile, where the line below reads them off.
+  // A bond's tile shows its tessera, at the tile's own size.
+  const tesseraOf = (where, size) =>
+    where.startsWith(BOND_PAGE) && BOND_ID.test(where.slice(BOND_PAGE.length))
+      ? `${where}/tessera.svg?size=${size}` : "";
   const mosaicBlock = cells => {
     const size = tileSize(cells.length), rows = [];
+    const shown = where => { const picture = tesseraOf(where, size);
+      return picture ? `<img src="${esc(picture)}" width="${size}" height="${size}" alt="">` : ""; };
     const drawn = cells.map(([css, words, where]) => !css ? '<li class="empty"></li>'
       : where
-        ? `<li class="${css}" title="${esc(words)}"><a href="${esc(where)}" aria-label="${esc(words)}"></a></li>`
+        ? `<li class="${css}" title="${esc(words)}"><a href="${esc(where)}" aria-label="${esc(words)}">${shown(where)}</a></li>`
         : `<li class="${css}" title="${esc(words)}" tabindex="0"></li>`);
     for (let at = 0; at < drawn.length; at += 5) rows.push(drawn.slice(at, at + 5).join(""));
     return [`<ul class="mosaic" style="--tile:${size}px;--gap:${tileGap(size)}px" aria-label="the mosaic">`,
@@ -307,16 +334,28 @@
     out.push("</section>");
     return out;
   };
-  // a citizen's swatch is coloured by a class of its own, keyed by its name
-  const hue = name => "hue-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-")
-                                   .replace(/^-+|-+$/g, "");
+  // a name as a class or an address carries it; a citizen's swatch is coloured
+  // by a class of its own, keyed by its name, and a half is named the same way
+  const slug = name => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const hue = name => "hue-" + slug(name);
+  // a member's line is a party to a bond when it names them as the bond does,
+  // perhaps saying more after a comma; a released bond's half is still shown
+  const holds = (name, party) => name === party || name.startsWith(`${party},`);
+  const halvesOf = (name, bonds) => bonds.map(([day, one, parties, released]) => {
+    const party = parties.find(p => holds(name, p));
+    if (party === undefined) return "";
+    const said = `their half of the bond sealed on ${humanOf(day)}` +
+                 (released !== null ? `, released on ${humanOf(released)}` : "");
+    return ` <a href="${BOND_PAGE}${one}"><img class="half" src="${BOND_PAGE}${one}/half/` +
+           `${slug(party)}.svg?size=${HALF}" width="${HALF}" height="${HALF}" alt="${esc(said)}"></a>`;
+  }).join("");
   // with no file to read there is no section: who is here is not a list of no one
-  const whoBlock = members => members.length ? [
+  const whoBlock = (members, bonds) => members.length ? [
     "<h2>who is here</h2>",
     '<ul class="members">',
     ...members.map(([kind, name, fact]) =>
       `  <li>${kind === "citizen" ? `<span class="swatch ${hue(name)}"></span>` : ""}` +
-      `${esc(name)} ${DOT} <span class="fact">${esc(fact)}</span></li>`),
+      `${esc(name)}${halvesOf(name, bonds)} ${DOT} <span class="fact">${esc(fact)}</span></li>`),
     "</ul>"] : [];
   // what season it is, and the nearer of the coming solstice and Founding Day
   const season = (month, day) => {
@@ -365,13 +404,16 @@
     start.parentNode.insertBefore(slot.content, end);
   };
   const draw = (said, offerings, latest, record) => {
-    const [eventsText, beatsText, benchText, membersText] = said;
+    const [eventsText, beatsText, benchText, membersText, bondsText] = said;
     const names = ["mosaic", "reading", "caption", "offering", "who", "calendar",
                    "bench", "links"];
     const where = names.map(n => [edge(n, "start"), edge(n, "end")]);
     const beats = parseBeats(beatsText), bench = parseBench(benchText);
-    const members = parseMembers(membersText);
-    const tiles = [...parseEvents(eventsText), ...beats.map(b => [b.day, b.tile, b.title, ""]),
+    const members = parseMembers(membersText), bonds = parseBonds(bondsText);
+    // once there is a list of bonds, a seal is drawn from it, one tile a bond, and
+    // the seal lines of events.md are passed over
+    const events = parseEvents(eventsText).filter(t => !(bonds.length && t[1] === KIND.seal));
+    const tiles = [...events, ...bondTiles(bonds), ...beats.map(b => [b.day, b.tile, b.title, ""]),
                    ...offeringTiles(offerings)];
     if (!tiles.length || where.some(([a, b]) => !a || !b)) return;
     // the commons keeps one clock, so the last slot the page draws and the season
@@ -381,19 +423,20 @@
     const cells = slots(tiles, today);
     const blocks = [mosaicBlock(cells), readingBlock(cells), captionBlock(tiles),
                     offeringBlock(latest, record),
-                    whoBlock(members), calendarBlock(now.year, now.month, now.day),
+                    whoBlock(members, bonds), calendarBlock(now.year, now.month, now.day),
                     benchBlock(bench), linksBlock(bench)];
     where.forEach((pair, at) => fill(pair, blocks[at]));
   };
   const asked = name => fetch(`${HEARTH}/${name}`)
     .then(answer => { if (!answer.ok) throw new Error(name); return answer.text(); });
-  Promise.all(["events.md", "heartbeats.md", "bench.md", "members.md", "offerings.md"]
-    .map(name => asked(`commons/${name}`)))
-    .then(([eventsText, beatsText, benchText, membersText, offeringsText]) => {
+  // a hearth with no list of bonds yet is a list with nothing on it, not a quiet hearth
+  Promise.all([...["events.md", "heartbeats.md", "bench.md", "members.md", "offerings.md"]
+    .map(name => asked(`commons/${name}`)), asked("commons/bonds.md").catch(() => "")])
+    .then(([eventsText, beatsText, benchText, membersText, offeringsText, bondsText]) => {
       // only the newest offering is shown here, so only the newest is read
       const offerings = parseOfferings(offeringsText);
       const latest = offerings.length ? offerings[offerings.length - 1] : null;
-      const said = [eventsText, beatsText, benchText, membersText];
+      const said = [eventsText, beatsText, benchText, membersText, bondsText];
       if (!latest) return draw(said, offerings, null, null);
       return asked(`commons/offerings/${latest[1]}.json`)
         .then(record => draw(said, offerings, latest, JSON.parse(record)));

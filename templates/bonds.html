@@ -175,8 +175,10 @@
       Its terms are {{ bond.terms }}. It was asked for by {{ bond.proposed_by }}.</p>
     <p>Signed by: {{ bond.signed_by|join(" and ") }}.</p>
     {% if bond.sealed_at %}
-    <p class="muted">The sealed record is public at
-      <a href="{{ url_for('public_bond') }}">/bonds/founder-first.json</a>. Anyone may check
+    <p class="muted">Its own page, with its tessera, is
+      <a href="{{ url_for('bond_page', bond_id='founder-first') }}">/bonds/founder-first</a>.
+      The sealed record is public at
+      <a href="{{ url_for('public_bond', bond_id='founder-first') }}">/bonds/founder-first.json</a>. Anyone may check
       both signatures against the two identity documents: what is signed is the record with
       signatures, sealed_at, released_at, released_by and threshold taken out, as JSON with
       sorted keys. The threshold lists each letter of intention and the promise by its

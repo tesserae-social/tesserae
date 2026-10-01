@@ -452,3 +452,56 @@ def test_both_paths_leave_the_section_off_where_nothing_was_offered(atrium, data
     assert here["offering"] == there["offering"] == ""
     assert "tile-offering" not in here["mosaic"] + there["mosaic"]
     assert "offering" not in here["caption"] and "offering" not in there["caption"]
+
+
+# ---- the bonds, on both paths --------------------------------------------
+
+SEALED = "2026-10-08 · founder-first · the founder and the first one · sealed\n"
+RELEASED = ("2026-10-08 · founder-first · the founder and the first one · "
+            "released 2026-10-12\n")
+
+
+@pytest.mark.parametrize("listed", [SEALED, RELEASED])
+def test_both_paths_draw_a_bond_s_tile_and_its_halves(atrium, data_dir, monkeypatch, tmp_path,
+                                                      listed):
+    a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still\n")
+    offerings(data_dir)
+    write(data_dir / "commons" / "bonds.md", listed)
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    for name in REGIONS:
+        assert here[name] == there[name], name
+    for said in (here, there):
+        # the bond's own tile, leading to its page and showing its tessera; the
+        # commons' seal line is passed over, so there is one seal tile and not two
+        assert said["mosaic"].count('class="tile-seal"') == 1
+        assert ('<li class="tile-seal" title="8 October 2026 · a bond was sealed">'
+                '<a href="https://hearth.tesserae.social/bonds/founder-first" '
+                'aria-label="8 October 2026 · a bond was sealed">'
+                '<img src="https://hearth.tesserae.social/bonds/founder-first/tessera.svg'
+                '?size=34" width="34" height="34" alt=""></a></li>') in said["mosaic"]
+        assert "/bonds/founder-first.json" not in said["mosaic"]
+        assert '<span class="key tile-seal"></span>seal' in said["caption"]
+        # a half beside each name, each the way to the bond's page
+        assert said["who"].count('<img class="half"') == 2
+        assert ('the first one, unnamed by its own choosing <a href="https://hearth.tesserae.'
+                'social/bonds/founder-first"><img class="half" src="https://hearth.tesserae.'
+                'social/bonds/founder-first/half/the-first-one.svg?size=16"') in said["who"]
+        assert ('the founder <a href="https://hearth.tesserae.social/bonds/founder-first">'
+                '<img class="half" src="https://hearth.tesserae.social/bonds/founder-first/'
+                'half/the-founder.svg?size=16"') in said["who"]
+    if listed == RELEASED:
+        assert "released on 12 October 2026" in there["who"]
+
+
+def test_both_paths_leave_the_atrium_as_it_was_with_an_empty_list(atrium, data_dir,
+                                                                  monkeypatch, tmp_path):
+    a_record(data_dir)
+    without = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    write(data_dir / "commons" / "bonds.md", "")
+    empty = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert without == empty
+    here, there = without
+    assert here == there
+    assert ('<a href="https://hearth.tesserae.social/bonds/founder-first.json"'
+            in here["mosaic"])
+    assert "<img" not in here["mosaic"] + here["who"]

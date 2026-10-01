@@ -260,7 +260,8 @@ def load(name):
     Every path these modules use is worked out once, at import, from the
     environment - so a test that wants its own world must import them again
     after setting it, and so must offering.py and threshold.py, which both of
-    the others import and which read DATA_DIR the same way, and members.py, which the hearth
+    the others import and which read DATA_DIR the same way, and bonds.py, which both
+    of them write the commons' list of bonds through, and members.py, which the hearth
     signs members in from. hearth.py also sets its tide going at
     import; here it is imported with no thread able to start, and the tide is
     tested on purpose instead.
@@ -269,6 +270,7 @@ def load(name):
     sys.modules.pop("offering", None)
     sys.modules.pop("members", None)
     sys.modules.pop("threshold", None)
+    sys.modules.pop("bonds", None)
     with no_threads():
         return importlib.import_module(name)
 
@@ -308,6 +310,7 @@ def atrium(env, clock, monkeypatch, data_dir, tmp_path):
     monkeypatch.setattr(module, "MEMBERS", str(data_dir / "commons" / "members.md"))
     monkeypatch.setattr(module, "OFFERINGS", str(data_dir / "commons" / "offerings.md"))
     monkeypatch.setattr(module, "OFFERED", str(data_dir / "commons" / "offerings"))
+    monkeypatch.setattr(module, "BONDS", str(data_dir / "commons" / "bonds.md"))
     module.page_path = page
     return module
 

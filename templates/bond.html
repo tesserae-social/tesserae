@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}a bond{% endblock %}
+{% block heading %}a bond{% endblock %}
+{% block tagline %}{% endblock %}
+
+{# A sealed bond's own page, open to anyone. The only place the two halves sit
+   together; once released, they sit apart, and the page stays. #}
+{% block content %}
+<section>
+  <p><img class="tessera" src="{{ url_for('bond_tessera', bond_id=bond_id, size=size) }}"
+          width="{{ width }}" height="{{ height }}"
+          alt="{% if released %}the tile of this bond, its two halves apart{% else %}the tile of this bond, its two halves fitted together{% endif %}"></p>
+  <p>a bond between {{ names }}</p>
+  <p class="muted">sealed on {{ sealed }}{% if released %} · released on {{ released }}{% endif %}</p>
+</section>
+
+{% if promised %}
+<section>
+  <h2>{{ promised.whose }}'s promise</h2>
+  <div class="words">{{ promised.prose }}</div>
+</section>
+{% endif %}
+
+<section>
+  <h2>to check it</h2>
+  <p>Anyone may check this bond without asking us. Its signed record is at
+    <a href="{{ url_for('public_bond', bond_id=bond_id) }}">{{ url_for('public_bond', bond_id=bond_id) }}</a>:
+    both signatures verify against the two identity documents. The break in the tile is drawn
+    from those same two signatures, by the recipe for the tessera in
+    <a href="https://tesserae.social/rites.html">the rites</a>, so anyone can draw it again.</p>
+</section>
+
+<section>
+  <h2>witnessed by</h2>
+  <p>No one has witnessed this bond yet.</p>
+</section>
+{% endblock %}

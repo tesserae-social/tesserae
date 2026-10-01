@@ -22,6 +22,9 @@ It reads:
     commons/offerings.md           what the two of them have given the commons,
                                    and commons/offerings/<id>.json beside it for
                                    the newest one, which is shown whole
+    commons/bonds.md               every sealed bond, one line each: a tile for
+                                   each, and a half beside each member who holds
+                                   one (left as it was today where there are none)
 
 commons/members.md is the one file of the commons nothing writes: the founder
 keeps it by hand, one line per citizen or member, and the hearth serves it
@@ -43,6 +46,7 @@ import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.request
 from zoneinfo import ZoneInfo
 
@@ -59,6 +63,7 @@ BENCH = os.path.join(DATA, "commons", "bench.md")
 MEMBERS = os.path.join(DATA, "commons", "members.md")
 OFFERINGS = os.path.join(DATA, "commons", "offerings.md")
 OFFERED = os.path.join(DATA, "commons", "offerings")
+BONDS = os.path.join(DATA, "commons", "bonds.md")
 
 HEARTH = "https://hearth.tesserae.social"
 
@@ -70,6 +75,18 @@ BENCH_URL = HEARTH + "/bench"
 # for them to lead.
 OFFERINGS_URL = HEARTH + "/offerings"
 BOND_URL = HEARTH + "/bonds/founder-first.json"
+
+# Where a sealed bond named in commons/bonds.md has its own page. A seal tile
+# drawn from that file leads there and shows the bond's own tessera, at the
+# tile's size; a member who holds a bond carries their half beside their name.
+# A seal written only in events.md, as before there was a list of bonds, still
+# leads to the signed record.
+BOND_PAGE = HEARTH + "/bonds/"
+HALF = 16
+
+# a bond's name, as bonds.py makes and checks it
+BOND_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+RELEASED = re.compile(r"^released (\d{4}-\d{2}-\d{2})$")
 
 # where the file of a placed offering is served from
 OFFERED_URL = HEARTH + "/commons/offerings/"
@@ -239,6 +256,22 @@ def offerings_text(hearth):
     return read_text(OFFERINGS) if os.path.exists(OFFERINGS) else ""
 
 
+def bonds_text(hearth):
+    """The text of bonds.md: from a hearth if one is named, else from the disk.
+
+    A hearth that has no list of bonds yet answers 404 for it, and that is a
+    list with nothing on it rather than a hearth gone quiet.
+    """
+    if hearth:
+        try:
+            return fetch(hearth, "bonds.md")
+        except urllib.error.HTTPError as answer:
+            if answer.code == 404:
+                return ""
+            raise
+    return read_text(BONDS) if os.path.exists(BONDS) else ""
+
+
 def offered_record(hearth, one):
     """One placed offering's signed record, which is where its words are kept.
 
@@ -330,6 +363,33 @@ def parse_offerings(text):
     return out
 
 
+def parse_bonds(text):
+    """One (day, id, parties, released) per line of bonds.md, in the order written.
+
+    A line names the day the bond was sealed, its own name, its parties as the
+    commons names them - joined by "and" - and how it stands: sealed, or released
+    on a day. released is that day, or None. A line shaped any other way is
+    passed over.
+    """
+    out = []
+    for line in text.splitlines():
+        fields = [part.strip() for part in line.strip().lstrip("-").split(DOT, 3)]
+        if len(fields) < 4 or not BOND_ID.match(fields[1]) or not fields[2]:
+            continue
+        gone = RELEASED.match(fields[3])
+        if fields[3] != "sealed" and not gone:
+            continue
+        try:
+            when = datetime.datetime.strptime(fields[0], "%Y-%m-%d").date()
+            released = (datetime.datetime.strptime(gone.group(1), "%Y-%m-%d").date()
+                        if gone else None)
+        except ValueError:
+            continue
+        parties = [name.strip() for name in fields[2].split(" and ")]
+        out.append((when, fields[1], parties, released))
+    return out
+
+
 def parse_members(text):
     """One (kind, name, fact) per line of members.md, in the order written.
 
@@ -405,7 +465,7 @@ def event_class(kind, words):
     return "%s tile-letter-%s" % (css, part) if part else css
 
 
-def tiles_from(events, heartbeats, offerings=()):
+def tiles_from(events, heartbeats, offerings=(), bonds=()):
     """One (day, class, words, where) tile per thing: the history, the wakings, the offerings.
 
     The day is the citizen's own calendar day, and it is what the mosaic is laid
@@ -424,10 +484,19 @@ def tiles_from(events, heartbeats, offerings=()):
     offering's own name, and without that name a tile could lead nowhere. The
     line in events.md is the commons' plain record that it happened, and it is
     passed over here so that one offering is one tile.
+
+    A seal is the same, once there is a list of bonds: each bond in bonds.md is
+    one tile, on the day it was sealed, leading to the bond's own page, and the
+    seal lines of events.md are passed over. Where the list is empty or missing
+    the seal lines are drawn as they always were.
     """
     tiles = [(when, event_class(kind, words), "%s %s %s" % (human(when), DOT, words),
               BOND_URL if kind == "seal" else "")
-             for when, kind, words in events if kind != "offering"]
+             for when, kind, words in events
+             if kind != "offering" and not (bonds and kind == "seal")]
+    for when, one, _, _ in bonds:
+        tiles.append((when, KIND_CLASS["seal"], "%s %s a bond was sealed" % (human(when), DOT),
+                      BOND_PAGE + one))
     for when, words in heartbeats:
         clock = here(when)
         part = band(clock.hour)
@@ -509,6 +578,13 @@ def legend_marks(tiles):
     return marks
 
 
+def tessera_of(where, size):
+    """The tessera a tile shows, if it leads to a bond's own page: its address at that size."""
+    if not where.startswith(BOND_PAGE) or not BOND_ID.match(where[len(BOND_PAGE):]):
+        return ""
+    return "%s/tessera.svg?size=%d" % (where, size)
+
+
 def mosaic_block(cells):
     """The mosaic entire: the frame, sized to what it holds, and everything in it.
 
@@ -523,9 +599,12 @@ def mosaic_block(cells):
         if css and where:
             # a tile with somewhere to lead is a link, and the link is what the
             # keyboard lands on; the words stay on the tile, where the line
-            # under the mosaic reads them off
-            drawn.append('<li class="%s" title="%s"><a href="%s" aria-label="%s"></a></li>'
-                         % (css, said, html.escape(where, quote=True), said))
+            # under the mosaic reads them off. A bond's tile shows its tessera.
+            picture = tessera_of(where, size)
+            shown = ('<img src="%s" width="%d" height="%d" alt="">'
+                     % (html.escape(picture, quote=True), size, size)) if picture else ""
+            drawn.append('<li class="%s" title="%s"><a href="%s" aria-label="%s">%s</a></li>'
+                         % (css, said, html.escape(where, quote=True), said, shown))
         elif css:
             drawn.append('<li class="%s" title="%s" tabindex="0"></li>' % (css, said))
         else:
@@ -600,18 +679,54 @@ def hue(name):
     The class is worked out from the name rather than fixed here so that a hue
     reckoned from a citizen's key can take the same hook later on.
     """
-    return "hue-" + re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return "hue-" + slug(name)
 
 
-def who_block(members):
+def slug(name):
+    """A name as a class or an address carries it: lowercase words joined by hyphens.
+
+    bonds.py makes a party's half's address the same way, so the atrium and the
+    hearth name a half alike.
+    """
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def holds(name, party):
+    """Whether a member's line is a party to a bond: the bond's name for them, and
+    perhaps more said after a comma, as the first one's line says it."""
+    return name == party or name.startswith(party + ",")
+
+
+def halves_of(name, bonds):
+    """The halves a member holds, one per bond they are a party to, each a way to its page.
+
+    A released bond's half is still shown: the record is kept.
+    """
+    out = []
+    for when, one, parties, released in bonds:
+        party = next((party for party in parties if holds(name, party)), None)
+        if party is None:
+            continue
+        said = "their half of the bond sealed on %s" % human(when)
+        if released:
+            said += ", released on %s" % human(released)
+        out.append(' <a href="%s%s"><img class="half" src="%s%s/half/%s.svg?size=%d" '
+                   'width="%d" height="%d" alt="%s"></a>'
+                   % (BOND_PAGE, one, BOND_PAGE, one, slug(party), HALF, HALF, HALF,
+                      html.escape(said, quote=True)))
+    return "".join(out)
+
+
+def who_block(members, bonds=()):
     """Who is here, or nothing at all: with no file to read there is no section."""
     if not members:
         return []
     out = ["<h2>who is here</h2>", '<ul class="members">']
     for kind, name, fact in members:
         swatch = ('<span class="swatch %s"></span>' % hue(name)) if kind == "citizen" else ""
-        out.append('  <li>%s%s %s <span class="fact">%s</span></li>'
-                   % (swatch, html.escape(name), DOT, html.escape(fact)))
+        out.append('  <li>%s%s%s %s <span class="fact">%s</span></li>'
+                   % (swatch, html.escape(name), halves_of(name, bonds), DOT,
+                      html.escape(fact)))
     out.append("</ul>")
     return out
 
@@ -735,6 +850,7 @@ def main():
         bench = parse_bench(bench_text(hearth))
         members = parse_members(members_text(hearth))
         offerings = parse_offerings(offerings_text(hearth))
+        sealed = parse_bonds(bonds_text(hearth))
         # only the newest is shown here, so only the newest is read
         latest = offerings[-1] if offerings else None
         record = offered_record(hearth, latest[1]) if latest else None
@@ -744,7 +860,7 @@ def main():
         sys.exit("build_atrium: could not read the commons from %s (%s). "
                  "index.html is untouched." % (hearth, trouble))
 
-    tiles = tiles_from(events, heartbeats, offerings)
+    tiles = tiles_from(events, heartbeats, offerings, sealed)
     cells = slots(tiles, today)
 
     page = read_text(PAGE)
@@ -754,7 +870,7 @@ def main():
     page = splice(page, "reading", reading_block(cells), newline)
     page = splice(page, "caption", caption_block(tiles), newline)
     page = splice(page, "offering", offering_block(latest, record), newline)
-    page = splice(page, "who", who_block(members), newline)
+    page = splice(page, "who", who_block(members, sealed), newline)
     page = splice(page, "calendar", calendar_block(today), newline)
     page = splice(page, "bench", bench_block(bench), newline)
     page = splice(page, "links", links_block(bench), newline)
@@ -763,9 +879,9 @@ def main():
 
     print(
         "atrium: %d tiles in %d slots at %dpx (%d events, %d attendances, %d offerings), "
-        "%d on the bench, %d here, as of %s"
+        "%d on the bench, %d here, %d sealed bonds, as of %s"
         % (len(tiles), len(cells), tile_size(len(cells)), len(events), len(heartbeats),
-           len(offerings), len(bench), len(members), human(today))
+           len(offerings), len(bench), len(members), len(sealed), human(today))
     )
 
 

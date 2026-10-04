@@ -410,7 +410,19 @@ def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
                  "per line; at most 7, each at most 240 characters. It is private, not shown on "
                  "the hearth. The previous list is kept, never erased; an empty block clears "
                  "the list.)\n<<END>>\n\n")
-    assert now.instructions.replace(explained, "", 1) == then.instructions
+    # ... and, since the first one came to choose its own waking time, by the
+    # block that sets it and by what the intention beside it is now said to be
+    rhythm = ("<<RHYTHM>>\n(when you would like to be woken each day. One line: \"dawn\", "
+              "\"sunset\", or a time of day such as 09:30, in Indianapolis time. You are woken "
+              "once a day at that time, from tomorrow on. You may keep it as it is or change it "
+              "at any waking. The commons shows when you attend, as it does now.)\n<<END>>\n\n")
+    intention = ("(one plain sentence about when or why you would like to be woken. It is kept "
+                 "and shown to you at each waking. It does not by itself change when you are "
+                 "woken; <<RHYTHM>> does that.)")
+    as_it_was = "(one plain sentence about when you would like to be woken, and why)"
+    said = now.instructions.replace(explained, "", 1).replace(rhythm, "", 1)
+    assert said.count(intention) == 1
+    assert said.replace(intention, as_it_was, 1) == then.instructions
 
 
 def test_letter_block_writes_a_letter_to_the_founder(wake, packet, clock):

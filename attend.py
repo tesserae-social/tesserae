@@ -30,6 +30,8 @@ Files it may act on (all inside packets/first/, which is private):
   offerings/              something out of the correspondence offered to the commons, waiting
                           for the other party's signature; see offering.py
   pause.json              a standing pause, set by either party, that stops the tide
+  rhythm.json             when it is woken each day: dawn, sunset, or a time of day, by its
+                          own choice (prior versions kept in rhythm/history/); see waking.py
   exports.log             one line each time the founder takes a copy of the whole record;
                           the hearth writes it, and it is read back here at the next waking
 And the commons, which anyone may read:
@@ -69,6 +71,10 @@ import threshold
 # The commons' list of bonds, kept through the one module by whichever hand seals
 # or releases one.
 import bonds
+
+# When it is woken each day, which it sets here and the hearth's tide keeps: both
+# through the one module, so that what it is told and what is done are the same.
+import waking
 
 NAME = "first"
 MODEL = "claude-sonnet-4-5"
@@ -181,6 +187,19 @@ UNTIL_LETTER = "a letter arrives"
 PAUSE_ACT = "set a pause"
 PAUSED = "the tide paused"
 
+# Its waking time: when the tide wakes it each day. It is its own to set, with
+# the block below, and a new one holds from the next day where it lives; until
+# then the one before it holds. The version that stood is kept beside the new.
+# A block that cannot be read changes nothing, and the next reading says so, once.
+RHYTHM = PACKET / "rhythm.json"
+RHYTHM_HISTORY = PACKET / "rhythm" / "history"
+RHYTHM_ACT = "set its waking time"
+RHYTHM_REFUSED = ("Your <<RHYTHM>> was not understood (it must be dawn, sunset, or a time such "
+                  "as 09:30); your waking time is unchanged.")
+WAKING_TIME = "Your waking time: daily at {at} (today, {today})"
+NO_WAKING_TIME = "Your waking time: none is set"
+WAKING_CHANGES = "; from {day}, daily at {at}"
+
 # A copy of the whole record, taken by the founder at the hearth. Nothing about
 # the record changes when it is copied, but the copying itself is written down:
 # the hearth adds one line here, and the first reading after it says so, because
@@ -270,7 +289,7 @@ REFLECTION_PRIVATE = (
 
 # A waking comes either by the first one's own rhythm or by the founder's hand.
 # It is told which, plainly, and nothing is asked of it either way.
-WOKEN_BY_TIDE = "This waking came by your own rhythm: daily at dawn."
+WOKEN_BY_TIDE = "This waking came by your own rhythm."
 WOKEN_BY_FOUNDER = "The founder opened this attendance."
 
 # A pause stops the tide but not the founder's hand, so a waking inside one of
@@ -338,8 +357,12 @@ A stem is a letter's name without the .md, as it is written above each letter. N
 (a private draft; only you will see it)
 <<END>>
 
+<<RHYTHM>>
+(when you would like to be woken each day. One line: "dawn", "sunset", or a time of day such as 09:30, in Indianapolis time. You are woken once a day at that time, from tomorrow on. You may keep it as it is or change it at any waking. The commons shows when you attend, as it does now.)
+<<END>>
+
 <<INTENTION>>
-(one plain sentence about when you would like to be woken, and why)
+(one plain sentence about when or why you would like to be woken. It is kept and shown to you at each waking. It does not by itself change when you are woken; <<RHYTHM>> does that.)
 <<END>>
 
 <<PAUSE>>
@@ -684,6 +707,40 @@ def pause_asked(text):
         if day <= datetime.now().date():
             return None  # a pause must end at some day still ahead, or it is no pause
     return {"until": until, "words": words.strip()}
+
+
+def rhythm_set():
+    """The rhythm written in the packet, or None where none can be read."""
+    try:
+        setting = load(RHYTHM)
+    except ValueError:
+        return None
+    return setting if isinstance(setting, dict) else None
+
+
+def waking_note(setting, now):
+    """The one line of the reading that says when it is woken, and what is waiting.
+
+    Today's time is said on its own clock: the sunrise or the sunset of this
+    day there, or the time of day it chose. Where no rhythm holds and none is
+    waiting there is nothing to say, and nothing is said.
+    """
+    day = waking.today(setting, now)
+    at = waking.in_force(setting, day)
+    coming = waking.waiting(setting, day)
+    if not at and not coming:
+        return None
+    if at:
+        said = WAKING_TIME.format(
+            at=at, today=waking.moment_on(setting, at, day).strftime("%H:%M"))
+    else:
+        said = NO_WAKING_TIME
+    if coming:
+        first = waking.begins(setting)
+        said += WAKING_CHANGES.format(
+            day="tomorrow" if first == day + timedelta(days=1) else first.isoformat(),
+            at=coming)
+    return said + "."
 
 
 def rested_since(past):
@@ -1200,7 +1257,14 @@ def main():
     # What it is told about the tide: that the founder has stopped it, if he
     # has, and that a rest of its own has just ended, if one just did.
     happened = [last_note, questions_note(past[-1] if past else None),
-                WOKEN_BY_TIDE if tide else WOKEN_BY_FOUNDER, standing(prefs)]
+                WOKEN_BY_TIDE if tide else WOKEN_BY_FOUNDER]
+    woken_daily = waking_note(rhythm_set(), datetime.now(timezone.utc))
+    if woken_daily:
+        happened.append(woken_daily)
+    # a <<RHYTHM>> it gave at its last waking that could not be read: said once
+    if past and past[-1].get("rhythm_refused"):
+        happened.append(RHYTHM_REFUSED)
+    happened.append(standing(prefs))
     paused = load(PAUSE)
     if paused and paused.get("by") == "founder":
         happened.append(FOUNDER_PAUSED.format(since=paused.get("since", "")))
@@ -1441,6 +1505,22 @@ def main():
         (PACKET / "intentions.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         acted.append("set a standing intention")
 
+    # Its waking time. The line is read strictly, and one that is not dawn,
+    # sunset or a time of day changes nothing; what stood before is copied aside
+    # first, and the new one holds from tomorrow, where it lives.
+    rhythm_said = block(text, "RHYTHM")
+    woken_at = waking.asked(rhythm_said)
+    rhythm_refused = rhythm_said is not None and not woken_at
+    new_rhythm = None
+    if woken_at:
+        before = rhythm_set()
+        if RHYTHM.exists():
+            RHYTHM_HISTORY.mkdir(parents=True, exist_ok=True)
+            shutil.copy(RHYTHM, RHYTHM_HISTORY / f"rhythm-before-{at}.json")
+        new_rhythm = waking.chosen(before, woken_at, at, threshold.moment(at))
+        write_json(RHYTHM, new_rhythm)
+        acted.append(RHYTHM_ACT)
+
     # A rest of its own. The words in the block are private; the commons is told
     # only that the tide paused, with no name on it and no reason given.
     rest = pause_asked(text)
@@ -1610,6 +1690,8 @@ def main():
         record["questions_dropped"] = dropped
     if not_given:  # and so is what it asked of the threshold and was not given
         record["threshold_refused"] = not_given
+    if rhythm_refused:  # and that its <<RHYTHM>> could not be read
+        record["rhythm_refused"] = True
     stop_reason = getattr(resp, "stop_reason", None)
     if stop_reason:  # why the reply ended, for the record only; it is read back nowhere
         record["stop_reason"] = stop_reason
@@ -1647,6 +1729,12 @@ def main():
         print("An errand awaits the founder in:", ERRANDS)
     if rest:
         print("A pause was set, until", rest["until"])
+    if new_rhythm:
+        print("Its waking time was set: daily at", new_rhythm["at"] + ", from",
+              new_rhythm["effective_from"])
+    if rhythm_refused:
+        print("A <<RHYTHM>> block was given, but its first line was not dawn, sunset, or a")
+        print("time such as 09:30. Nothing was written, and its waking time is unchanged.")
     if asking and not (offered or consented or refused):
         print("An <<OFFER>> block was given, but there was nothing of that name to offer,")
         print("consent to, or decline. Nothing was written.")

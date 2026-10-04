@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import threading
 from datetime import timedelta
 
 import pytest
@@ -220,6 +221,90 @@ def test_a_backup_writes_nothing_into_the_record(hearth, bucket, packet, commons
 
 
 # ---- the bucket keeps thirty ---------------------------------------------
+
+# ---- a backup and a waking, never at once --------------------------------
+
+WAIT = 10      # seconds: far longer than anything here takes, so a hang fails and does not stall
+BRIEFLY = 0.3  # seconds: long enough for a thread that was not made to wait to have gone on
+
+
+def in_a_thread(work, *given):
+    """Set one piece of work going on a thread of its own, and hand the thread back."""
+    thread = threading.Thread(target=work, args=given, daemon=True)
+    thread.start()
+    return thread
+
+
+def test_a_backup_started_during_an_attendance_waits_until_it_ends(hearth, bucket, packet,
+                                                                   commons, monkeypatch):
+    """The copy is never read while a waking is still writing what it copies."""
+    begun, may_end, order = threading.Event(), threading.Event(), []
+
+    def waking(command, **asked):
+        begun.set()
+        assert may_end.wait(WAIT)
+        order.append("the waking ended")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    def files(trees):
+        order.append("the backup read the record")
+        return []
+
+    monkeypatch.setattr(hearth.subprocess, "run", waking)
+    monkeypatch.setattr(hearth, "export_files", files)
+
+    attending = in_a_thread(hearth.hold_attendance)
+    assert begun.wait(WAIT)
+    backing = in_a_thread(hearth.back_up, NOW)
+
+    backing.join(BRIEFLY)
+    assert backing.is_alive(), "the backup did not wait for the waking"
+    assert order == [] and bucket.keys == []
+
+    may_end.set()
+    attending.join(WAIT)
+    backing.join(WAIT)
+    assert not attending.is_alive() and not backing.is_alive()
+    assert order == ["the waking ended", "the backup read the record"]
+    assert bucket.keys == ["backups/" + NAME]
+    assert not hearth.ATTEND_LOCK.locked()
+
+
+def test_an_attendance_started_during_a_backup_waits_until_it_has_read(hearth, bucket, packet,
+                                                                       commons, monkeypatch):
+    """And a waking does not start while the record is being read: it waits, and is held."""
+    reading, may_end, order, held = threading.Event(), threading.Event(), [], []
+
+    def files(trees):
+        reading.set()
+        assert may_end.wait(WAIT)
+        order.append("the backup read the record")
+        return []
+
+    def waking(command, **asked):
+        order.append("the waking began")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(hearth, "export_files", files)
+    monkeypatch.setattr(hearth.subprocess, "run", waking)
+
+    backing = in_a_thread(hearth.back_up, NOW)
+    assert reading.wait(WAIT)
+    attending = in_a_thread(lambda: held.append(hearth.hold_attendance()))
+
+    attending.join(BRIEFLY)
+    assert attending.is_alive(), "the waking did not wait for the backup"
+    assert order == []
+
+    may_end.set()
+    backing.join(WAIT)
+    attending.join(WAIT)
+    assert not backing.is_alive() and not attending.is_alive()
+    assert order == ["the backup read the record", "the waking began"]
+    assert held == [None]  # it was made to wait, and then held: not turned away
+    assert bucket.keys == ["backups/" + NAME]
+    assert not hearth.ATTEND_LOCK.locked() and not hearth.WAKING.locked()
+
 
 def take_many(hearth, count):
     """One backup a day, for as many days as asked. The stamps they were given."""

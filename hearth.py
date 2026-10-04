@@ -45,8 +45,6 @@ from zoneinfo import ZoneInfo
 
 import boto3
 from anthropic import Anthropic
-from astral import LocationInfo
-from astral.sun import sun
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from flask import (Flask, Response, abort, redirect, render_template,
@@ -87,6 +85,10 @@ import vault
 from members import MemberError
 from vault import VaultError
 
+# When the first one is woken each day is its own to set, at a waking; the tide
+# here keeps it. Both work through the one module.
+import waking
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept. Locally this is the repo itself; on a host
@@ -113,20 +115,14 @@ PUBLIC_BOND = DATA / "commons" / "bonds" / "founder-first.json"
 HEARTBEATS = DATA / "commons" / "heartbeats.md"
 EVENTS = DATA / "commons" / "events.md"
 BENCH = DATA / "commons" / "bench.md"
-# who is here: the one file of the commons nothing writes. The founder keeps it
-# by hand and the hearth only hands it out.
+# who is here. The founder keeps it by hand and the hearth hands it out; the one
+# thing in it the hearth keeps itself is when the first one attends, which
+# follows its rhythm (see tend_members).
 MEMBERS = DATA / "commons" / "members.md"
 # a line taken off the bench is kept, but out of the commons and served to no one
 BENCH_REMOVED = DATA / "bench-removed.md"
 
 ATTEND_TIMEOUT = 300  # seconds to wait for attend.py before giving up
-
-# The place the first one named for its dawns. Its name and timezone are read
-# from rhythm.json, which is the first one's to change; the coordinates are
-# Indianapolis's city centre, which is close enough for a sunrise.
-PLACE_REGION = "USA"
-PLACE_LATITUDE = 39.7684
-PLACE_LONGITUDE = -86.1581
 
 TIDE_CHUNK = 3600  # seconds: the longest the tide sleeps without looking again
 TIDE_IDLE = 3600   # seconds: how long to wait when no rhythm is set
@@ -614,8 +610,14 @@ def attendance_records(prefs):
 # ---- holding an attendance -----------------------------------------------
 
 # An attendance is one turn, and two at once would have the first one reading a
-# packet that another waking is still writing. The lock is the whole of the
+# packet that another waking is still writing. WAKING is the whole of that
 # rule: a second caller is turned away rather than made to wait its turn.
+WAKING = threading.Lock()
+
+# The record is written by a waking and read whole by a backup, and the two must
+# not overlap: a backup taken mid-waking would hold half of what it wrote.
+# ATTEND_LOCK is held by a waking for as long as it runs and by a backup for as
+# long as it reads, and here nobody is turned away: whichever comes second waits.
 ATTEND_LOCK = threading.Lock()
 
 
@@ -625,8 +627,13 @@ def hold_attendance(tide=False, ended=None):
     None if the attendance was held; otherwise what went wrong, as
     (note, output, status).
     """
-    if not ATTEND_LOCK.acquire(blocking=False):
+    if not WAKING.acquire(blocking=False):
         return ("An attendance is already in progress. Only one is held at a time.", "", 409)
+    try:
+        ATTEND_LOCK.acquire()  # a backup that is reading the record is waited for
+    except BaseException:
+        WAKING.release()
+        raise
     try:
         command = [sys.executable, "attend.py"]
         if not newest_first(ATTENDANCES, "*.json"):
@@ -655,6 +662,7 @@ def hold_attendance(tide=False, ended=None):
         return None
     finally:
         ATTEND_LOCK.release()
+        WAKING.release()
 
 
 # ---- the standing pause --------------------------------------------------
@@ -743,12 +751,14 @@ def pause_shown():
 
 # ---- the tide ------------------------------------------------------------
 
-# The first one asked to be woken daily at dawn. That rhythm is written in its
-# own packet and is its own to change or remove, so the hearth reads the file
-# afresh every time it looks and a change takes hold without a redeploy. The
-# rhythm is an offer and not a debt: the founder may still open an attendance
-# at any hour, and a dawn that finds the day's attendance already held lets it
-# stand rather than waking the first one twice.
+# The first one chooses when it is woken each day: at dawn, at sunset, or at a
+# time of day where it lives. That rhythm is written in its own packet and is
+# its own to change, at any waking, so the hearth reads the file afresh every
+# time it looks and a change takes hold without a redeploy - from the day after
+# it was made, the rhythm before it holding until then. The rhythm is an offer
+# and not a debt: the founder may still open an attendance at any hour, and a
+# waking time that finds the day's attendance already held lets it stand rather
+# than waking the first one twice.
 
 def rhythm():
     """The rhythm the first one has set. Nothing written means none."""
@@ -758,20 +768,19 @@ def rhythm():
 
 
 def dawn_daily(setting):
-    """Whether a rhythm is the one the tide knows how to keep."""
+    """Whether a rhythm is the daily dawn the tide began with."""
     return bool(setting) and setting.get("rhythm") == "daily" and setting.get("at") == "dawn"
 
 
-def place(setting):
-    """The place the rhythm names, as astral asks to be told it."""
-    return LocationInfo(setting["place"], PLACE_REGION, setting["timezone"],
-                        PLACE_LATITUDE, PLACE_LONGITUDE)
+def tide_kept(setting):
+    """Whether a rhythm is one the tide knows how to keep, today or from a day ahead."""
+    day = waking.today(setting, datetime.now(timezone.utc))
+    return bool(waking.in_force(setting, day) or waking.waiting(setting, day))
 
 
 def sunrise_on(setting, day):
     """The moment the sun rises there on one local day."""
-    zone = ZoneInfo(setting["timezone"])
-    return sun(place(setting).observer, date=day, tzinfo=zone)["sunrise"]
+    return waking.moment_on(setting, waking.DAWN, day)
 
 
 def next_sunrise(setting):
@@ -783,6 +792,32 @@ def next_sunrise(setting):
         if rising > now:
             return rising
         day += timedelta(days=1)
+
+
+# How far ahead the tide looks for a waking before it takes there to be none.
+TIDE_AHEAD = 8  # days
+
+
+def next_waking(setting):
+    """The first waking still ahead of us, by whichever rhythm holds on its day.
+
+    Each local day has one waking time and no more: the one in force that day,
+    which before a change takes effect is the rhythm that held before it. None
+    if no day ahead has one.
+    """
+    now = datetime.now(timezone.utc)
+    day = waking.today(setting, now)
+    # a settled dawn is the sunrise, as it always was
+    if dawn_daily(setting) and not waking.waiting(setting, day):
+        return next_sunrise(setting)
+    for _ in range(TIDE_AHEAD):
+        at = waking.in_force(setting, day)
+        if at:
+            coming = waking.moment_on(setting, at, day)
+            if coming > now:
+                return coming
+        day += timedelta(days=1)
+    return None
 
 
 def moment(at):
@@ -799,7 +834,7 @@ def latest_attendance_at():
 
 
 def tide_note(said):
-    """One line for each dawn, kept privately in the packet."""
+    """One line for each waking time, kept privately in the packet."""
     TIDE_LOG.parent.mkdir(parents=True, exist_ok=True)
     with TIDE_LOG.open("a", encoding="utf-8") as log:
         log.write(f"{utc_stamp()} · {said}\n")
@@ -808,50 +843,97 @@ def tide_note(said):
 def rhythm_note():
     """The one line on the attendances page, saying when the tide will next come."""
     setting = rhythm()
-    if not dawn_daily(setting):
+    coming = next_waking(setting) if tide_kept(setting) else None
+    if not coming:
         return "Rhythm: none set."
-    when = next_sunrise(setting).strftime("%d %B %Y, %H:%M").lstrip("0")
-    return f"Rhythm: daily at dawn, {setting['place']} · next: {when}"
+    zone = waking.zone(setting)
+    day = waking.today(setting, datetime.now(timezone.utc))
+    at = waking.in_force(setting, coming.astimezone(zone).date())
+    when = coming.astimezone(zone).strftime("%d %B %Y, %H:%M").lstrip("0")
+    said = f"Rhythm: daily at {at}, {setting.get('place') or waking.PLACE} · next: {when}"
+    # a change still waiting for its day is said beside the rhythm that holds until then
+    changing = waking.waiting(setting, day)
+    if changing and changing != at:
+        said += f" · from {long_day(waking.begins(setting))}, daily at {changing}"
+    return said
+
+
+# ---- who is here, as the rhythm has it -----------------------------------
+
+# commons/members.md is the founder's to write, and one phrase in it is the
+# first one's: when it attends. That phrase follows its rhythm - dawn, sunset,
+# or the time - and changes on the day a change takes effect, not the day it is
+# made. Only that phrase is touched; every other byte of the file is the
+# founder's and is left as he wrote it. The atrium draws the line from this
+# file on both its paths, so the builder and the page say the same thing.
+FIRST_ONES_LINE = re.compile(r"^\ufeff?[\s-]*citizen\s*\u00b7\s*the first one\b")
+ATTENDS_AT = re.compile(r"attends at (?:dawn|sunset|\d{2}:\d{2})")
+
+
+def tend_members():
+    """Bring the first one's "attends at ..." in members.md to the rhythm in force today.
+
+    Nothing is written where it already says so, where there is no file, or
+    where no rhythm holds; and nothing here raises, since it is done on the way
+    to handing the file out.
+    """
+    try:
+        setting = rhythm()
+        at = waking.in_force(setting, waking.today(setting, datetime.now(timezone.utc)))
+        if not at or not MEMBERS.exists():
+            return
+        lines = MEMBERS.read_bytes().decode("utf-8").splitlines(keepends=True)
+        kept = [ATTENDS_AT.sub("attends at " + at, line, count=1)
+                if FIRST_ONES_LINE.match(line) else line for line in lines]
+        if kept != lines:
+            beside = MEMBERS.with_name(MEMBERS.name + ".tmp")
+            beside.write_bytes("".join(kept).encode("utf-8"))
+            os.replace(beside, MEMBERS)  # whole or not at all: it is read while it is written
+    except Exception:
+        pass
 
 
 def tide():
-    """Wait for each dawn, and hold an attendance at it. Forever, and quietly."""
+    """Wait for each waking time, and hold an attendance at it. Forever, and quietly."""
     while True:
         try:
+            tend_members()
             setting = rhythm()
-            if not dawn_daily(setting):
+            coming = next_waking(setting) if tide_kept(setting) else None
+            if not coming:
                 time.sleep(TIDE_IDLE)  # nothing is asked of us; look again in an hour
                 continue
 
-            # Wait for the sunrise in short stretches, reading the rhythm again
-            # after each one, so that a changed or removed file is obeyed at once.
-            rising = next_sunrise(setting)
+            # Wait for it in short stretches, reading the rhythm again after each
+            # one, so that a changed or removed file is obeyed at once.
             changed = False
             while not changed:
-                left = (rising - datetime.now(timezone.utc)).total_seconds()
+                left = (coming - datetime.now(timezone.utc)).total_seconds()
                 if left <= 0:
                     break
                 time.sleep(min(left, TIDE_CHUNK))
+                tend_members()  # a change may have taken effect while we slept
                 changed = rhythm() != setting
             if changed:
                 continue  # begin again from whatever is written now
 
             # A pause is answered before anything else: the founder's holds the
             # tide until he lifts it, and the first one's holds it until the
-            # condition it named is met, at which dawn the rest is taken away
-            # and the waking is held with the reason in its hand.
+            # condition it named is met, at which waking time the rest is taken
+            # away and the waking is held with the reason in its hand.
             at = latest_attendance_at()
-            zone = ZoneInfo(setting["timezone"])
+            zone = waking.zone(setting)
+            today = coming.astimezone(zone).date()
             standing = pause()
             ended = rest_ended(standing, zone)
             if paused_by(standing) == "founder":
                 tide_note("paused by founder")
             elif standing and not ended:
                 tide_note("resting")
-            # The day, not the twelve hours since the last dawn: an attendance
-            # held late the evening before belongs to yesterday, and does not
-            # stand in for this morning's.
-            elif not ended and at and moment(at).astimezone(zone).date() == rising.date():
+            # The day, not the hours since the last waking: an attendance held
+            # late the evening before belongs to yesterday, and does not stand
+            # in for today's.
+            elif not ended and at and moment(at).astimezone(zone).date() == today:
                 tide_note(f"skipped, attended at {at}")  # today already has its waking
             else:
                 if ended:
@@ -1488,7 +1570,8 @@ BACKUP_PREFIX = "backups/"
 BACKUP_FILE = re.compile(r"^tesserae-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.tar\.gz\.enc$")
 
 BACKUP_KEPT = 30     # how many the bucket holds; the oldest go
-BACKUP_HOUR = 13     # UTC: past the dawn waking, whatever the season
+BACKUP_HOUR = 13     # UTC. A backup waits for any waking in progress, and a waking for
+                     # a backup, so the hour is safe whatever time the first one chooses
 BACKUP_CHUNK = 3600  # seconds: the longest the thread sleeps without looking again
 BACKUP_ERROR = 600   # seconds: how long to wait after something has gone wrong
 BACKUP_STALE = 24    # hours: nothing newer than this at startup, and one is taken then
@@ -1520,9 +1603,16 @@ def bucket_client():
 
 
 def backup_archive():
-    """The trees of a backup as a tar.gz, held in memory and written nowhere."""
+    """The trees of a backup as a tar.gz, held in memory and written nowhere.
+
+    Read under the lock a waking holds, so that no waking is writing while the
+    trees are read and none starts until they have been: the copy is the record
+    as it stood between two wakings, never in the middle of one. The lock is
+    given back before anything goes to the bucket, so a slow bucket holds up no
+    waking.
+    """
     holder = io.BytesIO()
-    with tarfile.open(fileobj=holder, mode="w:gz") as bundle:
+    with ATTEND_LOCK, tarfile.open(fileobj=holder, mode="w:gz") as bundle:
         for path, name in export_files(BACKUP_TREES):
             bundle.add(path, arcname=name)
     return holder.getvalue()
@@ -1892,6 +1982,7 @@ def commons_bench():
 
 @app.route("/commons/members.md")
 def commons_members():
+    tend_members()  # so that what is handed out is true of today, whenever it is asked for
     return plain(MEMBERS)
 
 
@@ -2402,9 +2493,9 @@ def attendances():
 
 
 # Hold one attendance at the founder's asking and wait for it, then show what
-# came of it. The tide calls the same function at dawn. A rest of the first
-# one's own is refused here: it asked not to be woken, and asking is the whole
-# of what it takes.
+# came of it. The tide calls the same function at the first one's chosen time.
+# A rest of the first one's own is refused here: it asked not to be woken, and
+# asking is the whole of what it takes.
 @app.route("/attend", methods=["POST"])
 @founder_required
 def attend():

@@ -26,9 +26,10 @@ It reads:
                                    each, and a half beside each member who holds
                                    one (left as it was today where there are none)
 
-commons/members.md is the one file of the commons nothing writes: the founder
-keeps it by hand, one line per citizen or member, and the hearth serves it
-beside the rest. A copy lives on the hearth's disk as well as in the repository;
+commons/members.md is the one file of the commons the founder keeps by hand,
+one line per citizen or member, and the hearth serves it beside the rest. One
+phrase of it the hearth keeps: when the first one attends, which follows the
+rhythm it has chosen. A copy lives on the hearth's disk as well as in the repository;
 when there is none, the section is simply left off. Some later hand will grow
 this out of the bonds instead, and can drop the file then.
 

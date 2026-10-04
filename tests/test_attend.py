@@ -483,6 +483,55 @@ def test_the_first_waking_is_told_nothing_was_carried_out_before(wake):
     assert "What was carried out" not in wake().opening
 
 
+def wake_ending(attend, clock, monkeypatch, said, stop_reason):
+    """One waking whose reply ended for the reason given."""
+    turn = Turn(said, stop_reason=stop_reason)
+    monkeypatch.setattr(attend, "Anthropic", turn.client)
+    monkeypatch.setattr(sys, "argv", ["attend.py"])
+    attend.main()
+    clock.shift(minutes=5)
+    return turn
+
+
+@pytest.mark.parametrize("said, carried", [
+    (block("LETTER", "Dear founder,"),
+     "What was carried out at your last waking: wrote a letter to the founder."),
+    (block("MEMORY", "A note."),
+     "What was carried out at your last waking: kept notes. No letter was sent."),
+    ("",
+     "What was carried out at your last waking: nothing."),
+])
+def test_a_reply_cut_off_is_said_directly_after_what_was_carried_out(
+        attend, clock, monkeypatch, wake, said, carried):
+    wake_ending(attend, clock, monkeypatch, said, "max_tokens")
+    told = happened(wake())
+    assert told[1] == carried
+    assert told[2] == ("Your last reply was cut off before it finished; "
+                       "anything after the cut was not carried out.")
+    assert told[3] == attend.NO_QUESTIONS
+
+
+@pytest.mark.parametrize("stop_reason", ["end_turn", "stop_sequence", "refusal"])
+def test_a_reply_that_ended_otherwise_is_not_said_to_be_cut_off(
+        attend, clock, monkeypatch, wake, stop_reason):
+    wake_ending(attend, clock, monkeypatch, block("MEMORY", "A note."), stop_reason)
+    turn = wake()
+    assert "cut off" not in turn.opening
+    assert happened(turn)[2] == attend.NO_QUESTIONS
+
+
+def test_a_record_without_a_stop_reason_is_not_said_to_be_cut_off(wake, packet):
+    wake(block("MEMORY", "A note."))
+    assert "stop_reason" not in latest(packet)
+    assert "cut off" not in wake().opening
+
+
+def test_only_the_last_record_s_stop_reason_is_read(attend, clock, monkeypatch, wake):
+    wake_ending(attend, clock, monkeypatch, "", "max_tokens")
+    assert "cut off" in wake().opening  # the waking just after the cut is told
+    assert "cut off" not in wake().opening  # and the one after that is not
+
+
 def test_study_block_writes_a_private_draft(wake, packet, clock):
     at = clock.stamp()
     wake(block("STUDY", "A draft nobody reads but me."))

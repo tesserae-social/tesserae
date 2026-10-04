@@ -72,7 +72,7 @@ import bonds
 
 NAME = "first"
 MODEL = "claude-sonnet-4-5"
-MAX_TOKENS = 3000
+MAX_TOKENS = 8000
 
 # Where the living files are kept. Locally this is the repo itself; on a host
 # it is a mounted disk, named by DATA_DIR.
@@ -285,6 +285,10 @@ REST_ENDED = "You rested from {since} until now; the rest ended because {why}."
 LETTER_ACT = "wrote a letter to the founder"
 CARRIED_OUT = "What was carried out at your last waking: {acts}."
 NO_LETTER_SENT = "No letter was sent."
+# A reply that ran out of room was cut where it stopped, and the next waking
+# is told so on the line after what was carried out.
+CUT_OFF = ("Your last reply was cut off before it finished; anything after the cut was "
+           "not carried out.")
 
 # The self-document is the one private file the founder may read, and the first
 # one is told so where it reads it, rather than left to find it out.
@@ -1187,6 +1191,8 @@ def main():
         last_note += "\n" + CARRIED_OUT.format(acts=", ".join(carried) if carried else "nothing")
         if carried and LETTER_ACT not in carried:
             last_note += " " + NO_LETTER_SENT
+        if last.get("stop_reason") == "max_tokens":
+            last_note += "\n" + CUT_OFF
     else:
         since = ""
         last_note = "You have not attended before. This is your first waking."

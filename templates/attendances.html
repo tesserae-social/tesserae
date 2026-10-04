@@ -22,7 +22,7 @@
   <p>The tide is paused, since {{ pause.since }}.</p>
   <form method="post" action="{{ url_for('resume_tide') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="muted">The rhythm begins again at the next dawn.</p>
+    <p class="muted">The rhythm begins again at the next waking time.</p>
     <button type="submit">Resume the tide</button>
   </form>
 
@@ -38,7 +38,7 @@
   {% else %}
   <form method="post" action="{{ url_for('pause_tide') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="muted">Either of you may pause. If you pause here, the dawn waking stops until you
+    <p class="muted">Either of you may pause. If you pause here, the daily waking stops until you
       resume it, and you may still open an attendance by hand. If the first one pauses, it does so
       at a waking and names its own return — a date, or the next letter — and until then nothing
       wakes it; letters left for it wait.</p>

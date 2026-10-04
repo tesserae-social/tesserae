@@ -235,7 +235,7 @@
   const bondTiles = bonds => bonds.map(([day, one]) =>
     [day, KIND.seal, `${humanOf(day)} ${DOT} a bond was sealed`, `${BOND_PAGE}${one}`]);
   // a line of members.md: what it is, who it is, and one plain fact -- the one
-  // file of the commons nothing writes, kept by hand
+  // file of the commons kept by hand; the hearth keeps "attends at ..." to the rhythm
   const parseMembers = text => text.split(/\r?\n/).map(line => {
     let f = line.trim().replace(/^-+/, "").split(DOT);
     if (f.length > 3) f = [...f.slice(0, 2), f.slice(2).join(DOT)];

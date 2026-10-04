@@ -81,6 +81,21 @@ def test_a_page_that_differs_in_its_words_is_still_behind(monkeypatch):
                                "run python build_docs.py")
 
 
+def test_the_atrium_s_head_is_found_whatever_its_line_endings(monkeypatch, tmp_path):
+    """An index.html checked out or saved with CRLF gives the same head as one with LF."""
+    atrium = (REPO / "index.html").read_bytes().replace(b"\r\n", b"\n")
+    plain, turned = tmp_path / "lf.html", tmp_path / "crlf.html"
+    plain.write_bytes(atrium)
+    turned.write_bytes(atrium.replace(b"\n", b"\r\n"))
+
+    monkeypatch.setattr(build_docs, "PAGE", str(plain))
+    head = build_docs.shared_head()
+    monkeypatch.setattr(build_docs, "PAGE", str(turned))
+    assert build_docs.shared_head() == head
+    assert len(head) == len(build_docs.SHARED_HEAD)
+    assert not any("\r" in line for line in head)
+
+
 @pytest.mark.parametrize("name, page", PAGES, ids=IDS)
 def test_the_page_on_the_disk_is_the_page_the_builder_makes(name, page):
     assert said(page) == build_docs.page_for(name, build_docs.shared_head())

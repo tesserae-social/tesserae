@@ -505,3 +505,12 @@ def test_both_paths_leave_the_atrium_as_it_was_with_an_empty_list(atrium, data_d
     assert ('<a href="https://hearth.tesserae.social/bonds/founder-first.json"'
             in here["mosaic"])
     assert "<img" not in here["mosaic"] + here["who"]
+
+
+@pytest.mark.parametrize("at", ["dawn", "sunset", "09:30"])
+def test_both_paths_say_the_same_waking_time(atrium, data_dir, monkeypatch, tmp_path, at):
+    """The first one's rhythm reaches the atrium through members.md, on both paths alike."""
+    a_record(data_dir, members=MEMBERS.replace("attends at dawn", "attends at %s" % at))
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here["who"] == there["who"]
+    assert '<span class="fact">attends at %s</span>' % at in here["who"]

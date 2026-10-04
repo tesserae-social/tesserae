@@ -78,8 +78,12 @@ def write_text(path, text):
 
 
 def shared_head():
-    """The lines of the atrium's head that the documents wear too."""
-    page = read_text(PAGE)
+    """The lines of the atrium's head that the documents wear too.
+
+    The atrium is read with its line endings made one kind, as the check reads a
+    page: under CRLF a line ends in a carriage return, and none would be found.
+    """
+    page = same_lines(read_text(PAGE))
     found = []
     for pattern in SHARED_HEAD:
         match = pattern.search(page)

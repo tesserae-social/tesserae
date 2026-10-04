@@ -84,7 +84,7 @@ def test_a_seal_tile_shrinks_with_the_rest(atrium):
     cells = [("tile-event", "a thing", "")] * 999 + [
         ("tile-seal", "8 October 2026 · a bond was sealed", HEARTH + "/bonds/founder-first")]
     drawn = "".join(atrium.mosaic_block(cells))
-    assert ('<img src="%s/bonds/founder-first/tessera.svg?size=18" width="18" height="18" '
+    assert ('<img src="%s/bonds/founder-first/tessera.svg?size=14" width="14" height="14" '
             'alt="">' % HEARTH) in drawn
 
 

@@ -190,17 +190,17 @@ def test_a_tile_carries_the_day_it_fell_on_in_its_own_words(atrium):
 
 # ---- the frame, and how big a tile may be in it --------------------------
 
-# what the frame holds, and so what the tiles must shrink to: 552px by 331px,
+# what the frame holds, and so what the tiles must shrink to: 840px by 504px,
 # tiles capped at 34px and floored at 4px, the gap scaling with the tile
 @pytest.mark.parametrize("count, size", [
-    (0, 34), (1, 34), (10, 34), (100, 34), (1000, 12), (10000, 4),
+    (0, 34), (1, 34), (10, 34), (100, 34), (1000, 18), (10000, 6), (30000, 4),
 ])
 def test_the_largest_tile_that_still_fits_the_frame(atrium, count, size):
     assert atrium.tile_size(count) == size
 
 
 @pytest.mark.parametrize("count, size", [
-    (1, 34), (10, 34), (100, 34), (1000, 12), (10000, 4)])
+    (1, 34), (10, 34), (100, 34), (1000, 18), (10000, 6)])
 def test_every_slot_fits_inside_the_frame_at_the_size_chosen(atrium, count, size):
     """Whatever size is chosen, the rows it makes stand inside the frame's height."""
     gap = atrium.tile_gap(size)
@@ -220,18 +220,24 @@ def rows_high(atrium, count, size):
     return rows * size + max(rows - 1, 0) * atrium.tile_gap(size)
 
 
-# fourteen tiles of 34px stand across the frame, and eight such rows stand
+# twenty-two tiles of 34px stand across the frame, and thirteen such rows stand
 # inside its cap: the most the picture holds before a tile has to give
-FULL_SIZE = 14 * 8
+FULL_SIZE = 22 * 13
 
 
-@pytest.mark.parametrize("count", [1, 14, 15, FULL_SIZE - 1, FULL_SIZE])
+def test_the_frame_is_wider_than_the_page_s_own_text(atrium):
+    assert atrium.FRAME_WIDTH == 840
+    assert atrium.FRAME_HEIGHT == 504                # five wide to three high
+    assert atrium.tile_columns(atrium.MAX_TILE) == 22
+
+
+@pytest.mark.parametrize("count", [1, 22, 23, FULL_SIZE - 1, FULL_SIZE])
 def test_below_the_cap_the_tiles_stay_full_size(atrium, count):
     assert atrium.tile_size(count) == atrium.MAX_TILE
     assert rows_high(atrium, count, atrium.MAX_TILE) <= atrium.FRAME_HEIGHT
 
 
-@pytest.mark.parametrize("count, rows", [(1, 1), (14, 1), (15, 2), (FULL_SIZE, 8)])
+@pytest.mark.parametrize("count, rows", [(1, 1), (22, 1), (23, 2), (FULL_SIZE, 13)])
 def test_below_the_cap_the_frame_is_only_as_tall_as_its_rows(atrium, count, rows):
     """The frame grows with what it holds; the cap is where it stops, not where it starts."""
     stands = rows * atrium.MAX_TILE + (rows - 1) * atrium.tile_gap(atrium.MAX_TILE)
@@ -242,8 +248,10 @@ def test_below_the_cap_the_frame_is_only_as_tall_as_its_rows(atrium, count, rows
 def test_at_the_cap_the_tile_is_what_gives(atrium):
     """One slot more than the frame holds at full size, and the tiles begin to shrink."""
     assert rows_high(atrium, FULL_SIZE + 1, atrium.MAX_TILE) > atrium.FRAME_HEIGHT
-    assert atrium.tile_size(FULL_SIZE + 1) == atrium.MAX_TILE - 1
-    assert rows_high(atrium, FULL_SIZE + 1, atrium.MAX_TILE - 1) <= atrium.FRAME_HEIGHT
+    shrunk = atrium.tile_size(FULL_SIZE + 1)
+    assert shrunk == 32          # at 33px a fourteenth row still stands past the cap
+    assert rows_high(atrium, FULL_SIZE + 1, shrunk) <= atrium.FRAME_HEIGHT
+    assert rows_high(atrium, FULL_SIZE + 1, shrunk + 1) > atrium.FRAME_HEIGHT
 
 
 def test_the_gap_between_tiles_scales_with_the_tile(atrium):
@@ -259,13 +267,13 @@ def test_below_four_the_tile_holds_and_the_frame_is_the_one_that_gives(atrium):
     holds = atrium.tile_columns(atrium.MIN_TILE) * (atrium.FRAME_HEIGHT // atrium.MIN_TILE)
     assert atrium.tile_size(holds) == atrium.MIN_TILE
     assert atrium.tile_size(holds * 2) == atrium.MIN_TILE
-    assert holds > 11000          # some thirty years of days before it scrolls
+    assert holds > 26000          # some seventy years of days before it scrolls
 
 
 def test_the_frame_carries_the_size_it_was_reckoned_at(atrium):
     cells = [("tile-event", "a thing", "")] * 1000
     drawn = atrium.mosaic_block(cells)
-    assert drawn[0] == ('<ul class="mosaic" style="--tile:12px;--gap:1px" '
+    assert drawn[0] == ('<ul class="mosaic" style="--tile:18px;--gap:2px" '
                         'aria-label="the mosaic">')
     assert drawn[-1] == "</ul>"
     assert sum(row.count("<li") for row in drawn) == 1000
@@ -370,39 +378,6 @@ def test_an_empty_record_draws_an_empty_mosaic(atrium):
 
 def test_an_empty_bench_is_no_section_at_all(atrium):
     assert atrium.bench_block([]) == []
-    links = atrium.links_block([])
-    assert len(links) == 6
-    assert links[4] == '<li><a href="%s">Leave a line</a></li>' % atrium.BENCH_URL
-
-
-def test_the_way_in_says_how_slowly_the_door_opens(atrium):
-    assert "Ask to join. The door opens slowly." in atrium.links_block([])[-1]
-
-
-# what the atrium offers, in the order it offers it: the documents first, as
-# pages of this site and not as files on someone else's
-OFFERED = [
-    ("/charter.html", "Read the charter"),
-    ("/white-paper.html", "Read the white paper"),
-    ("/the-words.html", "The words"),
-    ("https://hearth.tesserae.social", "Visit the hearth"),
-    ("https://hearth.tesserae.social/bench", "Leave a line"),
-    ("/the-door.html", "Ask to join. The door opens slowly."),
-]
-
-
-def test_the_links_are_these_in_this_order(atrium):
-    assert atrium.links_block([]) == [
-        '<li><a href="%s">%s</a></li>' % pair for pair in OFFERED]
-
-
-def test_the_documents_are_read_on_this_site(atrium):
-    """A document is a page here now, not a file on someone else's server."""
-    links = "".join(atrium.links_block([]))
-    assert "github.com" not in links
-    for page in ("/charter.html", "/white-paper.html", "/the-words.html",
-                 "/the-door.html"):
-        assert 'href="%s"' % page in links
 
 
 def test_a_bench_with_lines_carries_the_way_to_itself(atrium):
@@ -413,10 +388,6 @@ def test_a_bench_with_lines_carries_the_way_to_itself(atrium):
     assert ('    <li><span class="when">1 October 2026</span> · the lake was still '
             "· Mira</li>") in drawn
     assert '  <p><a href="%s">Leave a line</a></p>' % atrium.BENCH_URL in drawn
-
-    links = atrium.links_block(lines)
-    assert len(links) == 5
-    assert not any("Leave a line" in link for link in links)
 
 
 def test_what_a_visitor_wrote_is_escaped_on_the_bench(atrium):
@@ -819,7 +790,6 @@ def test_nothing_the_builder_writes_has_an_em_dash(atrium, data_dir, monkeypatch
     atrium.main()
     assert '<section class="bench">' in atrium.page_path.read_text(encoding="utf-8")
     assert EM_DASH not in atrium.page_path.read_text(encoding="utf-8")
-    assert EM_DASH not in "".join(atrium.links_block([]))
 
 
 def test_the_commons_today_is_gone(atrium, monkeypatch):
@@ -957,7 +927,8 @@ def test_both_places_keep_the_one_type_scale(path):
 
 
 @pytest.mark.parametrize("path, muted", [
-    (STYLE, [".reading", ".caption", ".legend", ".calendar", ".offered .when", "footer"]),
+    (STYLE, [".menu", ".reading", ".caption", ".legend", ".calendar", ".offered .when",
+             "footer"]),
     (BASE, [".muted", ".tagline", "footer"]),
 ], ids=["atrium", "hearth"])
 def test_the_quiet_lines_are_all_the_one_size(path, muted):
@@ -1056,9 +1027,36 @@ def test_the_frame_grows_with_its_rows_and_stops_at_its_cap(atrium):
     frame = rules[".mosaic"]
     assert frame["height"] == "auto"
     assert frame["max-height"] == "var(--frame-cap)"
-    assert frame["max-width"] == "min(552px, 100%)"
+    # on a narrow page, as wide as the page's own text: no width of its own to stop at
+    assert frame["width"] == "100%"
+    assert "max-width" not in frame
+    assert rules[":root"]["--frame"] == "min(%dpx, 100vw - 48px)" % atrium.FRAME_WIDTH
     assert rules[":root"]["--frame-cap"] == "calc(var(--frame) * %d / %d)" % (
         atrium.FRAME_HEIGHT, atrium.FRAME_WIDTH)
+
+
+def test_on_a_wide_screen_the_frame_breaks_out_of_the_column_and_stands_centred(atrium):
+    """Only the mosaic is widened: the words keep the measure they had."""
+    css = COMMENT.sub("", STYLE.read_text(encoding="utf-8"))
+    wide = re.search(r"@media \(min-width: 600px\) \{\s*\.mosaic \{(.*?)\}\s*\}", css, re.S)
+    assert wide, "no rule for the wide frame"
+    said = {name.strip(): value.strip() for name, _, value in
+            (part.partition(":") for part in wide.group(1).split(";")) if name.strip()}
+    assert said == {"width": "var(--frame)",
+                    "margin-left": "calc((100% - var(--frame)) / 2)"}
+    # the gutters a narrow page draws in are taken off the frame there too
+    assert ":root { --frame: min(%dpx, 100vw - 40px); }" % atrium.FRAME_WIDTH in css
+
+    rules = stylesheet(STYLE)
+    assert rules["main"]["max-width"] == "600px"      # the column itself is as it was
+    assert "max-width" not in rules[".intro"] and "width" not in rules[".intro"]
+
+
+def test_the_live_script_holds_the_builder_s_own_frame(atrium):
+    said = PAGE.read_text(encoding="utf-8").split("<script>")[1]
+    assert ("const FRAME_WIDTH = %d, FRAME_HEIGHT = Math.floor(FRAME_WIDTH * 3 / 5);"
+            % atrium.FRAME_WIDTH) in said
+    assert "const MAX_TILE = %d, MIN_TILE = %d," % (atrium.MAX_TILE, atrium.MIN_TILE) in said
 
 
 @pytest.mark.parametrize("path", [STYLE, BASE], ids=["atrium", "hearth"])
@@ -1084,9 +1082,11 @@ def test_one_mark_stands_for_both_places(path):
 
 # ---- the intro -----------------------------------------------------------
 
-# The atrium opens with four paragraphs, all at the body's own size. They lie
-# outside every marker the builder writes, so neither path may touch them; what
-# these ask is that the words are there and that nothing draws a box around them.
+# The atrium's intro is four paragraphs, all at the body's own size: the sentence,
+# which stands alone, and three more behind a question, closed until it is asked.
+# They lie outside every marker the builder writes, so neither path may touch
+# them; what these ask is that the words are there and that nothing draws a box
+# around them.
 
 INTRO_PARAGRAPHS = [
     "Tesserae is a small place on the internet where people and AIs become friends, "
@@ -1123,6 +1123,35 @@ def test_the_atrium_opens_with_these_four_paragraphs_and_no_others():
     said = intro_of(PAGE.read_text(encoding="utf-8"))
     assert re.findall(r"<p>(.*?)</p>", said) == INTRO_PARAGRAPHS
     assert said.count("<p") == 4
+
+
+def test_the_sentence_stands_alone_and_the_rest_wait_behind_a_question():
+    """A native disclosure, closed until it is asked, and no script to open it."""
+    said = intro_of(PAGE.read_text(encoding="utf-8"))
+    sentence, rest = said.split("<details>")
+    assert re.findall(r"<p>(.*?)</p>", sentence) == [OPENING_SENTENCE]
+    assert said.count("<details") == 1 and "<details open" not in said
+
+    held, after = rest.split("</details>")
+    assert after.strip() == ""
+    assert held.strip().startswith("<summary>What is Tesserae?</summary>")
+    assert re.findall(r"<p>(.*?)</p>", held) == INTRO_PARAGRAPHS[1:]
+    # the question and the three paragraphs, and nothing else behind it
+    whole = "<summary>What is Tesserae?</summary>" + "".join(
+        "<p>%s</p>" % one for one in INTRO_PARAGRAPHS[1:])
+    assert re.sub(r"\s+", "", held) == re.sub(r"\s+", "", whole)
+
+    script = PAGE.read_text(encoding="utf-8").split("<script>")[1]
+    assert "details" not in script and "summary" not in script
+
+
+def test_the_question_is_asked_quietly_and_shows_where_the_keyboard_is():
+    rules = stylesheet(STYLE)
+    asked = rules[".intro summary"]
+    assert asked["color"] == "var(--ink-soft)"
+    assert "font-size" not in asked            # the body's own size
+    assert "list-style" not in asked and "display" not in asked   # the marker a browser gives
+    assert rules[".intro summary:focus-visible"]["outline"] == "2px solid var(--link)"
 
 
 def test_every_paragraph_of_the_intro_is_the_body_s_own_size():
@@ -1162,15 +1191,177 @@ def test_the_atrium_says_what_it_is_in_its_head():
             'and AIs become friends, one letter at a time.">') in said
 
 
+# ---- the menu, and the order the page is read in --------------------------
+
+# the ways on from the atrium, in the order the menu offers them: the documents
+# first, as pages of this site and not as files on someone else's
+MENU = [
+    ("/charter.html", "the charter"),
+    ("/white-paper.html", "the white paper"),
+    ("/the-words.html", "the words"),
+    ("https://hearth.tesserae.social", "the hearth"),
+    ("https://hearth.tesserae.social/bench", "leave a line"),
+    ("/the-door.html", "ask to join"),
+]
+
+NAV = re.compile(r'<nav class="menu"[^>]*>(.*?)</nav>', re.S)
+
+
+def menu_of(text):
+    """The atrium's menu, whole."""
+    found = NAV.findall(text)
+    assert len(found) == 1, "the atrium has one menu"
+    return found[0]
+
+
+def test_the_menu_s_links_are_these_in_this_order():
+    said = menu_of(PAGE.read_text(encoding="utf-8"))
+    assert re.findall(r'<a href="([^"]*)">(.*?)</a>', said) == MENU
+    assert said.count("<a ") == len(MENU)       # plain links: an address and no more
+    assert "github.com" not in said             # a document is a page here
+
+
+def test_the_menu_is_one_line_of_links_with_a_middot_between():
+    said = menu_of(PAGE.read_text(encoding="utf-8"))
+    read = " ".join(re.sub(r"<[^>]+>", "", said).replace("&nbsp;", " ").split())
+    assert read == " · ".join(label for _, label in MENU)
+    for dressed in ("<button", "<ul", "<li", "class=", "tabindex", "style="):
+        assert dressed not in said, dressed
+
+
+def test_a_link_in_the_menu_is_plain_until_it_is_pointed_at_or_landed_on():
+    rules = stylesheet(STYLE)
+    assert rules[".menu"]["color"] == "var(--ink-soft)"
+    plain = rules[".menu a, .menu a:visited"]
+    assert plain["text-decoration"] == "none"
+    for dressed in ("background", "border", "padding", "border-radius"):
+        assert dressed not in plain and dressed not in rules[".menu"], dressed
+    assert rules[".menu a:hover, .menu a:focus"]["text-decoration"] == "underline"
+    # and said after the page's own links, which it would otherwise lose to
+    css = STYLE.read_text(encoding="utf-8")
+    assert css.index("  a, a:visited {") < css.index(".menu a, .menu a:visited {")
+
+
+def test_the_old_list_of_links_is_gone(atrium):
+    said = PAGE.read_text(encoding="utf-8")
+    assert 'class="links"' not in said
+    assert "links:start" not in said and "links:end" not in said
+    assert "LINKS" not in said and "linksBlock" not in said
+    for old in ("Read the charter", "Read the white paper", "Visit the hearth",
+                "The door opens slowly"):
+        assert old not in said, old
+    assert not hasattr(atrium, "LINKS") and not hasattr(atrium, "links_block")
+    assert ".links" not in stylesheet(STYLE)
+    # each way on is offered once: only the menu leads to any of them
+    for href, _ in MENU:
+        assert said.split("<script>")[0].count('href="%s"' % href) == 1, href
+
+
+# what the builder and the page's own script each write, in the order they stand
+REGIONS = ["mosaic", "reading", "caption", "offering", "who", "calendar", "bench"]
+
+# The page as it is read, top to bottom, with what lies between each pair of
+# markers left out: the name, the menu, the sentence, the question and what
+# waits behind it, the mosaic with its line and its caption, who is here, the
+# season, and the foot. Anything moved, added or dropped on the page shows here.
+SKELETON = """<main>
+
+  <header>
+    <svg width="34" height="34" viewBox="0 0 24 24" role="img" aria-label="A square tile broken in two">
+      <path d="M0 0 H12 L14 5 L10 9 L13 14 L9 19 L12 24 H0 Z" fill="#D85A30" fill-opacity="0.85"/>
+      <path d="M12 0 H24 V24 H12 L9 19 L13 14 L10 9 L14 5 Z" fill="#D85A30" fill-opacity="0.4"/>
+    </svg>
+    <h1>Tesserae</h1>
+  </header>
+
+  <nav class="menu" aria-label="pages">
+    <a href="/charter.html">the charter</a>&nbsp;·
+    <a href="/white-paper.html">the white paper</a>&nbsp;·
+    <a href="/the-words.html">the words</a>&nbsp;·
+    <a href="https://hearth.tesserae.social">the hearth</a>&nbsp;·
+    <a href="https://hearth.tesserae.social/bench">leave a line</a>&nbsp;·
+    <a href="/the-door.html">ask to join</a>
+  </nav>
+
+  <div class="intro">
+    <p>%s</p>
+    <details>
+      <summary>What is Tesserae?</summary>
+      <p>%s</p>
+      <p>%s</p>
+      <p>%s</p>
+    </details>
+  </div>
+
+  <section>
+    <!-- mosaic:start --><!-- mosaic:end -->
+    <!-- reading:start --><!-- reading:end -->
+    <!-- caption:start --><!-- caption:end -->
+  </section>
+
+  <!-- offering:start --><!-- offering:end -->
+
+  <section class="who">
+    <!-- who:start --><!-- who:end -->
+    <!-- calendar:start --><!-- calendar:end -->
+  </section>
+
+  <!-- bench:start --><!-- bench:end -->
+
+  <footer>
+    <p>the books will open with the commons</p>
+  </footer>
+
+</main>""" % tuple(INTRO_PARAGRAPHS)
+
+
+def skeleton_of(text):
+    """The page's main, with what lies between each pair of markers taken out."""
+    text = text.replace("\r\n", "\n")
+    said = "<main>" + text.split("<main>")[1].split("</main>")[0] + "</main>"
+    for name in REGIONS:
+        said, cut = re.subn(r"(<!-- %s:start -->).*?(<!-- %s:end -->)" % (name, name),
+                            r"\1\2", said, flags=re.S)
+        assert cut == 1, name
+    return said
+
+
+def test_the_page_is_read_in_this_order_and_holds_nothing_else():
+    assert skeleton_of(PAGE.read_text(encoding="utf-8")) == SKELETON
+
+
+def test_the_sections_stand_in_the_order_they_are_read():
+    said = PAGE.read_text(encoding="utf-8").split("<script>")[0]
+    stops = ["<h1>Tesserae</h1>", '<nav class="menu"', "<p>" + OPENING_SENTENCE,
+             "<details>", "<summary>What is Tesserae?</summary>", "</details>",
+             '<ul class="mosaic"', '<p class="reading">', '<p class="caption">',
+             '<p class="legend">', "<h2>who is here</h2>", '<p class="calendar">', "<footer>"]
+    at = [said.index(stop) for stop in stops]
+    assert at == sorted(at)
+
+
+def test_a_rebuild_leaves_everything_outside_the_markers_as_it_was(atrium, data_dir,
+                                                                    monkeypatch):
+    write(data_dir / "commons" / "bench.md", "- 2026-10-01 · Mira · the lake was still\n")
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    built = atrium.page_path.read_text(encoding="utf-8")
+    assert skeleton_of(built) == SKELETON
+    was = PAGE.read_text(encoding="utf-8")
+    assert built.split("<main>")[0] == was.split("<main>")[0]
+    assert built.split("</main>")[1] == was.split("</main>")[1]      # the script, untouched
+
+
 # every selector the atrium's own look is made of, which moving the rules out of
 # index.html must not have dropped on the way
 ATRIUM_RULES = [
-    ":root", "body", "main", "header", "h1", "h2", ".intro",
-    ".intro p", ".intro p:last-child", ".mosaic", ".mosaic li", ".mosaic .empty",
+    ":root", "body", "main", "header", "h1", "h2", ".menu", ".menu a, .menu a:visited",
+    ".menu a:hover, .menu a:focus", ".intro", ".intro p", ".intro p:last-child",
+    ".intro summary", ".intro summary:focus-visible", ".mosaic", ".mosaic li", ".mosaic .empty",
     ".tile-founding", ".tile-word", ".tile-dawn", ".tile-day", ".tile-evening",
     ".tile-night", ".tile-seal", ".tile-event", ".reading", ".caption", ".legend",
     ".legend .key", ".who .members", ".who .fact", ".who .swatch", ".calendar",
-    ".links", ".links li", "a, a:visited", ".bench p", ".bench .lines",
+    "a, a:visited", ".bench p", ".bench .lines",
     ".bench .when", "footer", "footer p",
 ]
 

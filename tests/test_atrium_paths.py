@@ -38,7 +38,7 @@ from conftest import NOW, REPO, write
 NODE = shutil.which("node")
 
 REGIONS = ["mosaic", "reading", "caption", "offering", "who", "calendar",
-           "bench", "links"]
+           "bench"]
 
 # the one moment both paths are read at: conftest's NOW, in milliseconds. The
 # mosaic's run of days ends today and the calendar says what season today is, so
@@ -255,6 +255,43 @@ def test_both_paths_keep_the_intro_word_for_word(atrium, data_dir, monkeypatch, 
     assert intro_of(drawn).count("<p") == 4
 
 
+def main_of(page):
+    """Everything the page shows, with its whitespace made even."""
+    found = re.search(r"<main>.*?</main>", page, re.S)
+    assert found, "no main in the page"
+    return GAP.sub(" ", found.group())
+
+
+@pytest.mark.parametrize("bench", ["", "- 2026-10-01 · Mira · the lake was still\n"])
+def test_both_paths_draw_the_same_page_entire(atrium, data_dir, monkeypatch, tmp_path, bench):
+    """Not the marked regions alone: the name, the menu, the intro and the foot besides."""
+    a_record(data_dir, bench=bench)
+    offerings(data_dir)
+    built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert main_of(drawn) == main_of(built)
+
+
+def test_both_paths_leave_the_menu_and_the_question_alone(atrium, data_dir, monkeypatch,
+                                                          tmp_path):
+    """Neither is inside a marker: the menu stands as written, and the question stays closed."""
+    a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still\n")
+    built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
+    menu = re.compile(r'<nav class="menu".*?</nav>', re.S)
+    for said in (built, drawn):
+        assert len(menu.findall(said)) == 1
+        assert re.findall(r'<a href="([^"]*)">(.*?)</a>', menu.search(said).group()) == [
+            ("/charter.html", "the charter"),
+            ("/white-paper.html", "the white paper"),
+            ("/the-words.html", "the words"),
+            ("https://hearth.tesserae.social", "the hearth"),
+            ("https://hearth.tesserae.social/bench", "leave a line"),
+            ("/the-door.html", "ask to join")]
+        assert "<details> <summary>What is Tesserae?</summary>" in GAP.sub(" ", said)
+        assert "<details open" not in said
+        assert 'class="links"' not in said and "links:start" not in said
+    assert GAP.sub(" ", menu.search(drawn).group()) == GAP.sub(" ", menu.search(built).group())
+
+
 def test_neither_path_writes_an_em_dash(atrium, data_dir, monkeypatch, tmp_path):
     a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still\n")
     offerings(data_dir)
@@ -284,8 +321,6 @@ def test_both_paths_agree_on_an_empty_bench(atrium, data_dir, monkeypatch, tmp_p
     a_record(data_dir, bench="")
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     assert here["bench"] == there["bench"] == ""
-    assert here["links"] == there["links"]
-    assert "Leave a line" in here["links"]
 
 
 def test_an_empty_record_is_where_the_two_paths_part(atrium, data_dir, monkeypatch, tmp_path):
@@ -335,7 +370,6 @@ def test_the_harness_shows_what_it_compared(atrium, data_dir, monkeypatch, tmp_p
         assert "waking at dawn" in said["mosaic"] and "waking at night" in said["mosaic"]
         # however a heartbeat line was written, it is read out the one way
         assert said["mosaic"].count("the first one · attended") == 6
-        assert "Ask to join. The door opens slowly." in said["links"]
         assert "<h2>who is here</h2>" in said["who"]
         assert "hue-the-first-one-unnamed-by-its-own-choosing" in said["who"]
         assert said["calendar"] == ('<p class="calendar">it is autumn · '
@@ -348,6 +382,33 @@ def test_both_paths_agree_when_no_one_says_who_is_here(atrium, data_dir, monkeyp
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     assert here["who"] == there["who"] == ""
     assert here["calendar"] == there["calendar"] != ""
+
+
+# ---- the frame, on both paths ---------------------------------------------
+
+@pytest.mark.parametrize("first, slots, tile", [
+    ("2026-01-01", 289, "--tile:32px;--gap:4px"),     # three slots past what 34px holds
+    ("2024-01-01", 1020, "--tile:18px;--gap:2px"),
+    ("2001-01-01", 9420, "--tile:6px;--gap:0px"),
+])
+def test_both_paths_shrink_the_tiles_alike_as_the_record_grows(atrium, data_dir, monkeypatch,
+                                                               tmp_path, first, slots, tile):
+    """One frame, reckoned the one way: the builder's tile is the browser's tile."""
+    for name in ("heartbeats.md", "bench.md", "members.md", "offerings.md"):
+        write(data_dir / "commons" / name, "")
+    write(data_dir / "commons" / "events.md",
+          "%s · event · a long time ago\n"
+          "2026-10-15 · event · and today, twice\n"
+          "2026-10-15 · event · and today, twice\n" % first)
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here == there
+    assert here["mosaic"].count("<li") == slots == len(atrium.slots(
+        atrium.tiles_from(atrium.parse_events(
+            (data_dir / "commons" / "events.md").read_text(encoding="utf-8")), []),
+        atrium.today_here()))
+    assert here["mosaic"].startswith('<ul class="mosaic" style="%s"' % tile)
+    assert tile == "--tile:%dpx;--gap:%dpx" % (
+        atrium.tile_size(slots), atrium.tile_gap(atrium.tile_size(slots)))
 
 
 # ---- a person's letter, on both paths ------------------------------------

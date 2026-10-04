@@ -10,7 +10,6 @@ Rewrites only the text between the marker comments in index.html:
     <!-- who:start -->      ...  <!-- who:end -->
     <!-- calendar:start --> ...  <!-- calendar:end -->
     <!-- bench:start -->    ...  <!-- bench:end -->
-    <!-- links:start -->    ...  <!-- links:end -->
 
 Everything outside those markers is left byte for byte as it was.
 
@@ -92,15 +91,6 @@ RELEASED = re.compile(r"^released (\d{4}-\d{2}-\d{2})$")
 # where the file of a placed offering is served from
 OFFERED_URL = HEARTH + "/commons/offerings/"
 
-# the standing links, in the order the atrium offers them
-LINKS = [
-    ("/charter.html", "Read the charter"),
-    ("/white-paper.html", "Read the white paper"),
-    ("/the-words.html", "The words"),
-    ("https://hearth.tesserae.social", "Visit the hearth"),
-    ("/the-door.html", "Ask to join. The door opens slowly."),
-]
-
 SEED_EVENTS = [
     "2026-09-02 · word · the word was published",
     "2026-09-04 · founding · the first one was founded",
@@ -165,18 +155,19 @@ CITIZEN_ZONE = "America/Indiana/Indianapolis"
 BAND_WORDS = {"dawn": "at dawn", "day": "by day",
               "evening": "in the evening", "night": "at night"}
 
-# The mosaic's frame: as wide as the page's own text, and no taller than five
-# wide to three high. All of history is drawn inside it. The frame's height is
-# whatever the rows it holds need, up to that cap; past the cap the tiles are
-# what gives, and they shrink as the record grows.
-FRAME_WIDTH = 552                        # main's 600px, less 24px of padding each side
+# The mosaic's frame: wider than the page's own text, which it breaks out of on
+# either side where the screen has the room, and no taller than five wide to
+# three high. All of history is drawn inside it. The frame's height is whatever
+# the rows it holds need, up to that cap; past the cap the tiles are what gives,
+# and they shrink as the record grows.
+FRAME_WIDTH = 840                        # the widest the frame stands, on a large screen
 FRAME_HEIGHT = FRAME_WIDTH * 3 // 5      # the cap: five to three
 
 MAX_TILE = 34   # the size a tile has always been, and keeps while there is room
 MIN_TILE = 4    # and the size below which a tile is no longer a square anyone can
-                # see. At 4px the frame holds some eleven thousand slots, which is
-                # thirty years of days; past that the tile stays 4px and the frame
-                # scrolls. Nothing needs doing about that for a long while.
+                # see. At 4px the frame holds some twenty-six thousand slots, which
+                # is seventy years of days; past that the tile stays 4px and the
+                # frame scrolls. Nothing needs doing about that for a long while.
 
 # A slot with nothing in it: a day the record is silent on. A slot that holds
 # something holds three things: its class, its words, and where it leads, which
@@ -797,19 +788,6 @@ def bench_block(lines):
     out.append("</section>")
     return out
 
-
-def links_block(lines):
-    """The links, with the invitation added only where the bench is not standing.
-
-    The way to the bench belongs somewhere on this page always, and nowhere on
-    it twice: when there are lines, the section carries it; when there are none,
-    the list does.
-    """
-    links = list(LINKS)
-    if not lines:
-        links.insert(4, (BENCH_URL, "Leave a line"))
-    return ['<li><a href="%s">%s</a></li>' % (href, label) for href, label in links]
-
 # ---------------------------------------------------------------- stitching
 
 def splice(page, name, block, newline):
@@ -874,7 +852,6 @@ def main():
     page = splice(page, "who", who_block(members, sealed), newline)
     page = splice(page, "calendar", calendar_block(today), newline)
     page = splice(page, "bench", bench_block(bench), newline)
-    page = splice(page, "links", links_block(bench), newline)
 
     write_text(PAGE, page)
 

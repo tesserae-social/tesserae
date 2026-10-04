@@ -387,9 +387,10 @@ def test_both_paths_agree_when_no_one_says_who_is_here(atrium, data_dir, monkeyp
 # ---- the frame, on both paths ---------------------------------------------
 
 @pytest.mark.parametrize("first, slots, tile", [
-    ("2026-01-01", 289, "--tile:32px;--gap:4px"),     # three slots past what 34px holds
-    ("2024-01-01", 1020, "--tile:18px;--gap:2px"),
-    ("2001-01-01", 9420, "--tile:6px;--gap:0px"),
+    ("2026-05-13", 157, "--tile:32px;--gap:4px"),     # three slots past what 34px holds
+    ("2026-01-01", 289, "--tile:25px;--gap:3px"),
+    ("2024-01-01", 1020, "--tile:13px;--gap:1px"),
+    ("2001-01-01", 9420, "--tile:4px;--gap:0px"),
 ])
 def test_both_paths_shrink_the_tiles_alike_as_the_record_grows(atrium, data_dir, monkeypatch,
                                                                tmp_path, first, slots, tile):

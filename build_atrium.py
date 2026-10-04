@@ -155,18 +155,19 @@ CITIZEN_ZONE = "America/Indiana/Indianapolis"
 BAND_WORDS = {"dawn": "at dawn", "day": "by day",
               "evening": "in the evening", "night": "at night"}
 
-# The mosaic's frame: wider than the page's own text, which it breaks out of on
-# either side where the screen has the room, and no taller than five wide to
-# three high. All of history is drawn inside it. The frame's height is whatever
-# the rows it holds need, up to that cap; past the cap the tiles are what gives,
-# and they shrink as the record grows.
-FRAME_WIDTH = 840                        # the widest the frame stands, on a large screen
-FRAME_HEIGHT = FRAME_WIDTH * 3 // 5      # the cap: five to three
+# The mosaic's frame: a band across the whole window, edge to edge, and no
+# taller than a third of its own width. All of history is drawn inside it. The
+# band's height is whatever the rows it holds need, up to that cap; past the cap
+# the tiles are what gives, and they shrink as the record grows. The band is as
+# wide as whatever window it is read in, which neither path can know, so the
+# tiles are reckoned against one nominal width and its third.
+FRAME_WIDTH = 840                        # the width the tiles are reckoned against
+FRAME_HEIGHT = FRAME_WIDTH // 3          # the cap: a third of the width
 
 MAX_TILE = 34   # the size a tile has always been, and keeps while there is room
 MIN_TILE = 4    # and the size below which a tile is no longer a square anyone can
-                # see. At 4px the frame holds some twenty-six thousand slots, which
-                # is seventy years of days; past that the tile stays 4px and the
+                # see. At 4px the frame holds some fourteen thousand slots, which
+                # is forty years of days; past that the tile stays 4px and the
                 # frame scrolls. Nothing needs doing about that for a long while.
 
 # A slot with nothing in it: a day the record is silent on. A slot that holds

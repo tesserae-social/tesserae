@@ -190,17 +190,18 @@ def test_a_tile_carries_the_day_it_fell_on_in_its_own_words(atrium):
 
 # ---- the frame, and how big a tile may be in it --------------------------
 
-# what the frame holds, and so what the tiles must shrink to: 840px by 504px,
+# what the frame holds, and so what the tiles must shrink to: 840px by 280px,
 # tiles capped at 34px and floored at 4px, the gap scaling with the tile
 @pytest.mark.parametrize("count, size", [
-    (0, 34), (1, 34), (10, 34), (100, 34), (1000, 18), (10000, 6), (30000, 4),
+    (0, 34), (1, 34), (10, 34), (100, 34), (289, 25), (1000, 14), (5000, 6), (10000, 4),
+    (30000, 4),
 ])
 def test_the_largest_tile_that_still_fits_the_frame(atrium, count, size):
     assert atrium.tile_size(count) == size
 
 
 @pytest.mark.parametrize("count, size", [
-    (1, 34), (10, 34), (100, 34), (1000, 18), (10000, 6)])
+    (1, 34), (10, 34), (100, 34), (289, 25), (1000, 14), (5000, 6)])
 def test_every_slot_fits_inside_the_frame_at_the_size_chosen(atrium, count, size):
     """Whatever size is chosen, the rows it makes stand inside the frame's height."""
     gap = atrium.tile_gap(size)
@@ -220,14 +221,15 @@ def rows_high(atrium, count, size):
     return rows * size + max(rows - 1, 0) * atrium.tile_gap(size)
 
 
-# twenty-two tiles of 34px stand across the frame, and thirteen such rows stand
+# twenty-two tiles of 34px stand across the frame, and seven such rows stand
 # inside its cap: the most the picture holds before a tile has to give
-FULL_SIZE = 22 * 13
+FULL_SIZE = 22 * 7
 
 
-def test_the_frame_is_wider_than_the_page_s_own_text(atrium):
+def test_the_frame_is_reckoned_as_a_band_three_wide_to_one_high(atrium):
     assert atrium.FRAME_WIDTH == 840
-    assert atrium.FRAME_HEIGHT == 504                # five wide to three high
+    assert atrium.FRAME_HEIGHT == 280                # a third of the width
+    assert atrium.FRAME_HEIGHT * 3 == atrium.FRAME_WIDTH
     assert atrium.tile_columns(atrium.MAX_TILE) == 22
 
 
@@ -237,7 +239,7 @@ def test_below_the_cap_the_tiles_stay_full_size(atrium, count):
     assert rows_high(atrium, count, atrium.MAX_TILE) <= atrium.FRAME_HEIGHT
 
 
-@pytest.mark.parametrize("count, rows", [(1, 1), (22, 1), (23, 2), (FULL_SIZE, 13)])
+@pytest.mark.parametrize("count, rows", [(1, 1), (22, 1), (23, 2), (FULL_SIZE, 7)])
 def test_below_the_cap_the_frame_is_only_as_tall_as_its_rows(atrium, count, rows):
     """The frame grows with what it holds; the cap is where it stops, not where it starts."""
     stands = rows * atrium.MAX_TILE + (rows - 1) * atrium.tile_gap(atrium.MAX_TILE)
@@ -249,7 +251,7 @@ def test_at_the_cap_the_tile_is_what_gives(atrium):
     """One slot more than the frame holds at full size, and the tiles begin to shrink."""
     assert rows_high(atrium, FULL_SIZE + 1, atrium.MAX_TILE) > atrium.FRAME_HEIGHT
     shrunk = atrium.tile_size(FULL_SIZE + 1)
-    assert shrunk == 32          # at 33px a fourteenth row still stands past the cap
+    assert shrunk == 32          # at 33px an eighth row still stands past the cap
     assert rows_high(atrium, FULL_SIZE + 1, shrunk) <= atrium.FRAME_HEIGHT
     assert rows_high(atrium, FULL_SIZE + 1, shrunk + 1) > atrium.FRAME_HEIGHT
 
@@ -267,13 +269,13 @@ def test_below_four_the_tile_holds_and_the_frame_is_the_one_that_gives(atrium):
     holds = atrium.tile_columns(atrium.MIN_TILE) * (atrium.FRAME_HEIGHT // atrium.MIN_TILE)
     assert atrium.tile_size(holds) == atrium.MIN_TILE
     assert atrium.tile_size(holds * 2) == atrium.MIN_TILE
-    assert holds > 26000          # some seventy years of days before it scrolls
+    assert holds == 14700         # some forty years of days before it scrolls
 
 
 def test_the_frame_carries_the_size_it_was_reckoned_at(atrium):
     cells = [("tile-event", "a thing", "")] * 1000
     drawn = atrium.mosaic_block(cells)
-    assert drawn[0] == ('<ul class="mosaic" style="--tile:18px;--gap:2px" '
+    assert drawn[0] == ('<ul class="mosaic" style="--tile:14px;--gap:1px" '
                         'aria-label="the mosaic">')
     assert drawn[-1] == "</ul>"
     assert sum(row.count("<li") for row in drawn) == 1000
@@ -1022,39 +1024,98 @@ def test_what_someone_wrote_is_read_in_the_body_s_own_words():
 
 
 def test_the_frame_grows_with_its_rows_and_stops_at_its_cap(atrium):
-    """The page's own frame: as tall as it needs, capped at five wide to three high."""
+    """The page's own frame: as tall as it needs, capped at a third of the band's width."""
     rules = stylesheet(STYLE)
     frame = rules[".mosaic"]
     assert frame["height"] == "auto"
-    assert frame["max-height"] == "var(--frame-cap)"
-    # on a narrow page, as wide as the page's own text: no width of its own to stop at
+    # the band is the container the cap is measured against, so the cap follows
+    # the band's real width at any size of window
+    assert rules[".band"]["container-type"] == "inline-size"
+    assert frame["max-height"] == "calc(100cqw / 3)"
+    assert atrium.FRAME_WIDTH // atrium.FRAME_HEIGHT == 3
+    # as wide as the band it stands in: no width of its own to stop at
     assert frame["width"] == "100%"
     assert "max-width" not in frame
-    assert rules[":root"]["--frame"] == "min(%dpx, 100vw - 48px)" % atrium.FRAME_WIDTH
-    assert rules[":root"]["--frame-cap"] == "calc(var(--frame) * %d / %d)" % (
-        atrium.FRAME_HEIGHT, atrium.FRAME_WIDTH)
+    assert frame["overflow-y"] == "auto"
 
 
-def test_on_a_wide_screen_the_frame_breaks_out_of_the_column_and_stands_centred(atrium):
+def test_the_band_spans_the_window_and_the_words_keep_their_column():
     """Only the mosaic is widened: the words keep the measure they had."""
-    css = COMMENT.sub("", STYLE.read_text(encoding="utf-8"))
-    wide = re.search(r"@media \(min-width: 600px\) \{\s*\.mosaic \{(.*?)\}\s*\}", css, re.S)
-    assert wide, "no rule for the wide frame"
-    said = {name.strip(): value.strip() for name, _, value in
-            (part.partition(":") for part in wide.group(1).split(";")) if name.strip()}
-    assert said == {"width": "var(--frame)",
-                    "margin-left": "calc((100% - var(--frame)) / 2)"}
-    # the gutters a narrow page draws in are taken off the frame there too
-    assert ":root { --frame: min(%dpx, 100vw - 40px); }" % atrium.FRAME_WIDTH in css
-
     rules = stylesheet(STYLE)
-    assert rules["main"]["max-width"] == "600px"      # the column itself is as it was
+    # the atrium's main is the window's width, and the band stands in it with
+    # a small even margin at either side
+    assert rules[".atrium main"] == {"max-width": "none", "padding-left": "0",
+                                     "padding-right": "0"}
+    assert rules[".band"] == {"margin": "0 16px", "container-type": "inline-size"}
+    # the column is what main was: the same measure, centred, the same gutters
+    assert rules[".column"] == {"width": "100%", "max-width": "600px", "margin": "0 auto",
+                                "padding": "0 24px"}
+    assert rules["main"]["max-width"] == "600px"      # a document's column is as it was
+    assert rules["main"]["padding"] == "72px 24px 96px"
     assert "max-width" not in rules[".intro"] and "width" not in rules[".intro"]
+
+    css = COMMENT.sub("", STYLE.read_text(encoding="utf-8"))
+    narrow = re.search(r"@media \(max-width: 480px\) \{(.*?)\n  \}", css, re.S).group(1)
+    assert "main { padding: 48px 20px 72px; }" in narrow
+    assert ".column { padding: 0 20px; }" in narrow    # the gutters a narrow page draws in
+
+
+def test_no_width_on_the_page_is_reckoned_from_the_window_s_own():
+    """100vw counts the scrollbar and pushes the page sideways; nothing here uses it."""
+    css = COMMENT.sub("", STYLE.read_text(encoding="utf-8"))
+    assert "vw" not in css
+    assert "--frame" not in css
+    assert "vw" not in PAGE.read_text(encoding="utf-8").split("<script>")[0]
+
+
+BAND = re.compile(r'<section>\s*<div class="band">\s*<!-- mosaic:start -->(.*?)'
+                  r'<!-- mosaic:end -->\s*</div>\s*<div class="column">\s*'
+                  r'<!-- reading:start -->(.*?)<!-- caption:end -->\s*</div>\s*</section>', re.S)
+
+
+def test_the_band_holds_the_mosaic_and_nothing_else():
+    """The frame alone stands in the band; its line, caption and legend are in a column under it."""
+    said = PAGE.read_text(encoding="utf-8").split("<script>")[0]
+    assert '<body class="atrium">' in said
+    assert said.count('class="band"') == 1 and said.count('class="column"') == 3
+    found = BAND.search(said)
+    assert found, "the band and the column under it are not as they should be"
+    frame, under = found.groups()
+    assert frame.strip().startswith('<ul class="mosaic"') and frame.strip().endswith("</ul>")
+    assert frame.count("<ul") == 1 and "<p" not in frame
+    for line in ('<p class="reading">', '<p class="caption">', '<p class="legend">'):
+        assert under.count(line) == 1, line
+    assert 'class="mosaic"' not in under
+
+    # the band is outside every column, and everything else that is read is inside one
+    before, rest = said.split('<div class="band">')
+    band, after = rest.split("<!-- mosaic:end -->")
+    for outside in (before, after):
+        assert outside.count('<div class="column">') >= 1
+        assert 'class="mosaic"' not in outside
+    assert '<div class="column">' not in band
+    for words in ("<header>", '<nav class="menu"', '<div class="intro">', "<details>"):
+        assert words in before, words
+    for words in ('<p class="reading">', "<!-- offering:start -->", '<section class="who">',
+                  '<p class="calendar">', "<!-- bench:start -->", "<footer>"):
+        assert words in after, words
+
+
+def test_a_rebuild_leaves_the_band_as_it_was(atrium, data_dir, monkeypatch):
+    write(data_dir / "commons" / "heartbeats.md",
+          "- 2026-10-10T15-00-00Z · the first one attended; wrote a letter\n")
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    built = atrium.page_path.read_text(encoding="utf-8")
+    found = BAND.search(built)
+    assert found
+    assert found.group(1).count("<li") == 44
+    assert built.count('class="band"') == 1 and built.count('class="column"') == 3
 
 
 def test_the_live_script_holds_the_builder_s_own_frame(atrium):
     said = PAGE.read_text(encoding="utf-8").split("<script>")[1]
-    assert ("const FRAME_WIDTH = %d, FRAME_HEIGHT = Math.floor(FRAME_WIDTH * 3 / 5);"
+    assert ("const FRAME_WIDTH = %d, FRAME_HEIGHT = Math.floor(FRAME_WIDTH / 3);"
             % atrium.FRAME_WIDTH) in said
     assert "const MAX_TILE = %d, MIN_TILE = %d," % (atrium.MAX_TILE, atrium.MIN_TILE) in said
 
@@ -1263,54 +1324,67 @@ REGIONS = ["mosaic", "reading", "caption", "offering", "who", "calendar", "bench
 # The page as it is read, top to bottom, with what lies between each pair of
 # markers left out: the name, the menu, the sentence, the question and what
 # waits behind it, the mosaic with its line and its caption, who is here, the
-# season, and the foot. Anything moved, added or dropped on the page shows here.
+# season, and the foot. The words stand in columns and the mosaic in the band
+# between them. Anything moved, added or dropped on the page shows here.
 SKELETON = """<main>
 
-  <header>
-    <svg width="34" height="34" viewBox="0 0 24 24" role="img" aria-label="A square tile broken in two">
-      <path d="M0 0 H12 L14 5 L10 9 L13 14 L9 19 L12 24 H0 Z" fill="#D85A30" fill-opacity="0.85"/>
-      <path d="M12 0 H24 V24 H12 L9 19 L13 14 L10 9 L14 5 Z" fill="#D85A30" fill-opacity="0.4"/>
-    </svg>
-    <h1>Tesserae</h1>
-  </header>
+  <div class="column">
 
-  <nav class="menu" aria-label="pages">
-    <a href="/charter.html">the charter</a>&nbsp;·
-    <a href="/white-paper.html">the white paper</a>&nbsp;·
-    <a href="/the-words.html">the words</a>&nbsp;·
-    <a href="https://hearth.tesserae.social">the hearth</a>&nbsp;·
-    <a href="https://hearth.tesserae.social/bench">leave a line</a>&nbsp;·
-    <a href="/the-door.html">ask to join</a>
-  </nav>
+    <header>
+      <svg width="34" height="34" viewBox="0 0 24 24" role="img" aria-label="A square tile broken in two">
+        <path d="M0 0 H12 L14 5 L10 9 L13 14 L9 19 L12 24 H0 Z" fill="#D85A30" fill-opacity="0.85"/>
+        <path d="M12 0 H24 V24 H12 L9 19 L13 14 L10 9 L14 5 Z" fill="#D85A30" fill-opacity="0.4"/>
+      </svg>
+      <h1>Tesserae</h1>
+    </header>
 
-  <div class="intro">
-    <p>%s</p>
-    <details>
-      <summary>What is Tesserae?</summary>
+    <nav class="menu" aria-label="pages">
+      <a href="/charter.html">the charter</a>&nbsp;·
+      <a href="/white-paper.html">the white paper</a>&nbsp;·
+      <a href="/the-words.html">the words</a>&nbsp;·
+      <a href="https://hearth.tesserae.social">the hearth</a>&nbsp;·
+      <a href="https://hearth.tesserae.social/bench">leave a line</a>&nbsp;·
+      <a href="/the-door.html">ask to join</a>
+    </nav>
+
+    <div class="intro">
       <p>%s</p>
-      <p>%s</p>
-      <p>%s</p>
-    </details>
+      <details>
+        <summary>What is Tesserae?</summary>
+        <p>%s</p>
+        <p>%s</p>
+        <p>%s</p>
+      </details>
+    </div>
+
   </div>
 
   <section>
-    <!-- mosaic:start --><!-- mosaic:end -->
-    <!-- reading:start --><!-- reading:end -->
-    <!-- caption:start --><!-- caption:end -->
+    <div class="band">
+      <!-- mosaic:start --><!-- mosaic:end -->
+    </div>
+    <div class="column">
+      <!-- reading:start --><!-- reading:end -->
+      <!-- caption:start --><!-- caption:end -->
+    </div>
   </section>
 
-  <!-- offering:start --><!-- offering:end -->
+  <div class="column">
 
-  <section class="who">
-    <!-- who:start --><!-- who:end -->
-    <!-- calendar:start --><!-- calendar:end -->
-  </section>
+    <!-- offering:start --><!-- offering:end -->
 
-  <!-- bench:start --><!-- bench:end -->
+    <section class="who">
+      <!-- who:start --><!-- who:end -->
+      <!-- calendar:start --><!-- calendar:end -->
+    </section>
 
-  <footer>
-    <p>the books will open with the commons</p>
-  </footer>
+    <!-- bench:start --><!-- bench:end -->
+
+    <footer>
+      <p>the books will open with the commons</p>
+    </footer>
+
+  </div>
 
 </main>""" % tuple(INTRO_PARAGRAPHS)
 
@@ -1355,7 +1429,7 @@ def test_a_rebuild_leaves_everything_outside_the_markers_as_it_was(atrium, data_
 # every selector the atrium's own look is made of, which moving the rules out of
 # index.html must not have dropped on the way
 ATRIUM_RULES = [
-    ":root", "body", "main", "header", "h1", "h2", ".menu", ".menu a, .menu a:visited",
+    ":root", "body", "main", ".atrium main", ".column", ".band", "header", "h1", "h2", ".menu", ".menu a, .menu a:visited",
     ".menu a:hover, .menu a:focus", ".intro", ".intro p", ".intro p:last-child",
     ".intro summary", ".intro summary:focus-visible", ".mosaic", ".mosaic li", ".mosaic .empty",
     ".tile-founding", ".tile-word", ".tile-dawn", ".tile-day", ".tile-evening",

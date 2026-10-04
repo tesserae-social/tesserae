@@ -7,13 +7,14 @@
     --mark: #d85a30;
     --link: #993c1d;
 
-    /* The mosaic's frame: 552px across when the page has room for it, and the
-       page's own text width when it has not. Its height is whatever the rows
-       inside need, capped at five wide to three high of that same width. The
-       tile size is reckoned against the nominal 552px in both paths, so a
-       narrow page draws the same tiles as a wide one, in more rows. */
-    --frame: min(552px, 100vw - 48px);
-    --frame-cap: calc(var(--frame) * 331 / 552);
+    /* The mosaic's frame: 840px across when the screen has room for it, which
+       is wider than the page's own text, and the screen's width less the
+       page's gutters when it has not. Its height is whatever the rows inside
+       need, capped at five wide to three high of that same width. The tile
+       size is reckoned against the nominal 840px in both paths, so a narrow
+       page draws the same tiles as a wide one, in more rows. */
+    --frame: min(840px, 100vw - 48px);
+    --frame-cap: calc(var(--frame) * 504 / 840);
   }
 
   * { box-sizing: border-box; }
@@ -45,6 +46,15 @@
   }
 
   header svg { display: block; flex: none; }
+
+  /* The menu under the name: one quiet line of the ways on from here, in the
+     size of the lines that only murmur. It wraps where it must, between one
+     link and the next and never inside one. */
+  .menu {
+    margin: 0.6rem 0 0;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
 
   /* The one type system the atrium keeps, and the hearth mirrors in base.html:
      the body's own sans for every word on the page, four sizes and no more --
@@ -79,33 +89,60 @@
   /* The intro: four paragraphs of the body, all at the body's own size. It
      stands on the page's own paper, in the page's own ink -- no ground of its
      own, no border, and no box, because what it says is the page and not a
-     quotation inside it. It sits under the name at the paragraphs' own gap. */
+     quotation inside it. It sits under the menu at the paragraphs' own gap.
+     The first paragraph is the sentence, and stands alone; the other three
+     wait behind a question, for whoever asks it. */
   .intro { margin-top: 1.1rem; }
 
   .intro p { margin: 0 0 1.1rem; }
 
   .intro p:last-child { margin-bottom: 0; }
 
-  /* The mosaic's frame, as wide as the page's own text. All of history is drawn
-     inside it, oldest at the top left. The frame is as tall as the rows it holds
+  /* the question is read in the body's own size, in the quiet ink, with the
+     marker a browser gives any disclosure */
+  .intro summary {
+    width: fit-content;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+
+  .intro summary:focus-visible {
+    outline: 2px solid var(--link);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  .intro details[open] summary { margin-bottom: 1.1rem; }
+
+  /* The mosaic's frame, as wide as the page's own text on a narrow screen and
+     wider than it on a large one. All of history is drawn inside it, oldest at the top left. The frame is as tall as the rows it holds
      need and no taller than its cap; once the rows would pass the cap the tiles
      are what gives, and they shrink as the record grows. The tile size and the
      gap are worked out from how much there is to show and written onto this
      element, so the stylesheet only says where they go. Below 4px the tiles stop
-     shrinking and this scrolls instead -- some thirty years out. */
+     shrinking and this scrolls instead -- some seventy years out. */
   .mosaic {
     display: flex;
     flex-wrap: wrap;
     align-content: flex-start;
     gap: var(--gap, 4px);
     width: 100%;
-    max-width: min(552px, 100%);
     height: auto;
     max-height: var(--frame-cap);
     margin: 0;
     padding: 0;
     overflow-y: auto;
     list-style: none;
+  }
+
+  /* Where the screen is wider than the page's own text, the frame breaks out
+     of the column and stands centred on it: the one thing on the page that
+     does. The words keep their measure. */
+  @media (min-width: 600px) {
+    .mosaic {
+      width: var(--frame);
+      margin-left: calc((100% - var(--frame)) / 2);
+    }
   }
 
   .mosaic li {
@@ -266,14 +303,6 @@
     color: var(--ink-soft);
   }
 
-  .links {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .links li { margin-bottom: 12px; }
-
   /* a link is the deeper tessera shade, and says so with a thin rule under it */
   a, a:visited {
     color: var(--link);
@@ -284,6 +313,17 @@
   }
 
   a:hover, a:focus { color: var(--mark); text-decoration-color: var(--mark); }
+
+  /* a link in the menu is plain until it is pointed at or landed on */
+  .menu a, .menu a:visited {
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .menu a:hover, .menu a:focus {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+  }
 
   .bench p { margin: 0 0 16px; }
 
@@ -311,7 +351,7 @@
 
   @media (max-width: 480px) {
     /* the page draws in its gutters, so the frame's cap follows them */
-    :root { --frame: min(552px, 100vw - 40px); }
+    :root { --frame: min(840px, 100vw - 40px); }
     main { padding: 48px 20px 72px; }
   }
 

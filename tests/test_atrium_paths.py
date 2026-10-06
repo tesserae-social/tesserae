@@ -576,3 +576,39 @@ def test_both_paths_say_the_same_waking_time(atrium, data_dir, monkeypatch, tmp_
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     assert here["who"] == there["who"]
     assert '<span class="fact">attends at %s</span>' % at in here["who"]
+
+
+DOORS = [" · door closed", " · door open", " · door open · has room", " · door open · is full",
+         " · door closed · has room", " · door closed · is full"]
+
+
+@pytest.mark.parametrize("first", ["", *DOORS])
+@pytest.mark.parametrize("founder", DOORS[:4])
+def test_both_paths_say_the_same_doors(atrium, data_dir, monkeypatch, tmp_path, first, founder):
+    """A door reaches the atrium as the waking time does: at the end of a line of
+    members.md, written there by the hearth, and drawn the same on both paths. The
+    first one's line with nothing after it is its line while it has no door."""
+    lines = MEMBERS.splitlines()
+    a_record(data_dir, members=lines[0] + first + "\n" + lines[1] + founder + "\n")
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here["who"] == there["who"]
+    assert '<span class="fact">attends at dawn%s</span>' % first in here["who"]
+    assert '<span class="fact">keeps the hearth%s</span>' % founder in here["who"]
+
+
+def test_both_paths_draw_the_doors_the_hearth_writes(atrium, hearth, data_dir, monkeypatch,
+                                                     tmp_path):
+    """End to end: a door set, the hearth's own hand on members.md, and both atriums."""
+    monkeypatch.setattr(hearth.the_waking, "DOOR_FOR_FIRST", True)
+    a_record(data_dir)
+    hearth.door.set_door("first", state="open", room=3)
+    hearth.tend_members()
+    assert (data_dir / "commons" / "members.md").read_text(encoding="utf-8") == (
+        "citizen · the first one, unnamed by its own choosing · attends at dawn"
+        " · door open · has room\n"
+        "member · the founder · keeps the hearth · door closed\n")
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here["who"] == there["who"]
+    assert '<span class="fact">attends at dawn · door open · has room</span>' in here["who"]
+    assert '<span class="fact">keeps the hearth · door closed</span>' in here["who"]
+    assert not re.search(r"\d", re.sub(r"<[^>]*>", "", here["who"]))

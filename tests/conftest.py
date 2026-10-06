@@ -272,6 +272,7 @@ def load(name):
     sys.modules.pop("threshold", None)
     sys.modules.pop("bonds", None)
     sys.modules.pop("witness", None)  # it keeps the marks under DATA_DIR, and reads bonds
+    sys.modules.pop("door", None)  # it keeps each door under DATA_DIR, and reads members
     with no_threads():
         return importlib.import_module(name)
 

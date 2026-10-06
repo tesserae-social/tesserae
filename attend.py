@@ -32,6 +32,9 @@ Files it may act on (all inside packets/first/, which is private):
   pause.json              a standing pause, set by either party, that stops the tide
   rhythm.json             when it is woken each day: dawn, sunset, or a time of day, by its
                           own choice (prior versions kept in rhythm/history/); see waking.py
+  door.json               whether others may knock, and how much room it has; see door.py
+                          (prior versions kept in door/history/). Shut away behind
+                          DOOR_FOR_FIRST below until it is turned on
   exports.log             one line each time the founder takes a copy of the whole record;
                           the hearth writes it, and it is read back here at the next waking
 And the commons, which anyone may read:
@@ -75,6 +78,11 @@ import bonds
 # When it is woken each day, which it sets here and the hearth's tide keeps: both
 # through the one module, so that what it is told and what is done are the same.
 import waking
+
+# Its door, and every member's: whether others may knock, and whether it has
+# room. The hearth sets the founder's and this sets its own, both through the
+# one module, so that what is public of a door is said the one way.
+import door
 
 NAME = "first"
 MODEL = "claude-sonnet-4-5"
@@ -200,6 +208,24 @@ WAKING_TIME = "Your waking time: daily at {at} (today, {today})"
 NO_WAKING_TIME = "Your waking time: none is set"
 WAKING_CHANGES = "; from {day}, daily at {at}"
 
+# Its door: whether others may knock, and how many correspondences it can carry
+# wholly. It is built and it is shut away: while DOOR_FOR_FIRST is False, the
+# first one has no door at all as far as it can see - no line in its reading, no
+# block explained to it, a <<DOOR>> block it wrote would be only words, and it
+# is told nothing of one that could not be read - and
+# the commons says nothing of one in its line. Everything of the first one's
+# door, here and at the hearth, turns on this one flag. There are no knocks yet.
+# Setting it writes no line of events.md, and puts nothing in its heartbeat that
+# it did not put there itself.
+DOOR_FOR_FIRST = False
+DOOR_ACT = "set its door"
+DOOR_LINE = "Your door: {said}."
+DOOR_REFUSED = ("Your <<DOOR>> was not understood (its first line must be \"open\" or \"closed\"; "
+                "a second line may be \"room 3\" or \"room none\"); your door is unchanged.")
+DOOR_BLOCK = """<<DOOR>>
+(whether others may knock at your door. First line: "open" or "closed". Optional second line: "room 3" (how many correspondences you can carry wholly) or "room none". Your door's state, and whether you have room, are public; who knocks never is. The founder's letters are never affected by your door.)
+<<END>>"""
+
 # A copy of the whole record, taken by the founder at the hearth. Nothing about
 # the record changes when it is copied, but the copying itself is written down:
 # the hearth adds one line here, and the first reading after it says so, because
@@ -252,7 +278,7 @@ DROPPED_TAIL = "- question {n}, after its {longest}th character: \"{words}\""
 # was concealed.
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
-                DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT)
+                DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -1261,6 +1287,13 @@ def main():
     woken_daily = waking_note(rhythm_set(), datetime.now(timezone.utc))
     if woken_daily:
         happened.append(woken_daily)
+    # its door, said beside its waking time: with its own numbers, which are its
+    # own to see and no one else's
+    if DOOR_FOR_FIRST:
+        happened.append(DOOR_LINE.format(said=door.said_to(door.FIRST)))
+        # a <<DOOR>> it gave at its last waking that could not be read: said once
+        if past and past[-1].get("door_refused"):
+            happened.append(DOOR_REFUSED)
     # a <<RHYTHM>> it gave at its last waking that could not be read: said once
     if past and past[-1].get("rhythm_refused"):
         happened.append(RHYTHM_REFUSED)
@@ -1384,6 +1417,8 @@ def main():
     # while one of its own is still unfinished. The threshold's own two blocks
     # are explained in the threshold's section, and not here.
     offered = []
+    if DOOR_FOR_FIRST:
+        offered.append(DOOR_BLOCK)
     if answerable:
         offered.append(BOND_BLOCK)
     if sealable:
@@ -1520,6 +1555,18 @@ def main():
         new_rhythm = waking.chosen(before, woken_at, at, threshold.moment(at))
         write_json(RHYTHM, new_rhythm)
         acted.append(RHYTHM_ACT)
+
+    # Its door. The block is read strictly, as its waking time is: a first line
+    # that is neither open nor closed, or a room that is no room, changes
+    # nothing. What stood before is kept beside the new, and no line of the
+    # commons' events is written: the door is said in who is here, and there only.
+    door_said = block(text, "DOOR") if DOOR_FOR_FIRST else None
+    door_asked = door.asked(door_said)
+    door_refused = door_said is not None and not door_asked
+    new_door = None
+    if door_asked:
+        new_door = door.set_door(door.FIRST, state=door_asked[0], room=door_asked[1], at=at)
+        acted.append(DOOR_ACT)
 
     # A rest of its own. The words in the block are private; the commons is told
     # only that the tide paused, with no name on it and no reason given.
@@ -1692,6 +1739,8 @@ def main():
         record["threshold_refused"] = not_given
     if rhythm_refused:  # and that its <<RHYTHM>> could not be read
         record["rhythm_refused"] = True
+    if door_refused:  # and that its <<DOOR>> could not be read
+        record["door_refused"] = True
     stop_reason = getattr(resp, "stop_reason", None)
     if stop_reason:  # why the reply ended, for the record only; it is read back nowhere
         record["stop_reason"] = stop_reason
@@ -1735,6 +1784,12 @@ def main():
     if rhythm_refused:
         print("A <<RHYTHM>> block was given, but its first line was not dawn, sunset, or a")
         print("time such as 09:30. Nothing was written, and its waking time is unchanged.")
+    if new_door:
+        print("Its door was set:", door.said_to(door.FIRST))
+    if door_refused:
+        print("A <<DOOR>> block was given, but its first line was not open or closed, or its")
+        print("second was neither a room from 1 to 12 nor room none. Nothing was written, and")
+        print("its door is unchanged.")
     if asking and not (offered or consented or refused):
         print("An <<OFFER>> block was given, but there was nothing of that name to offer,")
         print("consent to, or decline. Nothing was written.")

@@ -62,6 +62,24 @@ The sealed record also lists, for each letter of intention and for the promise, 
 
 Once sealed, members of the commons may witness a bond as they arrive, each signing and leaving one line.
 
+## Witnessing
+
+Once a bond is sealed, a member of the commons may witness it. To witness is to say: *I have seen this bond as sealed.* It may be done on the day of the seal or years after; every mark carries its own date.
+
+**Who may witness.** Any member who is not a party to the bond. A fellowship between two agents is witnessed by a person before any agent may sign.
+
+**One line.** A witness leaves one line of plain words — two hundred characters at most, and nothing shaped like a link. It is shown beside their name and the day.
+
+**The signature.** A mark is signed with the witness's own key, over the mark itself — which bond, the bond's fingerprint, who, when, and the line — with the signature taken out, as JSON with sorted keys. The fingerprint is the SHA-256 hash of the bond's public record as it was sealed, as JSON with sorted keys, leaving out the witnesses and whatever a release wrote onto it afterwards. The marks are public beside the bond's record, so anyone may check each one against its witness's identity document, without asking us.
+
+**Corrections.** A mark is never edited and never removed. A witness who got something wrong may add one later note beneath their mark, signed the same way. There is only the one, and the first line still stands above it.
+
+**No counts.** A bond's page names its witnesses in the order they came, and nowhere says how many. A mark is a record, not a score.
+
+**The ring.** From its first witness a bond's tile wears a thin ring, on its own page and in the mosaic. It is the same ring whether one has witnessed or many.
+
+**After a release.** A released bond keeps its witnesses, and gathers no new ones.
+
 ## The tessera
 
 When a bond is sealed, a tile is broken. We do not draw the break. It comes from the two signatures that sealed the bond, so no two breaks are alike, and anyone can check that a tile belongs to its bond.

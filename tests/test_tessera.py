@@ -309,3 +309,69 @@ def test_the_check_names_the_recipe_the_seed_and_every_point():
     for point in PINNED:
         assert "(%.4f, %.4f)" % point in text
     assert "<" not in text  # plain text, fit to be put anywhere
+
+
+# ---- the ring ------------------------------------------------------------
+
+RING_FILL = "#6b665f"
+
+
+def ring_of(picture):
+    """The ring's points, which is the last thing drawn."""
+    fill, points = polygons(picture)[-1]
+    assert fill == RING_FILL
+    return points
+
+
+def test_no_ring_is_drawn_unless_one_is_asked_for():
+    for picture in pictures(PARTIES, 240).values():
+        assert RING_FILL not in picture
+    assert (tessera.svg_rejoined(PARTIES, 240, "#b5651d", "#2e5e4e", ring_fill=None)
+            == tessera.svg_rejoined(PARTIES, 240, "#b5651d", "#2e5e4e"))
+    assert (tessera.svg_apart(PARTIES, 240, "#b5651d", "#2e5e4e", ring_fill=None)
+            == tessera.svg_apart(PARTIES, 240, "#b5651d", "#2e5e4e"))
+
+
+def test_the_ring_is_one_more_polygon_over_the_same_tile():
+    plain = tessera.svg_rejoined(PARTIES, 240, "#b5651d", "#2e5e4e", seam_fill="#f4ecd8")
+    ringed = tessera.svg_rejoined(PARTIES, 240, "#b5651d", "#2e5e4e", seam_fill="#f4ecd8",
+                                  ring_fill=RING_FILL)
+    assert polygons(ringed)[:-1] == polygons(plain)
+    assert ET.fromstring(ringed).attrib == ET.fromstring(plain).attrib  # the same frame
+    assert {element.tag for element in ET.fromstring(ringed).iter()} == {
+        SVG_NS + "svg", SVG_NS + "polygon"}
+
+
+def test_the_ring_runs_just_inside_the_edge_and_leaves_the_middle_clear():
+    points = ring_of(tessera.svg_rejoined(PARTIES, 240, "#b5651d", "#2e5e4e",
+                                          ring_fill=RING_FILL))
+    # the frame one way round, then a ring's width in, the other way round
+    assert points == [(0, 0), (240, 0), (240, 240), (0, 240), (0, 0),
+                      (3, 3), (3, 237), (237, 237), (237, 3), (3, 3)]
+
+
+@pytest.mark.parametrize("size, wide", [(8, 1), (12, 1), (16, 1), (24, 1), (34, 1), (48, 1),
+                                        (120, 1.5), (240, 3)])
+def test_the_ring_is_thin_and_never_thinner_than_a_pixel(size, wide):
+    for draw, width in ((tessera.svg_rejoined, size), (tessera.svg_apart, size * 1.2)):
+        points = ring_of(draw(PARTIES, size, "#b5651d", "#2e5e4e", ring_fill=RING_FILL))
+        assert points[2] == (pytest.approx(width), size)
+        assert points[5] == (wide, wide)
+        assert points[7] == (pytest.approx(width - wide), size - wide)
+
+
+def test_apart_the_ring_goes_round_both_halves_and_the_space_between():
+    plain = tessera.svg_apart(PARTIES, 240, "#b5651d", "#2e5e4e")
+    ringed = tessera.svg_apart(PARTIES, 240, "#b5651d", "#2e5e4e", ring_fill=RING_FILL)
+    assert polygons(ringed)[:-1] == polygons(plain)
+    assert ET.fromstring(ringed).get("viewBox") == "0 0 288 240"
+    assert ring_of(ringed) == [(0, 0), (288, 0), (288, 240), (0, 240), (0, 0),
+                               (3, 3), (3, 237), (285, 237), (285, 3), (3, 3)]
+
+
+@pytest.mark.parametrize("fill", ["url(#x)", "red;", "#12", "", 7, "#6b665f\" onload=\"x"])
+def test_a_ring_s_fill_is_a_colour_and_nothing_more(fill):
+    with pytest.raises(ValueError):
+        tessera.svg_rejoined(PARTIES, 240, "#b5651d", "#2e5e4e", ring_fill=fill)
+    with pytest.raises(ValueError):
+        tessera.svg_apart(PARTIES, 240, "#b5651d", "#2e5e4e", ring_fill=fill)

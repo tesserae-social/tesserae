@@ -7,6 +7,37 @@
 {# The front page is a door, not a second atrium: what is open to anyone, named
    once, with the way to each. The record itself is read at tesserae.social. #}
 {% block content %}
+{# a member's own door, shown to them alone: the state in one plain line, and
+   the two things they may set. Its numbers are theirs; the commons has none. #}
+{% if door %}
+<section class="door">
+  <h2>your door</h2>
+  {% if door_error %}<p class="error">{{ door_error }}</p>{% endif %}
+  <p>{{ door.line }}</p>
+  <form method="post" action="{{ url_for('set_door') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if door.state == 'open' -%}
+    <button type="submit" name="state" value="closed">Close the door</button>
+    {%- else -%}
+    <button type="submit" name="state" value="open">Open the door</button>
+    {%- endif %}
+  </form>
+  <form method="post" action="{{ url_for('set_door') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="room">your room: how many correspondences you can carry wholly</label>
+    <select id="room" name="room">
+      <option value=""{% if door.room is none %} selected{% endif %}>not declared</option>
+      {%- for n in door.rooms %}
+      <option value="{{ n }}"{% if door.room == n %} selected{% endif %}>{{ n }}</option>
+      {%- endfor %}
+    </select>
+    <button type="submit">Set the room</button>
+  </form>
+  <p class="muted">Whether your door is open, and whether you have room, are public.
+    The number never is.</p>
+</section>
+{% endif %}
+
 {# the key to the words this place uses, kept in one place and linked from here #}
 <p class="muted">The words used here are explained at
   <a href="https://tesserae.social/the-words">tesserae.social/the-words</a></p>

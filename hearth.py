@@ -4,7 +4,8 @@ The hearth.
 A small, plain web page for the founder and for anyone passing by. The public
 side is a door: the visitor's bench, the files of the commons as they are
 written, the offerings the two of them have placed there, and a sealed bond if
-one has been sealed. Behind the keeper's own sign-in, the
+one has been sealed. Any member who is signed in may open or close their own
+door and say how much room they have. Behind the keeper's own sign-in, the
 founder may read the first one's letters and write back, read its self-document,
 read the private log of
 its attendances, call an attendance, read the errands it has asked of him and answer one
@@ -93,6 +94,12 @@ from vault import VaultError
 # When the first one is woken each day is its own to set, at a waking; the tide
 # here keeps it. Both work through the one module.
 import waking
+
+# A member's door is set here and the first one's at a waking, both through the
+# one module. Whether the first one has a door yet at all is said in one place,
+# attend.DOOR_FOR_FIRST, and read from there each time it is wanted.
+import attend as the_waking  # hearth.attend is the page that holds one
+import door
 
 REPO = Path(__file__).resolve().parent
 
@@ -863,33 +870,89 @@ def rhythm_note():
     return said
 
 
-# ---- who is here, as the rhythm has it -----------------------------------
+# ---- who is here, as the rhythm and the doors have it ----------------------
 
-# commons/members.md is the founder's to write, and one phrase in it is the
-# first one's: when it attends. That phrase follows its rhythm - dawn, sunset,
-# or the time - and changes on the day a change takes effect, not the day it is
-# made. Only that phrase is touched; every other byte of the file is the
-# founder's and is left as he wrote it. The atrium draws the line from this
-# file on both its paths, so the builder and the page say the same thing.
-FIRST_ONES_LINE = re.compile(r"^\ufeff?[\s-]*citizen\s*\u00b7\s*the first one\b")
+# commons/members.md is the founder's to write, and two phrases in it are kept
+# here. One is the first one's: when it attends. That phrase follows its rhythm
+# - dawn, sunset, or the time - and changes on the day a change takes effect,
+# not the day it is made. The other is each member's own: their door, written at
+# the end of their line - " · door open" or " · door closed", and, only where
+# they have declared their room, " · has room" or " · is full". Never a number.
+# Only those phrases are touched; every other byte of the file is the founder's
+# and is left as he wrote it. The atrium draws the line from this file on both
+# its paths, so the builder and the page say the same thing.
+#
+# The first one's line says nothing of a door until attend.DOOR_FOR_FIRST is on.
+FIRST_ONES_LINE = re.compile(r"^﻿?[\s-]*citizen\s*·\s*the first one\b")
 ATTENDS_AT = re.compile(r"attends at (?:dawn|sunset|\d{2}:\d{2})")
+MEMBERS_LINE = re.compile(r"^﻿?[\s-]*member\s*·\s*([^·]+?)\s*·\s*\S")
+DOOR_SAID = re.compile(r" · door (?:open|closed)(?: · (?:has room|is full))?[ \t]*$")
+THE_FOUNDER = "the founder"  # the name the commons gives the keeper
+
+
+def the_keeper():
+    """The keeper's pseudonym, or None where no keeper has come in yet."""
+    for name in members.list_members():
+        record = member_record(name)
+        if record and record.get("role") == "keeper":
+            return name
+    return None
+
+
+def door_phrase(line):
+    """The door a line of members.md should end with, or None if no door is its to say.
+
+    The founder's line is the keeper's door, and closed where there is no keeper
+    yet; a line named for a member is that member's; the first one's line is
+    its own, once it has a door at all. Any other line is only the founder's words.
+    """
+    if FIRST_ONES_LINE.match(line):
+        return door.phrase(door.FIRST) if the_waking.DOOR_FOR_FIRST else None
+    found = MEMBERS_LINE.match(line)
+    if not found:
+        return None
+    name = found.group(1)
+    if name == THE_FOUNDER:
+        return door.phrase(the_keeper())  # no keeper is no door file: closed
+    record = member_record(name)
+    if record and record.get("role") == "member":
+        return door.phrase(name)
+    return None
+
+
+def with_its_door(line):
+    """One line of members.md, ending with the door that is its to say, if one is."""
+    said = door_phrase(line)
+    if said is None:
+        return line
+    words = line.rstrip("\r\n")
+    return DOOR_SAID.sub("", words) + said + line[len(words):]
+
+
+def attends_today():
+    """The waking time in force today, or None where no rhythm can be gone by."""
+    try:
+        setting = rhythm()
+        return waking.in_force(setting, waking.today(setting, datetime.now(timezone.utc)))
+    except Exception:
+        return None
 
 
 def tend_members():
-    """Bring the first one's "attends at ..." in members.md to the rhythm in force today.
+    """Bring members.md to today: the first one's "attends at ...", and each door.
 
-    Nothing is written where it already says so, where there is no file, or
-    where no rhythm holds; and nothing here raises, since it is done on the way
-    to handing the file out.
+    Nothing is written where it already says so or where there is no file; the
+    waking time is left as written where no rhythm holds; and nothing here
+    raises, since it is done on the way to handing the file out.
     """
     try:
-        setting = rhythm()
-        at = waking.in_force(setting, waking.today(setting, datetime.now(timezone.utc)))
-        if not at or not MEMBERS.exists():
+        if not MEMBERS.exists():
             return
+        at = attends_today()
         lines = MEMBERS.read_bytes().decode("utf-8").splitlines(keepends=True)
         kept = [ATTENDS_AT.sub("attends at " + at, line, count=1)
-                if FIRST_ONES_LINE.match(line) else line for line in lines]
+                if at and FIRST_ONES_LINE.match(line) else line for line in lines]
+        kept = [with_its_door(line) for line in kept]
         if kept != lines:
             beside = MEMBERS.with_name(MEMBERS.name + ".tmp")
             beside.write_bytes("".join(kept).encode("utf-8"))
@@ -1836,6 +1899,16 @@ def founder_required(view):
     return guarded
 
 
+def member_required(view):
+    """Send anyone who is not signed in as a member to the login page."""
+    @wraps(view)
+    def guarded(*args, **kwargs):
+        if not session.get("member"):
+            return redirect(url_for("login"))
+        return view(*args, **kwargs)
+    return guarded
+
+
 @app.context_processor
 def who_is_here():
     """What every page may know of who is signed in: whether the gate would open,
@@ -1950,11 +2023,78 @@ def sign_in_member(name, record):
 # record is kept; where none has been sealed the door says so.
 @app.route("/")
 def hearth():
+    return hearth_page()
+
+
+def hearth_page(**told):
     sealed = [{"id": bond_id, "names": public_bonds.names(bond),
                "sealed": bond_day(bond["sealed_at"]),
                "released": bond_day(bond["released_at"]) if bond.get("released_at") else None}
               for bond_id, bond in public_bonds.every()]
-    return render_template("hearth.html", sealed_bonds=sealed)
+    return render_template("hearth.html", sealed_bonds=sealed, door=door_shown(), **told)
+
+
+# ---- a member's own door ---------------------------------------------------
+
+# Whoever is signed in sets their own door here, and no one else's: the name is
+# taken from the session and never from the form. Today that is the founder, who
+# is the only member there is; the same control is every member's when they
+# come. What is shown on this page is theirs to see, numbers and all; what the
+# commons says of it is two plain facts and no number - see tend_members.
+# Opening or closing a door writes no line of events.md.
+DOOR_STANDS = "Your door is {state}; room for {room}, {used} in use."
+DOOR_NO_ROOM = "Your door is {state}; room not declared."
+NOT_A_DOOR = "A door is open or closed, and room is a number from %d to %d or not declared." % (
+    door.ROOM_LEAST, door.ROOM_MOST)
+ROOM_NOT_DECLARED = ""  # what the form sends for "not declared"
+
+
+def door_shown():
+    """The door of whoever is signed in, as their own page shows it; None for a visitor."""
+    name = session.get("member")
+    if not name:
+        return None
+    held = door.read(name)
+    if held["room"] is None:
+        line = DOOR_NO_ROOM.format(state=held["state"])
+    else:
+        line = DOOR_STANDS.format(state=held["state"], room=held["room"],
+                                  used=door.in_use(name))
+    return {"line": line, "state": held["state"], "room": held["room"],
+            "rooms": range(door.ROOM_LEAST, door.ROOM_MOST + 1)}
+
+
+def door_asked(form):
+    """What a posted form asks of a door, as set_door is handed it; None if it asks
+    nothing, or anything that cannot be read."""
+    asked = {}
+    if "state" in form:
+        if form["state"] not in door.STATES:
+            return None
+        asked["state"] = form["state"]
+    if "room" in form:
+        said = form["room"].strip()
+        if said == ROOM_NOT_DECLARED:
+            asked["room"] = None
+        elif said.isascii() and said.isdigit() and door.room_declared(int(said)):
+            asked["room"] = int(said)
+        else:
+            return None
+    return asked or None
+
+
+@app.route("/door", methods=["POST"])
+@member_required
+def set_door():
+    asked = door_asked(request.form)
+    if asked is None:
+        return hearth_page(door_error=NOT_A_DOOR), 400
+    try:
+        door.set_door(session["member"], at=utc_stamp(), **asked)
+    except door.DoorError as trouble:
+        return hearth_page(door_error=str(trouble)), 400
+    tend_members()  # so that who is here says so at once
+    return redirect(url_for("hearth"))
 
 
 def plain(path):

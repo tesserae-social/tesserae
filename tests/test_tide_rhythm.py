@@ -337,7 +337,7 @@ def test_the_page_says_a_change_that_is_waiting(hearth, packet, clock):
 # ---- who is here ---------------------------------------------------------
 
 FIRST = "citizen · the first one, unnamed by its own choosing · founded 4 September 2026, attends at %s"
-FOUNDER = "member · the founder · keeps the hearth"
+FOUNDER = "member · the founder · keeps the hearth · door closed"
 
 
 def members(commons, at="dawn"):

@@ -13,8 +13,8 @@ import sys
 import pytest
 from nacl.exceptions import BadSignatureError
 
-from conftest import (REPO, Turn, block, blocks, lines_of, read_json, verify, write,
-                      write_json)
+from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, lines_of, read_json, verify,
+                      write, write_json)
 
 SECTIONS = [
     "=== WHAT HAS HAPPENED ===",
@@ -399,11 +399,18 @@ def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
         path.unlink()  # so that the new one wakes to the same record the old one did
     now = wake()
 
+    # ... and, since the first one came to keep its own shelf, by its founding
+    # record, which rests as one line until it asks for it
+    record = "=== YOUR FOUNDING RECORD ===\n"
+    assert then.opening.count(record + FOUNDING_TRANSCRIPT) == 1
+    as_it_was = then.opening.replace(record + FOUNDING_TRANSCRIPT,
+                                     record + attend.FOUNDING_RESTS, 1)
+
     lines = now.opening.splitlines()
     at = lines.index(attend.NO_QUESTIONS)
     assert lines[at - 1] == "You have not attended before. This is your first waking."
-    assert lines[:at] + lines[at + 1:] == then.opening.splitlines()
-    assert now.opening.replace(attend.NO_QUESTIONS + "\n", "", 1) == then.opening
+    assert lines[:at] + lines[at + 1:] == as_it_was.splitlines()
+    assert now.opening.replace(attend.NO_QUESTIONS + "\n", "", 1) == as_it_was
 
     # and the instructions differ by the one block explained, and nothing else
     explained = ("<<QUESTIONS>>\n(the full new list of the questions you carry forward, one "
@@ -421,6 +428,10 @@ def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
                  "woken; <<RHYTHM>> does that.)")
     as_it_was = "(one plain sentence about when you would like to be woken, and why)"
     said = now.instructions.replace(explained, "", 1).replace(rhythm, "", 1)
+    # ... and by the block that keeps its shelf, which test_shelf.py holds to the letter
+    shelf = said[said.index("<<SHELF>>\n"):said.index("<<LETTER>>\n")]
+    assert shelf.endswith("Your shelf is private.)\n<<END>>\n\n")
+    said = said.replace(shelf, "", 1)
     assert said.count(intention) == 1
     assert said.replace(intention, as_it_was, 1) == then.instructions
 

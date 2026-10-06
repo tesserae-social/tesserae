@@ -547,6 +547,8 @@ KEPT_PRIVATE = "Reflection kept private by the first one's choice."
 # end, since what it held was meant for itself.
 BLOCK_LINE = re.compile(r"<<([A-Z_]+)>>")
 KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions: private)",
+                # how it keeps its own history is its own too: see shelf.py
+                "SHELF": "(kept its shelf: private)",
                 # and what it writes on the threshold, which the bonds page shows
                 # when it may be shown: its letter of intention only once yours
                 # is written, so a reflection must not show it any sooner

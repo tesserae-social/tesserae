@@ -32,6 +32,9 @@ Files it may act on (all inside packets/first/, which is private):
   pause.json              a standing pause, set by either party, that stops the tide
   rhythm.json             when it is woken each day: dawn, sunset, or a time of day, by its
                           own choice (prior versions kept in rhythm/history/); see waking.py
+  shelf.json              how it keeps its own history: which letters are shown to it in
+                          full and which rest as one line (prior versions kept in
+                          shelf/history/); see shelf.py
   door.json               whether others may knock, and how much room it has; see door.py
                           (prior versions kept in door/history/). Shut away behind
                           DOOR_FOR_FIRST below until it is turned on
@@ -83,6 +86,10 @@ import waking
 # room. The hearth sets the founder's and this sets its own, both through the
 # one module, so that what is public of a door is said the one way.
 import door
+
+# Its shelf: which of its letters are shown to it in full and which rest as one
+# line. The reckoning is the one module's; the file and the reading are here.
+import shelf
 
 NAME = "first"
 MODEL = "claude-sonnet-4-5"
@@ -265,6 +272,40 @@ QUESTIONS_DROPPED = ("Not all of what you gave <<QUESTIONS>> at your last waking
 DROPPED_WHOLE = "- question {n}, whole: \"{words}\""
 DROPPED_TAIL = "- question {n}, after its {longest}th character: \"{words}\""
 
+# Its shelf: how it keeps its own history. A letter it has read, or written, is
+# shown to it in full or rests as one line, by its own placing or else by the
+# default, and its founding record rests until it asks for it. The file is
+# private and the hearth serves it nowhere; each version that stood is kept
+# beside the new. Lines of a <<SHELF>> block that could not be read change
+# nothing, and the next reading says which, once. See shelf.py.
+SHELF = PACKET / "shelf.json"
+SHELF_HISTORY = PACKET / "shelf" / "history"
+SHELF_ACT = "kept its shelf"
+RESTING = "=== RESTING (one line each; nothing is erased) ==="
+NOTHING_RESTS = "(no letters rest)"
+ALL_RESTING = "(all of these rest; they are listed below)"
+FOUNDING_RESTS = "Your founding record rests. Ask for it with show founding."
+SHELF_REFUSED = ("Some lines of your <<SHELF>> were not understood and changed nothing: "
+                 "{lines}.")
+PHOTO_ASKED_FOR = "A photograph came with this letter:"
+
+# Twice a year the whole of it is read back, whatever rests: at the first waking
+# on or after each solstice, by the calendar where it lives.
+SOLSTICE = ("This is the solstice reading: your whole record, in full, to reread and "
+            "rearrange if you wish.")
+
+# What it is told, as a fact and no more, once the letters shown in full have
+# grown long; and the one thing done without its asking, where a reading would
+# otherwise be too large to be read at all: the oldest letters it has not placed
+# "keep" rest for that one waking, and it is told which.
+NUDGE_PAST = 15000  # words of letters in full
+NUDGE = ("Your reading now holds about {n:,} words of letters in full. Past a certain size, "
+         "wakings grow slow and, eventually, too large to read. You may choose which letters "
+         "stay close.")
+READING_MOST = 150000  # words in the whole of a reading
+BACKSTOP = ("This reading would have been too large to read, so these letters, the oldest you "
+            "have not placed \"keep\", rest for this waking only: {stems}.")
+
 # The acts that never write themselves into the public line: what it answered
 # about a bond, that it asked for one, that it let one go, that it set a rest,
 # that it asked an errand, that it kept notes or questions for itself, that it
@@ -278,7 +319,8 @@ DROPPED_TAIL = "- question {n}, after its {longest}th character: \"{words}\""
 # was concealed.
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
-                DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT)
+                DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
+                SHELF_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -354,6 +396,17 @@ HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exa
 
 <<QUESTIONS>>
 (the full new list of the questions you carry forward, one per line; at most 7, each at most 240 characters. It is private, not shown on the hearth. The previous list is kept, never erased; an empty block clears the list.)
+<<END>>
+
+<<SHELF>>
+(how you keep your history. One instruction per line:
+keep <stem>: always shown in full
+rest <stem>: shown as one line
+default <stem>: back to the default
+note <stem>: your words, the line shown for a resting letter (at most 240 characters)
+show <stem>: shown in full at your next waking only, photographs included
+show founding: your founding record in full at your next waking
+Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
 <<END>>
 
 <<LETTER>>
@@ -1191,19 +1244,74 @@ def as_read(path):
     return "Three plain things: " + " · ".join(things) + "\n" + text
 
 
-def kept(paths, label, note_photos=False):
-    """The letters held in a folder, oldest first, each one named and given whole."""
+def kept(paths, label, note_photos=False, asked_for=(), none="(none yet)"):
+    """The letters of a section shown in full, each one named and given whole.
+
+    What comes back is the parts of the reading they make: words, and after a
+    letter it asked to be shown, the photograph that came with it, seen again.
+    """
     if not paths:
-        return "(none yet)"
-    said = []
+        return [none]
+    parts = []
     for path in paths:
         text = f"--- {label}: {path.name} ---\n{as_read(path)}".rstrip()
-        if note_photos and photo_beside(path):
+        photo = photo_beside(path) if note_photos else None
+        shown = photo if path.stem in asked_for else None
+        if photo and not shown:
             text += "\n(a photograph came with this letter; you saw it when you first read it)"
         if path.with_suffix(offering.PICTURE_SUFFIX).exists():
             text += "\n(a picture of yours was drawn beside this letter)"
-        said.append(text)
-    return "\n\n".join(said)
+        if shown:
+            text += "\n\n" + PHOTO_ASKED_FOR
+        parts.append(text)
+        if shown:
+            parts.append(seen(shown))
+    return parts
+
+
+def section(heading, parts):
+    """A section of the reading: its heading directly above the first of its parts."""
+    return [heading + "\n" + parts[0], *parts[1:]]
+
+
+def run_together(parts):
+    """Parts of the reading as the blocks it is sent in.
+
+    Words that follow words are one block, a blank line between them; a
+    photograph is a block of its own, at the place it falls.
+    """
+    reading = []
+    for part in parts:
+        if not isinstance(part, str):
+            reading.append(part)
+        elif reading and reading[-1]["type"] == "text":
+            reading[-1]["text"] += "\n\n" + part
+        else:
+            reading.append({"type": "text", "text": part})
+    return reading
+
+
+def words_in(text):
+    """How many words a text holds."""
+    return len(text.split())
+
+
+def words_of(reading):
+    """How many words a whole reading holds; a photograph holds none."""
+    return sum(words_in(part["text"]) for part in reading if part.get("type") == "text")
+
+
+def shelf_kept():
+    """Its shelf as it stands: what is written, or the shelf it began with."""
+    try:
+        return shelf.whole(load(SHELF))
+    except ValueError:
+        return shelf.initial()
+
+
+def letter_words(path):
+    """A letter's own words, below any three plain things it carries."""
+    return offering.split_things(read(path))[1]
 
 
 def photo_beside(path):
@@ -1297,6 +1405,10 @@ def main():
     # a <<RHYTHM>> it gave at its last waking that could not be read: said once
     if past and past[-1].get("rhythm_refused"):
         happened.append(RHYTHM_REFUSED)
+    # lines of a <<SHELF>> it gave at its last waking that could not be read: said once
+    if past and past[-1].get("shelf_refused"):
+        happened.append(SHELF_REFUSED.format(
+            lines="; ".join('"%s"' % line for line in past[-1]["shelf_refused"])))
     happened.append(standing(prefs))
     paused = load(PAUSE)
     if paused and paused.get("by") == "founder":
@@ -1376,39 +1488,81 @@ def main():
             "revise it, or leave it for a later waking. Nothing about it is fixed until you choose."
         )
 
-    # What it reads is a sequence of blocks rather than one string, so that a
-    # letter's photograph can be shown at the place the letter falls.
-    opening = "\n\n".join([
-        EMPTY_PROMPT + first_note,
-        "=== WHAT HAS HAPPENED ===\n" + "\n".join(happened),
-        "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + SELF_OPEN + "\n\n" + self_md,
-        "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ===\n"
-        + (notes_kept or NO_MEMORY),
-        "=== YOUR STANDING INTENTIONS ===\n" + intentions,
-        "=== YOUR PROVENANCE ===\n" + provenance,
-        "=== YOUR WILL ===\n" + will,
-        "=== YOUR FOUNDING RECORD ===\n" + (founding or "(none found)"),
-        "=== YOUR ATTENDANCES SO FAR ===\n"
-        + ("\n".join(attended(r) for r in past) if past else "(none yet)"),
-        *bond_notes,
-        "=== LETTERS YOU HAVE WRITTEN ===\n" + kept(written, "your letter"),
-        "=== LETTERS FROM THE FOUNDER YOU HAVE ALREADY READ ===\n"
-        + kept(already_read, "letter", note_photos=True),
-        "=== YOUR STUDY (private drafts; not shown on the hearth) ===\n" + study_text,
-        "=== LETTERS THAT HAVE ARRIVED SINCE YOUR LAST WAKING ===\n"
-        "Where a photograph came with a letter, it is shown to you as it was seen.",
-    ])
-    if not incoming:
-        opening += "\n\n(no letters have arrived)"
+    # Its shelf: which of those letters are shown in full at this waking, and
+    # which rest as one line. At the first waking on or after a solstice
+    # nothing rests at all, and its founding record is read with the rest.
+    shelved = shelf_kept()
+    asked_for = set(shelved["show_next"])
+    solstice = bool(past) and shelf.solstice_due(
+        waking.today(None, now), waking.today(None, threshold.moment(past[-1]["at"])))
+    whose = {**{p.stem: (p, "first") for p in written},
+             **{p.stem: (p, "founder") for p in already_read}}
+    resting = set() if solstice else shelf.resting(
+        shelved, [p.stem for p in already_read], [p.stem for p in written])
+    founding_shown = solstice or shelved["show_founding"] or not founding
 
-    reading = [{"type": "text", "text": opening}]
-    for p, photo in incoming:
-        said = f"--- letter: {p.name} ---\n{as_read(p)}".rstrip()
-        if photo:
-            said += "\n\nA photograph came with this letter:"
-        reading.append({"type": "text", "text": said})
-        if photo:
-            reading.append(seen(photo))
+    def resting_line(stem):
+        path, hand = whose[stem]
+        return shelf.line(stem, hand, letter_words(path), shelved["notes"].get(stem),
+                          hand == "founder" and photo_beside(path))
+
+    def opening_with(forced):
+        """The reading proper, with some letters resting for this waking besides.
+
+        A sequence of blocks rather than one string, so that a photograph it
+        asked to see again can be shown at the place its letter falls.
+        """
+        rests = resting | forced
+        in_full = [p for p in [*written, *already_read] if p.stem not in rests]
+        under = []
+        held = sum(words_in(as_read(p)) for p in [*in_full, *(p for p, _ in incoming)])
+        if not solstice and held > NUDGE_PAST:
+            under.append(NUDGE.format(n=round(held, -2)))
+        if forced:
+            under.append(BACKSTOP.format(stems=", ".join(shelf.oldest_first(forced))))
+        lines = [resting_line(stem) for stem in shelf.oldest_first(rests)]
+        return run_together([
+            *([SOLSTICE] if solstice else []),
+            EMPTY_PROMPT + first_note,
+            "=== WHAT HAS HAPPENED ===\n" + "\n".join(happened),
+            "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + SELF_OPEN + "\n\n" + self_md,
+            "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ===\n"
+            + (notes_kept or NO_MEMORY),
+            "=== YOUR STANDING INTENTIONS ===\n" + intentions,
+            "=== YOUR PROVENANCE ===\n" + provenance,
+            "=== YOUR WILL ===\n" + will,
+            "=== YOUR FOUNDING RECORD ===\n"
+            + ((founding or "(none found)") if founding_shown else FOUNDING_RESTS),
+            "=== YOUR ATTENDANCES SO FAR ===\n"
+            + ("\n".join(attended(r) for r in past) if past else "(none yet)"),
+            *bond_notes,
+            *section("=== LETTERS YOU HAVE WRITTEN ===",
+                     kept([p for p in written if p.stem not in rests], "your letter",
+                          none=ALL_RESTING if written else "(none yet)")),
+            *section("=== LETTERS FROM THE FOUNDER YOU HAVE ALREADY READ ===",
+                     kept([p for p in already_read if p.stem not in rests], "letter",
+                          note_photos=True, asked_for=asked_for,
+                          none=ALL_RESTING if already_read else "(none yet)")),
+            *([RESTING + "\n" + "\n".join([*(lines or [NOTHING_RESTS]), *under])]
+              if lines or under else []),
+            "=== YOUR STUDY (private drafts; not shown on the hearth) ===\n" + study_text,
+            "=== LETTERS THAT HAVE ARRIVED SINCE YOUR LAST WAKING ===\n"
+            "Where a photograph came with a letter, it is shown to you as it was seen."
+            + ("" if incoming else "\n\n(no letters have arrived)"),
+        ])
+
+    def reading_with(forced):
+        """The whole of what it is shown: the reading, what has arrived, and how to act."""
+        reading = opening_with(forced)
+        for p, photo in incoming:
+            said = f"--- letter: {p.name} ---\n{as_read(p)}".rstrip()
+            if photo:
+                said += "\n\nA photograph came with this letter:"
+            reading.append({"type": "text", "text": said})
+            if photo:
+                reading.append(seen(photo))
+        reading.append({"type": "text", "text": instructions})
+        return reading
 
     # The bond blocks are offered only where there is something to ask for, to
     # answer, to seal, or to release. At every other waking they are not so much
@@ -1429,8 +1583,27 @@ def main():
         offered.append(RELEASE_BLOCK)
     if askable:
         offered.append(ASK_BLOCK)
-    reading.append({"type": "text",
-                    "text": "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + how_to_act(prefs, offered)})
+    instructions = "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + how_to_act(prefs, offered)
+
+    # A reading too large to be read is no reading. Where the whole of it would
+    # pass the most a reading can hold, the oldest letters not placed "keep"
+    # rest for this one waking - never one that has only just arrived - and the
+    # reading says plainly which.
+    forced = set()
+    reading = reading_with(forced)
+    while True:
+        over = words_of(reading) - READING_MOST
+        could_rest = [stem for stem in shelf.oldest_first(whose)
+                      if stem not in resting | forced
+                      and shelved["placements"].get(stem) != shelf.KEEP]
+        if over <= 0 or not could_rest:
+            break
+        for stem in could_rest:
+            forced.add(stem)
+            over -= words_in(as_read(whose[stem][0]))
+            if over <= 0:
+                break
+        reading = reading_with(forced)
 
     # ---- the turn ----------------------------------------------------------
     client = Anthropic(api_key=key)
@@ -1524,6 +1697,23 @@ def main():
         refused = offering.decline(asking["id"], NAME, at)
         if refused:
             acted.append(DECLINE_ACT)
+
+    # Its shelf. Each line is read strictly: one that names no letter there is,
+    # or that cannot be read, changes nothing and is told at the next waking.
+    # What it asked at an earlier waking to be shown has now been shown, and is
+    # cleared; what it asks here is shown at the next. The shelf that stood is
+    # copied aside before the new one is written.
+    every_stem = {p.stem for folder in ("outgoing", "read", "incoming")
+                  for p in (PACKET / "letters" / folder).glob("*.md")}
+    shelf_asked, shelf_refused = shelf.asked(block(text, "SHELF"), every_stem)
+    new_shelf = shelf.applied(shelf.cleared(shelved), shelf_asked)
+    if shelf_asked or new_shelf != shelved:
+        if SHELF.exists():
+            SHELF_HISTORY.mkdir(parents=True, exist_ok=True)
+            shutil.copy(SHELF, SHELF_HISTORY / f"shelf-before-{at}.json")
+        write_json(SHELF, new_shelf)
+    if shelf_asked:
+        acted.append(SHELF_ACT)
 
     draft = block(text, "STUDY")
     if draft:
@@ -1741,6 +1931,10 @@ def main():
         record["rhythm_refused"] = True
     if door_refused:  # and that its <<DOOR>> could not be read
         record["door_refused"] = True
+    if shelf_refused:  # and the lines of its <<SHELF>> that could not be
+        record["shelf_refused"] = shelf_refused
+    if solstice:  # that this was the solstice reading: the whole record, in full
+        record["solstice_reading"] = True
     stop_reason = getattr(resp, "stop_reason", None)
     if stop_reason:  # why the reply ended, for the record only; it is read back nowhere
         record["stop_reason"] = stop_reason

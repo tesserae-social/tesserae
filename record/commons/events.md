@@ -15,3 +15,5 @@
 2026-10-01 · letter · the founder wrote a letter during the day
 2026-10-02 · letter · the founder wrote a letter during the day
 2026-10-04 · letter · the founder wrote a letter at night
+2026-10-05 · letter · the founder wrote a letter at night
+2026-10-06 · letter · the founder wrote a letter at dawn

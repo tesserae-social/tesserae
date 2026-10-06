@@ -74,6 +74,11 @@ import threshold
 import bonds as public_bonds
 import tessera
 
+# A sealed bond may be witnessed by a member who is not a party to it. Who may,
+# and what a mark is, are kept in the one module; the hearth is the one hand
+# that signs any yet.
+import witness
+
 # The founder's key is read out of FOUNDER_KEY the one way, here and in
 # setup_keeper.py alike.
 from vault import key_from_text
@@ -1511,15 +1516,17 @@ def chronicle_text(lines):
 # photographs and pictures that came beside them, its attendances, intentions,
 # will, provenance, preferences, rhythm, pause, errands, bonds, offerings, and
 # the tide's log - and the files of the commons. Everything under those two
-# trees goes in, with nothing left out; nothing outside them goes in at all -
+# trees goes in, with nothing left out, and beside them the marks witnesses
+# have left on sealed bonds, which are public already; nothing outside those
+# goes in at all -
 # not a key, not the environment, not a line taken off the bench, and not the
 # members, whose vaults go only where they are encrypted. The zip is built in
 # memory and handed straight out, so no copy of the record is ever written back
 # into the record.
 
-EXPORT_TREES = ("packets/first", "commons")
+EXPORT_TREES = ("packets/first", "commons", "bonds")
 
-# What a backup holds: the same two trees, and the members beside them, each
+# What a backup holds: the same trees, and the members beside them, each
 # with the vault their key is sealed in. A backup is encrypted; a copy is not.
 BACKUP_TREES = EXPORT_TREES + ("members",)
 
@@ -2721,10 +2728,16 @@ TESSERA_SIZE = 240
 
 # A picture drawn here is shapes and nothing else, and is answered as one: no
 # script, no style, nothing fetched from it, and not to be read as anything but
-# what it says it is. It changes only when a bond is released, so it may be kept
-# for an hour, and asked after again cheaply by its tag.
+# what it says it is. It changes only when a bond is first witnessed or is
+# released, so it may be kept for an hour, and asked after again cheaply by its
+# tag: a first witness's ring is on every tile, the atrium's too, within the hour.
 TESSERA_POLICY = "default-src 'none'; sandbox"
 TESSERA_CACHE = "public, max-age=3600"
+
+
+# The ring a witnessed bond's tile wears, in the page's own soft ink: the same
+# ring whether one has witnessed it or many.
+WITNESSED_RING = "#6b665f"
 
 
 def half_colour(did):
@@ -2777,7 +2790,8 @@ def bond_tessera(bond_id):
     bond, parties = drawn_bond(bond_id)
     (left, _), (right, _) = tessera.ordered(parties)
     draw = tessera.svg_apart if bond.get("released_at") else tessera.svg_rejoined
-    return tessera_answer(draw(parties, tessera_size(), half_colour(left), half_colour(right)))
+    return tessera_answer(draw(parties, tessera_size(), half_colour(left), half_colour(right),
+                               ring_fill=WITNESSED_RING if witness.marks(bond_id) else None))
 
 
 @app.route("/bonds/<bond_id>/half/<party>.svg")
@@ -2813,12 +2827,139 @@ def bond_day(stamp):
     return long_day(datetime.strptime(stamp, "%Y-%m-%dT%H-%M-%SZ"))
 
 
+# ---- witnessing ----------------------------------------------------------
+
+# A member who is not a party to a sealed bond may witness it, at the bond's own
+# page: one line, signed with their own key. The key is sealed in their vault,
+# so the form asks for their password; the vault is opened for that one
+# signature and the key is let go again once it is made - it is never put in the
+# session, on the disk, or on a page. A wrong password there is a wrong
+# password: it is counted with the login page's, against the same name and the
+# same address, and a shut name or address is refused with nothing tried.
+#
+# A mark is never edited or removed. Its witness may add one correction beneath
+# it, signed the same way. No one else is shown a form: not a visitor, not a
+# party, not anyone at a bond that was released. Nothing here writes a line to
+# events.md, and nothing is counted, on the page or anywhere.
+NOT_A_WITNESS_LINE = ("A witness leaves one line of plain words, at most %d characters, with "
+                      "nothing in it shaped like a link." % witness.LINE_MAX)
+
+WITNESS_FORMS = ("witness", "correct")
+
+
+def witness_here():
+    """The member signed in, as a witness would be named: (pseudonym, record, did), or None."""
+    name = session.get("member")
+    record = member_record(name) if name else None
+    if not record:
+        return None
+    try:
+        return name, record, members.did_for(name)
+    except MemberError:
+        return None
+
+
+def witness_form(bond_id, bond):
+    """Which form this bond's page shows whoever is here: to witness, to correct, or none."""
+    here = witness_here()
+    if not here:
+        return None
+    held = witness.marks(bond_id)
+    for form in WITNESS_FORMS:
+        if not witness.refusal(bond, here[2], held, correcting=form == "correct"):
+            return form
+    return None
+
+
+def witness_line(text):
+    """A witness's line, held to the bench's own checks for length and links, or None."""
+    line = one_line(text, BENCH_LIMIT)
+    if not line or len(line) > BENCH_LIMIT or LINKISH.search(line):
+        return None
+    return line
+
+
+def witnesses_shown(bond_id):
+    """The marks on a bond as its page says them: who, on what day, their line, and any
+    later note beneath it. In the order they were made, and never how many."""
+    return [{"name": one["mark"].get("witness_name", ""),
+             "day": bond_day(one["mark"]["at"]), "line": one["mark"].get("line", ""),
+             "later": ({"day": bond_day(one["correction"]["at"]),
+                        "line": one["correction"].get("line", "")}
+                       if one["correction"] else None)}
+            for one in witness.shown(bond_id)]
+
+
+def sign_as_witness(bond_id, form):
+    """Take one mark, or one correction, from the member signed in.
+
+    The key the vault gives up is held only in here, for the one signature, and
+    is gone when this returns.
+    """
+    bond, _ = drawn_bond(bond_id)
+    here = witness_here()
+    if not here or witness_form(bond_id, bond) != form:
+        return redirect(url_for("bond_page", bond_id=bond_id))  # no form was shown for this
+    name, record, did = here
+
+    line = witness_line(request.form.get("line", ""))
+    if not line:
+        return bond_page(bond_id, witness_error=NOT_A_WITNESS_LINE,
+                         witness_draft=request.form.get("line", ""))
+
+    now = datetime.now(timezone.utc)
+    counted = tries_counted(name, now)
+    if locked_out(counted, now):
+        return bond_page(bond_id, witness_error=NOT_THE_PASSWORD, witness_draft=line)
+    try:
+        key = vault.unlock(record.get("vault"), request.form.get("password", ""))
+    except VaultError:
+        note_miss(counted, now)
+        return bond_page(bond_id, witness_error=NOT_THE_PASSWORD, witness_draft=line)
+    forget_misses(counted[0])
+
+    try:
+        witness.add(bond_id, did, public_bonds.name_of(did), line,
+                    lambda payload: base64.b64encode(key.sign(payload).signature).decode("ascii"),
+                    utc_stamp(), correcting=form == "correct")
+    except witness.Refused:
+        pass  # another hand got there first; the page says how things stand
+    return redirect(url_for("bond_page", bond_id=bond_id))
+
+
+@app.route("/bonds/<bond_id>/witness", methods=["POST"])
+def witness_bond(bond_id):
+    return sign_as_witness(bond_id, "witness")
+
+
+@app.route("/bonds/<bond_id>/witness/correction", methods=["POST"])
+def correct_witness(bond_id):
+    return sign_as_witness(bond_id, "correct")
+
+
+# The marks themselves, open to anyone and to any machine, as the bond's record
+# is: each can be checked against its witness's identity document. What is
+# signed is the mark with its signature taken out, as JSON with its keys sorted;
+# bond_commitment is the sha256 of the bond's record the same way, with any
+# witness data, released_at and released_by taken out. A sealed bond no one has
+# witnessed answers with an empty list.
+@app.route("/bonds/<bond_id>/witnesses.json")
+def public_witnesses(bond_id):
+    if not public_bonds.record(bond_id):
+        abort(404)
+    answer = Response(json.dumps(witness.marks(bond_id), indent=2) + "\n",
+                      content_type="application/json; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "*"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
+
+
 # A sealed bond's own page, open to anyone: the tile, between whom, since when,
-# the promise if it was made public, and how to check all of it. A bond that was
-# never sealed, or was stepped back from, has no page, and no one is told it was
-# ever there.
+# the promise if it was made public, how to check all of it, and who has
+# witnessed it. A bond that was never sealed, or was stepped back from, has no
+# page, and no one is told it was ever there.
 @app.route("/bonds/<bond_id>")
-def bond_page(bond_id):
+def bond_page(bond_id, witness_error=None, witness_draft=""):
     bond, _ = drawn_bond(bond_id)
     promised = public_promise(bond)
     released = bool(bond.get("released_at"))
@@ -2829,7 +2970,10 @@ def bond_page(bond_id):
         width=round(TESSERA_SIZE * (1 + tessera.APART)) if released else TESSERA_SIZE,
         height=TESSERA_SIZE, size=TESSERA_SIZE,
         promised=({"whose": promised[0], "prose": as_prose(promised[1])}
-                  if promised else None))
+                  if promised else None),
+        witnesses=witnesses_shown(bond_id), witness_form=witness_form(bond_id, bond),
+        witness_error=witness_error, witness_draft=witness_draft,
+        line_limit=witness.LINE_MAX)
 
 
 # The founder's half of an offering: making one, and answering one of the first

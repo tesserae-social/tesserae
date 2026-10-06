@@ -55,6 +55,12 @@ GAP = 1 / 160
 # How far apart the halves of a released bond stand, as a share of the side.
 APART = 0.2
 
+# The ring a witnessed bond's tile wears: a thin line just inside the frame's
+# edge, a share of the side wide and never thinner than one pixel, so that it is
+# still a line on the smallest tile. It is the one ring however many witnessed.
+RING = 1 / 80
+RING_MIN = 1
+
 # A fill is a colour and nothing else: a hex colour or a plain colour name.
 # Anything more (a url(), a quote, a semicolon) could reach outside the picture.
 FILL = re.compile(r"^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{4}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}|[a-zA-Z]{1,30})$")
@@ -225,16 +231,33 @@ def svg(width, height, shapes):
                "".join(shapes)))
 
 
+def ring(width, height, size, fill):
+    """A thin ring just inside the frame's edge, as one polygon.
+
+    The frame's outline one way round, and the same outline a ring's width in
+    the other way round, so that the middle is left clear and the tile shows
+    through it.
+    """
+    wide = max(size * RING, RING_MIN)
+    outer = [(0, 0), (width, 0), (width, height), (0, height), (0, 0)]
+    inner = [(wide, wide), (wide, height - wide), (width - wide, height - wide),
+             (width - wide, wide), (wide, wide)]
+    coordinates = " ".join("%s,%s" % (number(x), number(y)) for x, y in outer + inner)
+    return '<polygon points="%s" fill="%s"/>' % (coordinates, checked_fill(fill))
+
+
 def line_for(parties, size):
     return straight_line(parties) if size < SMALL else break_line(parties)
 
 
-def svg_rejoined(parties, size, left_fill, right_fill, seam_fill=None, gap=GAP):
+def svg_rejoined(parties, size, left_fill, right_fill, seam_fill=None, gap=GAP,
+                 ring_fill=None):
     """Both halves fitted together, with a hair gap along the break.
 
     Where a seam_fill is given the gap shows that colour, drawn beneath the two
     halves and a little wider than the gap so no background shows at its edges;
-    otherwise the gap is left clear.
+    otherwise the gap is left clear. Where a ring_fill is given the tile wears
+    a thin ring of that colour round its edge, drawn over the halves.
     """
     size, gap = checked_size(size), checked_gap(gap)
     left_fill, right_fill = checked_fill(left_fill), checked_fill(right_fill)
@@ -246,6 +269,8 @@ def svg_rejoined(parties, size, left_fill, right_fill, seam_fill=None, gap=GAP):
         shapes.append(polygon(seam, checked_fill(seam_fill), size))
     shapes.append(polygon(left, left_fill, size))
     shapes.append(polygon(right, right_fill, size))
+    if ring_fill is not None:
+        shapes.append(ring(size, size, size, ring_fill))
     return svg(size, size, shapes)
 
 
@@ -262,16 +287,20 @@ def svg_half(parties, which, size, fill, gap=GAP):
     return svg(size, size, [polygon(left if which == "left" else right, fill, size)])
 
 
-def svg_apart(parties, size, left_fill, right_fill):
+def svg_apart(parties, size, left_fill, right_fill, ring_fill=None):
     """A released bond: the two halves drawn apart, still facing each other.
 
-    The frame is wider than it is tall by the space between them.
+    The frame is wider than it is tall by the space between them. Where a
+    ring_fill is given the same thin ring goes round the whole frame, the two
+    halves and the space between them.
     """
     size = checked_size(size)
     left_fill, right_fill = checked_fill(left_fill), checked_fill(right_fill)
     left, right = half_polygons(line_for(parties, size), 0.0)
-    return svg(size * (1 + APART), size,
-               [polygon(left, left_fill, size), polygon(right, right_fill, size, APART)])
+    shapes = [polygon(left, left_fill, size), polygon(right, right_fill, size, APART)]
+    if ring_fill is not None:
+        shapes.append(ring(size * (1 + APART), size, size, ring_fill))
+    return svg(size * (1 + APART), size, shapes)
 
 
 # ---- the check -----------------------------------------------------------

@@ -31,8 +31,48 @@
     <a href="https://tesserae.social/rites.html">the rites</a>, so anyone can draw it again.</p>
 </section>
 
+{# Who has witnessed it, each in the order they came, and never how many. The
+   form is shown only to a member who may sign: to witness, or, having
+   witnessed, to add the one later note. #}
 <section>
   <h2>witnessed by</h2>
+  {% if not witnesses %}
   <p>No one has witnessed this bond yet.</p>
+  {% endif %}
+  {% for one in witnesses %}
+  <div class="witness">
+    <p>{{ one.name }} <span class="muted">· {{ one.day }}</span></p>
+    <p>{{ one.line }}</p>
+    {% if one.later %}
+    <p class="muted">{{ one.later.day }} · a later note: {{ one.later.line }}</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% if witnesses %}
+  <p class="muted">Each mark is signed by its witness's own key; the marks are at
+    <a href="{{ url_for('public_witnesses', bond_id=bond_id) }}">{{ url_for('public_witnesses', bond_id=bond_id) }}</a>.</p>
+  {% endif %}
+
+  {% if witness_form %}
+  {% if witness_error %}<p class="error">{{ witness_error }}</p>{% endif %}
+  <form method="post" class="field"
+        action="{{ url_for('correct_witness' if witness_form == 'correct' else 'witness_bond', bond_id=bond_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if witness_form == 'correct' %}
+    <p class="muted">add a correction: your mark stands as you signed it, and one later note may
+      be set beneath it, signed the same way. There is only the one.</p>
+    <label for="line">a later note, in one line</label>
+    {% else %}
+    <p class="muted">To witness is to say you have seen this bond as sealed. Your line is signed
+      with your own key and kept; it is not edited or taken back afterwards.</p>
+    <label for="line">one line</label>
+    {% endif %}
+    <input type="text" class="thing" id="line" name="line" maxlength="{{ line_limit }}"
+           value="{{ witness_draft }}" required>
+    <label for="password">your password, to sign with your key</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required>
+    <button type="submit">{% if witness_form == 'correct' %}Sign the correction{% else %}Sign as witness{% endif %}</button>
+  </form>
+  {% endif %}
 </section>
 {% endblock %}

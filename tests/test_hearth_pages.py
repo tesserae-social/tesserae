@@ -16,7 +16,7 @@ RHYTHM = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
           "timezone": "America/Indiana/Indianapolis"}
 
 # everything a visitor may reach without the password
-OPEN_PATHS = ["/", "/login", "/bench", "/offerings", "/commons/heartbeats.md",
+OPEN_PATHS = ["/", "/login", "/bench", "/offerings", "/bonds", "/commons/heartbeats.md",
               "/commons/events.md", "/commons/bench.md", "/commons/members.md",
               "/commons/offerings.md", "/commons/bonds.md"]
 
@@ -374,8 +374,8 @@ def test_the_book_holds_the_whole_of_nothing(founder, packet, commons):
 def test_each_letter_in_the_book_is_the_way_back_to_it(founder, packet, commons):
     a_whole_life(packet, commons)
     said = page(founder.get("/chronicle"))
-    assert '<a href="/letters#to-founder-2026-10-05T09-00-00Z">' in said
-    assert '<a href="/letters#founder-2026-10-04T09-00-00Z">' in said
+    assert '<a href="/rooms/first#to-founder-2026-10-05T09-00-00Z">' in said
+    assert '<a href="/rooms/first#founder-2026-10-04T09-00-00Z">' in said
 
 
 def test_a_book_with_nothing_in_it(founder, commons):
@@ -539,22 +539,23 @@ def test_a_visitor_is_shown_the_way_in_and_the_founder_is_not(visitor, founder):
     assert '<a href="/login">log in</a>' in said
     assert "For the founder" not in said
     assert said.count('href="/login"') == 1  # the one line, and the footer no longer repeats it
-    assert "You are logged in" not in said
-    assert "<nav>" not in said
+    assert "your correspondences" not in said
+    assert said.count("<nav") == 1  # the one menu everyone has, and no other
     assert "the books will open with the commons" in said  # the footer every page carries
 
     said = page(founder.get("/"))
-    assert "You are logged in" in said
+    assert "your correspondences" in said
     assert 'href="/login"' not in said
-    assert "<nav>" in said  # the nav the founder is shown on every page
+    assert said.count("<nav") == 3  # everyone's, a member's, and the keeper's
     assert 'action="/logout"' in said  # and the way out is in it
     assert 'href="/logout"' not in said  # as a post, never a link
     assert "the books will open with the commons" in said
 
 
-def test_the_door_offers_each_sealed_bond_by_its_own_page(visitor, hearth):
-    said = page(visitor.get("/"))
-    assert "sealed bonds — none yet" in said
+def test_the_bonds_page_offers_each_sealed_bond_by_its_own_page(visitor, hearth):
+    assert 'href="/bonds"' in page(visitor.get("/"))  # the door's menu is the way to it
+    said = page(visitor.get("/bonds"))
+    assert "No bond has been sealed yet." in said
     assert 'href="/bonds/' not in said
     assert visitor.get("/bonds/founder-first.json").status_code == 404
 
@@ -566,17 +567,17 @@ def test_the_door_offers_each_sealed_bond_by_its_own_page(visitor, hearth):
             "answered_at": "2026-10-03T09-00-00Z", "sealed_at": "2026-10-08T09-00-00Z",
             "signatures": signatures}
     write_json(hearth.PUBLIC_BOND, bond)
-    said = page(visitor.get("/"))
+    said = page(visitor.get("/bonds"))
     assert re.search(r'<a href="/bonds/founder-first">the founder and the first one, sealed'
                      r'\s+8 October 2026</a>', said)
-    assert "none yet" not in said
+    assert "No bond has been sealed yet." not in said
     assert "released" not in said
     assert visitor.get("/bonds/founder-first.json").status_code == 200
 
-    # a released bond keeps its page, and the door still offers it, saying so
+    # a released bond keeps its page, and the list still offers it, saying so
     write_json(hearth.PUBLIC_BOND, dict(bond, released_at="2026-10-12T09-00-00Z",
                                         released_by="did:web:tesserae.social:ids:first"))
-    said = page(visitor.get("/"))
+    said = page(visitor.get("/bonds"))
     assert re.search(r'<a href="/bonds/founder-first">the founder and the first one, sealed'
                      r'\s+8 October 2026, released 12 October 2026</a>', said)
 
@@ -613,12 +614,16 @@ def test_an_old_founder_session_is_refused_at_every_founder_route(hearth):
 
 def test_the_keeper_reaches_every_founder_page(founder, hearth):
     pages = [path for path, method in guarded_paths(hearth) if method == "GET"]
-    assert "/letters" in pages and "/export" in pages and "/bonds" in pages
+    assert "/letters" in pages and "/export" in pages and "/rooms/photo.jpg" in pages
+    assert "/bonds" not in pages  # the list of sealed bonds is open to anyone
     for path in pages:
         answer = founder.get(path)
         assert not answer.headers.get("Location", "").endswith("/login"), path
-        # the pages proper open; a photograph that is not there is simply not found
-        assert answer.status_code == (404 if "photo.jpg" in path else 200), path
+        # the pages proper open; a photograph or a room that is not there is simply
+        # not found; and the letters' old address sends him on to the room
+        opens = 404 if "photo.jpg" in path else 302 if path == "/letters" else 200
+        assert answer.status_code == opens, path
+    assert founder.get("/letters").headers["Location"] == "/rooms/first"
 
 
 def test_the_hearth_starts_and_works_without_the_old_founder_password(
@@ -636,8 +641,8 @@ def test_the_hearth_starts_and_works_without_the_old_founder_password(
     started.members.create_member(FOUNDER_NAME, founder_vault, "keeper", [])
     client = started.app.test_client()
     signing_in = {"pseudonym": FOUNDER_NAME, "password": PASSWORD}
-    assert post(client, "/login", data=signing_in).headers["Location"] == "/letters"
-    assert client.get("/letters").status_code == 200
+    assert post(client, "/login", data=signing_in).headers["Location"] == "/"
+    assert client.get("/rooms/first").status_code == 200
     assert "FOUNDER_PASSWORD_HASH" not in os.environ
 
 
@@ -653,11 +658,11 @@ def test_the_keeper_s_password_lets_the_founder_in_and_out(hearth, founder_vault
     client = hearth.app.test_client()
     wrong = post(client, "/login", data={"pseudonym": FOUNDER_NAME, "password": "not it"})
     assert "That is not the password." in page(wrong)
-    assert client.get("/letters").status_code == 302
+    assert client.get("/rooms/first").status_code == 302
 
     signing_in = {"pseudonym": FOUNDER_NAME, "password": PASSWORD}
-    assert post(client, "/login", data=signing_in).headers["Location"] == "/letters"
-    assert client.get("/letters").status_code == 200
+    assert post(client, "/login", data=signing_in).headers["Location"] == "/"
+    assert client.get("/rooms/first").status_code == 200
 
     assert post(client, "/logout").headers["Location"] == "/"
-    assert client.get("/letters").status_code == 302
+    assert client.get("/rooms/first").status_code == 302

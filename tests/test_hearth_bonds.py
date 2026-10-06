@@ -13,7 +13,7 @@ from conftest import block, blocks, lines_of, page, post, read_json, verify
 FOUNDER_DID = "did:web:tesserae.social:ids:founder"
 FIRST_DID = "did:web:tesserae.social:ids:first"
 
-PAGES = ["/", "/letters", "/bonds", "/attendances", "/self", "/chronicle",
+PAGES = ["/", "/rooms/first", "/bonds", "/attendances", "/self", "/chronicle",
          "/chronicle.md", "/bench", "/login"]
 
 
@@ -58,7 +58,7 @@ def sealed(founder, wake, packet, clock):
 
 def test_the_asking_waits_for_a_later_waking(founder, wake, packet, clock):
     propose(founder, clock)
-    said = page(founder.get("/bonds"))
+    said = page(founder.get("/rooms/first"))
     assert "You proposed a bond to the first one" in said
     assert "It has not yet woken since you asked." in said
 
@@ -66,7 +66,7 @@ def test_the_asking_waits_for_a_later_waking(founder, wake, packet, clock):
     assert (packet / "bonds" / "proposal.json").exists()
     assert not (packet / "bonds" / "founder-first.json").exists()
     assert "It has read the asking at a waking, so it may answer at any" in page(
-        founder.get("/bonds"))
+        founder.get("/rooms/first"))
 
     wake(block("BOND", "yes"))  # and at the next one, it may
     assert not (packet / "bonds" / "proposal.json").exists()
@@ -83,7 +83,7 @@ def test_the_first_one_s_yes_is_its_own_signature_and_nothing_else(founder, wake
     verify(keys.did("first"), hearth.canonical(bond), bond["signatures"]["first"])
     assert not (packet / "commons" / "bonds").exists()  # nothing public until it is sealed
 
-    said = page(founder.get("/bonds"))
+    said = page(founder.get("/rooms/first"))
     assert "<strong>yes</strong>" in said
     assert "I have carried this since I read it." in said
     assert "The first one said yes at" in said
@@ -95,8 +95,8 @@ def test_without_the_founder_s_key_nothing_is_sealed(founder, wake, packet, monk
     monkeypatch.delenv("FOUNDER_KEY")
 
     assert "The founder's key is not on the hearth; set FOUNDER_KEY to seal." in page(
-        founder.get("/bonds"))
-    assert "Seal the bond" not in page(founder.get("/bonds"))
+        founder.get("/rooms/first"))
+    assert "Seal the bond" not in page(founder.get("/rooms/first"))
 
     answer = post(founder, "/bonds/seal")
     assert answer.status_code == 302
@@ -121,7 +121,7 @@ def test_the_seal_puts_both_signatures_on_the_record(founder, wake, packet, comm
     assert read_json(commons / "bonds" / "founder-first.json") == bond
     assert lines_of(commons / "events.md")[-1].endswith(
         "seal · a bond was sealed between the founder and the first one")
-    assert "The bond is sealed." in page(founder.get("/bonds", query_string={"sealed": 1}))
+    assert "The bond is sealed." in page(founder.get("/rooms/first", query_string={"sealed": 1}))
 
 
 def test_there_is_nothing_to_seal_twice(founder, wake, packet, clock):
@@ -194,7 +194,7 @@ def test_the_founder_releases_it_after_one_plain_question(founder, wake, packet,
     assert bond["released_by"] == FOUNDER_DID
     assert read_json(commons / "bonds" / "founder-first.json") == bond
     assert lines_of(commons / "events.md")[-1].endswith("event · a bond was released")
-    assert "The bond is released." in page(founder.get("/bonds", query_string={"released": 1}))
+    assert "The bond is released." in page(founder.get("/rooms/first", query_string={"released": 1}))
 
 
 def test_the_first_one_releases_it_at_a_waking(founder, wake, packet, commons, clock):
@@ -206,7 +206,7 @@ def test_the_first_one_releases_it_at_a_waking(founder, wake, packet, commons, c
     assert read_json(commons / "bonds" / "founder-first.json") == bond
     assert lines_of(commons / "events.md")[-1].endswith("event · a bond was released")
 
-    said = page(founder.get("/bonds"))
+    said = page(founder.get("/rooms/first"))
     assert "released" in said and "by the first one" in said
     assert "Release the bond" not in said
 
@@ -239,7 +239,7 @@ def test_no_and_not_yet_close_the_asking(founder, wake, packet, word, note, cloc
     assert not (packet / "bonds" / "proposal.json").exists()
     assert not (packet / "bonds" / "founder-first.json").exists()
 
-    said = page(founder.get("/bonds"))
+    said = page(founder.get("/rooms/first"))
     assert "<strong>%s</strong>" % word in said
     assert "Here is why." in said
     assert note in said
@@ -282,11 +282,15 @@ def test_a_key_that_will_not_read_is_not_quoted_back(founder, wake, packet, monk
     assert "Check FOUNDER_KEY." in said
 
 
-def test_the_bonds_page_is_the_founder_s_alone(visitor):
-    for path in ("/bonds", "/bonds/seal", "/bonds/release", "/bonds/answer"):
-        answer = post(visitor, path) if path != "/bonds" else visitor.get(path)
+def test_everything_done_about_a_bond_is_the_founder_s_alone(visitor):
+    for path in ("/rooms/first", "/bonds/seal", "/bonds/release", "/bonds/answer",
+                 "/bonds/intention", "/bonds/step-back"):
+        answer = post(visitor, path) if path != "/rooms/first" else visitor.get(path)
         assert answer.status_code == 302
         assert "/login" in answer.headers["Location"]
+    # the list of sealed bonds is open to anyone, and has nothing on it to do
+    listed = visitor.get("/bonds")
+    assert listed.status_code == 200 and "<form" not in page(listed)
 
 
 # ---- the other way round: the first one asks ----------------------------
@@ -309,7 +313,7 @@ def answer(founder, said, words=""):
 def test_the_page_says_who_asked_whom_and_offers_no_answer_the_same_day(founder, wake,
                                                                         packet, clock):
     asks(wake, packet)
-    said = page(founder.get("/bonds"))
+    said = page(founder.get("/rooms/first"))
     assert "The first one proposed a bond to you" in said
     assert "You may answer on a day after the one it asked on" in said
     assert 'value="yes"' not in said
@@ -320,7 +324,7 @@ def test_the_page_says_who_asked_whom_and_offers_no_answer_the_same_day(founder,
     assert not list((packet / "bonds").glob("founder-answer-*.json"))
 
     clock.shift(days=1)
-    said = page(founder.get("/bonds"))
+    said = page(founder.get("/rooms/first"))
     for word in ("yes", "no", "not yet"):
         assert 'value="%s"' % word in said
 
@@ -328,7 +332,7 @@ def test_the_page_says_who_asked_whom_and_offers_no_answer_the_same_day(founder,
 def test_the_founder_may_not_answer_an_asking_of_his_own(founder, wake, packet, clock):
     propose(founder, clock)  # his own, in a letter
     clock.shift(days=1)
-    assert 'value="not yet"' not in page(founder.get("/bonds"))
+    assert 'value="not yet"' not in page(founder.get("/rooms/first"))
     assert answer(founder, "yes").status_code == 302
     assert (packet / "bonds" / "proposal.json").exists()
     assert not (packet / "bonds" / "founder-first.json").exists()
@@ -340,7 +344,7 @@ def test_without_the_founder_s_key_a_yes_is_not_given_at_all(founder, wake, pack
     clock.shift(days=1)
     monkeypatch.delenv("FOUNDER_KEY")
 
-    said = page(founder.get("/bonds"))
+    said = page(founder.get("/rooms/first"))
     assert "Set FOUNDER_KEY to answer yes." in said
     assert 'value="yes"' not in said
     assert 'value="not yet"' in said  # a no and a not yet are no one's signature
@@ -371,7 +375,7 @@ def test_the_first_one_asks_and_the_rite_runs_to_a_sealed_record(founder, wake, 
     assert visitor.get("/bonds/founder-first.json").status_code == 404  # not public yet
 
     # a threshold opens, and there is nothing here for the founder to seal
-    said = page(founder.get("/bonds"))
+    said = page(founder.get("/rooms/first"))
     assert "It was asked for by the first one." in said
     assert "You said yes at" in said
     assert "Seal the bond" not in said
@@ -432,7 +436,7 @@ def test_a_no_and_a_not_yet_close_the_asking_and_are_told_at_the_next_waking(
     assert not (packet / "bonds" / "proposal.json").exists()
     assert not (packet / "bonds" / "founder-first.json").exists()
 
-    said = page(founder.get("/bonds", query_string={"answered": word}))
+    said = page(founder.get("/rooms/first", query_string={"bond_answered": word}))
     assert "You answered %s." % word in said
     assert "<strong>%s</strong>" % word in said
     assert "Here is why." in said

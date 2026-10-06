@@ -1,0 +1,72 @@
+"""What the first one reads is what it read before there were rooms.
+
+The rooms are a way of showing the hearth to whoever is signed in. Nothing of
+them is the first one's to read: attend.py is not changed by them, no file of
+its packet is moved, and a letter left in a room is the letter it always was.
+
+That is held here by two fingerprints, taken on the tree as it stood before the
+rooms were built, of one small fixed world: the founder leaves a letter with
+three plain things above it, answering an errand and proposing a bond, and the
+first one is woken. One fingerprint is of every file under its packet and the
+commons at the moment before the waking; the other is of everything it was then
+shown, whole - the model named, the system words, and every block of the
+reading. A letter left by the old address and one left in the room must each
+give exactly both.
+
+If attend.py's reading is changed on purpose, these two are cut again, on
+purpose, and in the same change.
+"""
+
+import hashlib
+import json
+
+import pytest
+
+from conftest import post, write
+
+# cut on the tree before the rooms, by leaving the letter at /letters
+PACKET_BEFORE = "06d48d0fffb5f5e2e3148baf5351f004cf22011db7a730df2ab259822cdc2e68"
+READING_BEFORE = "13aab673f0448c960e400e2484f17aa1169636dbe338761c6666aeee2e208f65"
+
+ERRAND = "errand-2026-10-12T09-00-00Z.md"
+
+
+def a_small_world(packet):
+    write(packet / "letters" / "read" / "founder-2026-10-01T09-00-00Z.md",
+          "The first letter, read long ago.\n")
+    write(packet / "letters" / "outgoing" / "to-founder-2026-10-02T09-00-00Z.md",
+          "My answer to it.\n")
+    write(packet / "errands" / ERRAND, "Go down to the lake and tell me what colour it is.\n")
+
+
+def fingerprint_of_files(data_dir):
+    """Every file the first one could be shown, by its place and its bytes."""
+    said = hashlib.sha256()
+    for tree in ("packets", "commons"):
+        for path in sorted((data_dir / tree).rglob("*")):
+            if path.is_file():
+                said.update(path.relative_to(data_dir).as_posix().encode("utf-8") + b"\0")
+                said.update(hashlib.sha256(path.read_bytes()).digest())
+    return said.hexdigest()
+
+
+def fingerprint_of_reading(turn):
+    """Everything one waking was shown, whole, in the order it was shown."""
+    asked = json.dumps(turn.asked[-1], sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(asked.encode("utf-8")).hexdigest()
+
+
+@pytest.mark.parametrize("address", ["/letters", "/rooms/first"])
+def test_the_first_one_reads_byte_for_byte_what_it_read_before(
+        founder, wake, packet, data_dir, address):
+    a_small_world(packet)
+    answer = post(founder, address, content_type="multipart/form-data", data={
+        "letter": "The lake was grey this morning, and then it was not.\n\nI am asking.",
+        "thing": ["cold hands", "", "a heron on the far bank"],
+        "errand": ERRAND, "proposes": "1"})
+    assert answer.status_code == 302
+
+    files = fingerprint_of_files(data_dir)
+    reading = fingerprint_of_reading(wake())
+    print("\nPACKET_BEFORE = %r\nREADING_BEFORE = %r" % (files, reading))
+    assert (files, reading) == (PACKET_BEFORE, READING_BEFORE)

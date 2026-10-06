@@ -273,6 +273,7 @@ def load(name):
     sys.modules.pop("bonds", None)
     sys.modules.pop("witness", None)  # it keeps the marks under DATA_DIR, and reads bonds
     sys.modules.pop("door", None)  # it keeps each door under DATA_DIR, and reads members
+    sys.modules.pop("rooms", None)  # it finds a room's place under DATA_DIR, and reads members
     with no_threads():
         return importlib.import_module(name)
 
@@ -365,7 +366,7 @@ def founder(hearth, founder_vault):
                                  "keeper", [])
     client = hearth.app.test_client()
     answer = post(client, "/login", data={"pseudonym": FOUNDER_NAME, "password": PASSWORD})
-    signed_in = answer.status_code == 302 and answer.headers["Location"].endswith("/letters")
+    signed_in = answer.status_code == 302 and answer.headers["Location"] == "/"
     assert signed_in, "the test keeper did not sign in"
     return client
 

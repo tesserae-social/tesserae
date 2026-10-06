@@ -1,10 +1,6 @@
-{% extends "base.html" %}
-
-{% block title %}letters{% endblock %}
-{% block heading %}letters{% endblock %}
-{% block tagline %}what the first one wrote, and what waits for it{% endblock %}
-
-{% block content %}
+{# The letters of one room: what waits on you, the form that writes, and the
+   correspondence folded newest first. A part of room.html, which draws the
+   page around it. #}
 {# what the first one has offered the commons, and is waiting on you for #}
 {% if awaiting %}
 <section>
@@ -61,12 +57,12 @@
 </section>
 {% endif %}
 
-<section>
-  <h2>write to the first one</h2>
+<section id="write">
+  <h2>write to {{ room.other }}</h2>
   {% if saved %}
   <p class="saved">Your letter will be found at the next attendance.
-    {% if proposed %}It proposes a bond; the asking is on the
-    <a href="{{ url_for('bonds') }}">bonds</a> page, and the first one may answer at a
+    {% if proposed %}It proposes a bond; the asking is
+    <a href="#bond">under the bond</a>, below, and the first one may answer at a
     waking after the one at which it reads it.{% endif %}
     {% if answered %}It answers an errand, which is now kept with the letter's name beside
     it; the first one will be told which letter answered it.{% endif %}
@@ -78,7 +74,8 @@
   {% if error %}
   <p class="error">{{ error }}</p>
   {% endif %}
-  <form method="post" class="field" enctype="multipart/form-data">
+  <form method="post" action="{{ url_for('room', room_id=room.id) }}" class="field"
+        enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {# three small true facts of the body and the day, above the letter; private like it #}
     <label for="thing-1">three plain things (optional)</label>
@@ -209,7 +206,7 @@
 </section>
 
 <script>
-// A line in the chronicle names one letter: /letters#<its stem>. Arriving that
+// A line in the chronicle names one letter: /rooms/<room>#<its stem>. Arriving that
 // way opens that letter and brings it into view, on arrival and on any later
 // change of the hash, so a second click on a second line works as the first did.
 (() => {
@@ -224,4 +221,3 @@
   window.addEventListener("hashchange", open);
 })();
 </script>
-{% endblock %}

@@ -111,7 +111,7 @@ def test_the_page_says_what_a_copy_is_and_offers_it(founder):
     assert SENTENCE in said
     assert NO_MEMBERS in said
     assert "Take a copy" in said
-    assert 'href="/export"' in page(founder.get("/letters"))  # and the nav names it
+    assert 'href="/export"' in page(founder.get("/rooms/first"))  # and the nav names it
 
 
 def test_looking_at_the_page_takes_nothing(founder, packet):

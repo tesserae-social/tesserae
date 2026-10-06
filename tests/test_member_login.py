@@ -69,7 +69,7 @@ def refused(answer):
     return page(answer)
 
 
-def shut_out(client, path="/letters"):
+def shut_out(client, path="/rooms/first"):
     answer = client.get(path)
     return answer.status_code == 302 and answer.headers["Location"].endswith("/login")
 
@@ -84,8 +84,8 @@ def test_the_login_page_asks_for_a_pseudonym_above_the_password(visitor):
 
 def test_a_keeper_signs_in_and_reaches_a_founder_page(people, visitor):
     answer = sign_in(visitor, KEEPER, KEEPER_PASSWORD)
-    assert answer.status_code == 302 and answer.headers["Location"].endswith("/letters")
-    assert visitor.get("/letters").status_code == 200
+    assert answer.status_code == 302 and answer.headers["Location"] == "/"
+    assert visitor.get("/rooms/first").status_code == 200
     with visitor.session_transaction() as held:
         assert held["member"] == KEEPER and held["role"] == "keeper"
         assert "founder" not in held
@@ -135,7 +135,8 @@ def test_a_member_signs_in_but_cannot_reach_the_founder_s_pages(people, visitor,
     assert answer.status_code == 302 and answer.headers["Location"].endswith("/")
     with visitor.session_transaction() as held:
         assert held["role"] == "member"
-    for path in ("/letters", "/chronicle", "/attendances", "/bonds", "/export", "/backups"):
+    for path in ("/letters", "/rooms/first", "/chronicle", "/attendances", "/export",
+                 "/backups"):
         assert shut_out(visitor, path), path
     assert post(visitor, "/pause", data={"confirm": "yes"}).status_code == 302
     assert not (hearth.PAUSE).exists()
@@ -177,7 +178,7 @@ def test_the_old_founder_password_opens_nothing(people, visitor):
 def test_a_keeper_whose_folder_is_gone_loses_the_gate_at_the_next_request(people, visitor,
                                                                           data_dir):
     sign_in(visitor, KEEPER, KEEPER_PASSWORD)
-    assert visitor.get("/letters").status_code == 200
+    assert visitor.get("/rooms/first").status_code == 200
     shutil.rmtree(data_dir / "members" / KEEPER)
     assert shut_out(visitor)
 
@@ -185,9 +186,9 @@ def test_a_keeper_whose_folder_is_gone_loses_the_gate_at_the_next_request(people
 def test_a_deleted_member_s_session_is_cleared_at_the_next_request(people, visitor,
                                                                    data_dir):
     sign_in(visitor, MEMBER, MEMBER_PASSWORD)
-    assert "You are logged in" in page(visitor.get("/"))
+    assert "your correspondences" in page(visitor.get("/"))
     shutil.rmtree(data_dir / "members" / MEMBER)
-    assert "You are logged in" not in page(visitor.get("/"))
+    assert "your correspondences" not in page(visitor.get("/"))
     with visitor.session_transaction() as held:
         assert dict(held) == {}
 
@@ -196,7 +197,7 @@ def test_a_member_session_with_no_fingerprint_is_cleared(people, visitor):
     sign_in(visitor, MEMBER, MEMBER_PASSWORD)
     with visitor.session_transaction() as held:
         del held["seal"]
-    assert "You are logged in" not in page(visitor.get("/"))
+    assert "your correspondences" not in page(visitor.get("/"))
 
 
 def an_old_founder_session(client):
@@ -216,7 +217,7 @@ def test_an_old_founder_session_grants_nothing(people, hearth):
 def test_an_old_founder_session_is_signed_out_at_its_next_request(people, visitor):
     an_old_founder_session(visitor)
     said = page(visitor.get("/"))
-    assert "You are logged in" not in said and 'href="/letters"' not in said
+    assert "your correspondences" not in said and 'href="/letters"' not in said
     with visitor.session_transaction() as held:
         assert dict(held) == {}
     assert shut_out(visitor)
@@ -235,10 +236,11 @@ def test_the_founder_s_nav_is_shown_to_the_keeper_and_not_to_a_member(people, he
     keeper, member = hearth.app.test_client(), hearth.app.test_client()
     sign_in(keeper, KEEPER, KEEPER_PASSWORD)
     sign_in(member, MEMBER, MEMBER_PASSWORD)
-    assert 'href="/letters"' in page(keeper.get("/"))
+    said = page(keeper.get("/"))
+    assert 'href="/rooms/first"' in said and 'href="/export"' in said
     said = page(member.get("/"))
-    assert 'href="/letters"' not in said and 'href="/export"' not in said
-    assert "You are logged in" in said
+    assert 'href="/rooms/' not in said and 'href="/export"' not in said
+    assert "your correspondences" in said
 
 
 # ---- guessing ------------------------------------------------------------
@@ -347,7 +349,7 @@ def test_a_sign_in_lasts_fourteen_days_behind_a_careful_cookie(people, hearth, v
 
 def test_after_fourteen_days_the_password_is_asked_for_again(people, visitor, monkeypatch):
     sign_in(visitor, KEEPER, KEEPER_PASSWORD)
-    assert visitor.get("/letters").status_code == 200
+    assert visitor.get("/rooms/first").status_code == 200
     later = time.time() + timedelta(days=14, minutes=1).total_seconds()
     monkeypatch.setattr("itsdangerous.timed.time", SimpleNamespace(time=lambda: later))
     assert shut_out(visitor)
@@ -355,7 +357,7 @@ def test_after_fourteen_days_the_password_is_asked_for_again(people, visitor, mo
 
 def test_being_used_does_not_stretch_a_sign_in(people, visitor):
     sign_in(visitor, KEEPER, KEEPER_PASSWORD)
-    assert "Set-Cookie" not in visitor.get("/letters").headers
+    assert "Set-Cookie" not in visitor.get("/rooms/first").headers
 
 
 def test_logging_out_clears_the_member_s_session(people, visitor):

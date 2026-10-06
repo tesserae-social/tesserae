@@ -200,6 +200,6 @@ def test_a_picture_appears_inside_the_letter_it_came_with(founder, packet, clock
     stem = "to-founder-2026-10-14T09-00-00Z"
     write(packet / "letters" / "outgoing" / (stem + ".md"), "Here is what I saw.\n")
     write(packet / "letters" / "outgoing" / (stem + ".svg"), DRAWN)
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert '<img class="photo" src="/letters/picture/%s.svg"' % stem in said
     assert 'alt="the picture the first one drew beside this letter"' in said

@@ -88,16 +88,33 @@
     font-size: 0.9rem;
   }
 
-  nav {
-    margin: 28px 0 0;
-    padding-top: 18px;
-    border-top: 1px solid var(--rule);
-    font-size: 0.88rem;
+  /* The menus, quiet and small as the atrium's is: plain links in a line,
+     parted by a middot, each link kept whole so that on a phone the line breaks
+     between two of them and never inside one. */
+  .menu {
+    margin: 0.6rem 0 0;
+    font-size: 0.9rem;
     color: var(--ink-soft);
   }
 
-  /* nav links take the running-text style; the page you stand on is plain ink */
-  nav .here { color: var(--ink); text-decoration: none; }
+  /* a member's own line sits close under the one everyone has */
+  .menu + .menu { margin-top: 0.15rem; }
+
+  .menu a, .menu a:visited, .menu button.as-link {
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .menu a:hover, .menu a:focus, .menu button.as-link:hover, .menu button.as-link:focus {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+  }
+
+  /* the page you stand on is plain ink, and no link */
+  .menu .here { color: var(--ink); white-space: nowrap; }
+
+  /* the keeper's line, under everything else on the page */
+  .menu.keeping { margin-top: 1.4rem; }
 
   /* one rhythm between everything at the top level, as the atrium keeps */
   section { margin-top: 64px; }
@@ -133,6 +150,9 @@
   }
 
   .card .date { margin: 0 0 14px; }
+
+  /* a sealed bond's small tile, on the line of the word beside it */
+  .card img.tessera { vertical-align: middle; margin-right: 8px; }
 
   .lines { margin: 0; padding: 0; list-style: none; }
 
@@ -389,22 +409,32 @@
     {% endif %}
   </header>
 
-  {# the nav shows only the pages this visitor may open: the founder's pages to
-     whoever has the founder's powers, an account to whoever is a member #}
-  {% if founder_here or member_here %}
-  {% set pages = [('hearth', 'hearth'), ('letters', 'letters'),
-                  ('chronicle', 'chronicle'), ('self_document', 'self'),
-                  ('attendances', 'attendances'), ('bonds', 'bonds'),
-                  ('bench', 'bench'), ('export', 'export')] if founder_here
-                 else [('hearth', 'hearth')] %}
-  <nav>
-    {% for name, label in pages + ([('account', 'account')] if member_here else [])
-                                + [('logout', 'logout')] %}
+  {# Three small lines. The first is everyone's, on every page. The second is a
+     signed-in member's own. The third, at the foot, is the keeper's alone: a
+     visitor and a plain member are never shown it. A link is drawn only to
+     whoever may open what it leads to. #}
+  {% macro menu(pages) -%}
+    {% for name, label, href in pages %}
       {%- if not loop.first %} · {% endif -%}
-      {% if request.endpoint == name %}<span class="here">{{ label }}</span>
-      {% elif name == 'logout' %}{% include "logout_button.html" %}
-      {% else %}<a href="{{ url_for(name) }}">{{ label }}</a>{% endif %}
+      {% if name == 'logout' %}{% include "logout_button.html" %}
+      {%- elif name and name == here %}<span class="here">{{ label }}</span>
+      {%- else %}<a href="{{ href }}">{{ label }}</a>{% endif %}
     {%- endfor %}
+  {%- endmacro %}
+  {# the hearth and home are one address: it is home to a member, the hearth to a visitor #}
+  {% set here = request.endpoint %}
+  {% if here == 'hearth' and member_here %}{% set here = 'home' %}{% endif %}
+
+  <nav class="menu" aria-label="pages">
+    {{ menu([('hearth', 'the hearth', url_for('hearth')), ('bench', 'the bench', url_for('bench')),
+             ('offerings', 'offerings', url_for('offerings')), ('bonds', 'bonds', url_for('bonds')),
+             (none, 'tesserae.social', 'https://tesserae.social')]) }}
+  </nav>
+  {% if member_here %}
+  <nav class="menu" aria-label="yours">
+    {{ menu([('home', 'home', url_for('hearth'))]
+            + ([('chronicle', 'chronicle', url_for('chronicle'))] if founder_here else [])
+            + [('account', 'account', url_for('account')), ('logout', 'log out', none)]) }}
   </nav>
   {% endif %}
 
@@ -412,9 +442,15 @@
 
   <footer>
     {% block footer %}<p>the books will open with the commons</p>{% endblock %}
-    {# the way back to the atrium, open to anyone standing here #}
-    <p><a href="https://tesserae.social">the atrium</a></p>
   </footer>
+
+  {% if founder_here %}
+  <nav class="menu keeping" aria-label="keeping">
+    {{ menu([('attendances', 'attendances', url_for('attendances')),
+             ('self_document', 'self', url_for('self_document')),
+             ('export', 'export', url_for('export')), ('backups', 'backups', url_for('backups'))]) }}
+  </nav>
+  {% endif %}
 
 </main>
 

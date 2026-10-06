@@ -38,7 +38,7 @@ def keeper(hearth):
     hearth.members.create_member(KEEPER, sealed, "keeper", [])
     client = hearth.app.test_client()
     answer = post(client, "/login", data={"pseudonym": KEEPER, "password": KEEPER_PASSWORD})
-    assert answer.status_code == 302 and answer.headers["Location"].endswith("/letters")
+    assert answer.status_code == 302 and answer.headers["Location"] == "/"
     return client
 
 
@@ -129,12 +129,12 @@ def a_keeper(hearth):
 def test_signing_in_with_its_token_signs_in(hearth, visitor):
     answer = post(visitor, "/login", data=a_keeper(hearth))
     assert answer.status_code == 302
-    assert visitor.get("/letters").status_code == 200
+    assert visitor.get("/rooms/first").status_code == 200
 
 
 def test_signing_in_without_a_token_is_refused(hearth, visitor):
     assert refused(visitor.post("/login", data=a_keeper(hearth)))
-    assert visitor.get("/letters").status_code == 302
+    assert visitor.get("/rooms/first").status_code == 302
 
 
 def test_the_token_may_come_as_a_header(founder, hearth, monkeypatch):
@@ -147,7 +147,7 @@ def test_the_token_may_come_as_a_header(founder, hearth, monkeypatch):
 def test_every_form_on_the_founders_pages_carries_the_token(founder, hearth, commons):
     bench_line(hearth)
     held = token(founder)
-    for path in ("/letters", "/attendances", "/export", "/bench"):
+    for path in ("/", "/rooms/first", "/attendances", "/export", "/bench"):
         said = page(founder.get(path))
         forms = said.count("<form")
         assert forms, path
@@ -244,11 +244,11 @@ def test_signing_out_forgets_the_token(founder):
 def signed_out(client):
     with client.session_transaction() as held:
         empty = dict(held) == {}
-    return empty and client.get("/letters").status_code == 302
+    return empty and client.get("/rooms/first").status_code == 302
 
 
 def the_way_out(client):
-    """The logout form, as the nav and the footers draw it, with this session's token."""
+    """The logout form, as a member's menu draws it, with this session's token."""
     return ('<form method="post" action="/logout" class="as-link">'
             f'<input type="hidden" name="csrf_token" value="{token(client)}">'
             '<button type="submit" class="as-link">')
@@ -279,7 +279,7 @@ def test_signing_out_without_a_token_is_refused_and_signs_no_one_out(founder, ke
     for client in (founder, keeper):
         assert refused(client.post("/logout"))
         assert refused(client.post("/logout", data={"csrf_token": "not the token at all"}))
-        assert client.get("/letters").status_code == 200
+        assert client.get("/rooms/first").status_code == 200
 
 
 def test_a_visit_to_logout_asks_first_and_signs_no_one_out(founder, keeper):
@@ -292,7 +292,7 @@ def test_a_visit_to_logout_asks_first_and_signs_no_one_out(founder, keeper):
         assert f'name="csrf_token" value="{held}"' in said
         assert '<button type="submit">Log out</button>' in said
         assert '<a href="/">back to the hearth</a>' in said
-        assert client.get("/letters").status_code == 200
+        assert client.get("/rooms/first").status_code == 200
         assert token(client) == held
 
 
@@ -303,9 +303,9 @@ def test_a_visitor_at_logout_is_sent_to_the_hearth_with_no_cookie(visitor):
 
 
 def test_the_founders_nav_signs_out_by_a_form_with_the_token(founder):
-    for path in ("/", "/letters", "/bench"):
+    for path in ("/", "/rooms/first", "/bench"):
         said = page(founder.get(path))
-        assert the_way_out(founder) + "logout</button>" in said, path
+        assert the_way_out(founder) + "log out</button>" in said, path
         assert 'href="/logout"' not in said, path
 
 
@@ -316,16 +316,16 @@ def test_a_members_nav_signs_out_by_a_form_with_the_token(keeper, hearth):
     post(member, "/login", data={"pseudonym": "birch", "password": KEEPER_PASSWORD})
     for client in (keeper, member):
         said = page(client.get("/"))
-        assert the_way_out(client) + "logout</button>" in said
+        assert the_way_out(client) + "log out</button>" in said
         assert 'href="/logout"' not in said
 
 
-def test_the_bench_footer_signs_out_by_a_form_with_the_token(founder, keeper):
+def test_at_the_bench_the_way_out_is_the_menu_s_and_the_footer_repeats_nothing(founder, keeper):
     for client in (founder, keeper):
         said = page(client.get("/bench"))
-        footer = said[said.index("<footer>"):]
-        assert the_way_out(client) + "log out</button>" in footer
-        assert 'href="/login"' not in footer
+        assert said.count(the_way_out(client) + "log out</button>") == 1
+        footer = said[said.index("<footer>"):said.index("</footer>")]
+        assert "/logout" not in footer and 'href="/login"' not in footer
 
 
 def test_a_visitor_is_shown_log_in_and_no_way_out(visitor):

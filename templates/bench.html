@@ -71,10 +71,7 @@
 </section>
 {% endblock %}
 
+{# the ways on are in the menu; a visitor is shown the one it does not hold #}
 {% block footer %}
-<p>
-  <a href="{{ url_for('hearth') }}">the hearth</a> &middot;
-  {% if founder_here or session.member %}{% with label = 'log out' %}{% include "logout_button.html" %}{% endwith %}
-  {% else %}<a href="{{ url_for('login') }}">log in</a>{% endif %}
-</p>
+{% if member_here %}{{ super() }}{% else %}<p><a href="{{ url_for('login') }}">log in</a></p>{% endif %}
 {% endblock %}

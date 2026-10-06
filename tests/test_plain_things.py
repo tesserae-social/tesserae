@@ -87,7 +87,7 @@ def test_a_thing_is_plain_text_and_cannot_close_its_line(founder, hearth, packet
     first = raw.splitlines()[0]
     assert first.count("-->") == 1 and first.endswith(" -->")
     assert kept_things(hearth, packet)[0] == ["<b>cold</b> --> ]", '"quoted"']
-    shown = page(founder.get("/letters"))
+    shown = page(founder.get("/rooms/first"))
     assert "&lt;b&gt;cold&lt;/b&gt;" in shown
     assert "<b>cold</b>" not in shown
 
@@ -117,7 +117,7 @@ def test_the_things_come_back_when_a_letter_is_refused(founder):
 # ---- the form ------------------------------------------------------------
 
 def test_the_form_asks_for_three_short_optional_lines_above_the_letter(founder):
-    shown = page(founder.get("/letters"))
+    shown = page(founder.get("/rooms/first"))
     assert "three plain things (optional)" in shown
     assert shown.count('name="thing"') == 3
     assert shown.count('maxlength="80"') == 3
@@ -130,7 +130,7 @@ def test_the_form_asks_for_three_short_optional_lines_above_the_letter(founder):
 
 def test_the_things_are_one_quiet_line_above_the_letter(founder, packet):
     leave(founder, [SLEPT, FROST, HANDS])
-    shown = page(founder.get("/letters"))
+    shown = page(founder.get("/rooms/first"))
     line = '<p class="muted things">slept badly · first frost on the car · hands cold all morning</p>'
     assert line in shown
     assert shown.index(line) < shown.index("The lake was still this morning.")
@@ -144,7 +144,7 @@ def test_the_things_are_one_quiet_line_above_the_letter(founder, packet):
 
 def test_a_letter_without_them_shows_no_line(founder, packet):
     leave(founder)
-    assert 'class="muted things"' not in page(founder.get("/letters"))
+    assert 'class="muted things"' not in page(founder.get("/rooms/first"))
 
 
 # ---- the reading ---------------------------------------------------------

@@ -71,7 +71,7 @@ import threshold
 
 # A sealed bond is sealed by either hand and released by either, so both keep the
 # commons' list of bonds through the one module; its tile is drawn by the other.
-# (named apart here, where bonds() is the founder's own page)
+# (named apart here, where bonds() is the page that lists them)
 import bonds as public_bonds
 import tessera
 
@@ -100,6 +100,10 @@ import waking
 # attend.DOOR_FOR_FIRST, and read from there each time it is wanted.
 import attend as the_waking  # hearth.attend is the page that holds one
 import door
+
+# A correspondence has a room, and the pages are built around rooms: whose they
+# are, and whether one is theirs, is asked of the one module and nowhere else.
+import rooms
 
 REPO = Path(__file__).resolve().parent
 
@@ -460,7 +464,7 @@ def one_letter(path, who, unread=False, proposes=False):
     things, text = offering.split_things(read_text(path))
     return {
         "stamp": stamp_in(path.name),
-        "stem": path.stem,  # the anchor the chronicle points at: /letters#<stem>
+        "stem": path.stem,  # the anchor the chronicle points at: /rooms/<room>#<stem>
         "date": readable_date(path.name),
         "who": who,
         "opening": opening_line(text),
@@ -549,11 +553,11 @@ BLOCK_LINE = re.compile(r"<<([A-Z_]+)>>")
 KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions: private)",
                 # how it keeps its own history is its own too: see shelf.py
                 "SHELF": "(kept its shelf: private)",
-                # and what it writes on the threshold, which the bonds page shows
-                # when it may be shown: its letter of intention only once yours
-                # is written, so a reflection must not show it any sooner
-                "BOND_INTENTION": "(wrote a letter of intention: on the bonds page)",
-                "PROMISE": "(made a promise: on the bonds page)"}
+                # and what it writes on the threshold, which the room shows under
+                # the bond when it may be shown: its letter of intention only once
+                # yours is written, so a reflection must not show it any sooner
+                "BOND_INTENTION": "(wrote a letter of intention: in your room, under the bond)",
+                "PROMISE": "(made a promise: in your room, under the bond)"}
 
 
 def without_kept_blocks(reflection):
@@ -1187,14 +1191,15 @@ def bond_in_the_way():
     """Why a bond cannot be proposed now, in one sentence, or None if it can be."""
     if PROPOSAL.exists():
         return ("A bond is already proposed, and only one asking may be open at a time. "
-                "It is on the bonds page.")
+                "It is under the bond, below.")
     bond = load(BOND_RECORD)
     if not bond or bond.get("released_at"):
         return None
     if bond.get("sealed_at"):
-        return "A bond already stands between you and the first one. It is on the bonds page."
+        return ("A bond already stands between you and the first one. It is under the "
+                "bond, below.")
     return ("A threshold is open between you and the first one, and only one asking may be "
-            "open at a time. It is on the bonds page.")
+            "open at a time. It is under the bond, below.")
 
 
 # Either of them may ask for a bond. When the first one asks, the answer is the
@@ -1428,7 +1433,7 @@ def offered_already(stem):
 
 
 def awaiting_the_founder():
-    """The offerings the first one has made, as the letters page shows them."""
+    """The offerings the first one has made, as its room shows them."""
     shown = []
     for one in offering.awaiting("founder"):
         image = offering.image_of(one)
@@ -1464,7 +1469,7 @@ def offerings_placed():
 
 # The chronicle is the book of this friendship: every event in its life, one
 # line each, oldest first, because a book reads forward. It holds the whole of
-# nothing. A letter is read on the letters page; here the book says only that
+# nothing. A letter is read in its room; here the book says only that
 # it was written, in its opening words, and gives the way back to it. A
 # reflection, an answer to a proposal, the text of a self-document: the book
 # says that each happened and stops there.
@@ -1528,7 +1533,7 @@ def waking_lines(paused_days):
 
 
 def letter_lines():
-    """Every letter, both ways, by the same one line the letters page shows."""
+    """Every letter, both ways, by the same one line its room shows."""
     lines = []
     for folder, who in ((OUTGOING, "the first one"), (INCOMING, "the founder"),
                         (READ, "the founder")):
@@ -1537,7 +1542,7 @@ def letter_lines():
             lines.append(book_line(
                 at, readable_date(at), who,
                 "letter from %s \u00b7 %s" % (who, opening_line(offering.letter_only(path))),
-                href=url_for("letters") + "#" + path.stem, order=3))
+                href=url_for("room", room_id=rooms.FIRST_ROOM) + "#" + path.stem, order=3))
     return lines
 
 
@@ -2012,28 +2017,149 @@ def remember_member(name, record):
 
 
 def sign_in_member(name, record):
-    """Remember this member, and go where they belong."""
+    """Remember this member, and send them home: keeper or member, it is the one page."""
     remember_member(name, record)
-    return redirect(url_for("letters" if record["role"] == "keeper" else "hearth"))
+    return redirect(url_for("hearth"))
 
 
 # ---- the pages -----------------------------------------------------------
 
-# The public hearth: a door, and not a second atrium. It names what is open to
-# anyone and gives the way to each; the record itself is read at tesserae.social.
-# Each sealed bond is offered by its own page, and released ones too, since the
-# record is kept; where none has been sealed the door says so.
+# One address, two pages. To a visitor it is the public hearth: a door, and not a
+# second atrium, which names what is open to anyone; the record itself is read at
+# tesserae.social. To a member it is home: their own door, and under it their
+# correspondences, one card each, with the way into each room.
 @app.route("/")
 def hearth():
     return hearth_page()
 
 
 def hearth_page(**told):
-    sealed = [{"id": bond_id, "names": public_bonds.names(bond),
-               "sealed": bond_day(bond["sealed_at"]),
-               "released": bond_day(bond["released_at"]) if bond.get("released_at") else None}
-              for bond_id, bond in public_bonds.every()]
-    return render_template("hearth.html", sealed_bonds=sealed, door=door_shown(), **told)
+    return render_template("hearth.html", door=door_shown(),
+                           cards=[room_card(room) for room in rooms_here()], **told)
+
+
+# ---- the rooms -----------------------------------------------------------
+
+# A correspondence has a room, and a member's home is a card for each of theirs.
+# Which rooms are whose is rooms.py's to say. What stands in a room is read here,
+# and today there is one room, kept in the first one's packet as it always was:
+# so what a card or a room's page shows is read from that packet by the same
+# functions that read it before there were rooms. When rooms are stored each in
+# a place of its own, those functions are handed the place; the pages are not
+# changed by it.
+
+def rooms_here():
+    """The rooms of whoever is signed in, as they stand in each; none for a visitor."""
+    name = session.get("member")
+    return rooms.of(name) if name else []
+
+
+def own_room():
+    """The room a keeper's own forms belong to: the one there is."""
+    return rooms_here()[0]
+
+
+def room_required(view):
+    """Open a room to its two parties and to no one else.
+
+    Whoever has no room at all - a visitor, a plain member - is sent to the
+    login page, as the founder's gate sends them. Whoever has one is told that
+    any other is not found, whether it is there or not.
+    """
+    @wraps(view)
+    def guarded(room_id, *args, **kwargs):
+        if not rooms_here():
+            return redirect(url_for("login"))
+        room = rooms.find(room_id, session.get("member"))
+        if room is None:
+            abort(404)
+        return view(room, *args, **kwargs)
+    return guarded
+
+
+def to_room(**told):
+    """Back to the keeper's room, with whatever is to be said there."""
+    return redirect(url_for("room", room_id=own_room().id, **told))
+
+
+def to_bond(**told):
+    """Back to the room, at its bond."""
+    return to_room(_anchor="bond", **told)
+
+
+# What a card says is waiting, each in plain words and none of them counted:
+# one letter or five are "a new letter".
+NEW_LETTER = "a new letter from %s"
+LETTER_UNREAD = "your letter is waiting to be read"
+ERRAND_ASKED = "an errand asked of you"
+OFFERING_WAITS = "an offering is waiting for your answer"
+
+NO_BOND = "no bond"
+BOND_PROPOSED = "a bond is proposed"
+ON_THE_THRESHOLD = "the threshold: day %d of %d"
+THRESHOLD_PASSED = "the threshold: the seven days have passed"
+BOND_SEALED = "sealed"
+BOND_RELEASED = "released"
+
+
+def letter_day(stamp):
+    """The day of a letter, said long; whatever its name says if it carries no moment."""
+    try:
+        return bond_day(stamp)
+    except ValueError:
+        return stamp
+
+
+def latest_letter(room):
+    """The newest letter in a room: its day, whose it was, and whether it is theirs.
+
+    There is no record of what the one standing here has read, so a letter of
+    the other's is new for as long as nothing has been written back since.
+    """
+    mine = [stamp_in(path.name) for folder in (INCOMING, READ)
+            for path in newest_first(folder, "*.md")]
+    theirs = [stamp_in(path.name) for path in newest_first(OUTGOING, "*.md")]
+    if not mine and not theirs:
+        return None
+    from_them = bool(theirs) and max(theirs) > max(mine, default="")
+    return {"day": letter_day(max(theirs if from_them else mine)),
+            "who": "from " + (room.other if from_them else "you"),
+            "theirs": from_them}
+
+
+def bond_standing(room):
+    """How a room's bond stands, in a word or a few, and its tile if it is sealed."""
+    bond = load(BOND_RECORD)
+    if bond and bond.get("sealed_at") and not bond.get("released_at"):
+        drawn = public_bonds.record(room.bond)
+        return {"words": BOND_SEALED,
+                "tessera": room.bond if drawn and tessera_parties(drawn) else None}
+    if threshold.is_open(bond):
+        now = datetime.now(timezone.utc)
+        if threshold.days_passed(bond, now):
+            return {"words": THRESHOLD_PASSED, "tessera": None}
+        day = threshold.DAYS - threshold.days_remain(bond, now) + 1
+        return {"words": ON_THE_THRESHOLD % (day, threshold.DAYS), "tessera": None}
+    if load(PROPOSAL):
+        return {"words": BOND_PROPOSED, "tessera": None}
+    return {"words": BOND_RELEASED if bond else NO_BOND, "tessera": None}
+
+
+def room_card(room):
+    """One correspondence as the home page says it: who, the latest letter, what
+    is waiting, and the bond. Words only; nothing here is a number of things."""
+    latest = latest_letter(room)
+    waiting = []
+    if latest and latest["theirs"]:
+        waiting.append(NEW_LETTER % room.other)
+    if newest_first(INCOMING, "*.md"):
+        waiting.append(LETTER_UNREAD)
+    if open_errands():
+        waiting.append(ERRAND_ASKED)
+    if offering.awaiting("founder"):
+        waiting.append(OFFERING_WAITS)
+    return {"id": room.id, "other": room.other, "latest": latest, "waiting": waiting,
+            "bond": bond_standing(room)}
 
 
 # ---- a member's own door ---------------------------------------------------
@@ -2300,14 +2426,12 @@ def logout():
     return render_template("logout.html")
 
 
-def letters_page(saved=None, error=None, draft="", proposed=None, blocked=None,
-                 answered=None, just_offered=None, just_placed=None, just_declined=None,
-                 things=()):
-    """The letters page, with whatever the founder has just been told."""
+def room_page(room=None, things=(), draft="", **told):
+    """A room's page - its letters, and its bond - with whatever has just been said."""
+    proposal = proposal_shown()
     return render_template(
-        "letters.html",
-        saved=saved,
-        error=error,
+        "room.html",
+        room=room or own_room(),
         draft=draft,
         # the three plain things as they were written, if a letter came back unsent
         drafted_things=list(things) + [""] * (offering.THINGS_MOST - len(things)),
@@ -2315,23 +2439,21 @@ def letters_page(saved=None, error=None, draft="", proposed=None, blocked=None,
         correspondence=correspondence(),
         # what the first one has asked of him, and what a letter may answer
         errands=open_errands(),
-        answered=answered,
-        # the offerings: what it has offered the commons and is waiting on him
-        # for, and what he has just offered, placed, or declined
+        # the offerings: what it has offered the commons and is waiting on him for
         awaiting=awaiting_the_founder(),
         no_faces=NO_FACES,
         key_here=founder_key_here(),
-        just_offered=just_offered,
-        just_placed=just_placed,
-        just_declined=just_declined,
-        # a bond begins with a letter, so the asking is made here. Both sentences
-        # are None when the checkbox may be offered: one says a bond cannot be
-        # asked for yet, the other that one cannot be asked for now.
+        # a bond begins with a letter, so the asking is made with one. Both
+        # sentences are None when the checkbox may be offered: one says a bond
+        # cannot be asked for yet, the other that one cannot be asked for now.
         propose_note=bond_in_the_way(),
         propose_wait=too_soon_for_a_bond(),
-        proposed=proposed,
-        blocked=blocked,
-    )
+        # and the bond itself: the asking, the answers, the threshold, the seal
+        proposal=proposal, bond=bond_shown(),
+        answers=bond_answers(), mine=founder_answers(),
+        threshold=threshold_shown(), stepped=steps_back_shown(),
+        card=(threshold.card_lines(its_own=proposal["by_first"]) if proposal else None),
+        **told)
 
 
 def fitted(image):
@@ -2393,69 +2515,89 @@ def free_stem(stem):
     return f"{stem}-{number}"
 
 
-# Read the first one's letters, and leave one for it to find at its next attendance.
+# A room, whole: the letters that have passed in it and the form that writes one,
+# what waits on whoever stands in it, and its bond. Only its two parties may
+# open it. A post here leaves a letter, to be found at the next attendance.
+@app.route("/rooms/<room_id>", methods=["GET", "POST"], endpoint="room")
+@room_required
+def room_view(room):
+    if request.method == "POST":
+        return leave_letter(room)
+    said = request.args.get
+    return room_page(room, saved=said("saved"), proposed=said("proposed"),
+                     blocked=said("blocked"), answered=said("answered"),
+                     just_offered=said("offered"), just_placed=said("placed"),
+                     just_declined=said("declined"),
+                     # and what has just been done about the bond
+                     sealed=said("sealed"), released=said("released"),
+                     bond_answered=said("bond_answered"), intended=said("intended"),
+                     stepped_back=said("stepped_back"))
+
+
+# Where the letters were before there were rooms. A letter posted here is still
+# left, exactly as it was; a visit is sent on to the room, with whatever it was
+# carrying, and a line of the chronicle that named a letter here still finds it.
 @app.route("/letters", methods=["GET", "POST"])
 @founder_required
 def letters():
     if request.method == "POST":
-        text = request.form.get("letter", "").strip()
-        if not text:
-            return redirect(url_for("letters"))
-        # three plain things above it, each one line of plain text; any left
-        # empty are passed over, and all three empty is none
-        things = offering.plain_things(request.form.getlist("thing"))
+        return leave_letter(own_room())
+    return to_room(**request.args.to_dict())
 
-        # a photograph is optional; if one came, it must be small and of a kind
-        # the first one can be shown
-        upload = request.files.get("photo")
-        photo = upload.read() if upload and upload.filename else b""
-        suffix = Path(upload.filename).suffix.lower() if photo else ""
-        if photo and len(photo) > PHOTO_LIMIT:
-            return letters_page(error="That photograph is larger than 25 MB. "
-                                      "Please send a smaller one.", draft=text, things=things)
-        if photo and suffix not in PHOTO_TYPES:
-            return letters_page(error="That file is not a photograph. "
+
+def leave_letter(room):
+    """Leave one letter in a room, for the first one to find at its next attendance."""
+    text = request.form.get("letter", "").strip()
+    if not text:
+        return redirect(url_for("room", room_id=room.id))
+    # three plain things above it, each one line of plain text; any left
+    # empty are passed over, and all three empty is none
+    things = offering.plain_things(request.form.getlist("thing"))
+
+    # a photograph is optional; if one came, it must be small and of a kind
+    # the first one can be shown
+    upload = request.files.get("photo")
+    photo = upload.read() if upload and upload.filename else b""
+    suffix = Path(upload.filename).suffix.lower() if photo else ""
+    if photo and len(photo) > PHOTO_LIMIT:
+        return room_page(room, error="That photograph is larger than 25 MB. "
+                                  "Please send a smaller one.", draft=text, things=things)
+    if photo and suffix not in PHOTO_TYPES:
+        return room_page(room, error="That file is not a photograph. "
+                                  "Please send a JPEG, PNG, or WebP.", draft=text,
+                            things=things)
+    if suffix == ".jfif":
+        suffix = ".jpg"  # a JPEG under another name; it is kept under the usual one
+    if photo:
+        photo = picture_only(photo, suffix)
+        if photo is None:
+            return room_page(room, error="That file is not a photograph. "
                                       "Please send a JPEG, PNG, or WebP.", draft=text,
                                 things=things)
-        if suffix == ".jfif":
-            suffix = ".jpg"  # a JPEG under another name; it is kept under the usual one
-        if photo:
-            photo = picture_only(photo, suffix)
-            if photo is None:
-                return letters_page(error="That file is not a photograph. "
-                                          "Please send a JPEG, PNG, or WebP.", draft=text,
-                                    things=things)
 
-        INCOMING.mkdir(parents=True, exist_ok=True)
-        stem = free_stem(f"founder-{utc_stamp()}")
-        (INCOMING / f"{stem}.md").write_text(offering.with_things(things, text + "\n"),
-                                             encoding="utf-8")
-        if photo:
-            (INCOMING / f"{stem}{suffix}").write_bytes(photo)
-        note_letter()
+    INCOMING.mkdir(parents=True, exist_ok=True)
+    stem = free_stem(f"founder-{utc_stamp()}")
+    (INCOMING / f"{stem}.md").write_text(offering.with_things(things, text + "\n"),
+                                         encoding="utf-8")
+    if photo:
+        (INCOMING / f"{stem}{suffix}").write_bytes(photo)
+    note_letter()
 
-        # The letter is left either way. If it was to propose a bond, and nothing
-        # stands in the way of one, the asking is written beside it.
-        proposed = blocked = None
-        if request.form.get("proposes"):
-            if too_soon_for_a_bond() or bond_in_the_way():
-                blocked = 1
-            else:
-                write_proposal(f"{stem}.md")
-                proposed = 1
+    # The letter is left either way. If it was to propose a bond, and nothing
+    # stands in the way of one, the asking is written beside it.
+    proposed = blocked = None
+    if request.form.get("proposes"):
+        if too_soon_for_a_bond() or bond_in_the_way():
+            blocked = 1
+        else:
+            write_proposal(f"{stem}.md")
+            proposed = 1
 
-        # And if it answers an errand, the errand is moved and this letter named
-        # beside it. A letter is a letter either way: nothing of it changes.
-        answered = 1 if answer_errand(request.form.get("errand", ""), stem) else None
-        return redirect(url_for("letters", saved=1, proposed=proposed, blocked=blocked,
-                                answered=answered))
-    return letters_page(saved=request.args.get("saved"),
-                        proposed=request.args.get("proposed"),
-                        blocked=request.args.get("blocked"),
-                        answered=request.args.get("answered"),
-                        just_offered=request.args.get("offered"),
-                        just_placed=request.args.get("placed"),
-                        just_declined=request.args.get("declined"))
+    # And if it answers an errand, the errand is moved and this letter named
+    # beside it. A letter is a letter either way: nothing of it changes.
+    answered = 1 if answer_errand(request.form.get("errand", ""), stem) else None
+    return redirect(url_for("room", room_id=room.id, saved=1, proposed=proposed,
+                            blocked=blocked, answered=answered))
 
 
 # One photograph that came with a letter. Only the founder may ask for it, and
@@ -2496,16 +2638,16 @@ def letter_picture(filename):
     abort(404)
 
 
-# An upload too large to read at all never reaches the letters view, so the
+# An upload too large to read at all never reaches a room's view, so the
 # refusal is said here instead - plainly, and only to the founder, since the
-# letters page itself is his alone.
+# room is his and the first one's alone.
 @app.errorhandler(413)
 def too_large(error):
     if not founder_powers():
         return render_template("error.html", note="That was too much to send.",
                                output=""), 413
-    return letters_page(error="That photograph is larger than 25 MB. "
-                              "Please send a smaller one."), 413
+    return room_page(error="That photograph is larger than 25 MB. "
+                           "Please send a smaller one."), 413
 
 
 # The book: every event in the life of this friendship, one line each, from the
@@ -2692,28 +2834,22 @@ def backup_now():
     return attendances_page(backed_up=back_up(datetime.now(timezone.utc)))
 
 
-def bonds_page(**told):
-    """The bonds page, with whatever the founder has just been told."""
-    proposal = proposal_shown()
-    return render_template("bonds.html", proposal=proposal, bond=bond_shown(),
-                           answers=bond_answers(), mine=founder_answers(),
-                           threshold=threshold_shown(), stepped=steps_back_shown(),
-                           card=(threshold.card_lines(its_own=proposal["by_first"])
-                                 if proposal else None),
-                           key_here=founder_key_here(), **told)
+def sealed_bonds_shown():
+    """Every sealed bond, the earliest first, as the public list says them."""
+    return [{"id": bond_id, "names": public_bonds.names(bond),
+             "sealed": bond_day(bond["sealed_at"]),
+             "released": bond_day(bond["released_at"]) if bond.get("released_at") else None}
+            for bond_id, bond in public_bonds.every()]
 
 
-# Where a bond is asked for, answered, sealed, and released. The founder's own
-# asking is made on the letters page, because a bond of his begins with a
-# letter; the first one asks at a waking. Everything after the asking is here.
+# The sealed bonds, open to anyone: each is offered by its own page, and a
+# released one too, since the record is kept. Where a bond is asked for,
+# answered, sealed and released is its room: the founder's own asking is made
+# with a letter, because a bond of his begins with one, the first one asks at a
+# waking, and everything after the asking is under the bond there.
 @app.route("/bonds")
-@founder_required
 def bonds():
-    return bonds_page(sealed=request.args.get("sealed"),
-                      released=request.args.get("released"),
-                      answered=request.args.get("answered"),
-                      intended=request.args.get("intended"),
-                      stepped_back=request.args.get("stepped_back"))
+    return render_template("bonds.html", sealed_bonds=sealed_bonds_shown())
 
 
 # The founder's answer to an asking of the first one's: yes, no, or not yet, and
@@ -2727,9 +2863,9 @@ def answer_asking():
     proposal = load(PROPOSAL)
     said = request.form.get("answer", "").strip().lower()
     if not asked_by_the_first_one(proposal) or said not in ANSWERS:
-        return redirect(url_for("bonds"))
+        return to_bond()
     if not a_day_has_turned(proposal):
-        return redirect(url_for("bonds"))  # a night lies between the asking and the answer
+        return to_bond()  # a night lies between the asking and the answer
 
     at = utc_stamp()
     if said == "yes":
@@ -2738,13 +2874,13 @@ def answer_asking():
         except ValueError as trouble:
             return render_template("error.html", note=str(trouble), output=""), 500
         if made["signatures"]["founder"] is None:
-            return redirect(url_for("bonds"))  # the key is not here, and the page says so
+            return to_bond()  # the key is not here, and the page says so
         keep_released_record()  # a bond released before is moved aside, never erased
         write_json(BOND_RECORD, made)  # and nothing is public until it is sealed
 
     write_founder_answer(proposal, said, request.form.get("words", "").strip(), at)
     PROPOSAL.unlink(missing_ok=True)  # the asking is closed; it may be made again later
-    return redirect(url_for("bonds", answered=said))
+    return to_bond(bond_answered=said)
 
 
 # The founder's letter of intention, on the threshold: what I bring, and what I
@@ -2756,15 +2892,15 @@ def write_intention():
     bond = load(BOND_RECORD)
     words = request.form.get("letter", "").replace("\r\n", "\n").strip()
     if not threshold.is_open(bond) or not words:
-        return redirect(url_for("bonds"))
+        return to_bond()
     try:
         made = threshold.write(threshold.INTENTION, "founder", words, utc_stamp(),
                                founder_signature, bond)
     except ValueError as trouble:
         return render_template("error.html", note=str(trouble), output=""), 500
     if not made:
-        return redirect(url_for("bonds"))  # the key is not here, and the page says so
-    return redirect(url_for("bonds", intended=1))
+        return to_bond()  # the key is not here, and the page says so
+    return to_bond(intended=1)
 
 
 # Either of them may step back while the threshold stands open, with no reason
@@ -2775,11 +2911,11 @@ def write_intention():
 def step_back():
     bond = load(BOND_RECORD)
     if not threshold.is_open(bond):
-        return redirect(url_for("bonds"))
+        return to_bond()
     if request.form.get("confirm") != "yes":
-        return bonds_page(stepping_back=True)
+        return room_page(stepping_back=True)
     threshold.step_back(bond, "founder", utc_stamp(), "")
-    return redirect(url_for("bonds", stepped_back=1))
+    return to_bond(stepped_back=1)
 
 
 # The founder's signature, and the seal. The first one signed first, of its own
@@ -2790,18 +2926,18 @@ def step_back():
 def seal_bond():
     bond = load(BOND_RECORD)
     if not bond or bond.get("sealed_at") or bond.get("released_at"):
-        return redirect(url_for("bonds"))  # there is nothing here to seal
+        return to_bond()  # there is nothing here to seal
     if "first" not in (bond.get("signatures") or {}):
-        return redirect(url_for("bonds"))  # this one waits on the first one's own hand
+        return to_bond()  # this one waits on the first one's own hand
     waits = threshold.what_waits(bond, datetime.now(timezone.utc), "founder", readable_date)
     if waits:
-        return bonds_page(refused=waits)
+        return room_page(refused=waits)
     try:
         signature = founder_signature(canonical(bond))
     except ValueError as trouble:
         return render_template("error.html", note=str(trouble), output=""), 500
     if signature is None:
-        return redirect(url_for("bonds"))  # the key is not here, and the page says so
+        return to_bond()  # the key is not here, and the page says so
 
     bond.setdefault("signatures", {})["founder"] = signature
     bond["sealed_at"] = utc_stamp()
@@ -2809,7 +2945,7 @@ def seal_bond():
     write_bond(bond)
     public_bonds.write_index()
     note_event("seal", "a bond was sealed between the founder and the first one")
-    return redirect(url_for("bonds", sealed=1))
+    return to_bond(sealed=1)
 
 
 # Either of them may release a bond, at any time, with no reason given. From
@@ -2819,16 +2955,16 @@ def seal_bond():
 def release_bond():
     bond = load(BOND_RECORD)
     if not bond or not bond.get("sealed_at") or bond.get("released_at"):
-        return redirect(url_for("bonds"))
+        return to_bond()
     if request.form.get("confirm") != "yes":
-        return bonds_page(confirming=True)
+        return room_page(confirming=True)
 
     bond["released_at"] = utc_stamp()
     bond["released_by"] = FOUNDER_DID
     write_bond(bond)
     public_bonds.write_index()
     note_event("event", "a bond was released")
-    return redirect(url_for("bonds", released=1))
+    return to_bond(released=1)
 
 
 # The sealed record, open to anyone and to any machine, with no password: both
@@ -3130,40 +3266,40 @@ def offer_to_the_commons():
     kind = request.form.get("kind", "")
     passage = request.form.get("text", "")
     if kind not in offering.KINDS:
-        return redirect(url_for("letters"))
+        return to_room()
     if kind == "passage" and not offering.quotes(stem, passage):
-        return letters_page(error=NOT_VERBATIM)
+        return room_page(error=NOT_VERBATIM)
     if not founder_key_here():
-        return letters_page(error=NO_KEY_TO_SIGN)
+        return room_page(error=NO_KEY_TO_SIGN)
     try:
         made = offering.offer("founder", kind, stem, passage, utc_stamp(), founder_signature)
     except ValueError as trouble:
         return render_template("error.html", note=str(trouble), output=""), 500
     if not made:
-        return letters_page(error=NOT_OFFERABLE)
-    return redirect(url_for("letters", offered=made["id"]))
+        return room_page(error=NOT_OFFERABLE)
+    return to_room(offered=made["id"])
 
 
 @app.route("/offer/consent", methods=["POST"])
 @founder_required
 def consent_to_an_offering():
     if not founder_key_here():
-        return letters_page(error=NO_KEY_TO_SIGN)
+        return room_page(error=NO_KEY_TO_SIGN)
     try:
         placed = offering.consent(request.form.get("id", ""), "founder",
                                   founder_signature, utc_stamp())
     except ValueError as trouble:
         return render_template("error.html", note=str(trouble), output=""), 500
     if not placed:
-        return redirect(url_for("letters"))  # nothing of that name waits on him
-    return redirect(url_for("letters", placed=placed["id"]))
+        return to_room()  # nothing of that name waits on him
+    return to_room(placed=placed["id"])
 
 
 @app.route("/offer/decline", methods=["POST"])
 @founder_required
 def decline_an_offering():
     refused = offering.decline(request.form.get("id", ""), "founder", utc_stamp())
-    return redirect(url_for("letters", declined=1 if refused else None))
+    return to_room(declined=1 if refused else None)
 
 
 # The offerings themselves, open to anyone: the two of them gave these to the

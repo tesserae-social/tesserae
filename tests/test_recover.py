@@ -128,8 +128,8 @@ def test_the_recover_form_carries_the_token(visitor):
 
 def test_the_right_words_and_a_new_password_sign_the_keeper_in(people, visitor):
     answer = recover(visitor, KEEPER, people.phrases[KEEPER])
-    assert answer.status_code == 302 and answer.headers["Location"].endswith("/letters")
-    assert visitor.get("/letters").status_code == 200
+    assert answer.status_code == 302 and answer.headers["Location"] == "/"
+    assert visitor.get("/rooms/first").status_code == 200
     with visitor.session_transaction() as held:
         assert set(held) == {"member", "role", "seal", "csrf_token", "_permanent"}
         assert held["member"] == KEEPER and held["role"] == "keeper"
@@ -185,7 +185,7 @@ def test_recovering_clears_whatever_session_was_there(people, visitor):
 def test_a_session_from_before_the_recovery_loses_the_gate(people, hearth):
     left_open = hearth.app.test_client()
     assert sign_in(left_open, KEEPER, KEEPER_PASSWORD).status_code == 302
-    assert left_open.get("/letters").status_code == 200
+    assert left_open.get("/rooms/first").status_code == 200
 
     assert recover(hearth.app.test_client(), KEEPER, people.phrases[KEEPER]).status_code == 302
 
@@ -198,18 +198,18 @@ def test_a_session_from_before_the_recovery_loses_the_gate(people, hearth):
 def test_a_member_s_session_from_before_the_recovery_is_cleared(people, hearth):
     left_open = hearth.app.test_client()
     assert sign_in(left_open, MEMBER, MEMBER_PASSWORD).status_code == 302
-    assert "You are logged in" in page(left_open.get("/"))
+    assert "your correspondences" in page(left_open.get("/"))
 
     assert recover(hearth.app.test_client(), MEMBER, people.phrases[MEMBER]).status_code == 302
 
-    assert "You are logged in" not in page(left_open.get("/"))
+    assert "your correspondences" not in page(left_open.get("/"))
     with left_open.session_transaction() as held:
         assert dict(held) == {}
 
 
 def test_the_member_s_recovering_session_stays_signed_in(people, visitor):
     recover(visitor, MEMBER, people.phrases[MEMBER])
-    assert "You are logged in" in page(visitor.get("/"))
+    assert "your correspondences" in page(visitor.get("/"))
     with visitor.session_transaction() as held:
         assert held["member"] == MEMBER
 
@@ -227,7 +227,7 @@ def test_a_stale_session_s_form_is_refused_before_it_reaches_a_page(people, hear
 
 def test_the_recovering_session_keeps_the_gate(people, visitor):
     recover(visitor, KEEPER, people.phrases[KEEPER])
-    assert visitor.get("/letters").status_code == 200
+    assert visitor.get("/rooms/first").status_code == 200
     assert visitor.get("/chronicle").status_code == 200
 
 
@@ -256,7 +256,7 @@ def test_a_keeper_session_with_a_wrong_fingerprint_is_signed_out(people, visitor
 
 def test_the_founder_s_password_session_is_not_touched(people, founder, hearth):
     recover(hearth.app.test_client(), KEEPER, people.phrases[KEEPER])
-    assert founder.get("/letters").status_code == 200
+    assert founder.get("/rooms/first").status_code == 200
 
 
 # ---- refusals ------------------------------------------------------------

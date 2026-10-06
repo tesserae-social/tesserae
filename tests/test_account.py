@@ -141,7 +141,7 @@ def test_the_nav_names_the_account_to_a_member(member):
 
 
 def test_the_nav_names_the_account_to_the_keeper(keeper):
-    text = page(keeper.get("/letters"))
+    text = page(keeper.get("/rooms/first"))
     assert '<a href="/account">account</a>' in text and 'href="/export"' in text
 
 
@@ -181,7 +181,7 @@ def test_the_key_is_unchanged(member, data_dir):
 def test_this_session_stays_signed_in_by_the_new_seal(member, data_dir):
     change(member, MEMBER_PASSWORD)
     assert still_member(member, MEMBER)
-    assert "You are logged in" in page(member.get("/"))
+    assert "your correspondences" in page(member.get("/"))
     with member.session_transaction() as held:
         assert held["seal"] == vault.fingerprint(record_of(data_dir, MEMBER)["vault"])
     assert member.get("/account").status_code == 200
@@ -198,7 +198,7 @@ def test_the_token_is_cut_afresh_and_the_new_one_works(member):
 def test_a_second_session_is_signed_out_at_its_next_request(member, people):
     elsewhere = signed_in(people, MEMBER, MEMBER_PASSWORD)
     said(change(member, MEMBER_PASSWORD), CHANGED)
-    assert "You are logged in" not in page(elsewhere.get("/"))
+    assert "your correspondences" not in page(elsewhere.get("/"))
     with elsewhere.session_transaction() as held:
         assert dict(held) == {}
     assert still_member(member, MEMBER)
@@ -207,13 +207,13 @@ def test_a_second_session_is_signed_out_at_its_next_request(member, people):
 def test_the_keeper_keeps_the_gate_and_another_keeper_session_loses_it(keeper, people):
     elsewhere = signed_in(people, KEEPER, KEEPER_PASSWORD)
     said(change(keeper, KEEPER_PASSWORD), CHANGED)
-    assert keeper.get("/letters").status_code == 200
-    assert to_login(elsewhere.get("/letters"))
+    assert keeper.get("/rooms/first").status_code == 200
+    assert to_login(elsewhere.get("/rooms/first"))
 
 
 def test_the_founder_s_password_session_is_not_touched(keeper, founder):
     change(keeper, KEEPER_PASSWORD)
-    assert founder.get("/letters").status_code == 200
+    assert founder.get("/rooms/first").status_code == 200
 
 
 # ---- refusals ------------------------------------------------------------

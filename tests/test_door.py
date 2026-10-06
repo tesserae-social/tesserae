@@ -323,7 +323,7 @@ def test_a_visitor_is_shown_no_door(visitor):
 
 def test_the_founders_home_page_says_his_door_in_one_plain_line(founder):
     said = page(founder.get("/"))
-    assert said.index('<section class="door">') < said.index("open to anyone")  # at the top
+    assert said.index('<section class="door">') < said.index("your correspondences")  # at the top
     assert door_line(founder) == "Your door is closed; room not declared."
 
     assert post(founder, "/door", data={"state": "open"}).status_code == 302
@@ -442,7 +442,7 @@ def test_a_member_sets_their_own_door_whatever_the_form_names(member, founder, d
 
 def test_a_plain_member_gains_nothing_else_by_having_a_door(member):
     post(member, "/door", data={"state": "open"})
-    for path in ("/letters", "/attendances", "/bonds", "/chronicle", "/self", "/export"):
+    for path in ("/letters", "/rooms/first", "/attendances", "/chronicle", "/self", "/export"):
         answer = member.get(path)
         assert answer.status_code == 302 and answer.headers["Location"].endswith("/login"), path
 

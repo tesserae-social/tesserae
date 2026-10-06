@@ -135,7 +135,7 @@ def test_the_first_one_offers_and_the_founder_places_it(founder, wake, packet, c
     assert waiting["text"] == words
     assert list(waiting["signatures"]) == ["first"]
 
-    said_page = page(founder.get("/letters"))
+    said_page = page(founder.get("/rooms/first"))
     assert "offered, awaiting you" in said_page
     assert waiting["id"] in said_page
 
@@ -226,7 +226,7 @@ def test_the_first_one_declines_what_the_founder_offered(founder, wake, packet, 
     assert not pending(packet) and not placed(packet)
     assert (packet / "offerings" / ("declined-%s.json" % one["id"])).exists()
     assert not (commons / "offerings.md").exists()
-    assert "offered, awaiting you" not in page(founder.get("/letters"))
+    assert "offered, awaiting you" not in page(founder.get("/rooms/first"))
 
 
 def test_the_first_one_is_told_what_was_declined_and_what_was_placed(wake, founder, packet,
@@ -344,7 +344,7 @@ def test_an_offering_is_answered_once(founder, wake, packet):
 
 def test_every_letter_carries_the_way_to_offer_it(founder, packet, hearth):
     a_correspondence(packet)
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert said.count("offer to the commons") == 2      # one under each letter
     assert said.count('name="kind" value="letter"') == 2
     assert said.count('name="kind" value="photo"') == 1
@@ -357,7 +357,7 @@ def test_every_letter_carries_the_way_to_offer_it(founder, packet, hearth):
 def test_what_is_already_offered_is_not_offered_twice(founder, packet):
     a_correspondence(packet)
     offer(founder, "letter", HIS)
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert "The whole letter: already offered." in said
     assert said.count('name="kind" value="letter"') == 1  # hers, which is not offered
 
@@ -365,7 +365,7 @@ def test_what_is_already_offered_is_not_offered_twice(founder, packet):
 def test_the_awaiting_section_shows_what_it_offered(founder, wake, packet):
     a_correspondence(packet)
     wake(block("OFFER", "offer passage %s\n%s" % (HIS, PASSAGE)))
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert "offered, awaiting you" in said
     assert said.index("offered, awaiting you") < said.index("write to the first one")
     assert PASSAGE in said
@@ -376,15 +376,15 @@ def test_the_awaiting_section_shows_what_it_offered(founder, wake, packet):
 def test_an_offered_picture_is_shown_to_the_founder_before_he_signs(founder, wake, packet):
     a_correspondence(packet)
     wake(block("OFFER", "offer picture %s" % HERS))
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert "/letters/picture/%s.svg" % HERS in said
     wake(block("OFFER", "offer photo %s" % HIS))
-    assert "/letters/photo/%s.jpg" % HIS in page(founder.get("/letters"))
+    assert "/letters/photo/%s.jpg" % HIS in page(founder.get("/rooms/first"))
 
 
 def test_with_nothing_offered_there_is_no_section(founder, packet):
     a_correspondence(packet)
-    assert "offered, awaiting you" not in page(founder.get("/letters"))
+    assert "offered, awaiting you" not in page(founder.get("/rooms/first"))
 
 
 def test_nothing_can_be_signed_without_the_founder_s_key(founder, packet, monkeypatch, hearth):

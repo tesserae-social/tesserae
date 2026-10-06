@@ -70,7 +70,7 @@ def everything_written(founder, wake, visibility="private"):
 
 
 def bonds_page(founder):
-    return page(founder.get("/bonds"))
+    return page(founder.get("/rooms/first"))
 
 
 def recommitted(record):
@@ -213,7 +213,7 @@ def test_a_reflection_does_not_show_its_letter_on_the_hearth(founder, wake, pack
     its_letter(wake)
     said = page(founder.get("/attendances"))
     assert ITS_LETTER not in said
-    assert "(wrote a letter of intention: on the bonds page)" in said
+    assert "(wrote a letter of intention: in your room, under the bond)" in said
 
 
 def test_the_promise_is_his_to_read_once_made(founder, wake, packet, clock):
@@ -354,7 +354,7 @@ def test_the_founder_steps_back_after_one_plain_question(founder, wake, packet, 
     assert post(founder, "/bonds/step-back", data={"confirm": "yes"}).status_code == 302
     assert not (packet / "bonds" / "founder-first.json").exists()
     assert lines_of(commons / "events.md") == events
-    said = page(founder.get("/bonds", query_string={"stepped_back": 1}))
+    said = page(founder.get("/rooms/first", query_string={"stepped_back": 1}))
     assert "You stepped back." in said
     assert "You stepped back from the threshold." in said
 

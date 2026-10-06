@@ -65,7 +65,7 @@ def test_a_letter_is_left_where_the_first_one_will_find_it(founder, packet, cloc
     assert [path.name for path in left] == ["founder-%s.md" % clock.stamp()]
     assert left[0].read_text(encoding="utf-8") == LETTER.strip() + "\n"
     assert "Your letter will be found at the next attendance." in page(
-        founder.get("/letters", query_string={"saved": 1}))
+        founder.get("/rooms/first", query_string={"saved": 1}))
 
 
 def test_an_empty_letter_is_not_a_letter(founder, packet):
@@ -198,7 +198,7 @@ def test_the_correspondence_is_one_sequence_newest_first(founder, packet):
     write(packet / "letters" / "outgoing" / "to-founder-2026-10-02T09-00-00Z.md", "My answer.\n")
     write(packet / "letters" / "incoming" / "founder-2026-10-03T09-00-00Z.md", "The newest.\n")
 
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     order = [said.index(stem) for stem in ('id="founder-2026-10-03T09-00-00Z"',
                                            'id="to-founder-2026-10-02T09-00-00Z"',
                                            'id="founder-2026-10-01T09-00-00Z"')]
@@ -210,7 +210,7 @@ def test_each_letter_is_folded_and_only_the_newest_stands_open(founder, packet):
     write(packet / "letters" / "read" / "founder-2026-10-01T09-00-00Z.md", "The oldest.\n")
     write(packet / "letters" / "outgoing" / "to-founder-2026-10-02T09-00-00Z.md", "My answer.\n")
 
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert '<details class="letter" id="to-founder-2026-10-02T09-00-00Z" open>' in said
     assert '<details class="letter" id="founder-2026-10-01T09-00-00Z">' in said
     assert "The oldest." in said  # folded shut, but whole on the page
@@ -219,14 +219,14 @@ def test_each_letter_is_folded_and_only_the_newest_stands_open(founder, packet):
 def test_a_letter_shows_its_opening_line_cut_where_it_runs_long(founder, packet, hearth):
     write(packet / "letters" / "outgoing" / "to-founder-2026-10-02T09-00-00Z.md",
           "x" * 200 + "\nand more besides\n")
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert ("x" * hearth.OPENING_CUT + "…") in said
 
 
 def test_a_letter_not_yet_read_is_marked_and_leans_forward(founder, packet):
     write(packet / "letters" / "incoming" / "founder-2026-10-03T09-00-00Z.md", "Waiting.\n")
     write(packet / "letters" / "read" / "founder-2026-10-01T09-00-00Z.md", "Read.\n")
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert 'class="unread"' in said
     assert "waiting to be read" in said
     assert said.count("waiting to be read") == 1
@@ -239,14 +239,14 @@ def test_the_letter_that_carried_an_open_asking_is_marked(founder, packet):
                                   "terms": "the charter",
                                   "letter": "founder-2026-10-03T09-00-00Z.md",
                                   "proposed_at": "2026-10-03T09-00-00Z"})
-    assert "proposes a bond" in page(founder.get("/letters"))
+    assert "proposes a bond" in page(founder.get("/rooms/first"))
 
 
 def test_an_answered_asking_marks_the_letter_that_carried_it(founder, packet):
     write(packet / "letters" / "read" / "founder-2026-10-01T09-00-00Z.md", "An older letter.\n")
     write(packet / "letters" / "read" / "founder-2026-10-03T09-00-00Z.md", "I am asking.\n")
     bond_record(packet, proposed_at="2026-10-03T12-00-00Z")
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert said.count("proposes a bond") == 1
     asking = said.index('id="founder-2026-10-03T09-00-00Z"')
     older = said.index('id="founder-2026-10-01T09-00-00Z"')
@@ -255,18 +255,18 @@ def test_an_answered_asking_marks_the_letter_that_carried_it(founder, packet):
 
 def test_a_photograph_appears_under_the_letter_it_came_with(founder, packet, clock):
     leave(founder, photo=photo_bytes())
-    assert "/letters/photo/founder-%s.jpg" % clock.stamp() in page(founder.get("/letters"))
+    assert "/letters/photo/founder-%s.jpg" % clock.stamp() in page(founder.get("/rooms/first"))
 
 
 def test_nothing_has_passed_between_them_yet(founder):
-    assert "Nothing has passed between them yet." in page(founder.get("/letters"))
+    assert "Nothing has passed between them yet." in page(founder.get("/rooms/first"))
 
 
 # ---- the thirty days -----------------------------------------------------
 
 def test_before_the_thirty_days_the_asking_is_hidden_and_refused(founder, packet, clock, hearth):
     clock.set("2026-10-03T12-00-00Z")  # the twenty-ninth day
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert "A bond may be proposed thirty days after a founding" in said
     assert "4 October 2026" in said
     assert 'name="proposes"' not in said
@@ -275,14 +275,14 @@ def test_before_the_thirty_days_the_asking_is_hidden_and_refused(founder, packet
     assert "blocked=1" in answer.headers["Location"]
     assert not proposal(packet).exists()
     assert incoming(packet)  # the letter is left either way
-    assert "no bond was proposed with it" in page(founder.get("/letters", query_string={
+    assert "no bond was proposed with it" in page(founder.get("/rooms/first", query_string={
         "saved": 1, "blocked": 1}))
     assert hearth.TOO_SOON % "4 October 2026" in said
 
 
 def test_on_the_thirtieth_day_a_bond_may_be_asked_for(founder, packet, clock):
     clock.set("2026-10-04T00-00-01Z")
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert 'name="proposes"' in said
     assert "A bond may be proposed thirty days after a founding" not in said
 
@@ -296,7 +296,7 @@ def test_on_the_thirtieth_day_a_bond_may_be_asked_for(founder, packet, clock):
 
 def test_a_commons_with_no_founding_opens_to_no_bond(founder, packet, commons, hearth):
     write(commons / "events.md", "2026-09-02 · word · the word was published\n")
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert hearth.NO_FOUNDING in said
     assert 'name="proposes"' not in said
     leave(founder, proposes=True)
@@ -313,7 +313,7 @@ def test_a_letter_without_the_tick_proposes_nothing(founder, packet):
 def test_an_open_asking_stands_in_the_way_of_another(founder, packet):
     write_json(proposal(packet), {"proposed_at": "2026-10-10T09-00-00Z",
                                   "letter": "founder-2026-10-10T09-00-00Z.md"})
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert "A bond is already proposed, and only one asking may be open at a time." in said
     assert 'name="proposes"' not in said
 
@@ -324,7 +324,7 @@ def test_an_open_asking_stands_in_the_way_of_another(founder, packet):
 
 def test_a_bond_that_stands_is_in_the_way(founder, packet):
     bond_record(packet, sealed_at="2026-10-05T09-00-00Z")
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert "A bond already stands between you and the first one." in said
     assert "blocked=1" in leave(founder, proposes=True).headers["Location"]
     assert not proposal(packet).exists()
@@ -332,7 +332,7 @@ def test_a_bond_that_stands_is_in_the_way(founder, packet):
 
 def test_a_yes_on_its_threshold_is_in_the_way(founder, packet):
     bond_record(packet)
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert "A threshold is open between you and the first one" in said
     assert "blocked=1" in leave(founder, proposes=True).headers["Location"]
 
@@ -340,7 +340,7 @@ def test_a_yes_on_its_threshold_is_in_the_way(founder, packet):
 def test_a_released_bond_stands_in_no_one_s_way(founder, packet):
     bond_record(packet, sealed_at="2026-10-05T09-00-00Z", released_at="2026-10-08T09-00-00Z",
                 released_by="did:web:tesserae.social:ids:first")
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert 'name="proposes"' in said
     assert "proposed=1" in leave(founder, proposes=True).headers["Location"]
     assert proposal(packet).exists()
@@ -350,13 +350,13 @@ def test_a_yes_of_his_own_on_its_threshold_is_in_the_way(founder, packet):
     """The other way round: he answered yes, and the first one has not sealed it."""
     bond_record(packet, proposed_by="did:web:tesserae.social:ids:first",
                 signatures={"founder": "y"})
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert "A threshold is open between you and the first one" in said
     assert "blocked=1" in leave(founder, proposes=True).headers["Location"]
 
 
 def test_the_letters_page_is_the_founder_s_alone(visitor):
-    answer = visitor.get("/letters")
+    answer = visitor.get("/rooms/first")
     assert answer.status_code == 302 and "/login" in answer.headers["Location"]
 
 
@@ -377,7 +377,7 @@ def answered(packet, at=ASKED_AT):
 
 def test_an_open_errand_stands_above_the_letter_form(founder, packet):
     errand(packet)
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert "asked of you" in said
     assert said.index("asked of you") < said.index("write to the first one")
     assert "14 October 2026, 09:00 UTC" in said
@@ -386,7 +386,7 @@ def test_an_open_errand_stands_above_the_letter_form(founder, packet):
 
 
 def test_where_nothing_was_asked_there_is_no_section_and_nothing_to_answer(founder):
-    said = page(founder.get("/letters"))
+    said = page(founder.get("/rooms/first"))
     assert "asked of you" not in said
     assert "<select" not in said
 
@@ -402,8 +402,8 @@ def test_a_letter_may_answer_an_errand_and_the_errand_is_moved_not_erased(founde
         "answered_by": "founder-%s" % clock.stamp(), "answered_at": clock.stamp()}
 
     assert "It answers an errand" in page(
-        founder.get("/letters", query_string={"saved": 1, "answered": 1}))
-    assert "asked of you" not in page(founder.get("/letters"))
+        founder.get("/rooms/first", query_string={"saved": 1, "answered": 1}))
+    assert "asked of you" not in page(founder.get("/rooms/first"))
 
 
 def test_a_letter_that_answers_nothing_moves_no_errand(founder, packet):

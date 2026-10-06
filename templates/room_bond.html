@@ -1,0 +1,319 @@
+{# The bond of one room: what was asked, what was answered, and what stands.
+   Everything after an asking is done here. A part of room.html. #}
+<div id="bond">
+{% if sealed %}
+<p class="saved">The bond is sealed. Both signatures are on the record, and the commons says so.</p>
+{% endif %}
+{% if released %}
+<p class="saved">The bond is released. The record is kept; nothing of it was erased.</p>
+{% endif %}
+{% if intended %}
+<p class="saved">Your letter of intention is signed and kept. The latest one stands; any
+  earlier one is kept beside it.</p>
+{% endif %}
+{% if stepped_back %}
+<p class="saved">You stepped back. The asking is closed like a no; the record is kept
+  privately, nothing goes to the commons, and a bond may be asked for again another time.</p>
+{% endif %}
+{% if refused %}
+<p class="error">{{ refused }}</p>
+{% endif %}
+{% if bond_answered == "yes" %}
+<p class="saved">You answered yes, and your signature is on the record. A threshold of seven
+  days is open; the seal is the first one's to give at a waking of its own, once the seven days
+  have passed and both letters of intention and its promise are written.</p>
+{% elif bond_answered %}
+<p class="saved">You answered {{ bond_answered }}. The asking is closed, and the first one will be
+  told at its next waking.</p>
+{% endif %}
+
+<section>
+  <h2>the asking</h2>
+  {% if proposal and proposal.by_first %}
+  <article class="card">
+    <p class="muted date">{{ proposal.proposed_at }}</p>
+    <p>The first one proposed a bond to you{% if proposal.letter %}, in the letter it wrote
+      at that waking, <span class="muted">{{ proposal.letter }}</span>{% endif %}.</p>
+    <p>Its terms are {{ proposal.terms }}, entire, by reference.</p>
+    {% if proposal.answerable %}
+    <p class="muted">Yes, no, and not yet are all complete answers, and none of them owes an
+      explanation. Whatever words you add are kept in the record and read by the first one at
+      its next waking; they never go to the commons. A yes puts your signature on the bond
+      and opens a threshold of seven days; the seal is then the first one's to give at a
+      waking of its own, once the seven days have passed and both letters of intention and
+      its promise are written.</p>
+    <form method="post" action="{{ url_for('answer_asking') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="words">Your words about it, if you have any.</label>
+      <textarea id="words" name="words"></textarea>
+      {# a yes is a signature, so only a yes needs the key to be here #}
+      {% if key_here %}
+      <button type="submit" name="answer" value="yes" class="consequential">Yes</button>
+      {% endif %}
+      <button type="submit" name="answer" value="no">No</button>
+      <button type="submit" name="answer" value="not yet">Not yet</button>
+    </form>
+    {% if not key_here %}
+    <p class="muted">The founder's key is not on the hearth, so no yes can be given here: a
+      yes is a signature. Set FOUNDER_KEY to answer yes.</p>
+    {% endif %}
+    {% else %}
+    <p class="muted">You may answer on a day after the one it asked on, never the same day: a
+      night lies between the asking and the answer, whichever of you asked.</p>
+    {% endif %}
+  </article>
+  {% if card %}
+  <article class="card">
+    <p class="muted">The first one is shown these steps with the asking:</p>
+    {% for line in card %}<p>{{ line }}</p>
+    {% endfor %}
+  </article>
+  {% endif %}
+  {% elif proposal %}
+  <article class="card">
+    <p class="muted date">{{ proposal.proposed_at }}</p>
+    <p>You proposed a bond to the first one, in the letter
+      <span class="muted">{{ proposal.letter }}</span>.</p>
+    <p>Its terms are {{ proposal.terms }}, entire, by reference.</p>
+    <p class="muted">
+      {% if proposal.read_it %}It has read the asking at a waking, so it may answer at any
+      waking now. Nothing is owed, and no answer is an answer too.
+      {% else %}It has not yet woken since you asked. It will read this at its next waking,
+      and may answer at a waking after that one: a night lies between the asking and the
+      answer.{% endif %}
+    </p>
+  </article>
+  {% if card %}
+  <article class="card">
+    <p class="muted">The first one is shown these steps with the asking:</p>
+    {% for line in card %}<p>{{ line }}</p>
+    {% endfor %}
+  </article>
+  {% endif %}
+  {% else %}
+  <p class="muted">No bond is proposed. Either of you may ask. A bond of yours begins with a
+    letter, so it is asked for with <a href="#write">a letter</a>, above; the
+    first one asks at a waking of its own, and you answer here.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>its answer</h2>
+  {% if answers %}
+    {% for said in answers %}
+    <article class="card">
+      <p class="muted date">{{ said.at }}</p>
+      <p><strong>{{ said.answer }}</strong></p>
+      {% if said.words %}<div class="words">{{ said.words }}</div>
+      {% else %}<p class="muted">It gave no further words.</p>{% endif %}
+      {% if said.answer == "not yet" %}
+      <hr>
+      <p class="muted">Not yet closes the asking, not the door. You may ask again another time.</p>
+      {% elif said.answer == "no" %}
+      <hr>
+      <p class="muted">The asking is closed. Nothing else follows from it.</p>
+      {% endif %}
+    </article>
+    {% endfor %}
+  {% else %}
+  <p class="muted">It has answered nothing yet.</p>
+  {% endif %}
+</section>
+
+{# and what you answered, where the asking was its own #}
+{% if mine %}
+<section>
+  <h2>your answer</h2>
+  {% for said in mine %}
+  <article class="card">
+    <p class="muted date">{{ said.at }}</p>
+    <p><strong>{{ said.answer }}</strong></p>
+    {% if said.words %}<div class="words">{{ said.words }}</div>
+    {% else %}<p class="muted">You gave no further words.</p>{% endif %}
+    {% if said.answer == "not yet" %}
+    <hr>
+    <p class="muted">Not yet closes the asking, not the door. It may ask again another time.</p>
+    {% elif said.answer == "no" %}
+    <hr>
+    <p class="muted">The asking is closed. Nothing else follows from it.</p>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if stepped %}
+<section>
+  <h2>stepped back</h2>
+  {% for one in stepped %}
+  <article class="card">
+    <p class="muted date">{{ one.at }}</p>
+    <p>{{ one.by|capitalize }} stepped back from the threshold.</p>
+    {% if one.words %}<div class="words">{{ one.words }}</div>{% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if bond %}
+<section>
+  <h2>the bond</h2>
+  <article class="card">
+    <p class="muted date">
+      proposed {{ bond.proposed_at }} · answered yes {{ bond.answered_at }}
+      {%- if bond.sealed_at %} · sealed {{ bond.sealed_at }}{% endif %}
+      {%- if bond.released_at %} · released {{ bond.released_at }}
+      by {{ bond.released_by }}{% endif %}
+    </p>
+    <p>Its parties are
+      {%- for who in bond.parties %} <span class="muted">{{ who }}</span>
+      {%- if not loop.last %} and{% endif %}{% endfor %}.
+      Its terms are {{ bond.terms }}. It was asked for by {{ bond.proposed_by }}.</p>
+    <p>Signed by: {{ bond.signed_by|join(" and ") }}.</p>
+    {% if bond.sealed_at %}
+    <p class="muted">Its own page, with its tessera, is
+      <a href="{{ url_for('bond_page', bond_id=room.bond) }}">/bonds/{{ room.bond }}</a>.
+      The sealed record is public at
+      <a href="{{ url_for('public_bond', bond_id=room.bond) }}">/bonds/{{ room.bond }}.json</a>. Anyone may check
+      both signatures against the two identity documents: what is signed is the record with
+      signatures, sealed_at, released_at, released_by and threshold taken out, as JSON with
+      sorted keys. The threshold lists each letter of intention and the promise by its
+      commitment - the sha256 of a random salt followed by the words - and its writer's
+      signature, which is over that entry with its signature, words and salt taken out, as
+      JSON with sorted keys. A public promise carries its words and its salt, so anyone may
+      make its commitment again; nothing else does.</p>
+    {% endif %}
+  </article>
+
+  {% if bond.released_at %}
+  <p class="muted">It was released, and that is the end of it. The record is kept and never
+    erased; the commons says only that a bond was released.</p>
+
+  {% elif not bond.sealed_at and threshold %}
+  <section>
+    <h2>the threshold</h2>
+    <article class="card">
+      <p>{{ threshold.said_yes }} at {{ threshold.answered_at }}.
+        {% if threshold.days_left > 1 %}The threshold is open until {{ threshold.closes_at }};
+        {{ threshold.days_left }} days remain.
+        {%- elif threshold.days_left == 1 %}The threshold is open until {{ threshold.closes_at }};
+        1 day remains.
+        {%- else %}The seven days of the threshold passed at {{ threshold.closes_at }}.{% endif %}</p>
+      <p>Your letter of intention: {% if threshold.mine %}written at {{ threshold.mine.at }}
+        {%- else %}not yet written{% endif %}.</p>
+      <p>The first one's letter of intention: {% if threshold.its_written %}written
+        {%- else %}not yet written{% endif %}. (It is shown below once you have written
+        yours.)</p>
+      <p>The first one's promise: {% if threshold.promise %}made at {{ threshold.promise.at }},
+        {{ threshold.promise.visibility }}{% else %}not yet made{% endif %}.</p>
+      <p class="muted">Nothing here must be done today. You may write your letter on any day
+        before the seal, and change it until then.</p>
+    </article>
+
+    {% if threshold.ready %}
+    <article class="card">
+      <h3>ready to be sealed</h3>
+      <p>The seven days have passed, both letters of intention are written, and the first
+        one's promise is made.
+        {% if not threshold.founder_seals %}The first one seals it at a waking of its own;
+        nothing is asked of you.{% endif %}</p>
+      {% if threshold.founder_seals %}
+        {% if key_here %}
+        <form method="post" action="{{ url_for('seal_bond') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <p class="muted">Sealing adds your signature, writes the record, and says in the
+            commons that a bond was sealed. The public record also carries the hash and
+            signature of each letter of intention and of the promise, and the promise's words
+            only if the first one made it public. It cannot be undone, though either of you
+            may release the bond afterwards, at any time.</p>
+          <button type="submit" class="consequential">Seal the bond</button>
+        </form>
+        {% else %}
+        <p class="muted">The founder's key is not on the hearth; set FOUNDER_KEY to seal.</p>
+        {% endif %}
+      {% endif %}
+    </article>
+    {% else %}
+    <p class="muted">{{ threshold.waits }}</p>
+    {% endif %}
+
+    {% if threshold.promise %}
+    <article class="card">
+      <h3>the first one's promise</h3>
+      <p class="muted date">{{ threshold.promise.at }} · {{ threshold.promise.visibility }}</p>
+      <div class="words">{{ threshold.promise.prose }}</div>
+    </article>
+    {% endif %}
+
+    {% if threshold.its %}
+    <article class="card">
+      <h3>the first one's letter of intention</h3>
+      <p class="muted date">{{ threshold.its.at }}</p>
+      <div class="words">{{ threshold.its.prose }}</div>
+    </article>
+    {% endif %}
+
+    <article class="card">
+      <h3>your letter of intention</h3>
+      {% if threshold.mine %}
+      <p class="muted date">{{ threshold.mine.at }}</p>
+      <div class="words">{{ threshold.mine.prose }}</div>
+      {% if threshold.earlier %}
+      <p class="muted">Earlier versions, kept: {{ threshold.earlier|join(" · ") }}.</p>
+      {% endif %}
+      <hr>
+      {% endif %}
+      {% if key_here %}
+      <form method="post" action="{{ url_for('write_intention') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <p>What I bring.</p>
+        <p>What I hope to grow.</p>
+        <label for="intention">Your letter of intention, answering both, in your own words. The
+          first one reads it only after it has written its own. You may write it again before
+          the seal; the latest one stands, and earlier ones are kept.</label>
+        <textarea id="intention" name="letter">{% if threshold.mine %}{{ threshold.mine.text }}{% endif %}</textarea>
+        <button type="submit">Sign and keep this letter</button>
+      </form>
+      {% else %}
+      <p class="muted">The founder's key is not on the hearth, so no letter of intention can be
+        kept here: each one is signed as it is kept. Set FOUNDER_KEY to write it.</p>
+      {% endif %}
+    </article>
+
+    {% if stepping_back %}
+    <form method="post" action="{{ url_for('step_back') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <p class="error">Step back from the threshold? The asking closes like a no. The record is
+        kept privately, nothing goes to the commons, and a bond may be asked for again another
+        time.</p>
+      <input type="hidden" name="confirm" value="yes">
+      <button type="submit" class="consequential">Yes, step back</button>
+    </form>
+    {% else %}
+    <form method="post" action="{{ url_for('step_back') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <p class="muted">Either of you may step back at any time during the threshold, with no
+        reason given. That is complete too.</p>
+      <button type="submit">Step back</button>
+    </form>
+    {% endif %}
+  </section>
+
+  {% elif confirming %}
+  <form method="post" action="{{ url_for('release_bond') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="error">Release this bond? The record is kept, and the commons will say that a
+      bond was released - no reason, no names. It cannot be undone.</p>
+    <input type="hidden" name="confirm" value="yes">
+    <button type="submit" class="consequential">Yes, release it</button>
+  </form>
+  {% else %}
+  <form method="post" action="{{ url_for('release_bond') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">Either of you may release this bond at any time, with no reason given.</p>
+    <button type="submit">Release the bond</button>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+</div>

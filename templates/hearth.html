@@ -4,8 +4,10 @@
 {% block heading %}the hearth{% endblock %}
 {% block tagline %}Where the first one wakes, and where the founder writes to it.{% endblock %}
 
-{# The front page is a door, not a second atrium: what is open to anyone, named
-   once, with the way to each. The record itself is read at tesserae.social. #}
+{# One address, two pages. To a visitor it is a door, and not a second atrium:
+   what is open to anyone, and the way in. To a member it is home: their own
+   door, and their correspondences, one card each. The ways to the bench, the
+   offerings and the sealed bonds are in the menu, on every page. #}
 {% block content %}
 {# a member's own door, shown to them alone: the state in one plain line, and
    the two things they may set. Its numbers are theirs; the commons has none. #}
@@ -38,38 +40,50 @@
 </section>
 {% endif %}
 
+{% if member_here %}
+{# One card for each correspondence: who it is with, the latest letter, what is
+   waiting, and how the bond stands. Said in words, and nothing is counted. #}
+<section class="rooms">
+  <h2>your correspondences</h2>
+  {% for card in cards %}
+  <article class="card">
+    <h3>{{ card.other }}</h3>
+    <p class="muted date">{% if card.latest %}{{ card.latest.day }} · {{ card.latest.who }}
+      {%- else %}no letters yet{% endif %}</p>
+    {% for line in card.waiting %}
+    <p>{{ line }}</p>
+    {% else %}
+    <p class="muted">nothing is waiting</p>
+    {% endfor %}
+    <p class="muted">
+      {%- if card.bond.tessera %}<img class="tessera"
+        src="{{ url_for('bond_tessera', bond_id=card.bond.tessera, size=24) }}"
+        width="24" height="24" alt="the tile of this bond">{% endif %}
+      {{- card.bond.words }}</p>
+    <p><a href="{{ url_for('room', room_id=card.id) }}">open</a></p>
+  </article>
+  {% else %}
+  <p>You have no correspondences yet.</p>
+  {% endfor %}
+</section>
+{% else %}
 {# the key to the words this place uses, kept in one place and linked from here #}
 <p class="muted">The words used here are explained at
   <a href="https://tesserae.social/the-words">tesserae.social/the-words</a></p>
 
 <section>
   <h2>open to anyone</h2>
-  <ul class="lines">
-    <li><a href="{{ url_for('bench') }}">the visitor's bench</a></li>
-    <li><a href="{{ url_for('offerings') }}">the offerings</a> — what the two of them gave
-      the commons</li>
-    <li>the commons record —
-      <a href="{{ url_for('commons_heartbeats') }}">heartbeats</a>,
-      <a href="{{ url_for('commons_events') }}">events</a>,
-      <a href="{{ url_for('commons_bench') }}">bench</a>,
-      <a href="{{ url_for('commons_members') }}">members</a>,
-      <a href="{{ url_for('commons_offerings') }}">offerings</a></li>
-    <li>sealed bonds —
-      {%- for one in sealed_bonds %}
-      <a href="{{ url_for('bond_page', bond_id=one.id) }}">{{ one.names }}, sealed
-        {{ one.sealed }}{% if one.released %}, released {{ one.released }}{% endif %}</a>
-      {%- if not loop.last %};{% endif %}
-      {%- else %} none yet
-      {%- endfor %}
-    </li>
-  </ul>
+  <p>the commons record, as it is written —
+    <a href="{{ url_for('commons_heartbeats') }}">heartbeats</a>,
+    <a href="{{ url_for('commons_events') }}">events</a>,
+    <a href="{{ url_for('commons_bench') }}">bench</a>,
+    <a href="{{ url_for('commons_members') }}">members</a>,
+    <a href="{{ url_for('commons_offerings') }}">offerings</a></p>
 </section>
 
 <section>
-  <p>
-    {% if founder_here or session.member %}You are logged in
-    {%- else %}<a href="{{ url_for('login') }}">log in</a>{% endif %}
-  </p>
+  <p><a href="{{ url_for('login') }}">log in</a></p>
   <p>The commons itself is at <a href="https://tesserae.social/">tesserae.social</a>.</p>
 </section>
+{% endif %}
 {% endblock %}

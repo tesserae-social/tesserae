@@ -162,7 +162,7 @@ def test_a_record_whose_role_is_neither_is_a_404_too(people, visitor, data_dir):
 
 def public_answers(hearth, visitor):
     """Every page and route anyone may ask for with no password, and what each said."""
-    paths = {"/", "/bench", "/offerings", "/login", "/recover",
+    paths = {"/", "/bench", "/commons", "/offerings", "/login", "/recover",
              "/commons/heartbeats.md", "/commons/events.md", "/commons/bench.md",
              "/commons/members.md", "/commons/offerings.md",
              "/commons/offerings/nothing.json", "/offerings/nothing.json",
@@ -181,7 +181,7 @@ def test_the_keeper_s_name_is_in_no_public_answer(people, visitor, commons):
         "parties": [people.FOUNDER_DID, people.FIRST_DID], "terms": "the charter",
         "sealed_at": "2026-10-10T12-00-00Z", "signatures": {}}), encoding="utf-8")
     answers = public_answers(people, visitor)
-    assert answers["/"].status_code == 200 and answers["/bench"].status_code == 200
+    assert answers["/commons"].status_code == 200 and answers["/bench"].status_code == 200
     assert answers["/bonds/founder-first.json"].status_code == 200
     for path, answer in answers.items():
         assert KEEPER not in page(answer), path

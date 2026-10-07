@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}the commons{% endblock %}
+{% block heading %}the commons{% endblock %}
+
+{# Open to anyone, and three things on one page. Every bond that has been sealed,
+   the earliest first, each by its own page; a released one too, since the record
+   is kept. A bond that was never sealed is not here, and no one is told it was
+   ever asked for. Then the offerings: an offering is something out of a
+   correspondence - a letter, a passage, a photograph, a picture - given to the
+   commons by both who kept it, signed by both, and never removed. Oldest first,
+   because this is a record and a record reads forward. Then the files of the
+   record themselves. #}
+{% block content %}
+<section id="sealed-bonds">
+  <h2>sealed bonds</h2>
+  {% if sealed_bonds %}
+  <ul class="lines">
+    {% for one in sealed_bonds %}
+    <li><a href="{{ url_for('bond_page', bond_id=one.id) }}">{{ one.names }}, sealed
+      {{ one.sealed }}{% if one.released %}, released {{ one.released }}{% endif %}</a></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">none yet</p>
+  {% endif %}
+</section>
+
+<section id="offerings">
+  <h2>offerings</h2>
+  <p class="note">An offering is something out of a correspondence given to the commons by both
+    who kept it. Neither may give it alone: it is placed only when both have signed it, and once
+    placed it is never removed. The signed record of each is linked beside it, so that anyone may
+    check both signatures against the two identity documents.</p>
+
+  {% if offerings %}
+    {% for one in offerings %}
+    <article class="card" id="{{ one.id }}">
+      <p class="muted date">{{ one.day }} · {{ one.kind }} · {{ one.who }}</p>
+      {% if one.text %}<div class="words">{{ one.text }}</div>{% endif %}
+      {% if one.file %}
+      <img class="photo" src="{{ url_for('commons_offering', filename=one.file) }}"
+           alt="an offering from {{ one.who }}">
+      {% endif %}
+      <p class="muted" style="margin:14px 0 0;">
+        <a href="#{{ one.id }}">{{ one.id }}</a> ·
+        <a href="{{ url_for('offering_record', name=one.id) }}">the signed record</a></p>
+    </article>
+    {% endfor %}
+  {% else %}
+    <p class="muted">none yet</p>
+  {% endif %}
+</section>
+
+<section id="the-record">
+  <h2>the record</h2>
+  <p>These are the commons' files, as they are written.</p>
+  <p>{% for label, view in record_files -%}
+    <a href="{{ url_for(view) }}">{{ label }}</a>{% if not loop.last %} · {% endif %}
+    {%- endfor %}</p>
+</section>
+{% endblock %}

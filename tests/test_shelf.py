@@ -723,7 +723,7 @@ def test_the_shelf_is_on_no_page(founder, visitor, packet):
                 "reflection": "I read.\n\n<<SHELF>>\nnote %s: A NOTE OF MY OWN\n<<END>>" % ARTICLE,
                 "shelf_refused": ["A LINE NOT UNDERSTOOD"]})
     for path in ["/", "/letters", "/attendances", "/self", "/chronicle", "/chronicle.md",
-                 "/bonds", "/bench", "/offerings"]:
+                 "/commons", "/bench"]:
         for client in (founder, visitor):
             said = page(client.get(path))
             assert "NOTE OF MY OWN" not in said

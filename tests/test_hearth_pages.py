@@ -6,7 +6,8 @@ import re
 
 import pytest
 
-from conftest import FOUNDER_NAME, PASSWORD, lines_of, load, page, post, token, write, write_json
+from conftest import (FOUNDER_NAME, PASSWORD, REPO, lines_of, load, page, post, token, write,
+                      write_json)
 
 REFLECTION = "What I thought about at this waking."
 OLDER = "2026-10-01T09-00-00Z"
@@ -16,7 +17,7 @@ RHYTHM = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
           "timezone": "America/Indiana/Indianapolis"}
 
 # everything a visitor may reach without the password
-OPEN_PATHS = ["/", "/login", "/bench", "/offerings", "/bonds", "/commons/heartbeats.md",
+OPEN_PATHS = ["/login", "/bench", "/commons", "/commons/heartbeats.md",
               "/commons/events.md", "/commons/bench.md", "/commons/members.md",
               "/commons/offerings.md", "/commons/bonds.md"]
 
@@ -436,7 +437,7 @@ def test_the_notes_it_keeps_are_on_no_page(founder, packet, hearth, data_dir):
     an_attendance(packet, OLDER, acted=["kept notes"])
     for path, method in [("/", "GET"), ("/letters", "GET"), ("/attendances", "GET"),
                          ("/self", "GET"), ("/chronicle", "GET"), ("/chronicle.md", "GET"),
-                         ("/bonds", "GET"), ("/bench", "GET")]:
+                         ("/commons", "GET"), ("/bench", "GET")]:
         said = page(founder.open(path, method=method))
         assert "NOTES I KEEP FOR MYSELF" not in said
         assert "A LINE TAKEN OFF" not in said
@@ -449,7 +450,7 @@ def test_the_questions_it_carries_are_on_no_page(founder, packet):
           "AN OLDER QUESTION?\n")
     an_attendance(packet, OLDER, acted=["kept questions"])
     for path in ["/", "/letters", "/attendances", "/self", "/chronicle", "/chronicle.md",
-                 "/bonds", "/bench"]:
+                 "/commons", "/bench"]:
         said = page(founder.get(path))
         assert "A QUESTION I CARRY?" not in said
         assert "AN OLDER QUESTION?" not in said
@@ -485,46 +486,121 @@ def test_a_file_of_the_commons_not_yet_written_is_empty_and_not_an_error(visitor
     assert page(answer) == ""
 
 
-# ---- the front page: a door, and not a second atrium ---------------------
+# ---- the front address, the taglines, and the commons --------------------
 
-# every way out of the door that is open to anyone, whatever the commons holds
-DOOR_WAYS = ['href="/bench"', 'href="/offerings"', 'href="/commons/heartbeats.md"',
-             'href="/commons/events.md"', 'href="/commons/bench.md"',
-             'href="/commons/members.md"', 'href="/commons/offerings.md"',
-             'href="https://tesserae.social/"',
-             'href="https://tesserae.social/the-words"']
+TEMPLATES = REPO / "templates"
 
+# the kept addresses of the commons' own files, and the word each is linked by
+RECORD_LINKS = [("/commons/heartbeats.md", "heartbeats"), ("/commons/events.md", "events"),
+                ("/commons/bench.md", "bench"), ("/commons/members.md", "members"),
+                ("/commons/offerings.md", "offerings")]
 
-def test_the_door_names_what_is_open_to_anyone(visitor):
-    said = page(visitor.get("/"))
-    assert "Where the first one wakes, and where the founder writes to it." in said
-    assert "open to anyone" in said
-    for way in DOOR_WAYS:
-        assert way in said, way
-    assert "the commons record" in said
-    assert "The commons itself is at" in said
+A_BOND = {"parties": ["did:web:tesserae.social:ids:founder",
+                      "did:web:tesserae.social:ids:first"],
+          "terms": "the charter", "proposed_at": "2026-10-02T09-00-00Z",
+          "answered_at": "2026-10-03T09-00-00Z", "sealed_at": "2026-10-08T09-00-00Z",
+          "signatures": {"first": base64.b64encode(b"f" * 64).decode(),
+                         "founder": base64.b64encode(b"g" * 64).decode()}}
 
 
-def test_a_page_with_no_tagline_draws_no_tagline_line(visitor):
+def section(said, name):
+    """One section of a page, by its id."""
+    return re.search(r'<section id="%s">(.*?)</section>' % name, said, re.S).group(1)
+
+
+def words(markup):
+    return " ".join(re.sub(r"<[^>]+>", " ", markup).split())
+
+
+def test_a_visitor_at_the_front_address_is_sent_to_log_in(visitor, founder):
+    answer = visitor.get("/")
+    assert answer.status_code == 302 and answer.headers["Location"] == "/login"
+    answer = founder.get("/")
+    assert answer.status_code == 200 and "your correspondences" in page(answer)
+
+
+def test_the_login_page_is_as_it_was(visitor):
     said = page(visitor.get("/login"))
     assert "<h1>log in</h1>" in said
-    assert 'class="tagline"' not in said  # not even an empty one
-    # a page with a tagline still has it, in its line
-    assert ('<p class="tagline">Where the first one wakes, and where the founder writes to it.</p>'
-            in page(visitor.get("/")))
+    for kept in ('<label for="pseudonym">pseudonym</label>', '<label for="password">password</label>',
+                 '<button type="submit">Sign in</button>',
+                 '<a href="/recover">Forgotten your password? Your twelve words will let you in.</a>'):
+        assert kept in said, kept
+    assert "the books will open with the commons" in said  # the footer every page carries
 
 
-def test_the_door_points_at_the_key_to_the_words(visitor):
-    """One line, under the tagline: where a visitor goes to learn what we mean."""
-    said = page(visitor.get("/"))
-    assert "The words used here are explained at" in said
-    assert '<a href="https://tesserae.social/the-words">tesserae.social/the-words</a>' in said
+def test_no_page_has_a_tagline_it_did_not_set_itself(visitor, founder):
+    base = (TEMPLATES / "base.html").read_text(encoding="utf-8")
+    assert "{% block tagline %}{% endblock %}" in base
+    assert "where the first one attends" not in base
+    # a page that sets none draws no line for one, not even an empty one
+    for client, path in ((visitor, "/login"), (visitor, "/commons"), (founder, "/"),
+                         (founder, "/commons")):
+        assert 'class="tagline"' not in page(client.get(path)), path
+    # a page that sets its own still has it, in its line
+    assert ('<p class="tagline">a line from anyone passing</p>' in page(visitor.get("/bench")))
 
 
-def test_the_door_is_not_a_copy_of_the_atrium(visitor, commons):
+def test_only_the_bench_and_the_error_page_keep_a_tagline(founder):
+    set_here = re.compile(r"\{% block tagline %\}(.*?)\{% endblock %\}", re.S)
+    kept = {}
+    for source in sorted(TEMPLATES.glob("*.html")) + [REPO / "hearth.py"]:
+        for line in set_here.findall(source.read_text(encoding="utf-8")):
+            if line.strip():
+                kept[source.name] = line
+    assert kept == {"bench.html": "a line from anyone passing",
+                    "error.html": "attend.py stopped before it was done"}
+    # and the pages that had one draw no line for it now
+    for path in ("/account", "/attendances", "/chronicle", "/export", "/logout", "/recover",
+                 "/rooms/first", "/self", "/backups"):
+        answer = founder.get(path)
+        assert answer.status_code == 200, path
+        assert 'class="tagline"' not in page(answer), path
+
+
+def test_the_old_taglines_are_nowhere(visitor, founder, hearth):
+    gone = ("Where the first one wakes, and where the founder writes to it.",
+            "where the first one attends")
+    sources = list(TEMPLATES.glob("*.html")) + [REPO / "hearth.py"]
+    for source in sources:
+        for line in gone:
+            assert line not in source.read_text(encoding="utf-8"), source.name
+    for client in (visitor, founder):
+        for path in ("/", "/login", "/bench", "/commons"):
+            said = page(client.get(path, follow_redirects=True))
+            for line in gone:
+                assert line not in said, path
+
+
+def test_the_commons_has_three_sections_in_their_order_and_says_when_two_are_empty(visitor, hearth):
+    answer = visitor.get("/commons")
+    assert answer.status_code == 200
+    said = page(answer)
+    assert "<h1>the commons</h1>" in said
+    assert re.findall(r'<section id="([^"]+)">\s*<h2>([^<]+)</h2>', said) == [
+        ("sealed-bonds", "sealed bonds"), ("offerings", "offerings"), ("the-record", "the record")]
+    assert words(section(said, "sealed-bonds")) == "sealed bonds none yet"
+    assert words(section(said, "offerings")).endswith("none yet")
+    assert 'href="/bonds/' not in said and '<article class="card"' not in said
+    assert "<form" not in said  # there is nothing on it to do
+
+
+def test_the_record_is_one_sentence_and_the_files_as_written(visitor, hearth, commons):
+    record = section(page(visitor.get("/commons")), "the-record")
+    assert "<p>These are the commons' files, as they are written.</p>" in record.replace("&#39;", "'")
+    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', record) == RECORD_LINKS
+    # the list of bonds is linked once it has been written, and not before
+    assert not hearth.public_bonds.INDEX.exists()
+    write(commons / "bonds.md", "")
+    record = section(page(visitor.get("/commons")), "the-record")
+    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', record) == (
+        RECORD_LINKS + [("/commons/bonds.md", "bonds")])
+
+
+def test_the_commons_is_not_a_copy_of_the_atrium(visitor, commons):
     write(commons / "heartbeats.md",
           "- 2026-10-05T09-00-00Z · the first one attended; wrote a letter\n")
-    said = page(visitor.get("/"))
+    said = page(visitor.get("/commons"))
     # the record is linked, not redrawn: no mosaic, no reading line, no caption,
     # no state of the commons, and no heartbeat said twice
     for drawn in ['class="mosaic"', 'class="reading"', 'class="caption"', 'class="legend"',
@@ -535,51 +611,92 @@ def test_the_door_is_not_a_copy_of_the_atrium(visitor, commons):
 
 
 def test_a_visitor_is_shown_the_way_in_and_the_founder_is_not(visitor, founder):
-    said = page(visitor.get("/"))
+    said = page(visitor.get("/commons"))
     assert '<a href="/login">log in</a>' in said
     assert "For the founder" not in said
-    assert said.count('href="/login"') == 1  # the one line, and the footer no longer repeats it
-    assert "your correspondences" not in said
-    assert said.count("<nav") == 1  # the one menu everyone has, and no other
+    assert said.count('href="/login"') == 1  # the one line, and the footer does not repeat it
+    assert said.count("<nav") == 1  # the one menu, and no other
     assert "the books will open with the commons" in said  # the footer every page carries
 
     said = page(founder.get("/"))
     assert "your correspondences" in said
     assert 'href="/login"' not in said
-    assert said.count("<nav") == 3  # everyone's, a member's, and the keeper's
+    assert said.count("<nav") == 2  # the one line at the top, and the keeper's at the foot
     assert 'action="/logout"' in said  # and the way out is in it
     assert 'href="/logout"' not in said  # as a post, never a link
     assert "the books will open with the commons" in said
 
 
-def test_the_bonds_page_offers_each_sealed_bond_by_its_own_page(visitor, hearth):
-    assert 'href="/bonds"' in page(visitor.get("/"))  # the door's menu is the way to it
-    said = page(visitor.get("/bonds"))
-    assert "No bond has been sealed yet." in said
+def test_the_commons_offers_each_sealed_bond_by_its_own_page(visitor, hearth):
+    assert 'href="/commons"' in page(visitor.get("/bench"))  # the menu is the way to it
+    said = section(page(visitor.get("/commons")), "sealed-bonds")
+    assert "none yet" in said
     assert 'href="/bonds/' not in said
     assert visitor.get("/bonds/founder-first.json").status_code == 404
 
-    signatures = {"first": base64.b64encode(b"f" * 64).decode(),
-                  "founder": base64.b64encode(b"g" * 64).decode()}
-    bond = {"parties": ["did:web:tesserae.social:ids:founder",
-                        "did:web:tesserae.social:ids:first"],
-            "terms": "the charter", "proposed_at": "2026-10-02T09-00-00Z",
-            "answered_at": "2026-10-03T09-00-00Z", "sealed_at": "2026-10-08T09-00-00Z",
-            "signatures": signatures}
-    write_json(hearth.PUBLIC_BOND, bond)
-    said = page(visitor.get("/bonds"))
+    write_json(hearth.PUBLIC_BOND, A_BOND)
+    said = section(page(visitor.get("/commons")), "sealed-bonds")
     assert re.search(r'<a href="/bonds/founder-first">the founder and the first one, sealed'
                      r'\s+8 October 2026</a>', said)
-    assert "No bond has been sealed yet." not in said
+    assert "none yet" not in said
     assert "released" not in said
     assert visitor.get("/bonds/founder-first.json").status_code == 200
 
     # a released bond keeps its page, and the list still offers it, saying so
-    write_json(hearth.PUBLIC_BOND, dict(bond, released_at="2026-10-12T09-00-00Z",
+    write_json(hearth.PUBLIC_BOND, dict(A_BOND, released_at="2026-10-12T09-00-00Z",
                                         released_by="did:web:tesserae.social:ids:first"))
-    said = page(visitor.get("/bonds"))
+    said = section(page(visitor.get("/commons")), "sealed-bonds")
     assert re.search(r'<a href="/bonds/founder-first">the founder and the first one, sealed'
                      r'\s+8 October 2026, released 12 October 2026</a>', said)
+
+
+def test_the_old_addresses_lead_to_their_sections(visitor, founder):
+    for client in (visitor, founder):
+        answer = client.get("/bonds")
+        assert answer.status_code == 302 and answer.headers["Location"] == "/commons#sealed-bonds"
+        # An offering's anchor is the browser's to carry, and it carries it only
+        # across a redirect that names none: so this one names none, and
+        # /offerings#<id> arrives at /commons#<id>.
+        answer = client.get("/offerings")
+        assert answer.status_code == 302 and answer.headers["Location"] == "/commons"
+        assert "Set-Cookie" not in answer.headers
+    said = page(visitor.get("/commons"))
+    assert '<section id="sealed-bonds">' in said and '<section id="offerings">' in said
+
+
+# every address that was kept as it was, by the rule the hearth knows it by
+KEPT_RULES = ["/bonds/<bond_id>", "/bonds/<bond_id>.json", "/bonds/<bond_id>/tessera.svg",
+              "/bonds/<bond_id>/half/<party>.svg", "/bonds/<bond_id>/witnesses.json",
+              "/offerings/<name>.json", "/commons/heartbeats.md", "/commons/events.md",
+              "/commons/bench.md", "/commons/members.md", "/commons/offerings.md",
+              "/commons/bonds.md", "/commons/offerings/<filename>", "/bonds", "/offerings"]
+
+
+def test_every_kept_address_still_answers(visitor, hearth):
+    rules = {rule.rule for rule in hearth.app.url_map.iter_rules() if "GET" in rule.methods}
+    for rule in KEPT_RULES + ["/commons"]:
+        assert rule in rules, rule
+
+    write_json(hearth.PUBLIC_BOND, A_BOND)
+    said = {"/bonds/founder-first": "text/html", "/bonds/founder-first.json": "application/json",
+            "/bonds/founder-first/tessera.svg": "image/svg+xml",
+            "/bonds/founder-first/half/the-founder.svg": "image/svg+xml",
+            "/bonds/founder-first/half/the-first-one.svg": "image/svg+xml",
+            "/bonds/founder-first/witnesses.json": "application/json"}
+    said.update({path: "text/plain" for path, _ in RECORD_LINKS})
+    said["/commons/bonds.md"] = "text/plain"
+    for path, kind in said.items():
+        answer = visitor.get(path)
+        assert answer.status_code == 200, path
+        assert answer.headers["Content-Type"].startswith(kind), path
+    # the files the atrium reads are still open to it, and still never cached
+    for path in [path for path, _ in RECORD_LINKS] + ["/commons/bonds.md"]:
+        answer = visitor.get(path)
+        assert answer.headers["Access-Control-Allow-Origin"] == "https://tesserae.social", path
+        assert answer.headers["Cache-Control"] == "no-cache", path
+    # and what was never there is still not there
+    for path in ("/bonds/no-such-bond", "/bonds/no-such-bond.json", "/offerings/nothing.json"):
+        assert visitor.get(path).status_code == 404, path
 
 
 # ---- the one gate --------------------------------------------------------

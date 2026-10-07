@@ -13,7 +13,7 @@ from conftest import block, blocks, lines_of, page, post, read_json, verify
 FOUNDER_DID = "did:web:tesserae.social:ids:founder"
 FIRST_DID = "did:web:tesserae.social:ids:first"
 
-PAGES = ["/", "/rooms/first", "/bonds", "/attendances", "/self", "/chronicle",
+PAGES = ["/", "/rooms/first", "/commons", "/attendances", "/self", "/chronicle",
          "/chronicle.md", "/bench", "/login"]
 
 
@@ -289,7 +289,7 @@ def test_everything_done_about_a_bond_is_the_founder_s_alone(visitor):
         assert answer.status_code == 302
         assert "/login" in answer.headers["Location"]
     # the list of sealed bonds is open to anyone, and has nothing on it to do
-    listed = visitor.get("/bonds")
+    listed = visitor.get("/commons")
     assert listed.status_code == 200 and "<form" not in page(listed)
 
 

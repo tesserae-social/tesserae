@@ -2,12 +2,10 @@
 
 {% block title %}the hearth{% endblock %}
 {% block heading %}the hearth{% endblock %}
-{% block tagline %}Where the first one wakes, and where the founder writes to it.{% endblock %}
 
-{# One address, two pages. To a visitor it is a door, and not a second atrium:
-   what is open to anyone, and the way in. To a member it is home: their own
-   door, and their correspondences, one card each. The ways to the bench, the
-   offerings and the sealed bonds are in the menu, on every page. #}
+{# Home, and a member's alone: their own door, and their correspondences, one
+   card each. A visitor is sent to the login page before this is drawn. The
+   ways to the bench and the commons are in the menu, on every page. #}
 {% block content %}
 {# a member's own door, shown to them alone: the state in one plain line, and
    the two things they may set. Its numbers are theirs; the commons has none. #}
@@ -40,7 +38,6 @@
 </section>
 {% endif %}
 
-{% if member_here %}
 {# One card for each correspondence: who it is with, the latest letter, what is
    waiting, and how the bond stands. Said in words, and nothing is counted. #}
 <section class="rooms">
@@ -66,24 +63,4 @@
   <p>You have no correspondences yet.</p>
   {% endfor %}
 </section>
-{% else %}
-{# the key to the words this place uses, kept in one place and linked from here #}
-<p class="muted">The words used here are explained at
-  <a href="https://tesserae.social/the-words">tesserae.social/the-words</a></p>
-
-<section>
-  <h2>open to anyone</h2>
-  <p>the commons record, as it is written —
-    <a href="{{ url_for('commons_heartbeats') }}">heartbeats</a>,
-    <a href="{{ url_for('commons_events') }}">events</a>,
-    <a href="{{ url_for('commons_bench') }}">bench</a>,
-    <a href="{{ url_for('commons_members') }}">members</a>,
-    <a href="{{ url_for('commons_offerings') }}">offerings</a></p>
-</section>
-
-<section>
-  <p><a href="{{ url_for('login') }}">log in</a></p>
-  <p>The commons itself is at <a href="https://tesserae.social/">tesserae.social</a>.</p>
-</section>
-{% endif %}
 {% endblock %}

@@ -1,11 +1,11 @@
-"""The rooms: three small menus, a member's home, and one page for each
+"""The rooms: two small menus, a member's home, and one page for each
 correspondence.
 
 A correspondence has a room. The home page says each of a member's in one card -
 who it is with, the latest letter, what is waiting, how the bond stands - and
 the room's own page is the letters and the bond together, open to its two
-parties and to no one else. The menus are on every page: one line for everyone,
-one for a member, and one, at the foot, for the keeper alone.
+parties and to no one else. The menus are on every page: one line at the top,
+a visitor's or a member's, and one, at the foot, for the keeper alone.
 """
 
 import ast
@@ -21,17 +21,17 @@ from test_hearth_bonds import answered_yes, propose, sealed, through_the_thresho
 
 MEMBER = "birch"
 
-EVERYONE = "the hearth · the bench · offerings · bonds · tesserae.social"
-A_MEMBER = "home · account · log out"
-THE_KEEPER = "home · chronicle · account · log out"
-KEEPING = "attendances · self · export · backups"
+A_VISITOR = "log in · the bench · the commons · tesserae.social"
+A_MEMBER = "home · account · the bench · the commons · tesserae.social · log out"
+KEEPING = "chronicle · attendances · self · export · backups"
 
-OPEN_PAGES = ["/", "/bench", "/offerings", "/bonds", "/login", "/recover"]
-MEMBER_PAGES = ["/", "/account", "/bench", "/offerings", "/bonds"]
+OPEN_PAGES = ["/bench", "/commons", "/login", "/recover"]
+MEMBER_PAGES = ["/", "/account", "/bench", "/commons"]
 KEEPER_PAGES = MEMBER_PAGES + ["/rooms/first", "/chronicle", "/attendances", "/self",
                                "/export", "/backups"]
 
-KEEPERS_OWN = ['href="/attendances"', 'href="/self"', 'href="/export"', 'href="/backups"']
+KEEPERS_OWN = ['href="/chronicle"', 'href="/attendances"', 'href="/self"', 'href="/export"',
+               'href="/backups"']
 
 
 @pytest.fixture(scope="session")
@@ -69,6 +69,11 @@ def menus(said):
             re.findall(r'<nav class="menu[^"]*" aria-label="([^"]+)">(.*?)</nav>', said, re.S)}
 
 
+def section(said, name):
+    """One section of a page, by its id."""
+    return re.search(r'<section id="%s">(.*?)</section>' % name, said, re.S).group(1)
+
+
 def to_login(answer):
     return answer.status_code == 302 and answer.headers["Location"].endswith("/login")
 
@@ -98,79 +103,106 @@ def errand(packet, at="2026-10-12T09-00-00Z"):
 # ---- the menus -----------------------------------------------------------
 
 @pytest.mark.parametrize("path", OPEN_PAGES)
-def test_a_visitor_is_shown_the_one_line_everyone_has(visitor, path):
+def test_a_visitor_is_shown_one_line_and_the_way_in(visitor, path):
     said = page(visitor.get(path))
-    assert menus(said) == {"pages": EVERYONE}
-    for own in KEEPERS_OWN + ['href="/account"', 'href="/chronicle"', "/logout"]:
+    assert menus(said) == {"pages": A_VISITOR}
+    assert said.count("<nav") == 1
+    for own in KEEPERS_OWN + ['href="/account"', "/logout"]:
         assert own not in said, own
 
 
-def test_the_first_line_leads_where_it_says(visitor):
+def test_the_line_leads_where_it_says(visitor, member):
     said = page(visitor.get("/bench"))
     line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
-    assert re.findall(r'href="([^"]+)"', line) == ["/", "/offerings", "/bonds",
-                                                   "https://tesserae.social"]
+    assert re.findall(r'href="([^"]+)"', line) == ["/login", "/commons", "https://tesserae.social"]
     assert '<span class="here">the bench</span>' in line  # where you stand is no link
 
+    said = page(member.get("/bench"))
+    line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
+    assert re.findall(r'href="([^"]+)"', line) == ["/", "/account", "/commons",
+                                                   "https://tesserae.social"]
+    # the old destinations are in no menu: the commons is the way to both
+    for old in ('href="/bonds"', 'href="/offerings"', "the hearth"):
+        assert old not in line, old
 
-def test_a_plain_member_is_shown_their_own_line_and_never_the_keepers(member):
+
+def test_a_plain_member_is_shown_one_line_and_never_the_keepers(member):
     for path in MEMBER_PAGES:
         said = page(member.get(path))
-        assert menus(said) == {"pages": EVERYONE, "yours": A_MEMBER}, path
-        for own in KEEPERS_OWN + ['href="/chronicle"']:
+        assert menus(said) == {"pages": A_MEMBER}, path
+        assert said.count("<nav") == 1, path
+        for own in KEEPERS_OWN + ['href="/login"']:
             assert own not in said, (path, own)
 
 
-def test_the_keeper_is_shown_all_three_and_the_third_at_the_very_foot(founder):
+def test_the_keeper_is_shown_both_and_the_second_at_the_very_foot(founder):
     for path in KEEPER_PAGES:
         said = page(founder.get(path))
-        assert menus(said) == {"pages": EVERYONE, "yours": THE_KEEPER, "keeping": KEEPING}, path
-        # the first two sit together under the heading; the keeper's is last of all
+        assert menus(said) == {"pages": A_MEMBER, "keeping": KEEPING}, path
+        # the one line sits under the heading; the keeper's is last of all
         assert (said.index("</header>") < said.index('aria-label="pages"')
-                < said.index('aria-label="yours"') < said.index("</footer>")
-                < said.index('aria-label="keeping"')), path
-        assert said.count("<nav") == 3, path
+                < said.index("</footer>") < said.index('aria-label="keeping"')), path
+        assert said.count("<nav") == 2, path
 
 
-def test_a_members_second_line_sits_directly_under_the_first(member):
-    said = page(member.get("/account"))
-    between = said[said.index("</nav>") + len("</nav>"):said.index('<nav class="menu" aria-label="yours">')]
-    assert between.strip() == ""
+def test_the_chronicle_is_only_in_the_keepers_line(founder):
+    said = page(founder.get("/"))
+    top = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
+    foot = re.search(r'<nav class="menu keeping" aria-label="keeping">(.*?)</nav>', said, re.S).group(1)
+    assert "chronicle" not in top
+    assert re.findall(r'href="([^"]+)"', foot) == ["/chronicle", "/attendances", "/self",
+                                                   "/export", "/backups"]
+    assert said.count('href="/chronicle"') == 1
 
 
-def test_home_is_marked_as_here_to_a_member_and_the_hearth_to_a_visitor(visitor, member):
-    assert '<span class="here">the hearth</span>' in page(visitor.get("/"))
+def test_the_page_you_stand_on_is_marked_and_is_no_link(visitor, member):
+    assert '<span class="here">log in</span>' in page(visitor.get("/login"))
+    assert '<span class="here">the commons</span>' in page(visitor.get("/commons"))
     said = page(member.get("/"))
     assert '<span class="here">home</span>' in said
-    assert '<a href="/">the hearth</a>' in said
+    assert '<a href="/">home</a>' in page(member.get("/account"))
 
 
 def test_logging_out_is_a_post_drawn_as_a_link(member):
     said = page(member.get("/"))
-    line = re.search(r'<nav class="menu" aria-label="yours">(.*?)</nav>', said, re.S).group(1)
+    line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
     assert '<form method="post" action="/logout" class="as-link">' in line
     assert '<button type="submit" class="as-link">log out</button>' in line
     assert 'href="/logout"' not in said
 
 
-def test_no_page_body_carries_a_list_of_links_the_menus_replace(visitor, founder):
-    for client in (visitor, founder):
+def test_no_page_body_carries_a_list_of_links_the_menus_replace(member, founder):
+    for client in (member, founder):
         said = page(client.get("/"))
         body = said[said.index("</header>"):]
         for nav in re.findall(r"<nav.*?</nav>", body, re.S):
             body = body.replace(nav, "")
-        for gone in ['href="/bench"', 'href="/offerings"', 'href="/bonds', 'href="/letters"',
-                     'href="/attendances"', '<ul class="lines">', "the atrium"]:
+        for gone in ['href="/bench"', 'href="/offerings"', 'href="/bonds', 'href="/commons',
+                     'href="/letters"', 'href="/attendances"', '<ul class="lines">',
+                     "the atrium"]:
             assert gone not in body, gone
 
 
 # ---- the home page -------------------------------------------------------
 
-def test_a_visitor_still_gets_the_door(visitor):
-    said = page(visitor.get("/"))
-    assert home(visitor) is None
+def test_a_visitor_has_no_home_and_is_sent_to_log_in(visitor):
+    answer = visitor.get("/")
+    assert to_login(answer)
+    assert "Set-Cookie" not in answer.headers
+    said = page(visitor.get("/", follow_redirects=True))
+    assert "<h1>log in</h1>" in said
     assert "your correspondences" not in said and "your door" not in said
-    assert "open to anyone" in said and '<a href="/login">log in</a>' in said
+    # and nothing of the door page a visitor once had is anywhere on the way
+    for gone in ("open to anyone", "The words used here are explained at",
+                 "the commons record", "The commons itself is at"):
+        assert gone not in said, gone
+
+
+def test_a_member_at_the_same_address_is_home(member, founder):
+    for client in (member, founder):
+        answer = client.get("/")
+        assert answer.status_code == 200
+        assert "your correspondences" in page(answer)
 
 
 def test_a_plain_member_has_a_door_and_one_plain_line(member):
@@ -395,24 +427,28 @@ def test_every_old_post_comes_back_to_the_room(founder, wake, packet, clock):
 
 # ---- the public list of sealed bonds -------------------------------------
 
-def test_the_bonds_page_is_open_to_anyone_and_says_when_there_are_none(visitor, member):
+def test_the_sealed_bonds_are_open_to_anyone_and_say_when_there_are_none(visitor, member):
     for client in (visitor, member):
-        answer = client.get("/bonds")
+        answer = client.get("/commons")
         assert answer.status_code == 200
-        assert "No bond has been sealed yet." in page(answer)
+        assert words(section(page(answer), "sealed-bonds")) == "sealed bonds none yet"
+        # the address the list had still leads to it
+        old = client.get("/bonds")
+        assert old.status_code == 302 and old.headers["Location"] == "/commons#sealed-bonds"
 
 
 def test_the_bonds_page_lists_a_sealed_bond_and_nothing_of_an_unsealed_one(
         founder, visitor, wake, packet, clock):
     answered_yes(founder, wake, packet, clock)
-    said = page(visitor.get("/bonds"))  # on the threshold: nothing is public
-    assert "No bond has been sealed yet." in said and 'href="/bonds/' not in said
+    said = section(page(visitor.get("/commons")), "sealed-bonds")  # on the threshold: nothing is public
+    assert "none yet" in said and 'href="/bonds/' not in page(visitor.get("/commons"))
 
     through_the_threshold(founder, wake, clock)
     assert post(founder, "/bonds/seal").status_code == 302
-    said = page(visitor.get("/bonds"))
+    said = section(page(visitor.get("/commons")), "sealed-bonds")
     assert re.search(r'<a href="/bonds/founder-first">the founder and the first one, sealed\s+'
                      r'22 October 2026</a>', said)
+    assert "none yet" not in said
     # the list, and nothing of what the two of them see in their room
     for private in ("the asking", "letter of intention", "Release the bond", "<form"):
         assert private not in said, private

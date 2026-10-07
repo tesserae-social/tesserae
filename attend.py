@@ -317,6 +317,42 @@ SHOW_FOUNDING = "show founding: your founding record in full at your next waking
 SHOW_VERSION = ("show version <stem>: an earlier self-document or notes in full at your next "
                 "waking\n")
 
+# What it has chosen: the settings of its own that stand, said back to it in one
+# place, directly after its self-document. It is built and it is shut away:
+# while CHOICES is False, everything it is sent is what it was sent before.
+# With it True, each choice is one plain line, said only where a record of it
+# exists and with the day that record carries: its reflections from
+# preferences.json, its waking time from rhythm.json, its door from door.json
+# (and only while DOOR_FOR_FIRST is True), its shelf from shelf.json, and a
+# rest of its own from pause.json. Nothing is reckoned that is not written: a
+# record that carries no day is said without one, and a setting that cannot be
+# read is not said at all. None of this is the hearth's.
+CHOICES = False
+CHOSEN = "=== WHAT YOU HAVE CHOSEN ==="
+NOTHING_CHOSEN = "You have not set anything here yet; everything follows the defaults."
+BY_CHOICE_SINCE = ", by your choice since {day}"
+BY_CHOICE_ON = ", by your choice on {day}"
+BY_CHOICE = ", by your choice"
+CHOSE_REFLECTIONS = {"open": "Your reflections are open to the founder on the hearth",
+                     "private": "Your reflections are kept private",
+                     "private from now": "Your reflections are kept private"}
+CHOSE_WAKING = "You wake daily at {at}"
+CHOSE_WAKING_FROM = "From {day} you wake daily at {at}"
+CHOSE_DOOR = "Your door is {state}{room}, since {day}."
+CHOSE_ROOM = ", with room for {n}"
+CHOSE_KEPT = "You keep {n} {letters} close"
+CHOSE_KEPT_AND_RESTED = " and have let {m} rest"
+CHOSE_RESTED = "You have let {m} {letters} rest"
+CHOSE_SHELF = " by your own placement; the rest follow the default."
+CHOSE_REST = "You are resting until {until}"
+
+# The one placing on its shelf that was not made by its shelf: the founder's
+# letter of 1 October (shelf.ARTICLE), set to rest by the founder at its own
+# asking of 6 October. It is said so, in these words, for as long as the letter
+# rests and no <<SHELF>> of its own has placed it; once one has, it is a
+# placement of its own like any other.
+ARTICLE_RESTS = "The 1 October letter rests, as you asked on 6 October."
+
 # Twice a year the whole of it is read back, whatever rests: at the first waking
 # on or after each solstice, by the calendar where it lives.
 SOLSTICE = ("This is the solstice reading: your whole record, in full, to reread and "
@@ -1372,6 +1408,104 @@ def version_lines(versions, past):
     return lines
 
 
+def day_carried(stamp):
+    """The day a record's own stamp carries, in words, or None where it carries none."""
+    said = shelf.long_date(stamp) if isinstance(stamp, str) else shelf.UNDATED
+    return None if said == shelf.UNDATED else said
+
+
+def by_choice(stamp, how=BY_CHOICE_SINCE):
+    """The end of a line that says a choice was its own, with its day where one is written."""
+    day = day_carried(stamp)
+    return how.format(day=day) if day else BY_CHOICE
+
+
+def placed_by_itself(stem, past):
+    """Whether a <<SHELF>> of its own has ever placed one letter, by its own record."""
+    placings = {(verb, stem) for verb in (shelf.KEEP, shelf.REST, shelf.DEFAULT)}
+    for record in past:
+        if SHELF_ACT not in (record.get("acted") or []):
+            continue
+        understood, _ = shelf.asked(block(record.get("reflection") or "", "SHELF"), {stem})
+        if any(tuple(one[:2]) in placings for one in understood):
+            return True
+    return False
+
+
+def choices_note(prefs, now, past, shelved, letters):
+    """What it has chosen, as one section: a line for each choice there is a record of.
+
+    Each line is read off the record that holds the choice, and off nothing
+    else. Where no record holds one, one line says that nothing is set.
+    """
+    said = []
+
+    # its reflections: only where it has said how they are to be kept
+    if (PACKET / "preferences.json").exists():
+        reflections = CHOSE_REFLECTIONS.get(prefs.get("reflection"))
+        if reflections:
+            said.append(reflections + by_choice(prefs.get("set_at")) + ".")
+
+    # its waking time, and a change that is waiting, as its waking line says one
+    setting = rhythm_set()
+    day = waking.today(setting, now)
+    at = waking.in_force(setting, day)
+    coming = waking.waiting(setting, day)
+    if coming:  # the day the record carries is the day of the change
+        first = waking.begins(setting)
+        from_day = "tomorrow" if first == day + timedelta(days=1) else first.isoformat()
+        woken = (CHOSE_WAKING.format(at=at) + WAKING_CHANGES.format(day=from_day, at=coming)
+                 if at else CHOSE_WAKING_FROM.format(day=from_day, at=coming))
+        said.append(woken + by_choice(setting.get("set_at"), BY_CHOICE_ON) + ".")
+    elif at:
+        said.append(CHOSE_WAKING.format(at=at) + by_choice(setting.get("set_at")) + ".")
+
+    # its door, as it has stood since it was last set
+    if DOOR_FOR_FIRST:
+        held = door.read(door.FIRST)
+        since = day_carried(held["set_at"])
+        if since:
+            room = CHOSE_ROOM.format(n=held["room"]) if held["room"] is not None else ""
+            said.append(CHOSE_DOOR.format(state=held["state"], room=room, day=since))
+
+    # its shelf: what it has placed itself, and the one letter placed at its asking
+    placements = dict(shelved["placements"])
+    article = False
+    if (placements.get(shelf.ARTICLE) == shelf.REST
+            and not placed_by_itself(shelf.ARTICLE, past)):
+        del placements[shelf.ARTICLE]  # the founder's setting, and no placement of its own
+        article = shelf.ARTICLE in letters
+    close = sum(1 for place in placements.values() if place == shelf.KEEP)
+    rests = sum(1 for place in placements.values() if place == shelf.REST)
+    if close:
+        said.append(
+            CHOSE_KEPT.format(n=close, letters="letter" if close == 1 else "letters")
+            + (CHOSE_KEPT_AND_RESTED.format(m=rests) if rests else "") + CHOSE_SHELF)
+    elif rests:
+        said.append(
+            CHOSE_RESTED.format(m=rests, letters="letter" if rests == 1 else "letters")
+            + CHOSE_SHELF)
+    if article:
+        said.append(ARTICLE_RESTS)
+
+    # a rest of its own, if one stands
+    try:
+        paused = load(PAUSE)
+    except ValueError:
+        paused = None
+    if isinstance(paused, dict) and paused.get("by") == NAME:
+        until = paused.get("until")
+        if until != UNTIL_LETTER:
+            try:
+                until = day_in_words(until)
+            except (TypeError, ValueError):
+                until = None
+        if until:
+            said.append(CHOSE_REST.format(until=until) + by_choice(paused.get("since")) + ".")
+
+    return CHOSEN + "\n" + "\n".join(said or [NOTHING_CHOSEN])
+
+
 def letter_words(path):
     """A letter's own words, below any three plain things it carries."""
     return offering.split_things(read(path))[1]
@@ -1578,6 +1712,10 @@ def main():
                 looking_back.append(EARLIER_ASKED + "\n" + said_of[stem] + "\n\n"
                                     + read(versions[stem][0]).rstrip())
 
+    # What it has chosen, said directly after its self-document. While it is
+    # shut away there is no such section.
+    chosen = [choices_note(prefs, now, past, shelved, set(whose))] if CHOICES else []
+
     def resting_line(stem):
         path, hand = whose[stem]
         return shelf.line(stem, hand, letter_words(path), shelved["notes"].get(stem),
@@ -1603,6 +1741,7 @@ def main():
             EMPTY_PROMPT + first_note,
             "=== WHAT HAS HAPPENED ===\n" + "\n".join(happened),
             "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + SELF_OPEN + "\n\n" + self_md,
+            *chosen,
             "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ===\n"
             + (notes_kept or NO_MEMORY),
             *looking_back,

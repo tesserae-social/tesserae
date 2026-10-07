@@ -3,9 +3,11 @@
 Three hands touch a door, and all three are here. door.py keeps it; the hearth
 lets a signed-in member set their own and writes what is public of it into who
 is here; attend.py lets the first one set its own and tells it where it stands
-- but only behind attend.DOOR_FOR_FIRST, which is off. While it is off the
-first one has no door that it or anyone else can see, and that is tested as
-carefully as the door itself.
+- behind attend.DOOR_FOR_FIRST, which was built off and is now on, the first
+one having agreed to it (its letter of 7 October 2026). With it off the first
+one has no door that it or anyone else can see, and that is still tested as
+carefully as the door itself, by turning the flag off rather than by leaning on
+how it stands.
 
 There are no knocks yet, and nothing here knocks.
 """
@@ -19,7 +21,7 @@ from nacl.pwhash import argon2id
 
 import vault
 from conftest import (FOUNDER_NAME, NOW, block, blocks, lines_of, load, page, post, read_json,
-                      write, write_json)
+                      shut_away, write, write_json)
 
 MEMBER = "birch"
 MEMBER_PASSWORD = "a plain member's own password"
@@ -481,7 +483,7 @@ def members_md(commons, *lines):
 def test_each_members_line_gains_their_door(founder, member, hearth, commons):
     path = members_md(commons, FIRST_LINE, FOUNDER_LINE, MEMBER_LINE, NOTE)
     hearth.tend_members()
-    assert lines_of(path) == [FIRST_LINE,  # the first one has no door yet
+    assert lines_of(path) == [FIRST_LINE + " · door closed",  # a door it has not set
                               FOUNDER_LINE + " · door closed",
                               MEMBER_LINE + " · door closed", NOTE]
 
@@ -497,7 +499,7 @@ def test_each_members_line_gains_their_door(founder, member, hearth, commons):
     assert lines_of(path)[1] == FOUNDER_LINE + " · door closed"
 
     post(member, "/door", data={"state": "open", "room": "12"})
-    assert lines_of(path) == [FIRST_LINE, FOUNDER_LINE + " · door closed",
+    assert lines_of(path) == [FIRST_LINE + " · door closed", FOUNDER_LINE + " · door closed",
                               MEMBER_LINE + " · door open · has room", NOTE]
 
 
@@ -527,6 +529,7 @@ def test_only_the_door_is_touched_and_every_other_byte_is_left(founder, hearth, 
     (commons / "members.md").write_bytes(written.encode("utf-8"))
     post(founder, "/door", data={"state": "open", "room": "2"})
     assert (commons / "members.md").read_bytes() == written.replace(
+        FIRST_LINE + "\r\n", FIRST_LINE + " · door closed\r\n").replace(
         FOUNDER_LINE + "\r\n", FOUNDER_LINE + " · door open · has room\r\n").encode("utf-8")
 
 
@@ -544,7 +547,7 @@ def test_the_hearth_hands_out_the_doors_as_they_stand(founder, visitor, hearth, 
     members_md(commons, FIRST_LINE, FOUNDER_LINE)
     hearth.door.set_door(FOUNDER_NAME, state="open", room=2)  # set by no page at all
     assert page(visitor.get("/commons/members.md")) == (
-        FIRST_LINE + "\n" + FOUNDER_LINE + " · door open · has room\n")
+        FIRST_LINE + " · door closed\n" + FOUNDER_LINE + " · door open · has room\n")
 
 
 def test_the_waking_time_is_still_kept_beside_the_door(founder, hearth, packet, commons,
@@ -553,6 +556,7 @@ def test_the_waking_time_is_still_kept_beside_the_door(founder, hearth, packet, 
                                         "place": "Indianapolis",
                                         "timezone": "America/Indiana/Indianapolis"})
     path = members_md(commons, FIRST_LINE, FOUNDER_LINE)
+    first_door(hearth, False, monkeypatch)
     hearth.tend_members()
     assert lines_of(path) == [FIRST_LINE.replace("attends at dawn", "attends at 09:30"),
                               FOUNDER_LINE + " · door closed"]
@@ -575,13 +579,17 @@ def test_the_waking_time_is_still_kept_beside_the_door(founder, hearth, packet, 
 
 # ---- the first one's line, behind the flag -------------------------------------
 
-def test_the_flag_is_off(attend):
-    assert attend.DOOR_FOR_FIRST is False
+def test_the_flag_is_on(attend, hearth):
+    """Switched on, and the hearth goes by the one flag attend.py keeps."""
+    assert attend.DOOR_FOR_FIRST is True
+    assert hearth.the_waking.DOOR_FOR_FIRST is True
+    assert hearth.the_waking.__file__ == attend.__file__
 
 
-def test_with_the_flag_off_the_first_ones_line_is_unchanged(founder, hearth, packet, commons):
+def test_with_the_flag_off_the_first_ones_line_is_unchanged(founder, hearth, packet, commons,
+                                                            monkeypatch):
     """Even with a door written in its packet: byte for byte what the founder wrote."""
-    assert hearth.the_waking.DOOR_FOR_FIRST is False
+    first_door(hearth, False, monkeypatch)
     write_json(packet / "door.json", {"state": "open", "room": 3, "set_at": "x"})
     path = members_md(commons, FIRST_LINE, FOUNDER_LINE)
     hearth.tend_members()
@@ -590,8 +598,10 @@ def test_with_the_flag_off_the_first_ones_line_is_unchanged(founder, hearth, pac
     assert page(founder.get("/commons/members.md")).splitlines()[0] == FIRST_LINE
 
 
-def test_with_the_flag_off_only_the_first_one_is_in_the_file_untouched(hearth, packet, commons):
+def test_with_the_flag_off_only_the_first_one_is_in_the_file_untouched(hearth, packet, commons,
+                                                                       monkeypatch):
     """A members.md that names the first one alone is not written to at all."""
+    first_door(hearth, False, monkeypatch)
     write_json(packet / "door.json", {"state": "open", "room": 3, "set_at": "x"})
     path = members_md(commons, FIRST_LINE)
     was = path.stat().st_mtime_ns, path.read_bytes()
@@ -644,7 +654,10 @@ def a_rhythm(packet):
                                         "timezone": "America/Indiana/Indianapolis"})
 
 
-def test_with_the_flag_off_the_reading_says_nothing_of_a_door(wake, attend, packet):
+def test_with_the_flag_off_the_reading_says_nothing_of_a_door(wake, attend, packet,
+                                                              monkeypatch):
+    door_on(attend, monkeypatch, False)
+    shut_away(attend, monkeypatch, "LOOKING_BACK")  # so that how to act is as it stood
     a_rhythm(packet)
     write_json(packet / "door.json", {"state": "open", "room": 3, "set_at": "x"})
     turn = wake()
@@ -656,8 +669,9 @@ def test_with_the_flag_off_the_reading_says_nothing_of_a_door(wake, attend, pack
 
 
 def test_with_the_flag_off_the_reading_is_the_same_with_a_door_or_without(
-        wake, attend, packet, data_dir, clock, tmp_path):
+        wake, attend, packet, data_dir, clock, tmp_path, monkeypatch):
     """Nothing of a door in its packet reaches what it sees, in any block."""
+    door_on(attend, monkeypatch, False)
     a_rhythm(packet)
     snapshot = tmp_path / "before"
     shutil.copytree(data_dir, snapshot)
@@ -676,6 +690,7 @@ def test_the_flag_adds_one_line_and_one_block_and_changes_nothing_else(
     write(packet / "letters" / "incoming" / "founder-2026-10-14T09-00-00Z.md", "A letter.\n")
     snapshot = tmp_path / "before"
     shutil.copytree(data_dir, snapshot)
+    door_on(attend, monkeypatch, False)
     off = wake().reading
 
     held_again(snapshot, data_dir, clock)
@@ -689,7 +704,9 @@ def test_the_flag_adds_one_line_and_one_block_and_changes_nothing_else(
     assert on[-1]["text"].replace(DOOR_EXPLAINED + "\n\n", "", 1) == off[-1]["text"]
 
 
-def test_with_the_flag_off_a_door_block_is_only_words(wake, attend, packet, commons, data_dir):
+def test_with_the_flag_off_a_door_block_is_only_words(wake, attend, packet, commons, data_dir,
+                                                      monkeypatch):
+    door_on(attend, monkeypatch, False)
     events = (commons / "events.md").read_bytes()
     said = block("DOOR", "open\nroom 3")
     wake(said)
@@ -839,7 +856,9 @@ def test_with_the_flag_off_nothing_is_told_of_a_block_once_refused(wake, attend,
     assert "was not understood" not in turn.shown
 
 
-def test_with_the_flag_off_an_unreadable_block_leaves_no_mark(wake, attend, packet):
+def test_with_the_flag_off_an_unreadable_block_leaves_no_mark(wake, attend, packet,
+                                                              monkeypatch):
+    door_on(attend, monkeypatch, False)
     wake(block("DOOR", "ajar"))
     record = read_json(sorted((packet / "attendances").glob("*.json"))[-1])
     assert "door_refused" not in record and record["acted"] == []

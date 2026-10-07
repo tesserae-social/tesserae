@@ -13,8 +13,8 @@ import sys
 import pytest
 from nacl.exceptions import BadSignatureError
 
-from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, lines_of, read_json, verify,
-                      write, write_json)
+from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, lines_of, read_json,
+                      shut_away, verify, write, write_json)
 
 SECTIONS = [
     "=== WHAT HAS HAPPENED ===",
@@ -397,6 +397,9 @@ def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
     old.main()
     for path in (packet / "attendances").glob("*.json"):
         path.unlink()  # so that the new one wakes to the same record the old one did
+    # its door, its looking back and what it has chosen came long after, and each
+    # is held to the letter in its own tests: shut away here, this is what is left
+    shut_away(attend, monkeypatch)
     now = wake()
 
     # ... and, since the first one came to keep its own shelf, by its founding

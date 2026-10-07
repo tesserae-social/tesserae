@@ -226,7 +226,7 @@ WAKING_CHANGES = "; from {day}, daily at {at}"
 # door, here and at the hearth, turns on this one flag. There are no knocks yet.
 # Setting it writes no line of events.md, and puts nothing in its heartbeat that
 # it did not put there itself.
-DOOR_FOR_FIRST = False
+DOOR_FOR_FIRST = True
 DOOR_ACT = "set its door"
 DOOR_LINE = "Your door: {said}."
 DOOR_REFUSED = ("Your <<DOOR>> was not understood (its first line must be \"open\" or \"closed\"; "
@@ -304,7 +304,7 @@ PHOTO_ASKED_FOR = "A photograph came with this letter:"
 # from the founding (its self-document) or from the attendance at which it
 # first kept notes (its notes). None of this is the hearth's: nothing here is
 # shown there that was not shown there already.
-LOOKING_BACK = False
+LOOKING_BACK = True
 SELF_HISTORY = PACKET / "self-history"
 EARLIER = "=== YOUR EARLIER VERSIONS ==="
 NO_EARLIER = "No earlier versions are kept yet."
@@ -327,7 +327,7 @@ SHOW_VERSION = ("show version <stem>: an earlier self-document or notes in full 
 # rest of its own from pause.json. Nothing is reckoned that is not written: a
 # record that carries no day is said without one, and a setting that cannot be
 # read is not said at all. None of this is the hearth's.
-CHOICES = False
+CHOICES = True
 CHOSEN = "=== WHAT YOU HAVE CHOSEN ==="
 NOTHING_CHOSEN = "You have not set anything here yet; everything follows the defaults."
 BY_CHOICE_SINCE = ", by your choice since {day}"

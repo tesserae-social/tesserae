@@ -30,15 +30,19 @@
     padding: 72px 24px 96px;
   }
 
-  /* The atrium's main is the whole window across, so that the mosaic's band
-     can stand in it edge to edge; the words keep the measure they had, in
-     columns of their own above and below the band. A document's main is the
-     column itself, as it was. */
+  /* The atrium's main is the whole window across, so that the mosaic can stand
+     in it edge to edge, and its tiles begin at the page's own top corner; the
+     words keep the measure they had, in a column of their own. A document's
+     main is the column itself, as it was. */
   .atrium main {
     max-width: none;
+    padding-top: 16px;
     padding-left: 0;
     padding-right: 0;
   }
+
+  /* the whole mosaic's page opens with words, at the height a document does */
+  .whole main { padding-top: 72px; }
 
   .column {
     width: 100%;
@@ -122,36 +126,75 @@
 
   .intro details[open] summary { margin-bottom: 1.1rem; }
 
-  /* The band the mosaic stands in: the window's whole width, less 16px at
-     either side, and the one thing on the page that is. It lies outside the
-     columns the words keep, so its width is the page's own and never 100vw,
-     which counts the scrollbar and would push the page sideways. It is a
-     container, so that the frame inside can be capped by the band's width. */
-  .band {
+  /* The frame: the last year of the mosaic, as a frame of tiles round the
+     page's words. It is a grid of cells one tile square, as many across as the
+     window holds between the page's 16px margins, and the tiles are its items
+     -- the list they are written in lays out nothing of its own -- so they run
+     from its top left corner, left to right and row by row, newest first.
+
+     The column of words is an item of the same grid, set down first, and the
+     tiles pass over whatever cells it stands on. Left to the stylesheet it
+     takes the whole of the third row: two rows of tiles above the words, and
+     the rest below. That is the page on a narrow window, and the page with no
+     script. Where there is room beside the column, the page's script says
+     which cells it stands on -- from which, to which, and how many down -- and
+     the tiles run down either side of it. A row is a tile high unless what
+     stands in it needs more, so the column is never drawn over the tiles. */
+  .frame {
+    --tile: 24px;
+    --gap: 3px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, var(--tile));
+    grid-auto-rows: minmax(var(--tile), auto);
+    gap: var(--gap);
+    justify-content: center;
     margin: 0 16px;
-    container-type: inline-size;
   }
 
-  /* The mosaic's frame, as wide as its band. All of history is drawn inside it,
-     oldest at the top left. The frame is as tall as the rows it holds need and
-     no taller than a third of the band's width; once the rows would pass the cap
-     the tiles are what gives, and they shrink as the record grows. The tile size
-     and the gap are worked out from how much there is to show and written onto
-     this element, so the stylesheet only says where they go. They are reckoned
-     against a nominal 840px in both paths, so a narrow page draws the same tiles
-     as a wide one, in more rows. Below 4px the tiles stop shrinking and this
-     scrolls instead -- some forty years out. */
+  .frame .mosaic { display: contents; }
+
+  .frame .column {
+    grid-column: var(--from, 1) / var(--to, -1);
+    grid-row: 3 / span var(--down, 1);
+    justify-self: center;
+    align-self: start;
+    padding-top: 40px;
+    padding-bottom: 40px;
+  }
+
+  /* the way to the rest of the mosaic: one quiet line in the column's own
+     measure, on a row of its own after the last tile */
+  .rest {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: 100%;
+    max-width: 600px;
+    margin: 14px 0 0;
+    padding: 0 24px;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+
+  /* The band the whole mosaic stands in, on its own page: the window's whole
+     width, less 16px at either side. It lies outside the columns the words
+     keep, so its width is the page's own and never 100vw, which counts the
+     scrollbar and would push the page sideways. */
+  .band { margin: 24px 16px 0; }
+
+  /* The mosaic as a list that lays itself out: all of history, oldest at the
+     top left, in rows as wide as the band. The tile size and the gap are
+     worked out from how much there is to show and written onto this element,
+     so the stylesheet only says where they go. They are reckoned against a
+     nominal 840px by 280px in both paths, so a narrow page draws the same
+     tiles as a wide one, in more rows, and the page is as long as they need. */
   .mosaic {
     display: flex;
     flex-wrap: wrap;
     align-content: flex-start;
     gap: var(--gap, 4px);
     width: 100%;
-    height: auto;
-    max-height: calc(100cqw / 3);
     margin: 0;
     padding: 0;
-    overflow-y: auto;
     list-style: none;
   }
 
@@ -163,6 +206,19 @@
 
   /* a day the record is silent on: the same square, with nothing in it */
   .mosaic .empty { border: 1px solid var(--rule); }
+
+  /* where a year begins on the whole mosaic: its number, small and quiet, on a
+     line of its own above that year's tiles */
+  .mosaic .year {
+    width: 100%;
+    height: auto;
+    margin-top: 10px;
+    font-size: 0.9rem;
+    line-height: 1.2;
+    color: var(--ink-soft);
+  }
+
+  .mosaic .year:first-child { margin-top: 0; }
 
   /* a tile's colour is the kind of thing that happened */
   .tile-founding   { background: #D85A30; }
@@ -211,12 +267,24 @@
 
   .mosaic li > a > img { display: block; width: 100%; height: 100%; }
 
-  /* the line under the mosaic: the tile under the cursor, or else the newest */
+  /* the reading line: the tile under the cursor, or else the newest. It
+     changes as you move and the page below it must not, so it keeps a line's
+     room, or the room the page's script finds the longest tile's words need. */
   .reading {
     margin: 14px 0 0;
-    min-height: 1.65em;  /* it changes as you move; the page below it must not */
+    min-height: var(--reading, 1.65em);
     font-size: 0.9rem;
     color: var(--ink-soft);
+  }
+
+  /* on the whole mosaic's page the reading line stays at the top of the window
+     as the tiles pass under it, on the page's own paper */
+  .said {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding-bottom: 10px;
+    background: var(--paper);
   }
 
   .caption {
@@ -361,8 +429,9 @@
 
   @media (max-width: 480px) {
     main { padding: 48px 20px 72px; }
-    /* the columns draw in their gutters with the page; the band keeps its own */
-    .column { padding: 0 20px; }
+    /* the columns draw in their gutters with the page; the tiles keep their own */
+    .column, .rest { padding-left: 20px; padding-right: 20px; }
+    .whole main { padding-top: 48px; }
   }
 
   /* ---- the documents -------------------------------------------------- */
@@ -375,6 +444,9 @@
     margin: 0 0 40px;
     font-size: 0.9rem;
   }
+
+  /* the same way back, under the menu of the whole mosaic's page */
+  .whole .home { margin: 0.6rem 0 0; }
 
   .document h1 { margin: 0 0 24px; }
 

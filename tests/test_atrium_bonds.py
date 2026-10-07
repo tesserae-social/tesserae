@@ -73,26 +73,29 @@ def test_with_no_list_the_seal_is_drawn_as_it_always_was(atrium):
 
 def test_a_seal_tile_shows_its_tessera_at_the_tile_s_size(atrium):
     tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], (), atrium.parse_bonds(SEALED))
-    drawn = "".join(atrium.mosaic_block(atrium.slots(tiles, TODAY)))
+    drawn = "".join(atrium.frame_block(atrium.slots(tiles, TODAY)))
     assert ('<li class="tile-seal" title="8 October 2026 · a bond was sealed">'
             '<a href="%s/bonds/founder-first" aria-label="8 October 2026 · a bond was sealed">'
-            '<img src="%s/bonds/founder-first/tessera.svg?size=34" width="34" height="34" '
+            '<img src="%s/bonds/founder-first/tessera.svg?size=24" width="24" height="24" '
             'alt=""></a></li>' % (HEARTH, HEARTH)) in drawn
 
 
 def test_a_seal_tile_shrinks_with_the_rest(atrium):
+    """On the whole mosaic's page, where the tiles shrink; the front page's stay as they are."""
     cells = [("tile-event", "a thing", "")] * 999 + [
         ("tile-seal", "8 October 2026 · a bond was sealed", HEARTH + "/bonds/founder-first")]
-    drawn = "".join(atrium.mosaic_block(cells))
+    drawn = "".join(atrium.whole_block([(TODAY, cells)]))
     assert ('<img src="%s/bonds/founder-first/tessera.svg?size=14" width="14" height="14" '
             'alt="">' % HEARTH) in drawn
+    assert ('<img src="%s/bonds/founder-first/tessera.svg?size=24" width="24" height="24" '
+            'alt="">' % HEARTH) in "".join(atrium.frame_block(cells))
 
 
 def test_only_a_bond_s_own_page_carries_a_tessera(atrium):
     for where in (atrium.BOND_URL, HEARTH + "/offerings#x", HEARTH + "/bonds/",
                   HEARTH + "/bonds/a/b", "https://elsewhere.example/bonds/founder-first"):
         assert atrium.tessera_of(where, 34) == ""
-        assert "<img" not in "".join(atrium.mosaic_block([("tile-seal", "words", where)]))
+        assert "<img" not in "".join(atrium.frame_block([("tile-seal", "words", where)]))
 
 
 def test_a_seal_tile_reads_out_like_any_other(atrium):
@@ -182,7 +185,9 @@ def test_a_list_of_bonds_puts_the_tile_and_the_halves_on_the_page(atrium, data_d
     a_commons(data_dir)
     write(data_dir / "commons" / "bonds.md", SEALED)
     page = built(atrium, monkeypatch).decode("utf-8")
-    assert region(page, "mosaic").count("/bonds/founder-first/tessera.svg?size=34") == 1
+    assert region(page, "mosaic").count("/bonds/founder-first/tessera.svg?size=24") == 1
+    whole = atrium.whole_path.read_text(encoding="utf-8")
+    assert region(whole, "whole").count("/bonds/founder-first/tessera.svg?size=34") == 1
     assert region(page, "who").count('<img class="half"') == 2
     assert "a bond was sealed between the founder and the first one" not in region(page, "mosaic")
     assert region(page, "reading").strip() == (

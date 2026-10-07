@@ -20,8 +20,8 @@ import sys
 
 import pytest
 
-from conftest import (REPO, Turn, block, lines_of, page, read_json, shut_away, write,
-                      write_json)
+from conftest import (REPO, Turn, block, explained_as_before, lines_of, page, read_json,
+                      shut_away, write, write_json)
 
 EARLIER = "=== YOUR EARLIER VERSIONS ==="
 ASKED = "=== AN EARLIER VERSION, AS YOU ASKED ==="
@@ -128,6 +128,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     as it stands now.
     """
     shut_away(attend, monkeypatch, "LOOKING_BACK", "CHOICES")
+    explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     try:
         source = subprocess.run(["git", "show", BEFORE_LOOKING_BACK + ":attend.py"], cwd=REPO,
                                 capture_output=True, check=True).stdout
@@ -224,9 +225,10 @@ def test_each_kept_version_is_one_line_oldest_first(wake, looking_back, packet):
 
 
 def test_a_version_it_sets_aside_is_listed_from_the_next_waking(wake, looking_back, packet, clock):
-    at = clock.stamp()
     first = wake(block("SELF", "# The first one\n\nVersion 2, in my own words."))
     assert section(first, EARLIER) == NONE_KEPT
+    at = clock.stamp()  # set aside when the new one is confirmed, a waking later
+    assert section(wake(block("SELF_CONFIRM", "yes")), EARLIER) == NONE_KEPT
     again = clock.stamp()
     wake(block("MEMORY", "First."))  # nothing stood before the first notes
     its_self = ("self-document · in use from 4 September 2026 until 15 October 2026 · "

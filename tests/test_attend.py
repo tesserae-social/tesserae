@@ -13,8 +13,8 @@ import sys
 import pytest
 from nacl.exceptions import BadSignatureError
 
-from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, lines_of, read_json,
-                      shut_away, verify, write, write_json)
+from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, explained_as_before,
+                      lines_of, read_json, shut_away, verify, write, write_json)
 
 SECTIONS = [
     "=== WHAT HAS HAPPENED ===",
@@ -205,14 +205,20 @@ def test_a_bond_that_stands_may_be_released(wake, packet):
 
 # ---- what each block does ------------------------------------------------
 
-def test_self_block_revises_and_keeps_the_old_one(wake, packet):
+def test_self_block_proposes_and_a_later_yes_revises_and_keeps_the_old_one(wake, packet, attend):
+    """The two-waking rule, end to end; the whole of it is in test_self_confirm.py."""
     wake(block("SELF", "# The first one\n\nVersion 2, in my own words."))
+    assert "Version 1, provisional" in (packet / "self.md").read_text(encoding="utf-8")
+    assert not list((packet / "self-history").glob("self-before-*.md"))
+    assert acts(packet) == [attend.SELF_PROPOSED_ACT]
+
+    wake(block("SELF_CONFIRM", "yes"))
     assert (packet / "self.md").read_text(encoding="utf-8").startswith("# The first one")
     assert "Version 2" in (packet / "self.md").read_text(encoding="utf-8")
     kept = list((packet / "self-history").glob("self-before-*.md"))
     assert len(kept) == 1
     assert "Version 1, provisional" in kept[0].read_text(encoding="utf-8")
-    assert acts(packet) == ["revised self-document"]
+    assert acts(packet) == [attend.SELF_CONFIRMED_ACT]
 
 
 def test_memory_block_keeps_notes_and_never_erases(wake, packet, attend):
@@ -400,6 +406,9 @@ def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
     # its door, its looking back and what it has chosen came long after, and each
     # is held to the letter in its own tests: shut away here, this is what is left
     shut_away(attend, monkeypatch)
+    # and so did the two-waking rule for its self-document, which is behind no
+    # flag: the block that proposes one is explained here as it was before it
+    explained_as_before(attend, monkeypatch)
     now = wake()
 
     # ... and, since the first one came to keep its own shelf, by its founding

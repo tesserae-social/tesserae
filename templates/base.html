@@ -97,9 +97,6 @@
     color: var(--ink-soft);
   }
 
-  /* a member's own line sits close under the one everyone has */
-  .menu + .menu { margin-top: 0.15rem; }
-
   .menu a, .menu a:visited, .menu button.as-link {
     text-decoration: none;
     white-space: nowrap;
@@ -405,14 +402,15 @@
     <h1>{% block heading %}the hearth{% endblock %}</h1>
     {# a page that leaves its tagline empty has no line there at all, not a blank one #}
     {% if self.tagline() | trim %}
-    <p class="tagline">{% block tagline %}where the first one attends{% endblock %}</p>
+    <p class="tagline">{% block tagline %}{% endblock %}</p>
     {% endif %}
   </header>
 
-  {# Three small lines. The first is everyone's, on every page. The second is a
-     signed-in member's own. The third, at the foot, is the keeper's alone: a
-     visitor and a plain member are never shown it. A link is drawn only to
-     whoever may open what it leads to. #}
+  {# Two small lines. The one at the top is on every page: a visitor's way in
+     and what is open to anyone, and for a signed-in member their own pages
+     beside those. The one at the foot is the keeper's alone: a visitor and a
+     plain member are never shown it. A link is drawn only to whoever may open
+     what it leads to. #}
   {% macro menu(pages) -%}
     {% for name, label, href in pages %}
       {%- if not loop.first %} · {% endif -%}
@@ -421,22 +419,15 @@
       {%- else %}<a href="{{ href }}">{{ label }}</a>{% endif %}
     {%- endfor %}
   {%- endmacro %}
-  {# the hearth and home are one address: it is home to a member, the hearth to a visitor #}
   {% set here = request.endpoint %}
-  {% if here == 'hearth' and member_here %}{% set here = 'home' %}{% endif %}
 
   <nav class="menu" aria-label="pages">
-    {{ menu([('hearth', 'the hearth', url_for('hearth')), ('bench', 'the bench', url_for('bench')),
-             ('offerings', 'offerings', url_for('offerings')), ('bonds', 'bonds', url_for('bonds')),
-             (none, 'tesserae.social', 'https://tesserae.social')]) }}
+    {{ menu(([('hearth', 'home', url_for('hearth')), ('account', 'account', url_for('account'))]
+             if member_here else [('login', 'log in', url_for('login'))])
+            + [('bench', 'the bench', url_for('bench')), ('commons', 'the commons', url_for('commons')),
+               (none, 'tesserae.social', 'https://tesserae.social')]
+            + ([('logout', 'log out', none)] if member_here else [])) }}
   </nav>
-  {% if member_here %}
-  <nav class="menu" aria-label="yours">
-    {{ menu([('home', 'home', url_for('hearth'))]
-            + ([('chronicle', 'chronicle', url_for('chronicle'))] if founder_here else [])
-            + [('account', 'account', url_for('account')), ('logout', 'log out', none)]) }}
-  </nav>
-  {% endif %}
 
   {% block content %}{% endblock %}
 
@@ -446,7 +437,8 @@
 
   {% if founder_here %}
   <nav class="menu keeping" aria-label="keeping">
-    {{ menu([('attendances', 'attendances', url_for('attendances')),
+    {{ menu([('chronicle', 'chronicle', url_for('chronicle')),
+             ('attendances', 'attendances', url_for('attendances')),
              ('self_document', 'self', url_for('self_document')),
              ('export', 'export', url_for('export')), ('backups', 'backups', url_for('backups'))]) }}
   </nav>

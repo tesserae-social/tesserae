@@ -146,7 +146,7 @@ def test_the_nav_names_the_account_to_the_keeper(keeper):
 
 
 def test_the_nav_does_not_name_it_to_a_visitor(visitor):
-    assert 'href="/account"' not in page(visitor.get("/"))
+    assert 'href="/account"' not in page(visitor.get("/commons"))
 
 
 def test_on_the_account_page_the_nav_marks_it_as_here(member):

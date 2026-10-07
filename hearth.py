@@ -2024,12 +2024,13 @@ def sign_in_member(name, record):
 
 # ---- the pages -----------------------------------------------------------
 
-# One address, two pages. To a visitor it is the public hearth: a door, and not a
-# second atrium, which names what is open to anyone; the record itself is read at
-# tesserae.social. To a member it is home: their own door, and under it their
-# correspondences, one card each, with the way into each room.
+# Home: a member's own door, and under it their correspondences, one card each,
+# with the way into each room. A visitor has no home here and is sent to the
+# login page; what is open to anyone is in the menu, on every page.
 @app.route("/")
 def hearth():
+    if not session.get("member"):
+        return redirect(url_for("login"))
     return hearth_page()
 
 
@@ -2694,7 +2695,6 @@ BACKUPS_PAGE = """{% extends "base.html" %}
 
 {% block title %}backups{% endblock %}
 {% block heading %}backups{% endblock %}
-{% block tagline %}the record, off this machine{% endblock %}
 
 {% block content %}
 <p class="note">Each of these is the packet, the commons and the members' records whole,
@@ -2842,14 +2842,32 @@ def sealed_bonds_shown():
             for bond_id, bond in public_bonds.every()]
 
 
-# The sealed bonds, open to anyone: each is offered by its own page, and a
-# released one too, since the record is kept. Where a bond is asked for,
-# answered, sealed and released is its room: the founder's own asking is made
-# with a letter, because a bond of his begins with one, the first one asks at a
-# waking, and everything after the asking is under the bond there.
+# The files of the commons that the record section of /commons links to, by the
+# word each is called there and the view that serves it. The list of bonds is
+# written at the first seal, and is linked once it is there.
+RECORD_FILES = [("heartbeats", "commons_heartbeats"), ("events", "commons_events"),
+                ("bench", "commons_bench"), ("members", "commons_members"),
+                ("offerings", "commons_offerings")]
+
+
+# The commons, open to anyone, on one page: the sealed bonds, each offered by its
+# own page, and a released one too, since the record is kept; the offerings, each
+# at its own anchor; and the files of the record, as they are written. Where a
+# bond is asked for, answered, sealed and released is its room: the founder's own
+# asking is made with a letter, because a bond of his begins with one, the first
+# one asks at a waking, and everything after the asking is under the bond there.
+@app.route("/commons")
+def commons():
+    files = RECORD_FILES + ([("bonds", "commons_bonds")] if public_bonds.INDEX.exists() else [])
+    return render_template("commons.html", sealed_bonds=sealed_bonds_shown(),
+                           offerings=offerings_placed(), record_files=files)
+
+
+# The list of sealed bonds had this address before the commons had a page, and
+# it still leads to them.
 @app.route("/bonds")
 def bonds():
-    return render_template("bonds.html", sealed_bonds=sealed_bonds_shown())
+    return redirect(url_for("commons", _anchor="sealed-bonds"))
 
 
 # The founder's answer to an asking of the first one's: yes, no, or not yet, and
@@ -3303,13 +3321,16 @@ def decline_an_offering():
 
 
 # The offerings themselves, open to anyone: the two of them gave these to the
-# commons, and the commons is where they stay. Each one is at its own anchor,
-# and its signed record is at its own address, so that anyone may check both
-# signatures against the two identity documents without asking us.
+# commons, and the commons is where they stay. They are a section of /commons
+# now, each one at its own anchor there, and its signed record is at its own
+# address, so that anyone may check both signatures against the two identity
+# documents without asking us. This address is the one they had, and it still
+# leads to them. It names no anchor of its own, because a browser carries the
+# anchor it was asked for across a redirect only when the redirect names none:
+# so /offerings#<id> arrives at that offering.
 @app.route("/offerings")
 def offerings():
-    return render_template("offerings.html", offerings=offerings_placed(),
-                           attribution=offering.ATTRIBUTION)
+    return redirect(url_for("commons"))
 
 
 @app.route("/commons/offerings.md")

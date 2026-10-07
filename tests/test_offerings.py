@@ -406,12 +406,20 @@ def a_placed_offering(founder, wake, packet, kind="passage", source=HIS, text=PA
     return only_placed(packet)
 
 
-def test_the_offerings_page_is_open_to_anyone(visitor, founder, wake, packet):
+def offerings_section(client):
+    """The offerings as /commons shows them: the section, and nothing around it."""
+    said = page(client.get("/commons"))
+    return said[said.index('<section id="offerings">'):said.index('<section id="the-record">')]
+
+
+def test_the_offerings_are_open_to_anyone(visitor, founder, wake, packet):
     one = a_placed_offering(founder, wake, packet)
-    answer = visitor.get("/offerings")
+    answer = visitor.get("/commons")
     assert answer.status_code == 200
-    said = page(answer)
-    assert 'id="%s"' % one["id"] in said
+    said = offerings_section(visitor)
+    assert '<article class="card" id="%s">' % one["id"] in said
+    assert '<a href="#%s">%s</a>' % (one["id"], one["id"]) in said
+    assert "none yet" not in said
     assert PASSAGE in said
     assert "a passage" in said
     assert "the founder and the first one" in said
@@ -419,19 +427,20 @@ def test_the_offerings_page_is_open_to_anyone(visitor, founder, wake, packet):
     assert '<a href="/offerings/%s.json">' % one["id"] in said
 
 
-def test_the_offerings_page_reads_forward(visitor, founder, wake, packet):
+def test_the_offerings_read_forward(visitor, founder, wake, packet):
     a_correspondence(packet)
     for kind, source, text in (("letter", HIS, ""), ("passage", HIS, PASSAGE)):
         offer(founder, kind, source, text)
         wake(block("OFFER", "consent %s" % only_pending(packet)["id"]))
     older, newer = [one["id"] for one in
                     [read_json(path) for path in placed(packet)]]
-    said = page(visitor.get("/offerings"))
+    said = offerings_section(visitor)
     assert said.index('id="%s"' % older) < said.index('id="%s"' % newer)
 
 
 def test_an_empty_commons_says_so(visitor):
-    assert "Nothing has been offered to the commons yet." in page(visitor.get("/offerings"))
+    said = offerings_section(visitor)
+    assert '<p class="muted">none yet</p>' in said and '<article' not in said
 
 
 def test_the_index_is_open_to_the_atrium_and_never_cached(visitor, founder, wake, packet):
@@ -496,14 +505,22 @@ def test_a_pending_offering_is_at_no_address(visitor, founder, packet):
     one = only_pending(packet)
     assert visitor.get("/offerings/%s.json" % one["id"]).status_code == 404
     assert visitor.get("/commons/offerings/%s.md" % one["id"]).status_code == 404
-    assert HIS_LETTER.strip() not in page(visitor.get("/offerings"))
+    assert HIS_LETTER.strip() not in page(visitor.get("/commons"))
 
 
-def test_the_door_names_the_offerings(visitor, founder, wake, packet):
-    a_placed_offering(founder, wake, packet)
-    said = page(visitor.get("/"))
-    assert 'href="/offerings"' in said
+def test_the_old_address_leads_to_the_offerings_and_keeps_each_anchor(visitor, founder, wake,
+                                                                     packet):
+    one = a_placed_offering(founder, wake, packet)
+    # The anchor never reaches the hearth: a browser keeps it and carries it
+    # across a redirect that names none. So /offerings#<id>, as the atrium
+    # links it, arrives at /commons#<id>, and that id is on the page there.
+    answer = visitor.get("/offerings")
+    assert answer.status_code == 302 and answer.headers["Location"] == "/commons"
+    said = page(visitor.get("/offerings", follow_redirects=True))
+    assert said.count('id="%s"' % one["id"]) == 1
     assert 'href="/commons/offerings.md"' in said
+    # and the signed record is at the address it always had
+    assert visitor.get("/offerings/%s.json" % one["id"]).status_code == 200
 
 
 # ---- what the first one is shown -----------------------------------------

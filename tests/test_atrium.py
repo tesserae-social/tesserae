@@ -1381,7 +1381,7 @@ SKELETON = """<main>
     <!-- bench:start --><!-- bench:end -->
 
     <footer>
-      <p>the books will open with the commons</p>
+      <p>the books will open with the commons · <a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>
     </footer>
 
   </div>
@@ -1402,6 +1402,21 @@ def skeleton_of(text):
 
 def test_the_page_is_read_in_this_order_and_holds_nothing_else():
     assert skeleton_of(PAGE.read_text(encoding="utf-8")) == SKELETON
+
+
+def test_the_foot_leads_to_the_record(atrium, data_dir, monkeypatch):
+    line = ('<p>the books will open with the commons · '
+            '<a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>')
+    said = PAGE.read_text(encoding="utf-8")
+    foot = said.split("<footer>")[1].split("</footer>")[0]
+    assert foot.strip() == line
+    assert said.count("/commons#the-record") == 1  # in the page's words, and not its script
+    # the builder writes the same foot, byte for byte
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    built = atrium.page_path.read_text(encoding="utf-8")
+    assert built.split("<footer>")[1].split("</footer>")[0] == foot
+    assert built.split("</main>")[1] == said.split("</main>")[1]
 
 
 def test_the_sections_stand_in_the_order_they_are_read():

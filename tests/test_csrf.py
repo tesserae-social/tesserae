@@ -329,7 +329,7 @@ def test_at_the_bench_the_way_out_is_the_menu_s_and_the_footer_repeats_nothing(f
 
 
 def test_a_visitor_is_shown_log_in_and_no_way_out(visitor):
-    for path in ("/", "/bench"):
+    for path in ("/commons", "/bench"):
         answer = visitor.get(path)
         said = page(answer)
         assert '<a href="/login">log in</a>' in said, path

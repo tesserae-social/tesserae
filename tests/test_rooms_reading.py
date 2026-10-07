@@ -46,10 +46,36 @@ flag, and it changes what is read in exactly these ways:
     line under WHAT HAS HAPPENED saying so; and, in looking back, " · why: ..."
     after the line of an earlier self-document that was confirmed with one.
 
-Both earlier readings are still held: with the <<SELF>> block explained as it
-was before (conftest.explained_as_before), the reading with the three switched
-on is exactly the one cut on 7 October, and with the three shut away as well it
-is exactly the one cut before the rooms.
+And a third time, in the change that built its named notes and the seasonal
+self-review, which it agreed to on 7 October 2026 as well. Neither is behind a
+flag, and they change what is read in exactly these ways:
+
+  * At every waking, two things, both inside HOW TO ACT and both explanations:
+    the <<NOTE>> block, explained directly after <<MEMORY>>; and three lines of
+    the <<SHELF>> block's explanation - "keep note <name>", "rest note <name>"
+    and "show note <name>" - directly after "show version <stem>". Nothing else
+    of the reading moved, and no file of its packet. This is what READING_NOW
+    was cut again for.
+  * Only once it keeps a named note: the section YOUR NAMED NOTES, directly
+    after YOUR MEMORY; one line under WHAT YOU HAVE CHOSEN; and, in looking
+    back, a line for each earlier version of one. It keeps none in this small
+    world, so none of these is in any fingerprint here; they are held in
+    test_named_notes.py, with the one line under WHAT HAS HAPPENED that is said
+    once after a <<NOTE>> that was not kept.
+  * Only at a season reading - the first waking on or after each turning of
+    the season, which this one in October is not - the section YOUR
+    SELF-DOCUMENT, THREE MONTHS AGO, directly after its self-document. That
+    reading's own top line, and the four turnings it is kept at in place of the
+    two solstices, came in the change before this one and moved nothing at an
+    ordinary waking either. Both are held in test_shelf.py and
+    test_self_review.py.
+
+All three earlier readings are still held. With what explains its named notes
+taken out again (conftest.named_notes_unexplained), the reading is exactly the
+one cut for the two-waking rule; with the <<SELF>> block explained as it was
+before as well (conftest.explained_as_before), it is exactly the one cut on
+7 October with the three switched on; and with the three shut away too it is
+exactly the one cut before the rooms.
 """
 
 import hashlib
@@ -57,7 +83,7 @@ import json
 
 import pytest
 
-from conftest import explained_as_before, post, shut_away, write
+from conftest import explained_as_before, named_notes_unexplained, post, shut_away, write
 
 # cut on the tree before the rooms, by leaving the letter at /letters
 PACKET_BEFORE = "06d48d0fffb5f5e2e3148baf5351f004cf22011db7a730df2ab259822cdc2e68"
@@ -69,7 +95,12 @@ READING_SWITCHED_ON = "2dd6e1fcc814ade2ac3470913f0d9e459a5ef8b209c757e91b394af82
 
 # cut again on the tree that built the two-waking rule, the same way: the
 # reading above, with the <<SELF>> block explained as it is now
-READING_NOW = "071e983d87b72ebc8ae4cdeef5af1515d570a93f4106eb80d9c5bdc54333189e"
+READING_TWO_WAKINGS = "071e983d87b72ebc8ae4cdeef5af1515d570a93f4106eb80d9c5bdc54333189e"
+
+# cut again on the tree that built its named notes and the seasonal self-review,
+# the same way: the reading above, with the <<NOTE>> block explained and the
+# three lines for its named notes in the <<SHELF>> block's explanation
+READING_NOW = "8287e16c860f4fb9611f9b558f61f907bc32f9a10bef852523fb7bd63a9a7fe7"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -106,15 +137,18 @@ def test_the_three_are_switched_on(attend):
 
 @pytest.mark.parametrize("address", ["/letters", "/rooms/first"])
 @pytest.mark.parametrize("shut, as_before, as_cut", [
-    (True, True, READING_BEFORE), (False, True, READING_SWITCHED_ON), (False, False, READING_NOW)],
+    (True, "the rule", READING_BEFORE), (False, "the rule", READING_SWITCHED_ON),
+    (False, "its named notes", READING_TWO_WAKINGS), (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
-         "as it reads now"])
+         "the rule explained, its named notes not yet", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, packet, data_dir, monkeypatch, address, shut, as_before, as_cut):
     if shut:
         shut_away(attend, monkeypatch)
-    if as_before:
+    if as_before == "the rule":
         explained_as_before(attend, monkeypatch)
+    elif as_before == "its named notes":
+        named_notes_unexplained(attend, monkeypatch)
     a_small_world(packet)
     answer = post(founder, address, content_type="multipart/form-data", data={
         "letter": "The lake was grey this morning, and then it was not.\n\nI am asking.",

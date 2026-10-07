@@ -24,7 +24,7 @@ import subprocess
 import sys
 import threading
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -470,11 +470,45 @@ SELF_BLOCK_BEFORE = """<<SELF>>
 
 
 def explained_as_before(module, monkeypatch):
-    """Put back, for one test, the revision block's explanation as it stood before the rule."""
+    """Put back, for one test, the blocks' explanations as they stood before the rule.
+
+    Its named notes came after the rule, so what explains them is taken out too.
+    """
+    named_notes_unexplained(module, monkeypatch)
     now = module.SELF_BLOCK
     assert module.HOW_TO_ACT.count(now) == 1
     monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.replace(now, SELF_BLOCK_BEFORE))
     monkeypatch.setattr(module, "SELF_BLOCK", SELF_BLOCK_BEFORE)
+
+
+def named_notes_unexplained(module, monkeypatch):
+    """Take out, for one test, what explains its named notes (7 October 2026, too).
+
+    They are behind no flag either. At a waking where it keeps none, what they
+    added to the reading is two explanations and nothing else: the <<NOTE>>
+    block, after <<MEMORY>>, and three lines of the <<SHELF>> block.
+    """
+    said = module.NOTE_BLOCK + "\n\n"
+    assert module.HOW_TO_ACT.count(said) == 1
+    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.replace(said, ""))
+    monkeypatch.setattr(module, "SHELF_NOTES", "")
+
+
+def solstices_as_before(monkeypatch):
+    """Give shelf.py back, for one test, the reckoning an older attend.py asks it for.
+
+    Before the reading was kept at each turning of the season it was kept at
+    the two solstices, and an attend.py from then asks for it by that name.
+    """
+    import shelf
+
+    def solstice_due(today, last_attended):
+        days = [date(year, month, 21) for year in (today.year - 1, today.year)
+                for month in (6, 12)]
+        return (last_attended is not None
+                and last_attended < max(one for one in days if one <= today))
+
+    monkeypatch.setattr(shelf, "solstice_due", solstice_due, raising=False)
 
 
 # ---- small things the tests keep needing ---------------------------------

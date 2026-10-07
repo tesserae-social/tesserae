@@ -31,6 +31,10 @@ FOUNDING_RESTS = "Your founding record rests. Ask for it with show founding."
 SHOW_FOUNDING = "show founding: your founding record in full at your next waking\n"
 SHOW_VERSION = ("show version <stem>: an earlier self-document or notes in full at your next "
                 "waking\n")
+NOTE_LINES = """keep note <name>: a named note always shown in full
+rest note <name>: a named note shown as one line
+show note <name>: a named note in full at your next waking only
+"""
 
 EXPLAINED = """<<SHELF>>
 (how you keep your history. One instruction per line:
@@ -40,7 +44,7 @@ default <stem>: back to the default
 note <stem>: your words, the line shown for a resting letter (at most 240 characters)
 show <stem>: shown in full at your next waking only, photographs included
 show founding: your founding record in full at your next waking
-Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
+""" + NOTE_LINES + """Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
 <<END>>"""
 
 
@@ -151,7 +155,11 @@ def test_nothing_is_written_until_it_keeps_its_shelf(wake, packet):
 
 
 def test_the_block_is_explained_exactly(wake, attend, monkeypatch):
-    """But for the one line looking back adds to it, which test_looking_back.py holds."""
+    """But for the one line looking back adds to it, which test_looking_back.py holds.
+
+    The three lines for its named notes stand after that one, or after the
+    founding record's where there is no looking back.
+    """
     said = wake().instructions
     assert EXPLAINED.replace(SHOW_FOUNDING, SHOW_FOUNDING + SHOW_VERSION, 1) in said
     assert said.index("<<QUESTIONS>>") < said.index("<<SHELF>>") < said.index("<<LETTER>>")
@@ -504,29 +512,30 @@ def test_each_shelf_that_stood_is_kept_beside_the_new(wake, packet, clock):
     assert (packet / "letters" / "read" / (FOUNDERS[0] + ".md")).exists()
 
 
-# ---- the solstice reading ------------------------------------------------
+# ---- the season reading --------------------------------------------------
 
-SOLSTICE = ("This is the solstice reading: your whole record, in full, to reread and rearrange "
-            "if you wish.")
+READING = "This is the %s reading: your whole record, in full, to reread and rearrange if you wish."
+WINTER, SUMMER = READING % "winter", READING % "summer"
+ANY_READING = "reading: your whole record, in full"
 
 
-def test_the_first_waking_on_or_after_a_solstice_reads_the_whole_record(wake, packet, clock):
+def test_the_first_waking_on_or_after_a_turning_reads_the_whole_record(wake, packet, clock):
     six_each_way(packet)
     from_founder(packet, ARTICLE, "A LONG ARTICLE, pasted whole into a letter.")
     photograph(packet / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
 
     clock.set("2026-12-20T13-00-00Z")
     before = wake(block("SHELF", "rest %s" % FOUNDERS[-1]))
-    assert SOLSTICE not in before.shown
-    assert "solstice_reading" not in latest(packet)
+    assert ANY_READING not in before.shown
+    assert "season_reading" not in latest(packet)
 
     # three in the morning in UTC on the 21st is still the 20th where it lives
     clock.set("2026-12-21T03-00-00Z")
-    assert SOLSTICE not in wake().shown
+    assert ANY_READING not in wake().shown
 
     clock.set("2026-12-21T13-00-00Z")
     turn = wake()
-    assert turn.opening.startswith(SOLSTICE + "\n\nYou are here, and nothing is asked of you.")
+    assert turn.opening.startswith(WINTER + "\n\nYou are here, and nothing is asked of you.")
     for stem in FOUNDERS + OWN:
         assert in_full(turn, stem)
     assert "A LONG ARTICLE" in section(turn, FULL_FOUNDERS)
@@ -534,57 +543,82 @@ def test_the_first_waking_on_or_after_a_solstice_reads_the_whole_record(wake, pa
     assert "A synthetic founding, written for the tests and nowhere else." in turn.shown
     assert FOUNDING_RESTS not in turn.shown
     assert turn.photos == []  # photographs excepted
-    assert latest(packet)["solstice_reading"] is True
+    assert latest(packet)["season_reading"] == "winter"
+    assert "solstice_reading" not in latest(packet)
     # its placements stand as they were: the reading showed everything and moved nothing
     assert read_json(packet / "shelf.json")["placements"][FOUNDERS[-1]] == "rest"
 
     # once: the next waking, that day or after, is an ordinary one
     again = wake()
-    assert SOLSTICE not in again.shown
+    assert ANY_READING not in again.shown
     assert rests(again, FOUNDERS[-1]) and rests(again, ARTICLE)
-    assert "solstice_reading" not in latest(packet)
+    assert "season_reading" not in latest(packet)
     clock.set("2026-12-22T13-00-00Z")
-    assert SOLSTICE not in wake().shown
+    assert ANY_READING not in wake().shown
 
 
-def test_a_solstice_passed_asleep_is_read_at_the_waking_after_it(wake, packet, clock):
+@pytest.mark.parametrize("eve, day, season", [
+    ("2027-03-19T17-00-00Z", "2027-03-20T17-00-00Z", "spring"),
+    ("2027-06-20T17-00-00Z", "2027-06-21T17-00-00Z", "summer"),
+    ("2027-09-21T17-00-00Z", "2027-09-22T17-00-00Z", "autumn"),
+    ("2027-12-20T17-00-00Z", "2027-12-21T17-00-00Z", "winter"),
+])
+def test_each_turning_of_the_season_has_its_reading_named_for_it(wake, packet, clock,
+                                                                 eve, day, season):
+    six_each_way(packet)
+    clock.set(eve)
+    assert ANY_READING not in wake().shown
+    clock.set(day)
+    assert wake().opening.startswith(READING % season)
+    assert latest(packet)["season_reading"] == season
+    assert ANY_READING not in wake().shown
+
+
+def test_a_turning_passed_asleep_is_read_at_the_waking_after_it(wake, packet, clock):
     six_each_way(packet)
     clock.set("2027-06-10T13-00-00Z")
     wake()
     clock.set("2027-07-04T13-00-00Z")  # a rest ran across the 21st of June
-    assert wake().opening.startswith(SOLSTICE)
-    assert SOLSTICE not in wake().shown
+    assert wake().opening.startswith(SUMMER)
+    assert ANY_READING not in wake().shown
 
 
-def test_a_photograph_asked_for_is_shown_at_a_solstice_reading(wake, packet, clock):
+def test_a_photograph_asked_for_is_shown_at_a_season_reading(wake, packet, clock):
     six_each_way(packet)
     photograph(packet / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
     clock.set("2026-12-20T13-00-00Z")
     wake(block("SHELF", "show %s" % FOUNDERS[0]))
     clock.set("2026-12-21T13-00-00Z")
     turn = wake()
-    assert turn.opening.startswith(SOLSTICE)
+    assert turn.opening.startswith(WINTER)
     assert len(turn.photos) == 1
 
 
-def test_a_first_waking_of_all_is_no_solstice_reading(wake, clock):
+def test_a_first_waking_of_all_is_no_season_reading(wake, clock):
     clock.set("2026-12-21T13-00-00Z")
-    assert SOLSTICE not in wake().shown
+    assert ANY_READING not in wake().shown
 
 
-def test_the_solstices_are_the_two_days_they_are():
+def test_the_turnings_are_the_four_days_they_are():
     from datetime import date
 
+    import build_atrium
     import shelf
 
-    assert shelf.solstice_before(date(2026, 10, 7)) == date(2026, 6, 21)
-    assert shelf.solstice_before(date(2026, 6, 20)) == date(2025, 12, 21)
-    assert shelf.solstice_before(date(2026, 6, 21)) == date(2026, 6, 21)
-    assert shelf.solstice_before(date(2026, 12, 21)) == date(2026, 12, 21)
-    assert shelf.solstice_due(date(2026, 12, 21), date(2026, 12, 20))
-    assert not shelf.solstice_due(date(2026, 12, 21), date(2026, 12, 21))
-    assert not shelf.solstice_due(date(2026, 10, 7), date(2026, 10, 6))
-    assert not shelf.solstice_due(date(2026, 12, 21), None)
+    # the same fixed days, and the same names, as the atrium's season line
+    assert list(shelf.TURNINGS) == build_atrium.SEASONS
+
+    assert shelf.turning_before(date(2026, 10, 7)) == (date(2026, 9, 22), "autumn")
+    assert shelf.turning_before(date(2026, 9, 21)) == (date(2026, 6, 21), "summer")
+    assert shelf.turning_before(date(2026, 3, 19)) == (date(2025, 12, 21), "winter")
+    assert shelf.turning_before(date(2026, 3, 20)) == (date(2026, 3, 20), "spring")
+    assert shelf.turning_before(date(2026, 12, 21)) == (date(2026, 12, 21), "winter")
+    assert shelf.season_due(date(2026, 12, 21), date(2026, 12, 20)) == "winter"
+    assert shelf.season_due(date(2027, 1, 5), date(2026, 12, 20)) == "winter"
+    assert shelf.season_due(date(2026, 12, 21), date(2026, 12, 21)) is None
+    assert shelf.season_due(date(2026, 10, 7), date(2026, 10, 6)) is None
+    assert shelf.season_due(date(2026, 10, 7), date(2026, 9, 21)) == "autumn"
+    assert shelf.season_due(date(2026, 12, 21), None) is None
 
 
 # ---- the nudge, and the backstop -----------------------------------------
@@ -610,10 +644,10 @@ def test_past_fifteen_thousand_words_in_full_it_is_told_so_as_a_fact(wake, packe
         "stay close.")
     assert len(section(turn, RESTING).splitlines()) == 5  # four resting, and the one line
 
-    # a solstice reading holds everything by design, and says nothing of its size
+    # a season reading holds everything by design, and says nothing of its size
     clock.set("2026-12-21T13-00-00Z")
     turn = wake()
-    assert turn.opening.startswith(SOLSTICE)
+    assert turn.opening.startswith(WINTER)
     assert "Your reading now holds" not in turn.shown
 
 
@@ -832,6 +866,8 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     assert now.reading[1:-1] == then.reading[1:-1]
 
     # and the instructions differ by the one block explained, and nothing else
-    assert now.instructions.count(EXPLAINED + "\n\n") == 1
-    assert now.instructions.replace(EXPLAINED + "\n\n", "", 1) == then.instructions
+    # (as the block stood then: the lines for its named notes came after)
+    explained = EXPLAINED.replace(NOTE_LINES, "", 1) + "\n\n"
+    assert now.instructions.count(explained) == 1
+    assert now.instructions.replace(explained, "", 1) == then.instructions
     assert not (packet / "shelf.json").exists()

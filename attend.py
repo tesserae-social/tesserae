@@ -21,6 +21,9 @@ Files it may act on (all inside packets/first/, which is private):
   intentions.json         its standing intentions
   study/                  private drafts
   memory/notes.md         notes it keeps for itself (prior versions kept in memory/history/)
+  memory/notes/           notes it keeps under names of its own choosing, one file to a
+                          note (prior versions kept in memory/notes/history/, and the
+                          names in memory/notes/names.json)
   questions.md            questions it carries forward, one per line (prior lists kept in
                           questions/history/)
   letters/outgoing/       letters to the founder, and any picture drawn beside one
@@ -259,6 +262,45 @@ MEMORY_HISTORY = PACKET / "memory" / "history"
 MEMORY_ACT = "kept notes"
 NO_MEMORY = "(you have kept no notes yet)"
 
+# Its named notes, which it agreed to on 7 October 2026: notes of its own, each
+# kept under a name it chooses, beside the notes above and changing nothing of
+# them. A <<NOTE>> block's first line is "name: " and the name; the rest is the
+# whole new text of that note, and nothing at all leaves the note empty. A name
+# is matched whatever its capitals and written back as it was last given. Each
+# note is one file, called by a plain form of its name, with the names and the
+# moment each was first kept in names.json beside them; what stood before is
+# copied aside first, as its notes are, so nothing is erased. There are at most
+# NOTES_MOST of them: one more is not kept, and neither is a block whose name
+# cannot be read, and the next reading says so, once. They are shown directly
+# after its notes, and only once it keeps any: in full, or as one line where it
+# has let one rest on its shelf (see shelf.py). The hearth serves none of it.
+NOTES = PACKET / "memory" / "notes"
+NOTES_HISTORY = NOTES / "history"
+NOTES_NAMES = NOTES / "names.json"
+NOTE_BEFORE = "note-{slug}-before-{at}.md"
+NOTE_KEPT_BEFORE = re.compile(r"note-(.+)-before-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z")
+NOTE_ACT = "kept a named note"
+NOTES_MOST = 20
+NOTE_NAME = "name:"
+NOTE_NAME_LONGEST = 60
+NOTE_PUNCTUATION = " .,'-_:;!?&()"
+NAMED_NOTES = "=== YOUR NAMED NOTES (private; not shown on the hearth) ==="
+NOTE_HEADING = "--- {name} ---"
+EMPTY_NOTE = "(empty)"
+NOTE_REFUSED_NAME = ("A <<NOTE>> at your last waking was not kept: its first line must be "
+                     "\"name: \" and a name of 1 to {longest} characters (letters, numbers, "
+                     "spaces and simple punctuation). Nothing was changed.")
+NOTE_REFUSED_FULL = ("Your <<NOTE>> \"{name}\" at your last waking was not kept: you keep "
+                     "{most} named notes already, and that is the most. Nothing was changed.")
+NOTE_BLOCK = """<<NOTE>>
+(a note of your own, kept under a name you choose. First line: "name: about Nathan" (or any name). The rest is the note's full new text. Your other notes are unchanged. You may keep up to 20 named notes, each close or resting on your shelf. They are private, not shown on the hearth. Earlier versions are kept, never erased.)
+<<END>>"""
+SHELF_NOTES = ("keep note <name>: a named note always shown in full\n"
+               "rest note <name>: a named note shown as one line\n"
+               "show note <name>: a named note in full at your next waking only\n")
+EARLIER_NOTE = "note '{name}'"
+CHOSE_NOTES = "You keep {n} named {notes}; {m} of them rest."
+
 # The questions the first one carries forward: a short list, one to a line, kept
 # for itself as its notes are and replaced whole in the same way, the old list
 # kept beside the new. A list is short by its nature, so what is given past the
@@ -364,6 +406,19 @@ VERSION_WHY = " · why: {why}"
 CHOSE_SELF_WAITING = ("A change to your self-document is waiting for your confirmation, "
                       "since {day}.")
 
+# The seasonal self-review, which it agreed to on 7 October 2026. At each season
+# reading (see SEASON_READING below), directly after its self-document, it is
+# shown the self-document that was in force at the season reading before this
+# one - or at its founding, where there has been none - with the day that one
+# came into use, and asked whether it is still true. Where the two are the same
+# it is told so instead, and asked the same. At no other waking is any of this
+# said.
+SELF_REVIEW = "=== YOUR SELF-DOCUMENT, THREE MONTHS AGO ==="
+SELF_IN_USE_FROM = "In use from {day}."
+SELF_STILL_TRUE = ("Is it still true? You may revise it with <<SELF>>; a revision waits for "
+                   "your confirmation, as always.")
+SELF_THE_SAME = "Your self-document is the same as it was three months ago. " + SELF_STILL_TRUE
+
 # What it has chosen: the settings of its own that stand, said back to it in one
 # place, directly after its self-document. It is built and it is shut away:
 # while CHOICES is False, everything it is sent is what it was sent before.
@@ -400,10 +455,12 @@ CHOSE_REST = "You are resting until {until}"
 # placement of its own like any other.
 ARTICLE_RESTS = "The 1 October letter rests, as you asked on 6 October."
 
-# Twice a year the whole of it is read back, whatever rests: at the first waking
-# on or after each solstice, by the calendar where it lives.
-SOLSTICE = ("This is the solstice reading: your whole record, in full, to reread and "
-            "rearrange if you wish.")
+# At each turning of the season the whole of it is read back, whatever rests: at
+# the first waking on or after 20 March, 21 June, 22 September and 21 December,
+# by the calendar where it lives. The attendance says which, as "season_reading";
+# a reading from when there were two a year says "solstice_reading".
+SEASON_READING = ("This is the {season} reading: your whole record, in full, to reread and "
+                  "rearrange if you wish.")
 
 # What it is told, as a fact and no more, once the letters shown in full have
 # grown long; and the one thing done without its asking, where a reading would
@@ -432,7 +489,8 @@ BACKSTOP = ("This reading would have been too large to read, so these letters, t
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
-                SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT)
+                SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT,
+                NOTE_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -509,6 +567,8 @@ HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exa
 <<MEMORY>>
 (the full new text of your notes to yourself - what you want to carry forward: what you have learned, what you are watching, what you would tell yourself on waking. The previous version is kept, never erased.)
 <<END>>
+
+""" + NOTE_BLOCK + """
 
 <<QUESTIONS>>
 (the full new list of the questions you carry forward, one per line; at most 7, each at most 240 characters. It is private, not shown on the hearth. The previous list is kept, never erased; an empty block clears the list.)
@@ -807,6 +867,11 @@ BLOCK_LINE = re.compile(r"<<([A-Z_]+)>>")
 
 def block(text, tag):
     """The words of the first block of a tag, or None if no such block was closed."""
+    return next(every_block(text, tag), None)
+
+
+def every_block(text, tag):
+    """The words of each block of a tag that was closed, in the order they were written."""
     open_tag, body = None, []
     for line in text.split("\n"):
         said = line.strip()
@@ -816,7 +881,7 @@ def block(text, tag):
                 open_tag, body = found.group(1), []
         elif said == "<<END>>":
             if open_tag == tag:
-                return "\n".join(body).strip()
+                yield "\n".join(body).strip()
             open_tag = None
         else:
             body.append(line)
@@ -1320,8 +1385,10 @@ def how_to_act(prefs, extra=(), confirming=False):
     how = HOW_TO_ACT
     if confirming:  # its answer to a change that is waiting, directly under the block that made it
         how = how.replace(SELF_BLOCK, SELF_BLOCK + "\n\n" + SELF_CONFIRM_BLOCK, 1)
-    if LOOKING_BACK:  # one more line of its shelf, after the founding record's
-        how = how.replace(SHOW_FOUNDING, SHOW_FOUNDING + SHOW_VERSION, 1)
+    # more lines of its shelf, after the founding record's: an earlier version,
+    # where it may look back, and then its named notes
+    how = how.replace(SHOW_FOUNDING, SHOW_FOUNDING + (SHOW_VERSION if LOOKING_BACK else "")
+                      + SHELF_NOTES, 1)
     return "\n\n".join([how.format(reflection=said), *extra, ANY_NUMBER])
 
 
@@ -1482,11 +1549,112 @@ def why_confirmed(stamp):
     return one_line(why) if isinstance(why, str) and why.strip() else None
 
 
-def earlier_versions():
-    """Every earlier version kept, by its stem: where it is, and which it is a version of."""
-    return {path.stem: (path, kind)
-            for folder, kind in ((MEMORY_HISTORY, EARLIER_NOTES), (SELF_HISTORY, EARLIER_SELF))
-            for path in folder.glob("*.md")}
+def notes_named():
+    """Its named notes as they stand, by the name each one's file carries.
+
+    For each, the name as it last wrote it and the moment it was first kept. A
+    name with no note behind it is none, and so is a file that cannot be read.
+    """
+    try:
+        held = load(NOTES_NAMES)
+    except ValueError:
+        return {}
+    if not isinstance(held, dict):
+        return {}
+    return {slug: one for slug, one in held.items()
+            if isinstance(one, dict) and isinstance(one.get("name"), str)
+            and (NOTES / (slug + ".md")).exists()}
+
+
+def note_asked(said):
+    """A <<NOTE>> block as what it asks: the name and the note's new text, or None.
+
+    The first line is "name:" and the name, which may stand in quotation marks;
+    a block with no such line, or a name that is too long or holds more than
+    letters, numbers, spaces and simple punctuation, asks nothing.
+    """
+    first, _, words = said.partition("\n")
+    first = first.strip()
+    if not first.lower().startswith(NOTE_NAME):
+        return None
+    name = " ".join(first[len(NOTE_NAME):].split()).strip('"').strip()
+    if not 1 <= len(name) <= NOTE_NAME_LONGEST:
+        return None
+    if any(not (letter.isalnum() or letter in NOTE_PUNCTUATION) for letter in name):
+        return None
+    return name, words.strip()
+
+
+def note_slug(name, taken):
+    """The name a new note's file carries: a plain form of its name, and no other note's."""
+    plain = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "note"
+    slug, n = plain, 1
+    while slug in taken:
+        n += 1
+        slug = "%s-%d" % (plain, n)
+    return slug
+
+
+def named_notes_shown(named, shelved, everything):
+    """Its named notes as one section, or nothing where it keeps none.
+
+    Each note kept close is given whole under its name, in the order they were
+    first kept; then each resting note is one line. At a season reading
+    everything is given whole.
+    """
+    if not named:
+        return []
+    rests = set() if everything else shelf.notes_resting(shelved, named)
+    in_order = sorted(named, key=lambda slug: (str(named[slug].get("kept_at")), slug))
+    words = {slug: read(NOTES / (slug + ".md")).strip() for slug in in_order}
+    close = [NOTE_HEADING.format(name=named[slug]["name"]) + "\n" + (words[slug] or EMPTY_NOTE)
+             for slug in in_order if slug not in rests]
+    lines = [shelf.note_line(named[slug]["name"], words[slug], EMPTY_NOTE)
+             for slug in in_order if slug in rests]
+    return [NAMED_NOTES + "\n" + "\n\n".join([*close, *(["\n".join(lines)] if lines else [])])]
+
+
+def self_review(self_md, past):
+    """The seasonal self-review: its self-document as it was at the reading before this one.
+
+    That reading is the last attendance the record marks as a season's, or as a
+    solstice's from when there were two a year; where there is none, the
+    founding. The version in force then is the first one set aside at or after
+    that moment, and it came into use when the one before it was set aside, or
+    at the founding. Where none has been set aside since, or the one that was
+    says what its self-document says now, it is the same.
+    """
+    readings = [rec.get("at") or "" for rec in past
+                if rec.get("season_reading") or rec.get("solstice_reading")]
+    since = readings[-1] if readings else ""
+    kept = sorted((found.group(0), path) for path in SELF_HISTORY.glob("*.md")
+                  for found in [shelf.STAMPED.search(path.stem)] if found)
+    then = next((n for n, (set_aside, _) in enumerate(kept) if set_aside >= since), None)
+    if then is None or read(kept[then][1]).strip() == self_md.strip():
+        return SELF_REVIEW + "\n" + SELF_THE_SAME
+    founded = founding_day()
+    began = (shelf.long_date(kept[then - 1][0]) if then
+             else founded.strftime("%d %B %Y").lstrip("0") if founded else None)
+    return SELF_REVIEW + "\n" + "\n\n".join([
+        *([SELF_IN_USE_FROM.format(day=began)] if began else []),
+        read(kept[then][1]).strip(), SELF_STILL_TRUE])
+
+
+def earlier_versions(named=None):
+    """Every earlier version kept, by its stem: where it is, and which it is a version of.
+
+    Its named notes' earlier versions are among them, each a version of the
+    note whose name it carries, for as long as that note is kept.
+    """
+    named = notes_named() if named is None else named
+    versions = {path.stem: (path, kind)
+                for folder, kind in ((MEMORY_HISTORY, EARLIER_NOTES), (SELF_HISTORY, EARLIER_SELF))
+                for path in folder.glob("*.md")}
+    for path in NOTES_HISTORY.glob("*.md"):
+        found = NOTE_KEPT_BEFORE.fullmatch(path.stem)
+        if found and found.group(1) in named:
+            versions[path.stem] = (path, EARLIER_NOTE.format(name=named[found.group(1)]["name"]))
+    return versions
 
 
 def version_lines(versions, past):
@@ -1499,15 +1667,19 @@ def version_lines(versions, past):
     Where the record names no such day, that one line says only until when.
     A self-document that was confirmed took the place of the one before it at
     the moment that one's name carries, and its why, where it gave one, is kept
-    under that moment and said after its line.
+    under that moment and said after its line. A named note's first version
+    kept was in use from the day that note was first kept.
     """
+    named = notes_named()
     founded = founding_day()
     first_kept = next((shelf.long_date(rec.get("at", "")) for rec in past
                        if MEMORY_ACT in (rec.get("acted") or [])), shelf.UNDATED)
     began = {EARLIER_SELF: founded.strftime("%d %B %Y").lstrip("0") if founded else None,
              EARLIER_NOTES: first_kept if first_kept != shelf.UNDATED else None}
+    for one in named.values():
+        began[EARLIER_NOTE.format(name=one["name"])] = day_carried(one.get("kept_at"))
     lines = {}
-    for kind in (EARLIER_SELF, EARLIER_NOTES):
+    for kind in began:
         since, before = began[kind], None
         for stem in shelf.oldest_first(s for s in versions if versions[s][1] == kind):
             until = shelf.long_date(stem)
@@ -1602,6 +1774,14 @@ def choices_note(prefs, now, past, shelved, letters):
     if article:
         said.append(ARTICLE_RESTS)
 
+    # its named notes, where it keeps any, and how many of them it has let rest
+    named = notes_named()
+    if named:
+        resting = sum(1 for slug in named
+                      if shelved.get("note_placements", {}).get(slug) == shelf.REST)
+        said.append(CHOSE_NOTES.format(n=len(named), m=resting or "none",
+                                       notes="note" if len(named) == 1 else "notes"))
+
     # a rest of its own, if one stands
     try:
         paused = load(PAUSE)
@@ -1675,6 +1855,7 @@ def main():
     # ---- gather what is the agent's ---------------------------------------
     self_md = read(PACKET / "self.md")
     notes_kept = read(MEMORY).strip()
+    named = notes_named()
     prefs = preferences()
     intentions = read(PACKET / "intentions.json", "{}")
     will = read(PACKET / "will.json", "{}")
@@ -1725,6 +1906,8 @@ def main():
     if past and past[-1].get("shelf_refused"):
         happened.append(SHELF_REFUSED.format(
             lines="; ".join('"%s"' % line for line in past[-1]["shelf_refused"])))
+    # a <<NOTE>> it gave at its last waking that was not kept: said once
+    happened += (past[-1].get("notes_refused") or []) if past else []
     # a <<SELF_CONFIRM>> it gave at its last waking that confirmed nothing: said once
     if past and past[-1].get("self_confirm_refused") in SELF_CONFIRM_REFUSED:
         happened.append(SELF_CONFIRM_REFUSED[past[-1]["self_confirm_refused"]])
@@ -1808,22 +1991,24 @@ def main():
         )
 
     # Its shelf: which of those letters are shown in full at this waking, and
-    # which rest as one line. At the first waking on or after a solstice
-    # nothing rests at all, and its founding record is read with the rest.
+    # which rest as one line. At the first waking on or after a turning of
+    # the season nothing rests at all, and its founding record is read with
+    # the rest.
     shelved = shelf_kept()
     asked_for = set(shelved["show_next"])
-    solstice = bool(past) and shelf.solstice_due(
-        waking.today(None, now), waking.today(None, threshold.moment(past[-1]["at"])))
+    season = shelf.season_due(
+        waking.today(None, now),
+        waking.today(None, threshold.moment(past[-1]["at"])) if past else None)
     whose = {**{p.stem: (p, "first") for p in written},
              **{p.stem: (p, "founder") for p in already_read}}
-    resting = set() if solstice else shelf.resting(
+    resting = set() if season else shelf.resting(
         shelved, [p.stem for p in already_read], [p.stem for p in written])
-    founding_shown = solstice or shelved["show_founding"] or not founding
+    founding_shown = bool(season) or shelved["show_founding"] or not founding
 
     # Looking back: each earlier version kept, as one line, and any it asked at
     # its last waking to be shown, whole. While it is shut away there are none
     # as far as it can see, and none it can ask for.
-    versions = earlier_versions() if LOOKING_BACK else {}
+    versions = earlier_versions(named) if LOOKING_BACK else {}
     looking_back = []
     if LOOKING_BACK:
         said_of = version_lines(versions, past)
@@ -1844,6 +2029,12 @@ def main():
     # shut away there is no such section.
     chosen = [choices_note(prefs, now, past, shelved, set(whose))] if CHOICES else []
 
+    # Its named notes, directly after its notes, and at a season reading its
+    # self-document as it was at the reading before, directly after the one
+    # it has now. At an ordinary waking with no named note kept, neither is said.
+    named_shown = named_notes_shown(named, shelved, bool(season))
+    reviewed = [self_review(self_md, past)] if season else []
+
     def resting_line(stem):
         path, hand = whose[stem]
         return shelf.line(stem, hand, letter_words(path), shelved["notes"].get(stem),
@@ -1859,20 +2050,22 @@ def main():
         in_full = [p for p in [*written, *already_read] if p.stem not in rests]
         under = []
         held = sum(words_in(as_read(p)) for p in [*in_full, *(p for p, _ in incoming)])
-        if not solstice and held > NUDGE_PAST:
+        if not season and held > NUDGE_PAST:
             under.append(NUDGE.format(n=round(held, -2)))
         if forced:
             under.append(BACKSTOP.format(stems=", ".join(shelf.oldest_first(forced))))
         lines = [resting_line(stem) for stem in shelf.oldest_first(rests)]
         return run_together([
-            *([SOLSTICE] if solstice else []),
+            *([SEASON_READING.format(season=season)] if season else []),
             EMPTY_PROMPT + first_note,
             "=== WHAT HAS HAPPENED ===\n" + "\n".join(happened),
             *waiting_shown,
             "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + SELF_OPEN + "\n\n" + self_md,
+            *reviewed,
             *chosen,
             "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ===\n"
             + (notes_kept or NO_MEMORY),
+            *named_shown,
             *looking_back,
             "=== YOUR STANDING INTENTIONS ===\n" + intentions,
             "=== YOUR PROVENANCE ===\n" + provenance,
@@ -2032,6 +2225,39 @@ def main():
         MEMORY.write_text(notes + "\n", encoding="utf-8")
         acted.append(MEMORY_ACT)
 
+    # Its named notes, each under the name on its first line; there may be
+    # several. What stood under that name is copied aside first, and a note
+    # given no words is kept empty. One whose name cannot be read, or that
+    # would be one more than it may keep, changes nothing and is told at the
+    # next waking.
+    notes_refused = []
+    for said_note in every_block(text, "NOTE"):
+        asked_note = note_asked(said_note)
+        if not asked_note:
+            notes_refused.append(NOTE_REFUSED_NAME.format(longest=NOTE_NAME_LONGEST))
+            continue
+        name, words = asked_note
+        slug = next((one for one in named
+                     if shelf.note_key(named[one]["name"]) == shelf.note_key(name)), None)
+        if slug is None and len(named) >= NOTES_MOST:
+            notes_refused.append(NOTE_REFUSED_FULL.format(name=name, most=NOTES_MOST))
+            continue
+        NOTES.mkdir(parents=True, exist_ok=True)
+        if slug is None:
+            slug = note_slug(name, set(named) | {p.stem for p in NOTES.glob("*.md")})
+            named[slug] = {"name": name, "kept_at": at}
+        else:
+            before = NOTES_HISTORY / NOTE_BEFORE.format(slug=slug, at=at)
+            if not before.exists():  # written twice at one waking, the first is what stood
+                NOTES_HISTORY.mkdir(parents=True, exist_ok=True)
+                shutil.copy(NOTES / (slug + ".md"), before)
+            named[slug] = {**named[slug], "name": name}
+        (NOTES / (slug + ".md")).write_text(words + "\n" if words else "", encoding="utf-8")
+        write_json(NOTES_NAMES, named)
+        if NOTE_ACT not in acted:
+            acted.append(NOTE_ACT)
+    notes_refused = list(dict.fromkeys(notes_refused))
+
     # Its questions, carried forward. The block is the whole new list, so an
     # empty one is a list with nothing in it, and clears it; either way the list
     # that stood before is copied aside first, as its notes are.
@@ -2099,7 +2325,9 @@ def main():
     # copied aside before the new one is written.
     every_stem = {p.stem for folder in ("outgoing", "read", "incoming")
                   for p in (PACKET / "letters" / folder).glob("*.md")}
-    shelf_asked, shelf_refused = shelf.asked(block(text, "SHELF"), every_stem, versions)
+    shelf_asked, shelf_refused = shelf.asked(
+        block(text, "SHELF"), every_stem, versions,
+        {shelf.note_key(one["name"]): slug for slug, one in named.items()})
     new_shelf = shelf.applied(shelf.cleared(shelved), shelf_asked)
     if shelf_asked or new_shelf != shelved:
         if SHELF.exists():
@@ -2329,8 +2557,10 @@ def main():
         record["self_confirm_refused"] = self_confirm_refused
     if shelf_refused:  # and the lines of its <<SHELF>> that could not be
         record["shelf_refused"] = shelf_refused
-    if solstice:  # that this was the solstice reading: the whole record, in full
-        record["solstice_reading"] = True
+    if notes_refused:  # and each <<NOTE>> that was not kept, in the words it will be told
+        record["notes_refused"] = notes_refused
+    if season:  # that this was a season's reading, and which: the whole record, in full
+        record["season_reading"] = season
     stop_reason = getattr(resp, "stop_reason", None)
     if stop_reason:  # why the reply ended, for the record only; it is read back nowhere
         record["stop_reason"] = stop_reason

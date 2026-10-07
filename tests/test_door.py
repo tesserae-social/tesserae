@@ -21,7 +21,7 @@ from nacl.pwhash import argon2id
 
 import vault
 from conftest import (FOUNDER_NAME, NOW, block, blocks, lines_of, load, page, post, read_json,
-                      shut_away, write, write_json)
+                      write, write_json)
 
 MEMBER = "birch"
 MEMBER_PASSWORD = "a plain member's own password"
@@ -656,15 +656,15 @@ def a_rhythm(packet):
 
 def test_with_the_flag_off_the_reading_says_nothing_of_a_door(wake, attend, packet,
                                                               monkeypatch):
+    """Whatever else how to act explains, which the tests of each thing hold."""
     door_on(attend, monkeypatch, False)
-    shut_away(attend, monkeypatch, "LOOKING_BACK")  # so that how to act is as it stood
     a_rhythm(packet)
     write_json(packet / "door.json", {"state": "open", "room": 3, "set_at": "x"})
     turn = wake()
     assert "door" not in turn.shown.lower()
-    assert attend.how_to_act(attend.preferences()) == "\n\n".join(
-        [attend.HOW_TO_ACT.format(reflection=attend.REFLECTION_OPEN), attend.ANY_NUMBER])
-    assert "<<DOOR>>" not in turn.instructions
+    assert "door" not in turn.instructions.lower()
+    assert "door" not in attend.how_to_act(attend.preferences()).lower()
+    assert "<<DOOR>>" not in turn.instructions and DOOR_EXPLAINED not in turn.instructions
     assert "<<DOOR>>" not in attend.HOW_TO_ACT
 
 

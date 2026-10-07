@@ -146,7 +146,7 @@ def test_a_letter_line_is_a_tile_toned_by_its_part_of_the_day(atrium, said, part
     assert tiles == [(datetime.date(2026, 10, 15), "tile-letter tile-letter-%s" % part,
                       "15 October 2026 · the founder wrote a letter %s" % said, "")]
     cells = atrium.slots(tiles, datetime.date(2026, 10, 15))
-    drawn = "".join(atrium.mosaic_block(cells))
+    drawn = "".join(atrium.frame_block(cells))
     assert ('<li class="tile-letter tile-letter-%s" title="15 October 2026 · the founder '
             'wrote a letter %s" tabindex="0"></li>' % (part, said)) in drawn
     assert atrium.reading_text(cells) == "15 October 2026 · the founder wrote a letter %s" % said

@@ -161,7 +161,7 @@ def test_the_word_is_hollow_and_the_founding_is_filled(atrium):
     tiles = a_whole_record(atrium)
     assert tiles[0][1] == "tile-word"
     assert tiles[1][1] == "tile-founding"
-    drawn = "".join(atrium.mosaic_block(atrium.slots(tiles, TODAY)))
+    drawn = "".join(atrium.frame_block(atrium.slots(tiles, TODAY)))
     assert '<li class="tile-word" title="2 September 2026 · the word was published"' in drawn
 
 
@@ -272,13 +272,14 @@ def test_below_four_the_tile_holds_and_the_frame_is_the_one_that_gives(atrium):
     assert holds == 14700         # some forty years of days before it scrolls
 
 
-def test_the_frame_carries_the_size_it_was_reckoned_at(atrium):
+def test_the_front_page_s_tiles_are_one_size_however_many_there_are(atrium):
+    """The front page's tiles never shrink: the size is the stylesheet's, and fixed."""
     cells = [("tile-event", "a thing", "")] * 1000
-    drawn = atrium.mosaic_block(cells)
-    assert drawn[0] == ('<ul class="mosaic" style="--tile:14px;--gap:1px" '
-                        'aria-label="the mosaic">')
+    drawn = atrium.frame_block(cells)
+    assert drawn[0] == '<ul class="mosaic" aria-label="the mosaic">'
     assert drawn[-1] == "</ul>"
     assert sum(row.count("<li") for row in drawn) == 1000
+    assert "--tile" not in "".join(drawn) and "style=" not in "".join(drawn)
 
 
 # ---- the days nothing happened on ----------------------------------------
@@ -324,7 +325,7 @@ def test_several_things_on_one_day_share_that_day_and_crowd_out_no_hole(atrium):
 
 
 def test_an_empty_slot_has_no_words_and_cannot_be_landed_on(atrium):
-    drawn = "".join(atrium.mosaic_block([atrium.EMPTY]))
+    drawn = "".join(atrium.frame_block([atrium.EMPTY]))
     assert '<li class="empty"></li>' in drawn
     assert "title=" not in drawn and "tabindex" not in drawn
 
@@ -359,7 +360,7 @@ def test_the_caption_says_what_the_mosaic_is_and_counts_nothing(atrium):
 def test_a_tile_s_words_are_escaped_where_they_are_written(atrium):
     tiles = atrium.tiles_from(
         atrium.parse_events("2026-10-01 · event · a line with \"quotes\" & <marks>\n"), [])
-    drawn = "".join(atrium.mosaic_block(atrium.slots(tiles, datetime.date(2026, 10, 1))))
+    drawn = "".join(atrium.frame_block(atrium.slots(tiles, datetime.date(2026, 10, 1))))
     assert "&quot;quotes&quot; &amp; &lt;marks&gt;" in drawn
     assert "<marks>" not in drawn
 
@@ -371,8 +372,7 @@ def test_an_empty_record_draws_an_empty_mosaic(atrium):
     assert atrium.reading_text([]) == ""
     assert atrium.reading_block([]) == ['<p class="reading"></p>']
     assert atrium.caption_block([])[0] == '<p class="caption">%s</p>' % atrium.CAPTION
-    assert atrium.mosaic_block([]) == [
-        '<ul class="mosaic" style="--tile:34px;--gap:4px" aria-label="the mosaic">', "</ul>"]
+    assert atrium.frame_block([]) == ['<ul class="mosaic" aria-label="the mosaic">', "</ul>"]
     assert len(atrium.legend_marks([])) == 4
 
 
@@ -560,7 +560,7 @@ def test_a_tile_with_somewhere_to_lead_is_a_link_and_the_rest_are_not(atrium):
         atrium.parse_events("2026-10-12 · seal · a bond was sealed\n"),
         atrium.parse_heartbeats("- 2026-10-12T15-00-00Z · the first one · attended\n"),
         atrium.parse_offerings(OFFERING_LINE))
-    drawn = "".join(atrium.mosaic_block(atrium.slots(tiles, datetime.date(2026, 10, 12))))
+    drawn = "".join(atrium.frame_block(atrium.slots(tiles, datetime.date(2026, 10, 12))))
 
     assert ('<li class="tile-offering" title="12 October 2026 · an offering from the founder '
             'and the first one"><a href="https://hearth.tesserae.social/offerings'
@@ -750,8 +750,10 @@ def test_the_atrium_is_rebuilt_from_the_commons(atrium, data_dir, monkeypatch, c
     assert "the lake was still" in page
     assert "the mosaic: one tile for every event in our history</p>" in page
     assert "so far" not in page and "as of" not in page
+    said = capsys.readouterr().out
     assert ("3 tiles in 44 slots at 34px (2 events, 1 attendances, 0 offerings), "
-            "1 on the bench, 0 here") in capsys.readouterr().out
+            "1 on the bench, 0 here") in said
+    assert "44 slots on the front page" in said
 
 
 def test_the_reading_line_on_the_page_is_the_newest_tile(atrium, data_dir, monkeypatch):
@@ -762,7 +764,7 @@ def test_the_reading_line_on_the_page_is_the_newest_tile(atrium, data_dir, monke
 
     page = atrium.page_path.read_text(encoding="utf-8")
     mosaic = page.split("<!-- mosaic:start -->")[1].split("<!-- mosaic:end -->")[0]
-    newest = mosaic.rsplit('title="', 1)[1].split('"')[0]
+    newest = mosaic.split('title="', 1)[1].split('"')[0]     # newest first, on the front page
     reading = page.split('<p class="reading">')[1].split("</p>")[0]
     assert reading == newest
     assert reading.startswith("10 October 2026 · waking by day")
@@ -1023,41 +1025,67 @@ def test_what_someone_wrote_is_read_in_the_body_s_own_words():
         assert 'class="serif"' not in template.read_text(encoding="utf-8"), template.name
 
 
-def test_the_frame_grows_with_its_rows_and_stops_at_its_cap(atrium):
-    """The page's own frame: as tall as it needs, capped at a third of the band's width."""
+def test_the_whole_mosaic_stands_in_a_band_of_rows_as_long_as_they_need(atrium):
+    """The whole mosaic's own list: as wide as its band, and no cap, and no scrolling inside."""
     rules = stylesheet(STYLE)
     frame = rules[".mosaic"]
-    assert frame["height"] == "auto"
-    # the band is the container the cap is measured against, so the cap follows
-    # the band's real width at any size of window
-    assert rules[".band"]["container-type"] == "inline-size"
-    assert frame["max-height"] == "calc(100cqw / 3)"
-    assert atrium.FRAME_WIDTH // atrium.FRAME_HEIGHT == 3
-    # as wide as the band it stands in: no width of its own to stop at
+    assert frame["display"] == "flex" and frame["flex-wrap"] == "wrap"
     assert frame["width"] == "100%"
-    assert "max-width" not in frame
-    assert frame["overflow-y"] == "auto"
+    for gone in ("height", "max-height", "max-width", "overflow-y", "overflow"):
+        assert gone not in frame, gone
+    assert rules[".band"] == {"margin": "24px 16px 0"}
+    assert atrium.FRAME_WIDTH // atrium.FRAME_HEIGHT == 3
 
 
-def test_the_band_spans_the_window_and_the_words_keep_their_column():
-    """Only the mosaic is widened: the words keep the measure they had."""
+def test_the_frame_is_a_grid_the_tiles_and_the_words_share():
+    """Only the tiles are widened: the words keep the measure they had."""
     rules = stylesheet(STYLE)
-    # the atrium's main is the window's width, and the band stands in it with
-    # a small even margin at either side
-    assert rules[".atrium main"] == {"max-width": "none", "padding-left": "0",
-                                     "padding-right": "0"}
-    assert rules[".band"] == {"margin": "0 16px", "container-type": "inline-size"}
+    # the atrium's main is the window's width, and the frame stands in it with a
+    # small even margin at either side, from the page's own top corner
+    assert rules[".atrium main"] == {"max-width": "none", "padding-top": "16px",
+                                     "padding-left": "0", "padding-right": "0"}
+    frame = rules[".frame"]
+    assert frame["margin"] == "0 16px"
+    assert frame["display"] == "grid"
+    assert frame["grid-template-columns"] == "repeat(auto-fill, var(--tile))"
+    assert frame["grid-auto-rows"] == "minmax(var(--tile), auto)"
+    assert frame["gap"] == "var(--gap)"
+    # the tiles are the grid's own items: the list they are written in lays out nothing
+    assert rules[".frame .mosaic"] == {"display": "contents"}
+    # left to the stylesheet the column is the whole third row, which is two rows
+    # of tiles above the words and the rest below; the script may say otherwise
+    column = rules[".frame .column"]
+    assert column["grid-column"] == "var(--from, 1) / var(--to, -1)"
+    assert column["grid-row"] == "3 / span var(--down, 1)"
     # the column is what main was: the same measure, centred, the same gutters
     assert rules[".column"] == {"width": "100%", "max-width": "600px", "margin": "0 auto",
                                 "padding": "0 24px"}
+    assert column["justify-self"] == "center"
     assert rules["main"]["max-width"] == "600px"      # a document's column is as it was
     assert rules["main"]["padding"] == "72px 24px 96px"
     assert "max-width" not in rules[".intro"] and "width" not in rules[".intro"]
+    # the way to the rest is a row of its own, in the column's measure
+    assert rules[".rest"]["grid-column"] == "1 / -1"
+    assert rules[".rest"]["max-width"] == "600px" and rules[".rest"]["font-size"] == "0.9rem"
 
     css = COMMENT.sub("", STYLE.read_text(encoding="utf-8"))
     narrow = re.search(r"@media \(max-width: 480px\) \{(.*?)\n  \}", css, re.S).group(1)
     assert "main { padding: 48px 20px 72px; }" in narrow
-    assert ".column { padding: 0 20px; }" in narrow    # the gutters a narrow page draws in
+    # the gutters a narrow page draws in
+    assert ".column, .rest { padding-left: 20px; padding-right: 20px; }" in narrow
+
+
+def test_the_front_page_s_tile_is_one_size_in_all_three_places(atrium):
+    """The builder, the stylesheet and the page's script each hold it, and the gap follows."""
+    assert atrium.FRONT_TILE == 24
+    frame = stylesheet(STYLE)[".frame"]
+    assert frame["--tile"] == "%dpx" % atrium.FRONT_TILE
+    assert frame["--gap"] == "%dpx" % atrium.tile_gap(atrium.FRONT_TILE) == "3px"
+    said = PAGE.read_text(encoding="utf-8").split("<script>")[1]
+    assert ("const FRONT_SPAN_DAYS = %d, FRONT_TILE = %d;"
+            % (atrium.FRONT_SPAN_DAYS, atrium.FRONT_TILE)) in said
+    # a bond's tessera is drawn at this size by the hearth, and not at the nearest other
+    assert atrium.FRONT_TILE in __import__("hearth").TESSERA_SIZES
 
 
 def test_no_width_on_the_page_is_reckoned_from_the_window_s_own():
@@ -1066,51 +1094,55 @@ def test_no_width_on_the_page_is_reckoned_from_the_window_s_own():
     assert "vw" not in css
     assert "--frame" not in css
     assert "vw" not in PAGE.read_text(encoding="utf-8").split("<script>")[0]
+    # nor does the script that lays the frame: it reads the grid the stylesheet made
+    script = PAGE.read_text(encoding="utf-8").split("<script>")[1]
+    assert "innerWidth" not in script and "clientWidth" not in script
 
 
-BAND = re.compile(r'<section>\s*<div class="band">\s*<!-- mosaic:start -->(.*?)'
-                  r'<!-- mosaic:end -->\s*</div>\s*<div class="column">\s*'
-                  r'<!-- reading:start -->(.*?)<!-- caption:end -->\s*</div>\s*</section>', re.S)
+FRAME = re.compile(r'<main>\s*<div class="frame">\s*<div class="column">(.*?)</div>\s*'
+                   r'<!-- mosaic:start -->(.*?)<!-- mosaic:end -->\s*'
+                   r'<p class="rest"><a href="/mosaic.html">the whole mosaic</a></p>\s*'
+                   r'</div>\s*</main>', re.S)
 
 
-def test_the_band_holds_the_mosaic_and_nothing_else():
-    """The frame alone stands in the band; its line, caption and legend are in a column under it."""
+def test_the_frame_holds_one_column_of_words_then_the_tiles_then_the_way_on():
+    """Every word is in the one column; the tiles follow it, and the link follows them."""
     said = PAGE.read_text(encoding="utf-8").split("<script>")[0]
     assert '<body class="atrium">' in said
-    assert said.count('class="band"') == 1 and said.count('class="column"') == 3
-    found = BAND.search(said)
-    assert found, "the band and the column under it are not as they should be"
-    frame, under = found.groups()
-    assert frame.strip().startswith('<ul class="mosaic"') and frame.strip().endswith("</ul>")
-    assert frame.count("<ul") == 1 and "<p" not in frame
-    for line in ('<p class="reading">', '<p class="caption">', '<p class="legend">'):
-        assert under.count(line) == 1, line
-    assert 'class="mosaic"' not in under
+    assert said.count('class="frame"') == 1 and said.count('class="column"') == 1
+    assert 'class="band"' not in said
+    found = FRAME.search(said)
+    assert found, "the frame, its column and its tiles are not as they should be"
+    words, tiles = found.groups()
+    assert tiles.strip().startswith('<ul class="mosaic" aria-label="the mosaic">')
+    assert tiles.strip().endswith("</ul>")
+    assert tiles.count("<ul") == 1 and "<p" not in tiles
+    assert 'class="mosaic"' not in words
+    for stop in ("<header>", '<nav class="menu"', '<div class="intro">', "<details>",
+                 '<p class="reading">', '<p class="caption">', '<p class="legend">',
+                 "<!-- offering:start -->", '<section class="who">', '<p class="calendar">',
+                 "<!-- bench:start -->", "<footer>"):
+        assert words.count(stop) == 1, stop
+    # the reading line is directly under the sentence and its question, and the
+    # caption and the legend directly under the reading line
+    assert re.search(r'</details>\s*</div>\s*<!-- reading:start -->\s*<p class="reading">.*?</p>'
+                     r'\s*<!-- reading:end -->\s*<!-- caption:start -->\s*<p class="caption">'
+                     r'.*?</p>\s*<p class="legend">.*?</p>\s*<!-- caption:end -->', words, re.S)
+    # one way to the whole mosaic, after the last tile, and nowhere else on the page
+    assert said.count("mosaic.html") == 1
+    assert said.index("</ul>") < said.index('<p class="rest">')
 
-    # the band is outside every column, and everything else that is read is inside one
-    before, rest = said.split('<div class="band">')
-    band, after = rest.split("<!-- mosaic:end -->")
-    for outside in (before, after):
-        assert outside.count('<div class="column">') >= 1
-        assert 'class="mosaic"' not in outside
-    assert '<div class="column">' not in band
-    for words in ("<header>", '<nav class="menu"', '<div class="intro">', "<details>"):
-        assert words in before, words
-    for words in ('<p class="reading">', "<!-- offering:start -->", '<section class="who">',
-                  '<p class="calendar">', "<!-- bench:start -->", "<footer>"):
-        assert words in after, words
 
-
-def test_a_rebuild_leaves_the_band_as_it_was(atrium, data_dir, monkeypatch):
+def test_a_rebuild_leaves_the_frame_as_it_was(atrium, data_dir, monkeypatch):
     write(data_dir / "commons" / "heartbeats.md",
           "- 2026-10-10T15-00-00Z · the first one attended; wrote a letter\n")
     monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
     atrium.main()
     built = atrium.page_path.read_text(encoding="utf-8")
-    found = BAND.search(built)
+    found = FRAME.search(built)
     assert found
-    assert found.group(1).count("<li") == 44
-    assert built.count('class="band"') == 1 and built.count('class="column"') == 3
+    assert found.group(2).count("<li") == 44
+    assert built.count('class="frame"') == 1 and built.count('class="column"') == 1
 
 
 def test_the_live_script_holds_the_builder_s_own_frame(atrium):
@@ -1118,6 +1150,282 @@ def test_the_live_script_holds_the_builder_s_own_frame(atrium):
     assert ("const FRAME_WIDTH = %d, FRAME_HEIGHT = Math.floor(FRAME_WIDTH / 3);"
             % atrium.FRAME_WIDTH) in said
     assert "const MAX_TILE = %d, MIN_TILE = %d," % (atrium.MAX_TILE, atrium.MIN_TILE) in said
+
+
+# ---- the front page: the last year, newest first --------------------------
+
+def a_long_record(atrium, first, last=TODAY):
+    """One plain event a day from one day to another, each saying which day it is."""
+    lines, day = [], first
+    while day <= last:
+        lines.append("%s · event · day %s" % (day, day))
+        day += datetime.timedelta(days=1)
+    return atrium.tiles_from(atrium.parse_events(stamps(*lines)), [])
+
+
+def titles_of(block):
+    return re.findall(r'title="([^"]*)"', "".join(block))
+
+
+def test_the_front_page_keeps_one_setting_for_its_year(atrium):
+    assert atrium.FRONT_SPAN_DAYS == 365
+    said = PAGE.read_text(encoding="utf-8").split("<script>")[1]
+    assert said.count("FRONT_SPAN_DAYS = 365") == 1
+    # and each path uses the setting, rather than the number again
+    assert "slots(tiles, today, FRONT_SPAN_DAYS)" in said
+    assert "365" not in said.replace("FRONT_SPAN_DAYS = 365", "")
+    builder = (REPO / "build_atrium.py").read_text(encoding="utf-8")
+    assert builder.count("365") == 1
+
+
+def test_the_front_page_lays_its_tiles_newest_first(atrium):
+    tiles = a_long_record(atrium, datetime.date(2026, 10, 1))
+    shown = titles_of(atrium.frame_block(atrium.slots(tiles, TODAY, atrium.FRONT_SPAN_DAYS)))
+    assert len(shown) == 15
+    assert shown[0] == "15 October 2026 · day 2026-10-15"
+    assert shown[-1] == "1 October 2026 · day 2026-10-01"
+    assert shown == sorted(shown, key=lambda said: -int(said.split()[0]))
+
+
+def test_the_front_page_shows_the_last_year_and_not_a_day_more(atrium):
+    tiles = a_long_record(atrium, datetime.date(2025, 6, 1))
+    assert len(atrium.slots(tiles, TODAY)) == 502            # all of it, on its own page
+    front = atrium.slots(tiles, TODAY, atrium.FRONT_SPAN_DAYS)
+    assert len(front) == 365
+    shown = titles_of(atrium.frame_block(front))
+    assert shown[0] == "15 October 2026 · day 2026-10-15"     # today
+    assert shown[-1] == "16 October 2025 · day 2025-10-16"    # and 364 days before it
+    assert "15 October 2025 · day 2025-10-15" not in shown
+
+
+def test_a_record_younger_than_a_year_is_shown_whole(atrium):
+    tiles = a_long_record(atrium, datetime.date(2026, 9, 4))
+    assert atrium.slots(tiles, TODAY, atrium.FRONT_SPAN_DAYS) == atrium.slots(tiles, TODAY)
+    assert len(atrium.slots(tiles, TODAY)) == 42
+
+
+def test_the_year_counts_its_empty_days_and_every_tile_of_a_day(atrium):
+    """A slot a day, holes and all, as the whole mosaic counts them: the year is days, not tiles."""
+    events = atrium.parse_events(stamps(
+        "2025-01-01 · event · long ago",
+        "2025-10-16 · event · the first day of the year shown",
+        "2025-10-16 · event · and a second thing on it",
+        "2026-10-10 · event · lately"))
+    front = atrium.slots(atrium.tiles_from(events, []), TODAY, atrium.FRONT_SPAN_DAYS)
+    assert len(front) == 366                                 # 365 days, one of them twice over
+    assert [slot for slot in front if slot != atrium.EMPTY] == [
+        ("tile-event", "16 October 2025 · the first day of the year shown", ""),
+        ("tile-event", "16 October 2025 · and a second thing on it", ""),
+        ("tile-event", "10 October 2026 · lately", "")]
+    drawn = "".join(atrium.frame_block(front))
+    assert drawn.count('<li class="empty"></li>') == 363
+    assert drawn.count("<li") == 366
+    # newest first: the five quiet days since, then the newest tile
+    assert drawn.startswith('<ul class="mosaic" aria-label="the mosaic">'
+                            + '<li class="empty"></li>' * 5
+                            + '<li class="tile-event" title="10 October 2026 · lately"')
+    assert drawn.endswith('title="16 October 2025 · the first day of the year shown" '
+                          'tabindex="0"></li></ul>')
+
+
+def test_the_reading_line_is_the_newest_tile_however_the_tiles_are_laid(atrium):
+    tiles = a_long_record(atrium, datetime.date(2025, 6, 1), datetime.date(2026, 10, 12))
+    front = atrium.slots(tiles, TODAY, atrium.FRONT_SPAN_DAYS)
+    assert front[-1] == atrium.EMPTY
+    assert atrium.reading_text(front) == "12 October 2026 · day 2026-10-12"
+    assert atrium.reading_text(front) == atrium.reading_text(atrium.slots(tiles, TODAY))
+
+
+def test_the_built_front_page_is_the_year_and_the_way_to_the_rest(atrium, data_dir, monkeypatch,
+                                                                  capsys):
+    day, lines = datetime.date(2025, 6, 1), []
+    while day <= TODAY:
+        lines.append("%s · event · day %s" % (day, day))
+        day += datetime.timedelta(days=1)
+    write(data_dir / "commons" / "events.md", "\n".join(lines) + "\n")
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    page = atrium.page_path.read_text(encoding="utf-8")
+    front = page.split("<!-- mosaic:start -->")[1].split("<!-- mosaic:end -->")[0]
+    assert front.count("<li") == 365
+    shown = titles_of([front])
+    assert shown[0].startswith("15 October 2026") and shown[-1].startswith("16 October 2025")
+    after = page.split("<!-- mosaic:end -->")[1].split("</main>")[0]
+    assert after.split() == '<p class="rest"><a href="/mosaic.html">the whole mosaic</a></p> </div>'.split()
+    assert "502 slots at 19px" in capsys.readouterr().out
+    # the whole mosaic's own page has all of it
+    whole = atrium.whole_path.read_text(encoding="utf-8")
+    assert whole.split("<!-- whole:start -->")[1].split("<!-- whole:end -->")[0].count(
+        "<li class=\"tile-event\"") == 502
+
+
+# ---- the whole mosaic, on its own page -------------------------------------
+
+WHOLE_PAGE = REPO / "mosaic.html"
+
+
+def test_the_whole_mosaic_is_laid_oldest_first_with_a_label_where_each_year_begins(atrium):
+    tiles = a_long_record(atrium, datetime.date(2024, 12, 30), datetime.date(2026, 1, 2))
+    drawn = atrium.whole_block(atrium.days(tiles, datetime.date(2026, 1, 2)))
+    assert drawn[0] == ('<ul class="mosaic" style="--tile:22px;--gap:2px" '
+                        'aria-label="the mosaic">')
+    assert drawn[-1] == "</ul>"
+    items = re.findall(r"<li class=\"(year)\">(\d+)</li>|<li [^>]*title=\"([^\"]*)\"",
+                       "".join(drawn))
+    read = [year or said.split(" · ")[0] for _, year, said in items]
+    assert read[:4] == ["2024", "30 December 2024", "31 December 2024", "2025"]
+    assert read[4] == "1 January 2025" and read[368] == "31 December 2025"
+    assert read[369:] == ["2026", "1 January 2026", "2 January 2026"]
+    assert [one for one in read if one.isdigit()] == ["2024", "2025", "2026"]
+    # a label is a line of the markup to itself, and has no words to read out
+    for year in ("2024", "2025", "2026"):
+        assert '<li class="year">%s</li>' % year in drawn
+    assert "".join(drawn).count("<li") == 369 + 3
+
+
+def test_the_whole_mosaic_carries_the_size_it_was_reckoned_at(atrium):
+    cells = [("tile-event", "a thing", "")] * 1000
+    drawn = atrium.whole_block([(TODAY, cells)])
+    assert drawn[0] == ('<ul class="mosaic" style="--tile:14px;--gap:1px" '
+                        'aria-label="the mosaic">')
+    assert drawn[1] == '<li class="year">2026</li>'
+    assert drawn[-1] == "</ul>"
+    assert sum(row.count("<li") for row in drawn) == 1001
+    # the labels are not counted against the frame: the tiles are what it holds
+    assert atrium.tile_size(1000) == 14
+
+
+def test_the_whole_mosaic_keeps_its_holes_its_links_and_its_tesserae(atrium):
+    tiles = atrium.tiles_from(
+        atrium.parse_events("2026-10-09 · event · a thing\n"), [],
+        atrium.parse_offerings(OFFERING_LINE),
+        atrium.parse_bonds("2026-10-11 · founder-first · the founder and the first one · sealed\n"))
+    drawn = "".join(atrium.whole_block(atrium.days(tiles, datetime.date(2026, 10, 13))))
+    assert drawn.count('<li class="empty"></li>') == 2          # the 10th and the 13th
+    assert '<li class="tile-event" title="9 October 2026 · a thing" tabindex="0"></li>' in drawn
+    assert ('<a href="https://hearth.tesserae.social/offerings#2026-10-12T09-00-00Z"' in drawn)
+    assert ('<img src="https://hearth.tesserae.social/bonds/founder-first/tessera.svg?size=34" '
+            'width="34" height="34" alt="">') in drawn
+    at = [drawn.index(said) for said in ("9 October", "11 October", "12 October")]
+    assert at == sorted(at)
+
+
+def test_an_empty_record_draws_an_empty_whole_mosaic(atrium):
+    assert atrium.days([], TODAY) == []
+    assert atrium.whole_block([]) == [
+        '<ul class="mosaic" style="--tile:34px;--gap:4px" aria-label="the mosaic">', "</ul>"]
+
+
+WHOLE_SKELETON = """<body class="atrium whole">
+<main>
+
+  <div class="column">
+
+    <nav class="menu" aria-label="pages">
+      <a href="/charter.html">the charter</a>&nbsp;·
+      <a href="/white-paper.html">the white paper</a>&nbsp;·
+      <a href="/the-words.html">the words</a>&nbsp;·
+      <a href="https://hearth.tesserae.social">the hearth</a>&nbsp;·
+      <a href="https://hearth.tesserae.social/bench">leave a line</a>&nbsp;·
+      <a href="/the-door.html">ask to join</a>
+    </nav>
+
+    <p class="home"><a href="/">back to the front page</a></p>
+
+  </div>
+
+  <div class="column said">
+    <!-- reading:start --><!-- reading:end -->
+  </div>
+
+  <div class="column">
+    <!-- caption:start --><!-- caption:end -->
+  </div>
+
+  <div class="band">
+    <!-- whole:start --><!-- whole:end -->
+  </div>
+
+</main>"""
+
+
+def whole_skeleton_of(text):
+    said = "<body" + text.replace("\r\n", "\n").split("<body")[1].split("</main>")[0] + "</main>"
+    for name in ("whole", "reading", "caption"):
+        said, cut = re.subn(r"(<!-- %s:start -->).*?(<!-- %s:end -->)" % (name, name),
+                            r"\1\2", said, flags=re.S)
+        assert cut == 1, name
+    return said
+
+
+def test_the_whole_mosaic_s_page_is_read_in_this_order_and_holds_nothing_else():
+    """The menu, the way back, the reading line, the caption, and every tile: no more."""
+    said = WHOLE_PAGE.read_text(encoding="utf-8")
+    assert whole_skeleton_of(said) == WHOLE_SKELETON
+    assert "<title>Tesserae: the whole mosaic</title>" in said
+    assert "—" not in said
+    # nothing to turn, nothing to ask for more of: it is all there, in the one list
+    for gone in ("<button", "<form", "load more", "IntersectionObserver", "page=", 'rel="next"'):
+        assert gone not in said, gone
+    assert said.split("<script>")[0].count('<ul class="mosaic"') == 1
+
+
+def test_the_whole_mosaic_s_page_wears_the_atrium_s_head_menu_and_script():
+    """Copied, not written twice: the one script fills whichever page it is on."""
+    atrium_page = PAGE.read_text(encoding="utf-8")
+    said = WHOLE_PAGE.read_text(encoding="utf-8")
+    script = re.compile(r"<script>.*?</script>", re.S)
+    assert script.findall(said) == script.findall(atrium_page)
+    assert len(script.findall(said)) == 1
+    head = lambda text: text.split("</head>")[0]
+    assert head(said) == head(atrium_page).replace(
+        "<title>Tesserae: a commons of people and AIs</title>",
+        "<title>Tesserae: the whole mosaic</title>")
+    assert menu_of(said).split() == menu_of(atrium_page).split()
+    # and the script knows the page when it finds itself there
+    assert 'edge("whole", "start")' in script.findall(said)[0]
+
+
+def test_the_checked_in_whole_mosaic_is_what_the_builder_writes(atrium, data_dir, monkeypatch):
+    """Everything outside its markers is the builder's, byte for byte."""
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    built = atrium.whole_path.read_text(encoding="utf-8")
+    was = WHOLE_PAGE.read_text(encoding="utf-8")
+    assert whole_skeleton_of(built) == WHOLE_SKELETON
+    assert built.split("<main>")[0] == was.split("<main>")[0]
+    assert built.split("</main>")[1] == was.split("</main>")[1]
+    assert atrium.page_path.read_text(encoding="utf-8").split("</main>")[1].rstrip() in built
+
+
+def test_the_whole_mosaic_s_page_is_built_from_the_commons(atrium, data_dir, monkeypatch):
+    write(data_dir / "commons" / "heartbeats.md",
+          "- 2026-10-10T15-00-00Z · the first one attended; wrote a letter\n")
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    whole = atrium.whole_path.read_text(encoding="utf-8")
+    tiles = whole.split("<!-- whole:start -->")[1].split("<!-- whole:end -->")[0]
+    assert tiles.count("<li") == 44 + 1                     # every slot, and the year
+    shown = titles_of([tiles])
+    assert shown[0] == "2 September 2026 · the word was published"       # oldest first
+    assert shown[-1].startswith("10 October 2026 · waking by day")
+    assert tiles.index('<li class="year">2026</li>') < tiles.index("2 September 2026")
+    reading = whole.split('<p class="reading">')[1].split("</p>")[0]
+    assert reading == shown[-1]
+    assert "the mosaic: one tile for every event in our history</p>" in whole
+    # the same tiles as the front page's, in the other order, and a size of their own
+    front = atrium.page_path.read_text(encoding="utf-8")
+    front = front.split("<!-- mosaic:start -->")[1].split("<!-- mosaic:end -->")[0]
+    assert titles_of([front]) == shown[::-1]
+
+
+def test_the_reading_line_stays_at_the_top_of_the_whole_mosaic():
+    rules = stylesheet(STYLE)
+    assert rules[".said"]["position"] == "sticky" and rules[".said"]["top"] == "0"
+    assert rules[".said"]["background"] == "var(--paper)"
+    year = rules[".mosaic .year"]
+    assert year["width"] == "100%"                           # a line of its own
+    assert year["font-size"] == "0.9rem" and year["color"] == "var(--ink-soft)"
 
 
 @pytest.mark.parametrize("path", [STYLE, BASE], ids=["atrium", "hearth"])
@@ -1323,66 +1631,63 @@ REGIONS = ["mosaic", "reading", "caption", "offering", "who", "calendar", "bench
 
 # The page as it is read, top to bottom, with what lies between each pair of
 # markers left out: the name, the menu, the sentence, the question and what
-# waits behind it, the mosaic with its line and its caption, who is here, the
-# season, and the foot. The words stand in columns and the mosaic in the band
-# between them. Anything moved, added or dropped on the page shows here.
+# waits behind it, the reading line and the caption, who is here, the season,
+# and the foot, all in the one column; then the tiles that frame it, and the
+# way to the whole mosaic. Anything moved, added or dropped on the page shows here.
 SKELETON = """<main>
 
-  <div class="column">
+  <div class="frame">
 
-    <header>
-      <svg width="34" height="34" viewBox="0 0 24 24" role="img" aria-label="A square tile broken in two">
-        <path d="M0 0 H12 L14 5 L10 9 L13 14 L9 19 L12 24 H0 Z" fill="#D85A30" fill-opacity="0.85"/>
-        <path d="M12 0 H24 V24 H12 L9 19 L13 14 L10 9 L14 5 Z" fill="#D85A30" fill-opacity="0.4"/>
-      </svg>
-      <h1>Tesserae</h1>
-    </header>
-
-    <nav class="menu" aria-label="pages">
-      <a href="/charter.html">the charter</a>&nbsp;·
-      <a href="/white-paper.html">the white paper</a>&nbsp;·
-      <a href="/the-words.html">the words</a>&nbsp;·
-      <a href="https://hearth.tesserae.social">the hearth</a>&nbsp;·
-      <a href="https://hearth.tesserae.social/bench">leave a line</a>&nbsp;·
-      <a href="/the-door.html">ask to join</a>
-    </nav>
-
-    <div class="intro">
-      <p>%s</p>
-      <details>
-        <summary>What is Tesserae?</summary>
-        <p>%s</p>
-        <p>%s</p>
-        <p>%s</p>
-      </details>
-    </div>
-
-  </div>
-
-  <section>
-    <div class="band">
-      <!-- mosaic:start --><!-- mosaic:end -->
-    </div>
     <div class="column">
+
+      <header>
+        <svg width="34" height="34" viewBox="0 0 24 24" role="img" aria-label="A square tile broken in two">
+          <path d="M0 0 H12 L14 5 L10 9 L13 14 L9 19 L12 24 H0 Z" fill="#D85A30" fill-opacity="0.85"/>
+          <path d="M12 0 H24 V24 H12 L9 19 L13 14 L10 9 L14 5 Z" fill="#D85A30" fill-opacity="0.4"/>
+        </svg>
+        <h1>Tesserae</h1>
+      </header>
+
+      <nav class="menu" aria-label="pages">
+        <a href="/charter.html">the charter</a>&nbsp;·
+        <a href="/white-paper.html">the white paper</a>&nbsp;·
+        <a href="/the-words.html">the words</a>&nbsp;·
+        <a href="https://hearth.tesserae.social">the hearth</a>&nbsp;·
+        <a href="https://hearth.tesserae.social/bench">leave a line</a>&nbsp;·
+        <a href="/the-door.html">ask to join</a>
+      </nav>
+
+      <div class="intro">
+        <p>%s</p>
+        <details>
+          <summary>What is Tesserae?</summary>
+          <p>%s</p>
+          <p>%s</p>
+          <p>%s</p>
+        </details>
+      </div>
+
       <!-- reading:start --><!-- reading:end -->
       <!-- caption:start --><!-- caption:end -->
+
+      <!-- offering:start --><!-- offering:end -->
+
+      <section class="who">
+        <!-- who:start --><!-- who:end -->
+        <!-- calendar:start --><!-- calendar:end -->
+      </section>
+
+      <!-- bench:start --><!-- bench:end -->
+
+      <footer>
+        <p>the books will open with the commons · <a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>
+      </footer>
+
     </div>
-  </section>
 
-  <div class="column">
+    <!-- mosaic:start --><!-- mosaic:end -->
 
-    <!-- offering:start --><!-- offering:end -->
-
-    <section class="who">
-      <!-- who:start --><!-- who:end -->
-      <!-- calendar:start --><!-- calendar:end -->
-    </section>
-
-    <!-- bench:start --><!-- bench:end -->
-
-    <footer>
-      <p>the books will open with the commons · <a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>
-    </footer>
+    <p class="rest"><a href="/mosaic.html">the whole mosaic</a></p>
 
   </div>
 
@@ -1423,8 +1728,9 @@ def test_the_sections_stand_in_the_order_they_are_read():
     said = PAGE.read_text(encoding="utf-8").split("<script>")[0]
     stops = ["<h1>Tesserae</h1>", '<nav class="menu"', "<p>" + OPENING_SENTENCE,
              "<details>", "<summary>What is Tesserae?</summary>", "</details>",
-             '<ul class="mosaic"', '<p class="reading">', '<p class="caption">',
-             '<p class="legend">', "<h2>who is here</h2>", '<p class="calendar">', "<footer>"]
+             '<p class="reading">', '<p class="caption">',
+             '<p class="legend">', "<h2>who is here</h2>", '<p class="calendar">', "<footer>",
+             '<ul class="mosaic"', '<p class="rest">']
     at = [said.index(stop) for stop in stops]
     assert at == sorted(at)
 
@@ -1444,7 +1750,8 @@ def test_a_rebuild_leaves_everything_outside_the_markers_as_it_was(atrium, data_
 # every selector the atrium's own look is made of, which moving the rules out of
 # index.html must not have dropped on the way
 ATRIUM_RULES = [
-    ":root", "body", "main", ".atrium main", ".column", ".band", "header", "h1", "h2", ".menu", ".menu a, .menu a:visited",
+    ":root", "body", "main", ".atrium main", ".column", ".band", ".frame",
+    ".frame .mosaic", ".frame .column", ".rest", ".said", ".mosaic .year", "header", "h1", "h2", ".menu", ".menu a, .menu a:visited",
     ".menu a:hover, .menu a:focus", ".intro", ".intro p", ".intro p:last-child",
     ".intro summary", ".intro summary:focus-visible", ".mosaic", ".mosaic li", ".mosaic .empty",
     ".tile-founding", ".tile-word", ".tile-dawn", ".tile-day", ".tile-evening",

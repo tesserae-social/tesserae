@@ -3,7 +3,9 @@
 The atrium is built twice from the same commons: once by build_atrium.py, which
 bakes the page, and once by the script inside index.html, which redraws it in the
 browser from the hearth's own copy. The two must agree, or a reader gets one
-atrium and a crawler another.
+atrium and a crawler another. The whole mosaic's page, mosaic.html, is built
+twice the same way, by the same builder and the same script, and is held to
+the same agreement.
 
 This is the only test here that needs anything but Python: node, and jsdom for a
 browser to run the page's script in. To run it:
@@ -24,6 +26,7 @@ Without node, or without jsdom, these tests skip and the rest of the suite runs
 on Python alone.
 """
 
+import datetime
 import json
 import re
 import shutil
@@ -39,6 +42,9 @@ NODE = shutil.which("node")
 
 REGIONS = ["mosaic", "reading", "caption", "offering", "who", "calendar",
            "bench"]
+
+# and what the two of them write on the whole mosaic's own page
+WHOLE_REGIONS = ["whole", "reading", "caption"]
 
 # the one moment both paths are read at: conftest's NOW, in milliseconds. The
 # mosaic's run of days ends today and the calendar says what season today is, so
@@ -121,10 +127,10 @@ pytestmark = [
 ]
 
 
-def regions_of(page):
+def regions_of(page, names=REGIONS):
     """What lies between each pair of markers, with its whitespace made even."""
     found = {}
-    for name in REGIONS:
+    for name in names:
         cut = re.search(r"<!-- %s:start -->(.*?)<!-- %s:end -->" % (name, name), page, re.S)
         assert cut, "no %s markers in the page" % name
         found[name] = GAP.sub(" ", cut.group(1)).strip()
@@ -145,11 +151,14 @@ def intro_of(page):
     return GAP.sub(" ", found.group())
 
 
-def both_pages(tmp_path, data_dir, baked, at=AT):
-    """The two atriums entire, each as a browser holds it: the baked, and the drawn."""
+def both_pages(tmp_path, data_dir, baked, at=AT, page="index.html"):
+    """The two atriums entire, each as a browser holds it: the baked, and the drawn.
+
+    Or the two whole mosaics, where the page asked for is mosaic.html.
+    """
     harness = write(tmp_path / "harness.js", HARNESS)
     done = subprocess.run(
-        [NODE, str(harness), str(REPO / "index.html"), str(baked), str(at),
+        [NODE, str(harness), str(REPO / page), str(baked), str(at),
          str(data_dir / "commons")],
         capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert done.returncode == 0, done.stderr
@@ -229,6 +238,17 @@ def a_record(data_dir, bench="", members=MEMBERS, offered=""):
           "not a heartbeat\n")
     write(data_dir / "commons" / "bench.md", bench)
     write(data_dir / "commons" / "members.md", members)
+
+
+def both_wholes(tmp_path, data_dir, atrium, at=AT):
+    """The two whole mosaics, each as a browser holds it: the baked one, and the drawn one."""
+    built, drawn = both_pages(tmp_path, data_dir, atrium.whole_path, at, page="mosaic.html")
+    return regions_of(built, WHOLE_REGIONS), regions_of(drawn, WHOLE_REGIONS)
+
+
+def titles_of(said):
+    """The words of every tile in a region, in the order the page holds them."""
+    return re.findall(r'<li class="[^"]*" title="([^"]*)"', said)
 
 
 def test_both_paths_draw_the_same_atrium(atrium, data_dir, monkeypatch, tmp_path):
@@ -364,7 +384,13 @@ def test_the_harness_shows_what_it_compared(atrium, data_dir, monkeypatch, tmp_p
         # nine days carry the twelve tiles; the other thirty-six of the run are holes
         assert said["mosaic"].count("<li") == 48
         assert said["mosaic"].count('<li class="empty">') == 36
-        assert said["mosaic"].startswith('<ul class="mosaic" style="--tile:34px;--gap:4px"')
+        assert said["mosaic"].startswith('<ul class="mosaic" aria-label="the mosaic"> <li')
+        # newest first: the last waking of the run leads, and the word ends it
+        shown = titles_of(said["mosaic"])
+        assert shown[0] == ("16 October 2026 · waking at night · the first one · "
+                            "attended a second after")
+        assert shown[-1] == "2 September 2026 · the word was published"
+        assert said["reading"] == '<p class="reading">%s</p>' % shown[0]
         assert "tile-word" in said["mosaic"] and "tile-seal" in said["mosaic"]
         assert "the visitor's bench" in said["bench"]
         assert "waking at dawn" in said["mosaic"] and "waking at night" in said["mosaic"]
@@ -394,7 +420,11 @@ def test_both_paths_agree_when_no_one_says_who_is_here(atrium, data_dir, monkeyp
 ])
 def test_both_paths_shrink_the_tiles_alike_as_the_record_grows(atrium, data_dir, monkeypatch,
                                                                tmp_path, first, slots, tile):
-    """One frame, reckoned the one way: the builder's tile is the browser's tile."""
+    """One frame, reckoned the one way: the builder's tile is the browser's tile.
+
+    That is the whole mosaic's page. The front page's tiles are one size however
+    long the record runs, and it shows the last year of it and no more.
+    """
     for name in ("heartbeats.md", "bench.md", "members.md", "offerings.md"):
         write(data_dir / "commons" / name, "")
     write(data_dir / "commons" / "events.md",
@@ -403,13 +433,150 @@ def test_both_paths_shrink_the_tiles_alike_as_the_record_grows(atrium, data_dir,
           "2026-10-15 · event · and today, twice\n" % first)
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     assert here == there
-    assert here["mosaic"].count("<li") == slots == len(atrium.slots(
+    # the front page: a year of days at most, today's two tiles among them, at one size
+    assert here["mosaic"].count("<li") == min(slots, atrium.FRONT_SPAN_DAYS + 1)
+    assert here["mosaic"].startswith('<ul class="mosaic" aria-label="the mosaic"> <li')
+    assert titles_of(here["mosaic"])[0] == "15 October 2026 · and today, twice"
+
+    whole, drawn = both_wholes(tmp_path, data_dir, atrium)
+    assert whole == drawn
+    years = atrium.today_here().year - int(first[:4]) + 1
+    assert whole["whole"].count('<li class="year">') == years
+    assert whole["whole"].count("<li") - years == slots == len(atrium.slots(
         atrium.tiles_from(atrium.parse_events(
             (data_dir / "commons" / "events.md").read_text(encoding="utf-8")), []),
         atrium.today_here()))
-    assert here["mosaic"].startswith('<ul class="mosaic" style="%s"' % tile)
+    assert whole["whole"].startswith('<ul class="mosaic" style="%s"' % tile)
     assert tile == "--tile:%dpx;--gap:%dpx" % (
         atrium.tile_size(slots), atrium.tile_gap(atrium.tile_size(slots)))
+    assert titles_of(whole["whole"])[-1] == "15 October 2026 · and today, twice"
+
+
+# ---- the front page's year, and its order, on both paths -------------------
+
+def a_long_record(data_dir, first):
+    """One plain event a day from a day long past to today, and nothing else."""
+    for name in ("heartbeats.md", "bench.md", "members.md", "offerings.md"):
+        write(data_dir / "commons" / name, "")
+    day, lines = datetime.date.fromisoformat(first), []
+    while day <= datetime.date(2026, 10, 15):
+        lines.append("%s · event · day %s" % (day, day))
+        day += datetime.timedelta(days=1)
+    write(data_dir / "commons" / "events.md", "\n".join(lines) + "\n")
+
+
+def test_both_paths_show_the_last_year_newest_first(atrium, data_dir, monkeypatch, tmp_path):
+    a_long_record(data_dir, "2025-06-01")
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    for name in REGIONS:
+        assert here[name] == there[name], name
+    for said in (here, there):
+        shown = titles_of(said["mosaic"])
+        assert len(shown) == said["mosaic"].count("<li") == atrium.FRONT_SPAN_DAYS == 365
+        assert shown[0] == "15 October 2026 · day 2026-10-15"
+        assert shown[-1] == "16 October 2025 · day 2025-10-16"
+        days = [datetime.datetime.strptime(one.split(" · ")[0], "%d %B %Y") for one in shown]
+        assert days == sorted(days, reverse=True)
+        assert said["reading"] == '<p class="reading">15 October 2026 · day 2026-10-15</p>'
+
+
+def test_both_paths_leave_the_way_to_the_whole_mosaic_after_the_last_tile(atrium, data_dir,
+                                                                          monkeypatch, tmp_path):
+    """The link is outside every marker: neither path writes it, and neither may move it."""
+    a_long_record(data_dir, "2025-06-01")
+    built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
+    for said in (built, drawn):
+        after = GAP.sub(" ", said.split("<!-- mosaic:end -->")[1].split("</main>")[0]).strip()
+        assert after == '<p class="rest"><a href="/mosaic.html">the whole mosaic</a></p> </div>'
+        assert said.split("<script>")[0].count("mosaic.html") == 1
+    assert main_of(drawn) == main_of(built)
+
+
+def test_laying_the_frame_writes_nothing_into_the_page(atrium, data_dir, monkeypatch, tmp_path):
+    """The layout step leaves the tiles' own markup alone: no style on a tile, the list or the column."""
+    a_record(data_dir)
+    built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
+    for said in (built, drawn):
+        main = main_of(said)
+        assert "style=" not in main
+        assert '<div class="frame"> <div class="column">' in main
+
+
+# ---- the whole mosaic's own page, on both paths ----------------------------
+
+def test_both_paths_draw_the_same_whole_mosaic(atrium, data_dir, monkeypatch, tmp_path):
+    a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still\n")
+    offerings(data_dir)
+    write(data_dir / "commons" / "bonds.md",
+          "2026-10-08 · founder-first · the founder and the first one · sealed\n")
+    build(atrium, monkeypatch)
+    here, there = both_wholes(tmp_path, data_dir, atrium)
+    for name in WHOLE_REGIONS:
+        assert here[name] == there[name], name
+    front, _ = both_paths(tmp_path, data_dir, atrium.page_path)
+    for said in (here, there):
+        assert said["whole"].startswith(
+            '<ul class="mosaic" style="--tile:34px;--gap:4px" aria-label="the mosaic"> '
+            '<li class="year">2026</li> <li class="tile-word" '
+            'title="2 September 2026 · the word was published" tabindex="0"></li>')
+        assert said["whole"].count("<li") == 48 + 1          # every slot, and the year
+        assert said["whole"].count('<li class="empty">') == 34
+        # oldest first: the same tiles as the front page's, in the other order
+        shown = titles_of(said["whole"])
+        assert shown == titles_of(front["mosaic"])[::-1]
+        assert said["reading"] == front["reading"] == '<p class="reading">%s</p>' % shown[-1]
+        assert said["caption"] == front["caption"]
+        # the same titles, links and colours, at the whole mosaic's own size
+        assert ('<li class="tile-seal" title="8 October 2026 · a bond was sealed">'
+                '<a href="https://hearth.tesserae.social/bonds/founder-first" '
+                'aria-label="8 October 2026 · a bond was sealed">'
+                '<img src="https://hearth.tesserae.social/bonds/founder-first/tessera.svg'
+                '?size=34" width="34" height="34" alt=""></a></li>') in said["whole"]
+        assert ('<a href="https://hearth.tesserae.social/offerings#2026-10-13T09-00-00Z"'
+                in said["whole"])
+        assert said["whole"].count("<a href=") == 3
+
+
+def test_both_paths_draw_the_same_whole_page_entire(atrium, data_dir, monkeypatch, tmp_path):
+    """Not the marked regions alone: the menu and the way back besides."""
+    a_record(data_dir)
+    build(atrium, monkeypatch)
+    built, drawn = both_pages(tmp_path, data_dir, atrium.whole_path, page="mosaic.html")
+    assert main_of(drawn) == main_of(built)
+    assert '<p class="home"><a href="/">back to the front page</a></p>' in main_of(drawn)
+    assert "—" not in built and "—" not in drawn
+
+
+def test_both_paths_label_each_year_of_the_whole_mosaic(atrium, data_dir, monkeypatch,
+                                                        tmp_path):
+    a_long_record(data_dir, "2024-12-30")
+    build(atrium, monkeypatch)
+    here, there = both_wholes(tmp_path, data_dir, atrium)
+    assert here == there
+    read = re.findall(r'<li class="year">(\d+)</li>|<li class="tile-event" title="([^"]*) · ',
+                      here["whole"])
+    read = [year or day for year, day in read]
+    assert read[:4] == ["2024", "30 December 2024", "31 December 2024", "2025"]
+    assert read[4] == "1 January 2025" and read[368] == "31 December 2025"
+    assert read[369:371] == ["2026", "1 January 2026"]
+    assert read[-1] == "15 October 2026"
+    assert [one for one in read if one.isdigit()] == ["2024", "2025", "2026"]
+    # all of it, with nothing held back for a second asking
+    assert here["whole"].count('<li class="tile-event"') == 655
+
+
+def test_the_whole_mosaic_stands_as_baked_when_the_hearth_is_quiet(tmp_path, data_dir):
+    for name in ("events.md", "heartbeats.md", "bench.md", "members.md", "offerings.md"):
+        (data_dir / "commons" / name).unlink(missing_ok=True)
+    harness = write(tmp_path / "harness.js", HARNESS.replace(
+        "ok: body !== undefined", "ok: false"))
+    done = subprocess.run(
+        [NODE, str(harness), str(REPO / "mosaic.html"), str(REPO / "mosaic.html"), str(AT),
+         str(data_dir / "commons")],
+        capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert done.returncode == 0, done.stderr
+    said = json.loads(done.stdout)
+    assert regions_of(said["drawn"], WHOLE_REGIONS) == regions_of(said["built"], WHOLE_REGIONS)
 
 
 # ---- a person's letter, on both paths ------------------------------------
@@ -540,7 +707,7 @@ def test_both_paths_draw_a_bond_s_tile_and_its_halves(atrium, data_dir, monkeypa
                 '<a href="https://hearth.tesserae.social/bonds/founder-first" '
                 'aria-label="8 October 2026 · a bond was sealed">'
                 '<img src="https://hearth.tesserae.social/bonds/founder-first/tessera.svg'
-                '?size=34" width="34" height="34" alt=""></a></li>') in said["mosaic"]
+                '?size=24" width="24" height="24" alt=""></a></li>') in said["mosaic"]
         assert "/bonds/founder-first.json" not in said["mosaic"]
         assert '<span class="key tile-seal"></span>seal' in said["caption"]
         # a half beside each name, each the way to the bond's page

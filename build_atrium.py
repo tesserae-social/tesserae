@@ -3,7 +3,7 @@
 
 Rewrites only the text between the marker comments in index.html:
 
-    <!-- mosaic:start -->   ...  <!-- mosaic:end -->
+    <!-- mosaic:start -->   ...  <!-- mosaic:end -->     the last year of tiles
     <!-- reading:start -->  ...  <!-- reading:end -->
     <!-- caption:start -->  ...  <!-- caption:end -->
     <!-- offering:start --> ...  <!-- offering:end -->
@@ -12,6 +12,10 @@ Rewrites only the text between the marker comments in index.html:
     <!-- bench:start -->    ...  <!-- bench:end -->
 
 Everything outside those markers is left byte for byte as it was.
+
+It writes mosaic.html beside it as well, whole: every tile since the founding,
+under the atrium's own head, menu and script, which are copied from index.html
+so that the two pages cannot come to say two different things.
 
 It reads:
     commons/heartbeats.md          the attendances
@@ -46,6 +50,7 @@ import json
 import os
 import re
 import sys
+import textwrap
 import urllib.error
 import urllib.request
 from zoneinfo import ZoneInfo
@@ -57,6 +62,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.environ.get("DATA_DIR", ROOT)
 
 PAGE = os.path.join(ROOT, "index.html")
+WHOLE = os.path.join(ROOT, "mosaic.html")
 HEARTBEATS = os.path.join(DATA, "commons", "heartbeats.md")
 EVENTS = os.path.join(DATA, "commons", "events.md")
 BENCH = os.path.join(DATA, "commons", "bench.md")
@@ -155,12 +161,19 @@ CITIZEN_ZONE = "America/Indiana/Indianapolis"
 BAND_WORDS = {"dawn": "at dawn", "day": "by day",
               "evening": "in the evening", "night": "at night"}
 
-# The mosaic's frame: a band across the whole window, edge to edge, and no
-# taller than a third of its own width. All of history is drawn inside it. The
-# band's height is whatever the rows it holds need, up to that cap; past the cap
-# the tiles are what gives, and they shrink as the record grows. The band is as
-# wide as whatever window it is read in, which neither path can know, so the
-# tiles are reckoned against one nominal width and its third.
+# The front page shows the last year of the mosaic and no more, newest first,
+# as a frame of tiles round the page's words: one slot a day for this many days,
+# ending today. The page's own script holds the same number. Its tiles are one
+# fixed size, which the stylesheet holds too.
+FRONT_SPAN_DAYS = 365
+FRONT_TILE = 24
+
+# The whole mosaic has a page of its own, mosaic.html: every slot since the
+# first, oldest first. Its tiles are reckoned against a nominal frame three wide
+# to one high, and shrink as the record grows so that all of history goes on
+# fitting it. The page is as wide as whatever window it is read in, which
+# neither path can know, so the tiles are reckoned against one nominal width
+# and its third.
 FRAME_WIDTH = 840                        # the width the tiles are reckoned against
 FRAME_HEIGHT = FRAME_WIDTH // 3          # the cap: a third of the width
 
@@ -168,7 +181,7 @@ MAX_TILE = 34   # the size a tile has always been, and keeps while there is room
 MIN_TILE = 4    # and the size below which a tile is no longer a square anyone can
                 # see. At 4px the frame holds some fourteen thousand slots, which
                 # is forty years of days; past that the tile stays 4px and the
-                # frame scrolls. Nothing needs doing about that for a long while.
+                # page runs longer. Nothing needs doing about that for a long while.
 
 # A slot with nothing in it: a day the record is silent on. A slot that holds
 # something holds three things: its class, its words, and where it leads, which
@@ -509,13 +522,16 @@ def tiles_from(events, heartbeats, offerings=(), bonds=()):
     return tiles
 
 
-def slots(tiles, today):
-    """One slot per day from the first thing that happened to today, in reading order.
+def days(tiles, today, span=None):
+    """One (day, slots) per day from the first thing that happened to today, oldest first.
 
     A day the record is silent on is a hole: the same square, with nothing in it.
     The run ends today rather than at the newest tile, so a pause at the end of
     the run shows as holes and not as nothing at all. With the daily tide, holes
     appear only where the tide stopped.
+
+    With a span, only that many days are kept: the most recent ones, ending
+    where the run ends.
     """
     if not tiles:
         return []
@@ -525,11 +541,18 @@ def slots(tiles, today):
         by_day.setdefault(day, []).append((css, words, where))
 
     day, last = min(by_day), max(max(by_day), today)
+    if span:
+        day = max(day, last - datetime.timedelta(days=span - 1))
     out = []
     while day <= last:
-        out.extend(by_day.get(day, [EMPTY]))
+        out.append((day, by_day.get(day, [EMPTY])))
         day += datetime.timedelta(days=1)
     return out
+
+
+def slots(tiles, today, span=None):
+    """Every slot of the run of days, in the order it happened: see days()."""
+    return [slot for _, held in days(tiles, today, span) for slot in held]
 
 
 def tile_gap(size):
@@ -547,8 +570,8 @@ def tile_size(count):
     """The largest tile, no bigger than 34px, at which every slot still fits the frame.
 
     The page's own script works this out the same way, down to the arithmetic, so
-    the atrium the builder bakes and the atrium a browser draws are one picture.
-    Below 4px the tile stops shrinking and the frame scrolls instead; see MIN_TILE.
+    the mosaic the builder bakes and the mosaic a browser draws are one picture.
+    Below 4px the tile stops shrinking and the page runs longer; see MIN_TILE.
     """
     for size in range(MAX_TILE, MIN_TILE, -1):
         gap = tile_gap(size)
@@ -578,21 +601,19 @@ def tessera_of(where, size):
     return "%s/tessera.svg?size=%d" % (where, size)
 
 
-def mosaic_block(cells):
-    """The mosaic entire: the frame, sized to what it holds, and everything in it.
+def drawn_tiles(cells, size):
+    """Each slot as the page writes it, at one tile size.
 
-    The frame carries the tile size it was reckoned at, so the picture the page
-    shows is the picture whoever wrote it meant. An empty slot is a square with
-    no words and no way to land on it: there is nothing there to read out.
+    An empty slot is a square with no words and no way to land on it: there is
+    nothing there to read out.
     """
-    size = tile_size(len(cells))
     drawn = []
     for css, words, where in cells:
         said = html.escape(words, quote=True)
         if css and where:
             # a tile with somewhere to lead is a link, and the link is what the
-            # keyboard lands on; the words stay on the tile, where the line
-            # under the mosaic reads them off. A bond's tile shows its tessera.
+            # keyboard lands on; the words stay on the tile, where the reading
+            # line reads them off. A bond's tile shows its tessera.
             picture = tessera_of(where, size)
             shown = ('<img src="%s" width="%d" height="%d" alt="">'
                      % (html.escape(picture, quote=True), size, size)) if picture else ""
@@ -602,14 +623,49 @@ def mosaic_block(cells):
             drawn.append('<li class="%s" title="%s" tabindex="0"></li>' % (css, said))
         else:
             drawn.append('<li class="empty"></li>')
+    return drawn
 
-    rows = ["".join(drawn[at:at + 5]) for at in range(0, len(drawn), 5)]
+
+def in_fives(drawn):
+    """What was drawn, five to a line of the page: a line of markup, not a row of tiles."""
+    return ["".join(drawn[at:at + 5]) for at in range(0, len(drawn), 5)]
+
+
+def frame_block(cells):
+    """The front page's tiles: the slots it is given, laid newest first.
+
+    They are one fixed size, and where each one stands is the stylesheet's
+    business and the window's: round the words where there is room beside them,
+    and in rows above and below where there is none.
+    """
+    drawn = drawn_tiles(list(reversed(cells)), FRONT_TILE)
+    return ['<ul class="mosaic" aria-label="the mosaic">'] + in_fives(drawn) + ["</ul>"]
+
+
+def whole_block(run):
+    """The mosaic entire, oldest first: every day's slots, and a label where each year begins.
+
+    The list carries the tile size it was reckoned at, so the picture the page
+    shows is the picture whoever wrote it meant.
+    """
+    size = tile_size(sum(len(held) for _, held in run))
+    lines, year, drawn = [], None, []
+    for day, held in run:
+        if day.year != year:
+            year = day.year
+            lines += in_fives(drawn) + ['<li class="year">%d</li>' % year]
+            drawn = []
+        drawn += drawn_tiles(held, size)
+    lines += in_fives(drawn)
     return (['<ul class="mosaic" style="--tile:%dpx;--gap:%dpx" aria-label="the mosaic">'
-             % (size, tile_gap(size))] + rows + ["</ul>"])
+             % (size, tile_gap(size))] + lines + ["</ul>"])
 
 
 def reading_text(cells):
-    """The line under the mosaic at rest: the newest tile's words, holes passed over."""
+    """The reading line at rest: the newest tile's words, holes passed over.
+
+    The slots are read in the order they happened, whichever way a page lays them.
+    """
     for css, words, _ in reversed(cells):
         if css:
             return words
@@ -799,7 +855,7 @@ def splice(page, name, block, newline):
     )
     match = pattern.search(page)
     if match is None:
-        sys.exit("build_atrium: no %s markers in index.html" % name)
+        sys.exit("build_atrium: no %s markers in the page" % name)
 
     indent = match.group(1)
     body = newline.join(indent + line for line in block)
@@ -807,6 +863,67 @@ def splice(page, name, block, newline):
         indent, match.group(2), newline, body, newline + indent, match.group(5)
     )
     return page[:match.start()] + filled + page[match.end():]
+
+
+# What the whole mosaic's page calls itself, and all of it that is its own: the
+# way back, the reading line, the caption and the mosaic. Its head, its menu
+# and its script are the atrium's, copied in where the %s stand.
+WHOLE_TITLE = "Tesserae: the whole mosaic"
+WHOLE_BACK = "back to the front page"
+WHOLE_PAGE = """%s<body class="atrium whole">
+<main>
+
+  <div class="column">
+
+%s
+
+    <p class="home"><a href="/">%s</a></p>
+
+  </div>
+
+  <div class="column said">
+    <!-- reading:start -->
+    <!-- reading:end -->
+  </div>
+
+  <div class="column">
+    <!-- caption:start -->
+    <!-- caption:end -->
+  </div>
+
+  <div class="band">
+    <!-- whole:start -->
+    <!-- whole:end -->
+  </div>
+
+</main>
+
+%s
+</body>
+</html>
+"""
+
+HEAD = re.compile(r"\A.*?</head>\n", re.S)
+TITLE = re.compile(r"<title>.*?</title>")
+MENU = re.compile(r'^[ \t]*<nav class="menu".*?</nav>', re.S | re.M)
+SCRIPT = re.compile(r"<script>.*?</script>", re.S)
+
+
+def whole_page(atrium, newline):
+    """The whole mosaic's page with nothing yet between its markers.
+
+    It is written out whole each time, from the atrium as it stands: the same
+    head under a title of its own, the same menu, and the same script, which
+    fills whichever page it finds itself on.
+    """
+    atrium = atrium.replace("\r\n", "\n")
+    found = [pattern.search(atrium) for pattern in (HEAD, MENU, SCRIPT)]
+    if None in found or not TITLE.search(found[0].group()):
+        sys.exit("build_atrium: index.html has no head, menu or script to copy")
+    head, menu, script = (one.group() for one in found)
+    head = TITLE.sub(lambda _: "<title>%s</title>" % WHOLE_TITLE, head, count=1)
+    menu = textwrap.indent(textwrap.dedent(menu), "    ")
+    return (WHOLE_PAGE % (head, menu, WHOLE_BACK, script)).replace("\n", newline)
 
 
 def named_hearth():
@@ -838,29 +955,36 @@ def main():
         if not hearth:  # a local file going wrong is a fault, not a closed door
             raise
         sys.exit("build_atrium: could not read the commons from %s (%s). "
-                 "index.html is untouched." % (hearth, trouble))
+                 "index.html and mosaic.html are untouched." % (hearth, trouble))
 
     tiles = tiles_from(events, heartbeats, offerings, sealed)
     cells = slots(tiles, today)
+    front = slots(tiles, today, FRONT_SPAN_DAYS)
 
     page = read_text(PAGE)
     newline = "\r\n" if "\r\n" in page else "\n"
 
-    page = splice(page, "mosaic", mosaic_block(cells), newline)
-    page = splice(page, "reading", reading_block(cells), newline)
+    page = splice(page, "mosaic", frame_block(front), newline)
+    page = splice(page, "reading", reading_block(front), newline)
     page = splice(page, "caption", caption_block(tiles), newline)
     page = splice(page, "offering", offering_block(latest, record), newline)
     page = splice(page, "who", who_block(members, sealed), newline)
     page = splice(page, "calendar", calendar_block(today), newline)
     page = splice(page, "bench", bench_block(bench), newline)
 
+    whole = whole_page(page, newline)
+    whole = splice(whole, "whole", whole_block(days(tiles, today)), newline)
+    whole = splice(whole, "reading", reading_block(cells), newline)
+    whole = splice(whole, "caption", caption_block(tiles), newline)
+
     write_text(PAGE, page)
+    write_text(WHOLE, whole)
 
     print(
         "atrium: %d tiles in %d slots at %dpx (%d events, %d attendances, %d offerings), "
-        "%d on the bench, %d here, %d sealed bonds, as of %s"
+        "%d on the bench, %d here, %d sealed bonds, %d slots on the front page, as of %s"
         % (len(tiles), len(cells), tile_size(len(cells)), len(events), len(heartbeats),
-           len(offerings), len(bench), len(members), len(sealed), human(today))
+           len(offerings), len(bench), len(members), len(sealed), len(front), human(today))
     )
 
 

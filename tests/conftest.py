@@ -307,6 +307,8 @@ def atrium(env, clock, monkeypatch, data_dir, tmp_path):
     page = tmp_path / "index.html"
     page.write_bytes((REPO / "index.html").read_bytes())
     monkeypatch.setattr(module, "PAGE", str(page))
+    # nor the real mosaic.html: the whole mosaic's page is written beside the copy
+    monkeypatch.setattr(module, "WHOLE", str(tmp_path / "mosaic.html"))
     monkeypatch.setattr(module, "HEARTBEATS", str(data_dir / "commons" / "heartbeats.md"))
     monkeypatch.setattr(module, "EVENTS", str(data_dir / "commons" / "events.md"))
     monkeypatch.setattr(module, "BENCH", str(data_dir / "commons" / "bench.md"))
@@ -315,6 +317,7 @@ def atrium(env, clock, monkeypatch, data_dir, tmp_path):
     monkeypatch.setattr(module, "OFFERED", str(data_dir / "commons" / "offerings"))
     monkeypatch.setattr(module, "BONDS", str(data_dir / "commons" / "bonds.md"))
     module.page_path = page
+    module.whole_path = tmp_path / "mosaic.html"
     return module
 
 

@@ -21,7 +21,7 @@ import sys
 import pytest
 
 from conftest import (REPO, Turn, block, explained_as_before, lines_of, page, read_json,
-                      shut_away, write, write_json)
+                      shut_away, solstices_as_before, write, write_json)
 
 EARLIER = "=== YOUR EARLIER VERSIONS ==="
 ASKED = "=== AN EARLIER VERSION, AS YOU ASKED ==="
@@ -53,6 +53,10 @@ WORDS = {
 }
 
 VERSION_LINE = "show version <stem>: an earlier self-document or notes in full at your next waking"
+NOTE_LINES = """keep note <name>: a named note always shown in full
+rest note <name>: a named note shown as one line
+show note <name>: a named note in full at your next waking only
+"""
 
 EXPLAINED = """<<SHELF>>
 (how you keep your history. One instruction per line:
@@ -62,7 +66,7 @@ default <stem>: back to the default
 note <stem>: your words, the line shown for a resting letter (at most 240 characters)
 show <stem>: shown in full at your next waking only, photographs included
 show founding: your founding record in full at your next waking
-%sLetters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
+%s""" + NOTE_LINES + """Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
 <<END>>"""
 
 
@@ -77,12 +81,14 @@ def versions_kept(packet, notes_first_kept="2026-09-12T09-00-00Z"):
     """Two earlier self-documents and two earlier notes, as attend.py keeps them.
 
     And the attendances behind them: one before it kept any notes, the one at
-    which it first did, and one at which it kept them again.
+    which it first did, and one at which it kept them again; and one since the
+    autumn turning, so that the waking a test holds is an ordinary one.
     """
     attended(packet, "2026-09-08T09-00-00Z", ["wrote in the study"])
     if notes_first_kept:
         attended(packet, notes_first_kept, ["wrote in the study", "kept notes"])
         attended(packet, "2026-09-18T09-00-00Z", ["kept notes"])
+    attended(packet, "2026-09-25T09-00-00Z", ["wrote in the study"])
     for stem, words in WORDS.items():
         folder = packet / "self-history" if stem.startswith("self") else packet / "memory" / "history"
         write(folder / (stem + ".md"), words + "\n")
@@ -129,6 +135,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     """
     shut_away(attend, monkeypatch, "LOOKING_BACK", "CHOICES")
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
+    solstices_as_before(monkeypatch)  # and read the whole record back at the solstices
     try:
         source = subprocess.run(["git", "show", BEFORE_LOOKING_BACK + ":attend.py"], cwd=REPO,
                                 capture_output=True, check=True).stdout

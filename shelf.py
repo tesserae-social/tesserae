@@ -19,6 +19,13 @@ What it asks to be shown is shown at the next waking only. Nothing is ever
 erased: a resting letter is a line and not a loss, and the letter itself is
 where it always was.
 
+Its named notes (see NOTES in attend.py) are kept on the same shelf. Each is
+close unless it is placed otherwise: "rest note <name>" shows it as one line,
+"keep note <name>" shows it in full again, and "show note <name>" shows a
+resting one in full at the next waking only. What rests is written as
+"note_placements", by the name each note's file carries, and what it asked to
+be shown as "show_notes"; each only while there is something in it.
+
 Where it may look back (see LOOKING_BACK in attend.py), it may also ask for an
 earlier version of its self-document or its notes, by "show version <stem>".
 What it asked for is written as "show_versions", beside "show_next", and only
@@ -50,8 +57,11 @@ FIRST_WORDS = 12
 # rest, and so it rests from the start.
 ARTICLE = "founder-2026-10-01T15-15-05Z"
 
-# The two days of the year its whole record is read back to it in full.
-SOLSTICES = ((6, 21), (12, 21))
+# The four days of the year its whole record is read back to it in full: the
+# turnings of the season, on the same fixed days the atrium's season line uses
+# (SEASONS in build_atrium.py), and the season each one opens.
+TURNINGS = (((3, 20), "spring"), ((6, 21), "summer"),
+            ((9, 22), "autumn"), ((12, 21), "winter"))
 
 # The moment a letter's own name carries.
 STAMPED = re.compile(r"(\d{4}-\d{2}-\d{2})T\d{2}-\d{2}-\d{2}Z$")
@@ -63,6 +73,9 @@ NOTING = re.compile(r"note\s+(\S+?)\s*:\s*(.*)", re.I)
 FOUNDING = "founding"
 VERSION = re.compile(r"show\s+version\s+(\S+)", re.I)
 SHOW_VERSION = "show version"
+NOTE_PLACING = re.compile(r"(keep|rest|show)\s+note\s+(.+)", re.I)
+KEEP_NOTE, REST_NOTE, SHOW_NOTE = "keep note", "rest note", "show note"
+NOTE_RESTS = "{name} · rests · {words}"
 
 FROM = {"founder": "from the founder", "first": "from you"}
 PHOTO_RESTS = " · a photograph rests with it"
@@ -96,6 +109,15 @@ def whole(written):
     show_versions = written.get("show_versions")
     if isinstance(show_versions, list) and show_versions:
         shelf["show_versions"] = list(show_versions)
+    note_placements = written.get("note_placements")
+    if isinstance(note_placements, dict):
+        note_placements = {slug: REST for slug, place in note_placements.items()
+                           if place == REST}
+        if note_placements:
+            shelf["note_placements"] = note_placements
+    show_notes = written.get("show_notes")
+    if isinstance(show_notes, list) and show_notes:
+        shelf["show_notes"] = list(show_notes)
     return shelf
 
 
@@ -144,14 +166,37 @@ def named(word):
     return word[:-len(".md")] if word.endswith(".md") else word
 
 
-def instruction(line, stems, versions=()):
+def note_key(name):
+    """A named note's name as it is matched: whatever its capitals and its spacing."""
+    return " ".join(name.strip().strip('"').split()).casefold()
+
+
+def notes_resting(shelf, slugs):
+    """Which of its named notes rest at a waking: those placed so, and not asked for."""
+    placed = shelf.get("note_placements", {})
+    return {slug for slug in slugs
+            if placed.get(slug) == REST and slug not in shelf.get("show_notes", [])}
+
+
+def note_line(name, text, empty):
+    """One resting named note, as one line."""
+    return NOTE_RESTS.format(name=name, words=first_words(text) or empty)
+
+
+def instruction(line, stems, versions=(), notes=None):
     """One line of a <<SHELF>> block as an instruction, or None if it is none.
 
     A line that names no letter there is, or that cannot be read, is no
     instruction, and neither is a note longer than a note may be. An earlier
     version is asked for by its own stem, and one that names no version there
-    is - as every one does, where none are handed in - is no instruction.
+    is - as every one does, where none are handed in - is no instruction. A
+    named note is placed by its name, matched as note_key matches it against
+    the names handed in, each with the name its file carries.
     """
+    found = NOTE_PLACING.fullmatch(line)
+    if found:
+        slug = (notes or {}).get(note_key(found.group(2)))
+        return (found.group(1).lower() + " note", slug) if slug else None
     found = VERSION.fullmatch(line)
     if found:
         stem = named(found.group(1))
@@ -170,7 +215,7 @@ def instruction(line, stems, versions=()):
     return None
 
 
-def asked(said, stems, versions=()):
+def asked(said, stems, versions=(), notes=None):
     """What a <<SHELF>> block asks for: its instructions, and the lines that were none.
 
     One instruction to a line; blank lines are passed over. A line that is not
@@ -181,7 +226,7 @@ def asked(said, stems, versions=()):
         line = line.strip()
         if not line:
             continue
-        one = instruction(line, stems, versions)
+        one = instruction(line, stems, versions, notes)
         if one:
             understood.append(one)
         else:
@@ -211,6 +256,15 @@ def applied(shelf, instructions):
         elif verb == SHOW_VERSION:
             if one[1] not in after.setdefault("show_versions", []):
                 after["show_versions"].append(one[1])
+        elif verb == REST_NOTE:
+            after.setdefault("note_placements", {})[one[1]] = REST
+        elif verb == KEEP_NOTE:  # close is how a named note stands unplaced
+            after.get("note_placements", {}).pop(one[1], None)
+            if not after.get("note_placements"):
+                after.pop("note_placements", None)
+        elif verb == SHOW_NOTE:
+            if one[1] not in after.setdefault("show_notes", []):
+                after["show_notes"].append(one[1])
     return after
 
 
@@ -220,6 +274,7 @@ def cleared(shelf):
     after["show_next"] = []
     after["show_founding"] = False
     after.pop("show_versions", None)
+    after.pop("show_notes", None)
     return after
 
 
@@ -236,18 +291,22 @@ def line(stem, whose, text, note, photo):
     return said + (PHOTO_RESTS if photo else "")
 
 
-def solstice_before(day):
-    """The latest solstice on or before a day."""
-    days = [date(year, month, on) for year in (day.year - 1, day.year)
-            for month, on in SOLSTICES]
-    return max(one for one in days if one <= day)
+def turning_before(day):
+    """The latest turning of the season on or before a day, and the season it opened."""
+    days = [(date(year, month, on), season) for year in (day.year - 1, day.year)
+            for (month, on), season in TURNINGS]
+    return max(one for one in days if one[0] <= day)
 
 
-def solstice_due(today, last_attended):
-    """Whether a waking is the first on or after a solstice.
+def season_due(today, last_attended):
+    """The season a waking reads in, where it is the first on or after a turning.
 
-    It is where the waking before it fell before that solstice, on the
-    calendar where the first one lives; so each solstice is read once. A first
-    waking of all has no record to reread, and is no solstice reading.
+    It is where the waking before it fell before that turning, on the
+    calendar where the first one lives; so each turning is read once, and one
+    slept through is read at the waking after it. A first waking of all has no
+    record to reread, and is no season reading. Where none is due, nothing.
     """
-    return last_attended is not None and last_attended < solstice_before(today)
+    if last_attended is None:
+        return None
+    turned, season = turning_before(today)
+    return season if last_attended < turned else None

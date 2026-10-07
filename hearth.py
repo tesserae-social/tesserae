@@ -551,6 +551,8 @@ KEPT_PRIVATE = "Reflection kept private by the first one's choice."
 # end, since what it held was meant for itself.
 BLOCK_LINE = re.compile(r"<<([A-Z_]+)>>")
 KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions: private)",
+                # a note it keeps under a name of its own, the name with it
+                "NOTE": "(kept a named note: private)",
                 # how it keeps its own history is its own too: see shelf.py
                 "SHELF": "(kept its shelf: private)",
                 # and what it writes on the threshold, which the room shows under

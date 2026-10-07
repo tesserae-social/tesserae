@@ -21,8 +21,8 @@ import sys
 
 import pytest
 
-from conftest import (REPO, Turn, block, explained_as_before, lines_of, page, shut_away, write,
-                      write_json)
+from conftest import (REPO, Turn, block, explained_as_before, lines_of, page, shut_away,
+                      solstices_as_before, write, write_json)
 
 CHOSEN = "=== WHAT YOU HAVE CHOSEN ==="
 NOTHING = "You have not set anything here yet; everything follows the defaults."
@@ -110,6 +110,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     """
     shut_away(attend, monkeypatch, "CHOICES")
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
+    solstices_as_before(monkeypatch)  # and read the whole record back at the solstices
     try:
         source = subprocess.run(["git", "show", BEFORE_CHOICES + ":attend.py"], cwd=REPO,
                                 capture_output=True, check=True).stdout

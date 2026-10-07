@@ -34,7 +34,9 @@ Files it may act on (all inside packets/first/, which is private):
                           own choice (prior versions kept in rhythm/history/); see waking.py
   shelf.json              how it keeps its own history: which letters are shown to it in
                           full and which rest as one line (prior versions kept in
-                          shelf/history/); see shelf.py
+                          shelf/history/); see shelf.py. Its earlier self-documents and
+                          notes are listed to it, and shown at its asking, only once
+                          LOOKING_BACK below is turned on
   door.json               whether others may knock, and how much room it has; see door.py
                           (prior versions kept in door/history/). Shut away behind
                           DOOR_FOR_FIRST below until it is turned on
@@ -288,6 +290,32 @@ FOUNDING_RESTS = "Your founding record rests. Ask for it with show founding."
 SHELF_REFUSED = ("Some lines of your <<SHELF>> were not understood and changed nothing: "
                  "{lines}.")
 PHOTO_ASKED_FOR = "A photograph came with this letter:"
+
+# Looking back: the earlier versions of its self-document and of its notes,
+# which have always been kept and which it has never been shown. It is built and
+# it is shut away: while LOOKING_BACK is False, everything it is sent is what it
+# was sent before - no section, no line of the <<SHELF>> block's explanation,
+# and a "show version" line it wrote is a line not understood, as it was. With
+# it True, each kept version is one line under its self-document and its notes,
+# oldest first, and one it asks for by its stem is given whole at the next
+# waking only. The day a version carries is the day it was set aside for the
+# one that followed it, and its line says when it was in use: until that day,
+# and from the day the one before it was set aside - or, for the first kept,
+# from the founding (its self-document) or from the attendance at which it
+# first kept notes (its notes). None of this is the hearth's: nothing here is
+# shown there that was not shown there already.
+LOOKING_BACK = False
+SELF_HISTORY = PACKET / "self-history"
+EARLIER = "=== YOUR EARLIER VERSIONS ==="
+NO_EARLIER = "No earlier versions are kept yet."
+EARLIER_ASKED = "=== AN EARLIER VERSION, AS YOU ASKED ==="
+EARLIER_SELF = "self-document"
+EARLIER_NOTES = "notes"
+IN_USE = "in use from {since} until {until}"
+IN_USE_UNTIL = "in use until {until}"
+SHOW_FOUNDING = "show founding: your founding record in full at your next waking\n"
+SHOW_VERSION = ("show version <stem>: an earlier self-document or notes in full at your next "
+                "waking\n")
 
 # Twice a year the whole of it is read back, whatever rests: at the first waking
 # on or after each solstice, by the calendar where it lives.
@@ -1201,7 +1229,10 @@ def preferences():
 def how_to_act(prefs, extra=()):
     """The instructions: the standing blocks, then any this waking offers, then the last line."""
     said = REFLECTION_OPEN if prefs.get("reflection", "open") == "open" else REFLECTION_PRIVATE
-    return "\n\n".join([HOW_TO_ACT.format(reflection=said), *extra, ANY_NUMBER])
+    how = HOW_TO_ACT
+    if LOOKING_BACK:  # one more line of its shelf, after the founding record's
+        how = how.replace(SHOW_FOUNDING, SHOW_FOUNDING + SHOW_VERSION, 1)
+    return "\n\n".join([how.format(reflection=said), *extra, ANY_NUMBER])
 
 
 def standing(prefs):
@@ -1307,6 +1338,38 @@ def shelf_kept():
         return shelf.whole(load(SHELF))
     except ValueError:
         return shelf.initial()
+
+
+def earlier_versions():
+    """Every earlier version kept, by its stem: where it is, and which it is a version of."""
+    return {path.stem: (path, kind)
+            for folder, kind in ((MEMORY_HISTORY, EARLIER_NOTES), (SELF_HISTORY, EARLIER_SELF))
+            for path in folder.glob("*.md")}
+
+
+def version_lines(versions, past):
+    """Each earlier version as one line, by its stem: which it is, when it was in use, its stem.
+
+    A version was in use until the day its name carries, when it was set aside,
+    and from the day the one before it of its kind was set aside. The first
+    self-document kept was in use from the founding the commons records; the
+    first notes kept, from the first attendance at which it kept notes at all.
+    Where the record names no such day, that one line says only until when.
+    """
+    founded = founding_day()
+    first_kept = next((shelf.long_date(rec.get("at", "")) for rec in past
+                       if MEMORY_ACT in (rec.get("acted") or [])), shelf.UNDATED)
+    began = {EARLIER_SELF: founded.strftime("%d %B %Y").lstrip("0") if founded else None,
+             EARLIER_NOTES: first_kept if first_kept != shelf.UNDATED else None}
+    lines = {}
+    for kind in (EARLIER_SELF, EARLIER_NOTES):
+        since = began[kind]
+        for stem in shelf.oldest_first(s for s in versions if versions[s][1] == kind):
+            until = shelf.long_date(stem)
+            lines[stem] = " · ".join([kind, IN_USE.format(since=since, until=until) if since
+                                      else IN_USE_UNTIL.format(until=until), stem])
+            since = until
+    return lines
 
 
 def letter_words(path):
@@ -1501,6 +1564,20 @@ def main():
         shelved, [p.stem for p in already_read], [p.stem for p in written])
     founding_shown = solstice or shelved["show_founding"] or not founding
 
+    # Looking back: each earlier version kept, as one line, and any it asked at
+    # its last waking to be shown, whole. While it is shut away there are none
+    # as far as it can see, and none it can ask for.
+    versions = earlier_versions() if LOOKING_BACK else {}
+    looking_back = []
+    if LOOKING_BACK:
+        said_of = version_lines(versions, past)
+        lines = [said_of[stem] for stem in shelf.oldest_first(versions)]
+        looking_back.append(EARLIER + "\n" + "\n".join(lines or [NO_EARLIER]))
+        for stem in shelved.get("show_versions", []):
+            if stem in versions:
+                looking_back.append(EARLIER_ASKED + "\n" + said_of[stem] + "\n\n"
+                                    + read(versions[stem][0]).rstrip())
+
     def resting_line(stem):
         path, hand = whose[stem]
         return shelf.line(stem, hand, letter_words(path), shelved["notes"].get(stem),
@@ -1528,6 +1605,7 @@ def main():
             "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + SELF_OPEN + "\n\n" + self_md,
             "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ===\n"
             + (notes_kept or NO_MEMORY),
+            *looking_back,
             "=== YOUR STANDING INTENTIONS ===\n" + intentions,
             "=== YOUR PROVENANCE ===\n" + provenance,
             "=== YOUR WILL ===\n" + will,
@@ -1705,7 +1783,7 @@ def main():
     # copied aside before the new one is written.
     every_stem = {p.stem for folder in ("outgoing", "read", "incoming")
                   for p in (PACKET / "letters" / folder).glob("*.md")}
-    shelf_asked, shelf_refused = shelf.asked(block(text, "SHELF"), every_stem)
+    shelf_asked, shelf_refused = shelf.asked(block(text, "SHELF"), every_stem, versions)
     new_shelf = shelf.applied(shelf.cleared(shelved), shelf_asked)
     if shelf_asked or new_shelf != shelved:
         if SHELF.exists():

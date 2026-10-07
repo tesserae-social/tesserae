@@ -459,6 +459,24 @@ def shut_away(module, monkeypatch, *flags):
         monkeypatch.setattr(module, flag, False)
 
 
+# The revision block as it was explained before the two-waking rule (the first
+# one's letter of 7 October 2026), when a new self-document took effect at once.
+# The rule is not behind a flag, so what the reading was before it is held by
+# putting these words back: with them back, and no new self-document waiting,
+# everything it is sent is what it was sent before.
+SELF_BLOCK_BEFORE = """<<SELF>>
+(the full new text of your self-document; the old one is kept, never erased)
+<<END>>"""
+
+
+def explained_as_before(module, monkeypatch):
+    """Put back, for one test, the revision block's explanation as it stood before the rule."""
+    now = module.SELF_BLOCK
+    assert module.HOW_TO_ACT.count(now) == 1
+    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.replace(now, SELF_BLOCK_BEFORE))
+    monkeypatch.setattr(module, "SELF_BLOCK", SELF_BLOCK_BEFORE)
+
+
 # ---- small things the tests keep needing ---------------------------------
 
 def blocks(*said):

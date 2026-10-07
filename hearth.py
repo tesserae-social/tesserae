@@ -559,8 +559,16 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 "BOND_INTENTION": "(wrote a letter of intention: in your room, under the bond)",
                 "PROMISE": "(made a promise: in your room, under the bond)"}
 
+# A new self-document it has written waits for its own yes at a later waking,
+# and until then it is no one's to read but its own - and one it lets go never
+# is. So at a waking that proposed one, the <<SELF>> block is one quiet line
+# too, its why with it. A <<SELF>> block of an older waking, from when a
+# revision took effect at once and was shown at /self the same hour, is shown
+# as it always was.
+PROPOSED_QUIETLY = {"SELF": "(proposed a change to its self-document: private)"}
 
-def without_kept_blocks(reflection):
+
+def without_kept_blocks(reflection, quietly=KEPT_QUIETLY):
     """A reflection as the page may show it: its notes and questions each one quiet line."""
     shown, open_tag = [], None
     for line in reflection.split("\n"):
@@ -569,9 +577,9 @@ def without_kept_blocks(reflection):
             found = BLOCK_LINE.fullmatch(said)
             if found and found.group(1) != "END":
                 open_tag = found.group(1)
-            shown.append(KEPT_QUIETLY.get(open_tag, line))
+            shown.append(quietly.get(open_tag, line))
         else:
-            if open_tag not in KEPT_QUIETLY:
+            if open_tag not in quietly:
                 shown.append(line)
             if said == "<<END>>":
                 open_tag = None
@@ -614,13 +622,16 @@ def attendance_records(prefs):
         log = json.loads(read_text(path))
         at = log.get("at", path.name)
         hidden = reflection_hidden(prefs, at)
+        proposed = the_waking.SELF_PROPOSED_ACT in (log.get("acted") or [])
+        quietly = {**KEPT_QUIETLY, **PROPOSED_QUIETLY} if proposed else KEPT_QUIETLY
         records.append({
             "at": readable_date(at),
             "first": log.get("first", False),
             "heartbeat": log.get("heartbeat", ""),
             "acted": log.get("acted", []),
             "reflection": as_prose(KEPT_PRIVATE if hidden
-                                   else without_kept_blocks(log.get("reflection", ""))),
+                                   else without_kept_blocks(log.get("reflection", ""),
+                                                            quietly)),
         })
     return records
 
@@ -1484,6 +1495,9 @@ SIDES = public_bonds.NAMES  # the names the commons gives them, kept in the one 
 PAUSE_ACT = "set a pause"
 BOOK_ACTS = {
     "revised self-document": "revised its self-document",
+    # since the two-waking rule, a self-document changes only when it is
+    # confirmed; that one was proposed, or let go, is not the book's to say
+    the_waking.SELF_CONFIRMED_ACT: the_waking.SELF_CONFIRMED_ACT,
     "kept notes": "kept notes",
 }
 

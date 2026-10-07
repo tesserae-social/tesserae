@@ -13,8 +13,8 @@ import sys
 
 import pytest
 
-from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, lines_of, page, read_json,
-                      shut_away, write, write_json)
+from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, explained_as_before,
+                      lines_of, page, read_json, shut_away, write, write_json)
 
 ARTICLE = "founder-2026-10-01T15-15-05Z"
 
@@ -818,6 +818,7 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     shutil.copytree(world, data_dir)
     # what was switched on since is held in its own tests; shut away, this is what is left
     shut_away(attend, monkeypatch)
+    explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     now = wake()
 
     resting_record = FOUNDING + "\n" + FOUNDING_RESTS

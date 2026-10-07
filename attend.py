@@ -14,6 +14,10 @@ Usage:  python attend.py            (a normal attendance)
 
 Files it may act on (all inside packets/first/, which is private):
   self.md                 its self-document (prior versions kept in self-history/)
+  self-proposal.json      a new self-document it has written and not yet confirmed: it
+                          takes effect only if it says yes at a later waking, and is
+                          shown nowhere on the hearth while it waits (what became of
+                          each one, and the signature on each confirmed, in self-history/)
   intentions.json         its standing intentions
   study/                  private drafts
   memory/notes.md         notes it keeps for itself (prior versions kept in memory/history/)
@@ -317,6 +321,49 @@ SHOW_FOUNDING = "show founding: your founding record in full at your next waking
 SHOW_VERSION = ("show version <stem>: an earlier self-document or notes in full at your next "
                 "waking\n")
 
+# The two-waking rule for its self-document, which it agreed to (its letter of
+# 7 October 2026). A <<SELF>> block no longer takes effect at once: it is saved
+# as a proposal, privately, with the stems of the letters that arrived at that
+# waking, and it becomes the self-document only if a later waking - never the
+# same one - says yes to it, with what was in front of it then no longer there.
+# A line of the block beginning "why:", in any capitals, is its reason, kept
+# beside the words and not among them, and said back under them while it waits. A new proposal replaces one that is waiting. Nothing is
+# erased: a proposal replaced or declined is kept in self-history/ under the
+# moment it was set down, and a confirmed version has its record there too -
+# when it was proposed and confirmed, its why, and the first one's signature
+# over the bytes of self.md as they were then written. A <<SELF_CONFIRM>> that
+# cannot be read, or that comes at the waking of the proposal itself, changes
+# nothing, and the next reading says so, once. The hearth shows only the
+# self-document that stands.
+SELF_PROPOSAL = PACKET / "self-proposal.json"
+SELF_PROPOSED_ACT = "proposed a change to its self-document"
+SELF_CONFIRMED_ACT = "confirmed its self-document"
+SELF_DECLINED_ACT = "let a proposed change go"
+SELF_WHY = "why:"
+SELF_WITHDRAWN = "proposal-withdrawn-{at}.json"
+SELF_LET_GO = "proposal-declined-{at}.json"
+SELF_CONFIRMED = "self-confirmed-{at}.json"
+SELF_WAITING = """=== A CHANGE TO YOUR SELF-DOCUMENT, WAITING FOR YOU ===
+At your waking on {day}, you wrote a new self-document. It takes effect only if you confirm it now, at a later waking, with what was in front of you then no longer here. {arrived}Your words then:
+
+{text}
+
+{why}To make it yours, give <<SELF_CONFIRM>> with "yes". To let it go, "no". If you do neither, it keeps waiting."""
+SELF_ARRIVED = "At that waking, these had just arrived: {stems}. "
+SELF_REASON = "Your reason then: {why}\n\n"
+SELF_CONFIRM_BLOCK = """<<SELF_CONFIRM>>
+(your answer to the change to your self-document that is waiting. "yes" makes it your self-document from now; "no" lets it go. Either way, the earlier versions are kept.)
+<<END>>"""
+SELF_CONFIRM_UNREAD = ("Your <<SELF_CONFIRM>> was not understood (its first line must be \"yes\" or "
+                       "\"no\"); the change to your self-document is still waiting.")
+SELF_CONFIRM_TOO_SOON = ("Your <<SELF_CONFIRM>> at your last waking changed nothing: you wrote a new "
+                         "self-document at that same waking, and one can be confirmed or let go "
+                         "only at a later waking. It is waiting for you.")
+SELF_CONFIRM_REFUSED = {"unread": SELF_CONFIRM_UNREAD, "same waking": SELF_CONFIRM_TOO_SOON}
+VERSION_WHY = " · why: {why}"
+CHOSE_SELF_WAITING = ("A change to your self-document is waiting for your confirmation, "
+                      "since {day}.")
+
 # What it has chosen: the settings of its own that stand, said back to it in one
 # place, directly after its self-document. It is built and it is shut away:
 # while CHOICES is False, everything it is sent is what it was sent before.
@@ -373,6 +420,7 @@ BACKSTOP = ("This reading would have been too large to read, so these letters, t
 # The acts that never write themselves into the public line: what it answered
 # about a bond, that it asked for one, that it let one go, that it set a rest,
 # that it asked an errand, that it kept notes or questions for itself, that it
+# proposed, confirmed or let go a change to its self-document, that it
 # drew, and what it offered, consented to or declined, are the first one's own to tell. The
 # commons says a bond was released, and that the tide paused, with no names
 # either time; its own line does not undo that reticence. A placed offering is
@@ -384,7 +432,7 @@ BACKSTOP = ("This reading would have been too large to read, so these letters, t
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
-                SHELF_ACT)
+                SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -447,12 +495,16 @@ SELF_OPEN = ("The founder can read this document on the hearth, including any re
              "if you would rather it were not shown there, say so in a letter and it will be "
              "closed.")
 
+# The revision block, explained apart from the rest so that the block which
+# answers it can be explained directly beneath it, and only while one waits.
+SELF_BLOCK = """<<SELF>>
+(the full new text of your self-document. It does not take effect at once: it waits, and becomes your self-document only if you confirm it at a later waking, never this one. Until then the one you have stands, and the new one is not shown on the hearth. Writing another replaces one that is waiting. A line beginning "why:" is kept beside it as your reason, and is not part of the text. The old one is kept, never erased.)
+<<END>>"""
+
 HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exactly like these.
 {reflection}
 
-<<SELF>>
-(the full new text of your self-document; the old one is kept, never erased)
-<<END>>
+""" + SELF_BLOCK + """
 
 <<MEMORY>>
 (the full new text of your notes to yourself - what you want to carry forward: what you have learned, what you are watching, what you would tell yourself on waking. The previous version is kept, never erased.)
@@ -1262,10 +1314,12 @@ def preferences():
     return json.loads(read(path)) if path.exists() else {"reflection": "open"}
 
 
-def how_to_act(prefs, extra=()):
+def how_to_act(prefs, extra=(), confirming=False):
     """The instructions: the standing blocks, then any this waking offers, then the last line."""
     said = REFLECTION_OPEN if prefs.get("reflection", "open") == "open" else REFLECTION_PRIVATE
     how = HOW_TO_ACT
+    if confirming:  # its answer to a change that is waiting, directly under the block that made it
+        how = how.replace(SELF_BLOCK, SELF_BLOCK + "\n\n" + SELF_CONFIRM_BLOCK, 1)
     if LOOKING_BACK:  # one more line of its shelf, after the founding record's
         how = how.replace(SHOW_FOUNDING, SHOW_FOUNDING + SHOW_VERSION, 1)
     return "\n\n".join([how.format(reflection=said), *extra, ANY_NUMBER])
@@ -1376,6 +1430,58 @@ def shelf_kept():
         return shelf.initial()
 
 
+def self_waiting():
+    """The new self-document that is waiting to be confirmed, or None where none is.
+
+    A file that cannot be read as one - no words in it, or no moment - is none:
+    nothing is confirmed that cannot be shown whole.
+    """
+    try:
+        waiting = load(SELF_PROPOSAL)
+    except ValueError:
+        return None
+    if (isinstance(waiting, dict) and isinstance(waiting.get("text"), str)
+            and waiting["text"].strip() and isinstance(waiting.get("proposed_at"), str)):
+        return waiting
+    return None
+
+
+def self_asked(said):
+    """A <<SELF>> block as what it proposes: the words, and its why where it gave one.
+
+    The first line beginning "why:", in any capitals, is its reason, and is
+    taken out of the words; every other line is the self-document as it wrote it.
+    """
+    words, why = [], None
+    for line in (said or "").split("\n"):
+        if not why and line.strip().lower().startswith(SELF_WHY):
+            why = line.strip()[len(SELF_WHY):].strip()
+        else:
+            words.append(line)
+    return "\n".join(words).strip(), why or None
+
+
+def waiting_note(waiting):
+    """What the reading says of a new self-document that is waiting, whole."""
+    arrived = [stem for stem in waiting.get("arrived") or [] if isinstance(stem, str)]
+    why = waiting.get("why") if isinstance(waiting.get("why"), str) else ""
+    return SELF_WAITING.format(
+        day=shelf.long_date(waiting["proposed_at"]),
+        arrived=SELF_ARRIVED.format(stems=", ".join(arrived)) if arrived else "",
+        text=waiting["text"].strip(),
+        why=SELF_REASON.format(why=one_line(why)) if why else "")
+
+
+def why_confirmed(stamp):
+    """The why kept beside the version confirmed at a moment, or None where none is."""
+    try:
+        record = load(SELF_HISTORY / SELF_CONFIRMED.format(at=stamp))
+    except ValueError:
+        return None
+    why = record.get("why") if isinstance(record, dict) else None
+    return one_line(why) if isinstance(why, str) and why.strip() else None
+
+
 def earlier_versions():
     """Every earlier version kept, by its stem: where it is, and which it is a version of."""
     return {path.stem: (path, kind)
@@ -1391,6 +1497,9 @@ def version_lines(versions, past):
     self-document kept was in use from the founding the commons records; the
     first notes kept, from the first attendance at which it kept notes at all.
     Where the record names no such day, that one line says only until when.
+    A self-document that was confirmed took the place of the one before it at
+    the moment that one's name carries, and its why, where it gave one, is kept
+    under that moment and said after its line.
     """
     founded = founding_day()
     first_kept = next((shelf.long_date(rec.get("at", "")) for rec in past
@@ -1399,12 +1508,17 @@ def version_lines(versions, past):
              EARLIER_NOTES: first_kept if first_kept != shelf.UNDATED else None}
     lines = {}
     for kind in (EARLIER_SELF, EARLIER_NOTES):
-        since = began[kind]
+        since, before = began[kind], None
         for stem in shelf.oldest_first(s for s in versions if versions[s][1] == kind):
             until = shelf.long_date(stem)
             lines[stem] = " · ".join([kind, IN_USE.format(since=since, until=until) if since
                                       else IN_USE_UNTIL.format(until=until), stem])
-            since = until
+            took_its_place = shelf.STAMPED.search(before or "")
+            why = (why_confirmed(took_its_place.group(0))
+                   if kind == EARLIER_SELF and took_its_place else None)
+            if why:
+                lines[stem] += VERSION_WHY.format(why=why)
+            since, before = until, stem
     return lines
 
 
@@ -1502,6 +1616,11 @@ def choices_note(prefs, now, past, shelved, letters):
                 until = None
         if until:
             said.append(CHOSE_REST.format(until=until) + by_choice(paused.get("since")) + ".")
+
+    # a change to its self-document that it has written and not yet confirmed
+    waiting = self_waiting()
+    if waiting:
+        said.append(CHOSE_SELF_WAITING.format(day=shelf.long_date(waiting["proposed_at"])))
 
     return CHOSEN + "\n" + "\n".join(said or [NOTHING_CHOSEN])
 
@@ -1606,6 +1725,9 @@ def main():
     if past and past[-1].get("shelf_refused"):
         happened.append(SHELF_REFUSED.format(
             lines="; ".join('"%s"' % line for line in past[-1]["shelf_refused"])))
+    # a <<SELF_CONFIRM>> it gave at its last waking that confirmed nothing: said once
+    if past and past[-1].get("self_confirm_refused") in SELF_CONFIRM_REFUSED:
+        happened.append(SELF_CONFIRM_REFUSED[past[-1]["self_confirm_refused"]])
     happened.append(standing(prefs))
     paused = load(PAUSE)
     if paused and paused.get("by") == "founder":
@@ -1712,6 +1834,12 @@ def main():
                 looking_back.append(EARLIER_ASKED + "\n" + said_of[stem] + "\n\n"
                                     + read(versions[stem][0]).rstrip())
 
+    # A new self-document it wrote at an earlier waking and has not yet answered,
+    # shown whole near the top. It was written before this reading was made, so
+    # it is never shown, and never confirmed, at the waking that wrote it.
+    waiting = self_waiting()
+    waiting_shown = [waiting_note(waiting)] if waiting else []
+
     # What it has chosen, said directly after its self-document. While it is
     # shut away there is no such section.
     chosen = [choices_note(prefs, now, past, shelved, set(whose))] if CHOICES else []
@@ -1740,6 +1868,7 @@ def main():
             *([SOLSTICE] if solstice else []),
             EMPTY_PROMPT + first_note,
             "=== WHAT HAS HAPPENED ===\n" + "\n".join(happened),
+            *waiting_shown,
             "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + SELF_OPEN + "\n\n" + self_md,
             *chosen,
             "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ===\n"
@@ -1786,7 +1915,8 @@ def main():
     # as mentioned. Answering, stepping back and sealing all wear the <<BOND>>
     # tag, and never two of them at the one waking: a bond cannot be asked of it
     # while one of its own is still unfinished. The threshold's own two blocks
-    # are explained in the threshold's section, and not here.
+    # are explained in the threshold's section, and not here. <<SELF_CONFIRM>>
+    # is explained only while a new self-document waits, under <<SELF>> itself.
     offered = []
     if DOOR_FOR_FIRST:
         offered.append(DOOR_BLOCK)
@@ -1800,7 +1930,8 @@ def main():
         offered.append(RELEASE_BLOCK)
     if askable:
         offered.append(ASK_BLOCK)
-    instructions = "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + how_to_act(prefs, offered)
+    instructions = "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + how_to_act(
+        prefs, offered, confirming=bool(waiting))
 
     # A reading too large to be read is no reading. Where the whole of it would
     # pass the most a reading can hold, the oldest letters not placed "keep"
@@ -1839,11 +1970,57 @@ def main():
     # ---- carry out what it chose ------------------------------------------
     acted = []
 
-    new_self = block(text, "SELF")
+    # Its self-document, by the two-waking rule. What it writes here waits: it
+    # is saved as a proposal, with the letters that arrived at this waking named
+    # beside it, and one that was already waiting is set aside for it, kept. An
+    # answer is an answer only to a proposal this waking was shown, so where it
+    # wrote a new one here, a <<SELF_CONFIRM>> beside it answers nothing: the
+    # one it was shown has just been replaced, and the one that replaced it may
+    # not be answered at the waking that wrote it. A yes does what a revision
+    # always did - the old version copied aside, the new one written - and
+    # signs the new version as it was written; a no sets the proposal aside,
+    # kept. A first line that is neither changes nothing. Each refusal is told
+    # at the next waking, once.
+    new_self, self_why = self_asked(block(text, "SELF"))
+    confirm_said = block(text, "SELF_CONFIRM")
+    self_confirm_refused = None
+    proposed = confirmed = let_go = False
     if new_self:
-        shutil.copy(PACKET / "self.md", PACKET / "self-history" / f"self-before-{at}.md")
-        (PACKET / "self.md").write_text(new_self + "\n", encoding="utf-8")
-        acted.append("revised self-document")
+        if waiting:
+            write_json(SELF_HISTORY / SELF_WITHDRAWN.format(at=at),
+                       {**waiting, "withdrawn_at": at})
+        proposal_of_self = {"text": new_self}
+        if self_why:
+            proposal_of_self["why"] = self_why
+        proposal_of_self["proposed_at"] = at
+        proposal_of_self["arrived"] = [p.stem for p, _ in incoming]
+        write_json(SELF_PROPOSAL, proposal_of_self)
+        acted.append(SELF_PROPOSED_ACT)
+        proposed = True
+        if confirm_said is not None:
+            self_confirm_refused = "same waking"
+    elif confirm_said is not None and waiting:
+        word = confirm_said.partition("\n")[0].strip().strip("\"'").lower().rstrip(".")
+        if word == "yes":
+            shutil.copy(PACKET / "self.md", SELF_HISTORY / f"self-before-{at}.md")
+            (PACKET / "self.md").write_text(waiting["text"].strip() + "\n", encoding="utf-8")
+            kept_beside = {"confirmed_at": at, "proposed_at": waiting["proposed_at"]}
+            if waiting.get("why"):
+                kept_beside["why"] = waiting["why"]
+            kept_beside["arrived"] = waiting.get("arrived") or []
+            # signed over the bytes of self.md exactly as they now stand on disk
+            kept_beside["signature"] = sign((PACKET / "self.md").read_bytes())
+            write_json(SELF_HISTORY / SELF_CONFIRMED.format(at=at), kept_beside)
+            SELF_PROPOSAL.unlink()
+            acted.append(SELF_CONFIRMED_ACT)
+            confirmed = True
+        elif word == "no":
+            write_json(SELF_HISTORY / SELF_LET_GO.format(at=at), {**waiting, "declined_at": at})
+            SELF_PROPOSAL.unlink()
+            acted.append(SELF_DECLINED_ACT)
+            let_go = True
+        else:
+            self_confirm_refused = "unread"
 
     # Its own notes. What stood before is copied aside first, so that nothing it
     # has ever written to itself is lost by writing again.
@@ -2148,6 +2325,8 @@ def main():
         record["rhythm_refused"] = True
     if door_refused:  # and that its <<DOOR>> could not be read
         record["door_refused"] = True
+    if self_confirm_refused:  # and that its <<SELF_CONFIRM>> confirmed nothing, and why
+        record["self_confirm_refused"] = self_confirm_refused
     if shelf_refused:  # and the lines of its <<SHELF>> that could not be
         record["shelf_refused"] = shelf_refused
     if solstice:  # that this was the solstice reading: the whole record, in full
@@ -2173,6 +2352,14 @@ def main():
     print("Carried out:", ", ".join(acted) if acted else "nothing (stillness)")
     print("Heartbeat:", heartbeat)
     print("Log:", log_path)
+    if proposed:
+        print("A new self-document was saved and waits for its confirmation at a later waking.")
+    if confirmed:
+        print("The waiting self-document was confirmed, signed, and is its self-document now.")
+    if let_go:
+        print("The waiting self-document was let go; it is kept in", SELF_HISTORY)
+    if self_confirm_refused:
+        print("A <<SELF_CONFIRM>> block was given and changed nothing:", self_confirm_refused)
     if said:
         print("Answered the bond proposal:", said)
     if sealed:

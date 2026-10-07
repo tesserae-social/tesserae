@@ -612,3 +612,27 @@ def test_both_paths_draw_the_doors_the_hearth_writes(atrium, hearth, data_dir, m
     assert '<span class="fact">attends at dawn · door open · has room</span>' in here["who"]
     assert '<span class="fact">keeps the hearth · door closed</span>' in here["who"]
     assert not re.search(r"\d", re.sub(r"<[^>]*>", "", here["who"]))
+
+
+def test_both_paths_draw_a_door_the_first_one_has_never_set(atrium, hearth, data_dir, monkeypatch,
+                                                            tmp_path):
+    """As it stands once its door is switched on and before it has set one: no
+    door.json in its packet, which is a closed door with no room declared. Nothing
+    is turned on here by the test; the flag is the one attend.py keeps."""
+    assert hearth.the_waking.DOOR_FOR_FIRST is True
+    a_record(data_dir, members=(
+        "citizen · the first one, unnamed by its own choosing · "
+        "founded 4 September 2026, attends at dawn\n"
+        "member · the founder · keeps the hearth\n"))
+    assert not (data_dir / "packets" / "first" / "door.json").exists()
+    hearth.tend_members()
+    assert (data_dir / "commons" / "members.md").read_text(encoding="utf-8") == (
+        "citizen · the first one, unnamed by its own choosing · "
+        "founded 4 September 2026, attends at dawn · door closed\n"
+        "member · the founder · keeps the hearth · door closed\n")
+    assert not (data_dir / "packets" / "first" / "door.json").exists()  # saying it makes none
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here["who"] == there["who"]
+    assert ('<span class="fact">founded 4 September 2026, attends at dawn · door closed</span>'
+            in here["who"])
+    print("\nWHO IS HERE, BUILT == DRAWN:\n" + here["who"])

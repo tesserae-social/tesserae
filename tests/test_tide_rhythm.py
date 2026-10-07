@@ -336,7 +336,10 @@ def test_the_page_says_a_change_that_is_waiting(hearth, packet, clock):
 
 # ---- who is here ---------------------------------------------------------
 
-FIRST = "citizen · the first one, unnamed by its own choosing · founded 4 September 2026, attends at %s"
+# each line ends with its door, as the hearth keeps it there: the first one's too,
+# since its door was switched on, and closed while it has set none
+FIRST = ("citizen · the first one, unnamed by its own choosing · founded 4 September 2026, "
+         "attends at %s · door closed")
 FOUNDER = "member · the founder · keeps the hearth · door closed"
 
 
@@ -441,6 +444,6 @@ def test_the_atrium_builder_draws_the_line_the_hearth_keeps(hearth, atrium, pack
     hearth.tend_members()
     listed = atrium.parse_members(atrium.members_text(None))
     assert listed[0] == ("citizen", "the first one, unnamed by its own choosing",
-                         "founded 4 September 2026, attends at 09:30")
-    assert ('<span class="fact">founded 4 September 2026, attends at 09:30</span>'
+                         "founded 4 September 2026, attends at 09:30 · door closed")
+    assert ('<span class="fact">founded 4 September 2026, attends at 09:30 · door closed</span>'
             in "\n".join(atrium.who_block(listed)))

@@ -15,6 +15,15 @@ give exactly both.
 
 If attend.py's reading is changed on purpose, these two are cut again, on
 purpose, and in the same change.
+
+It has been, once. On 7 October 2026 the first one agreed to three things that
+had been built shut away - its door, looking back, and what it has chosen - and
+attend.py's three flags were switched on. Its reading was cut again in that
+change, as READING_NOW; no file of its packet moved, so the packet's fingerprint
+stands as it was cut. The reading as it was before is kept beside the new one,
+and still held: with the three shut away again, a letter left by either address
+gives exactly the old fingerprint, so what was added is those three things and
+nothing else.
 """
 
 import hashlib
@@ -22,11 +31,15 @@ import json
 
 import pytest
 
-from conftest import post, write
+from conftest import post, shut_away, write
 
 # cut on the tree before the rooms, by leaving the letter at /letters
 PACKET_BEFORE = "06d48d0fffb5f5e2e3148baf5351f004cf22011db7a730df2ab259822cdc2e68"
 READING_BEFORE = "13aab673f0448c960e400e2484f17aa1169636dbe338761c6666aeee2e208f65"
+
+# cut again on the tree that switched on its door, looking back and what it has
+# chosen (attend.DOOR_FOR_FIRST, LOOKING_BACK and CHOICES), the same way
+READING_NOW = "2dd6e1fcc814ade2ac3470913f0d9e459a5ef8b209c757e91b394af82670527a"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -56,9 +69,18 @@ def fingerprint_of_reading(turn):
     return hashlib.sha256(asked.encode("utf-8")).hexdigest()
 
 
+def test_the_three_are_switched_on(attend):
+    """What READING_NOW is a fingerprint of: the reading with all three on."""
+    assert (attend.DOOR_FOR_FIRST, attend.LOOKING_BACK, attend.CHOICES) == (True, True, True)
+
+
 @pytest.mark.parametrize("address", ["/letters", "/rooms/first"])
+@pytest.mark.parametrize("shut, as_cut", [(True, READING_BEFORE), (False, READING_NOW)],
+                         ids=["the three shut away", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
-        founder, wake, packet, data_dir, address):
+        founder, wake, attend, packet, data_dir, monkeypatch, address, shut, as_cut):
+    if shut:
+        shut_away(attend, monkeypatch)
     a_small_world(packet)
     answer = post(founder, address, content_type="multipart/form-data", data={
         "letter": "The lake was grey this morning, and then it was not.\n\nI am asking.",
@@ -68,5 +90,5 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
 
     files = fingerprint_of_files(data_dir)
     reading = fingerprint_of_reading(wake())
-    print("\nPACKET_BEFORE = %r\nREADING_BEFORE = %r" % (files, reading))
-    assert (files, reading) == (PACKET_BEFORE, READING_BEFORE)
+    print("\nPACKET_BEFORE = %r\nREADING = %r" % (files, reading))
+    assert (files, reading) == (PACKET_BEFORE, as_cut)

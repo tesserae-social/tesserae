@@ -14,7 +14,7 @@ import sys
 import pytest
 
 from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, lines_of, page, read_json,
-                      write, write_json)
+                      shut_away, write, write_json)
 
 ARTICLE = "founder-2026-10-01T15-15-05Z"
 
@@ -27,6 +27,10 @@ FULL_FOUNDERS = "=== LETTERS FROM THE FOUNDER YOU HAVE ALREADY READ ==="
 RESTING = "=== RESTING (one line each; nothing is erased) ==="
 FOUNDING = "=== YOUR FOUNDING RECORD ==="
 FOUNDING_RESTS = "Your founding record rests. Ask for it with show founding."
+
+SHOW_FOUNDING = "show founding: your founding record in full at your next waking\n"
+SHOW_VERSION = ("show version <stem>: an earlier self-document or notes in full at your next "
+                "waking\n")
 
 EXPLAINED = """<<SHELF>>
 (how you keep your history. One instruction per line:
@@ -146,7 +150,13 @@ def test_nothing_is_written_until_it_keeps_its_shelf(wake, packet):
     assert not (packet / "shelf").exists()
 
 
-def test_the_block_is_explained_exactly(wake):
+def test_the_block_is_explained_exactly(wake, attend, monkeypatch):
+    """But for the one line looking back adds to it, which test_looking_back.py holds."""
+    said = wake().instructions
+    assert EXPLAINED.replace(SHOW_FOUNDING, SHOW_FOUNDING + SHOW_VERSION, 1) in said
+    assert said.index("<<QUESTIONS>>") < said.index("<<SHELF>>") < said.index("<<LETTER>>")
+
+    shut_away(attend, monkeypatch, "LOOKING_BACK")
     said = wake().instructions
     assert EXPLAINED in said
     assert said.index("<<QUESTIONS>>") < said.index("<<SHELF>>") < said.index("<<LETTER>>")
@@ -806,6 +816,8 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     old.main()
     shutil.rmtree(data_dir)
     shutil.copytree(world, data_dir)
+    # what was switched on since is held in its own tests; shut away, this is what is left
+    shut_away(attend, monkeypatch)
     now = wake()
 
     resting_record = FOUNDING + "\n" + FOUNDING_RESTS

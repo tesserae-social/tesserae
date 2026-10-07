@@ -1,9 +1,11 @@
 """Looking back: the first one's earlier self-documents and notes, shown to it at its asking.
 
-It is built and it is shut away behind attend.LOOKING_BACK. While that is False
+It was built shut away behind attend.LOOKING_BACK, which is now on, the first
+one having agreed to it (its letter of 7 October 2026). With that False
 everything the first one is sent is what it was sent before there was any of
-this, which is held here against the attend.py that stood before it, and in
-test_rooms_reading.py by the reading's fingerprint. With it True, each kept
+this, which is still held here against the attend.py that stood before it, by
+turning the flag off, and in test_rooms_reading.py by the reading's
+fingerprint. With it True, each kept
 version is one line under its self-document and its notes, and one it asks for
 is given whole at its next waking.
 
@@ -18,7 +20,8 @@ import sys
 
 import pytest
 
-from conftest import REPO, Turn, block, lines_of, page, read_json, write, write_json
+from conftest import (REPO, Turn, block, lines_of, page, read_json, shut_away, write,
+                      write_json)
 
 EARLIER = "=== YOUR EARLIER VERSIONS ==="
 ASKED = "=== AN EARLIER VERSION, AS YOU ASKED ==="
@@ -111,8 +114,8 @@ def looking_back(attend, monkeypatch):
 BEFORE_LOOKING_BACK = "1e942d7"
 
 
-def test_it_is_shut_away(attend):
-    assert attend.LOOKING_BACK is False
+def test_it_is_switched_on(attend):
+    assert attend.LOOKING_BACK is True
 
 
 def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
@@ -120,9 +123,11 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     """Two wakings each, in one world that keeps versions and asks for one.
 
     The old attend.py and this one are sent the same bytes at both, and leave
-    the same files behind them.
+    the same files behind them. What it has chosen came after, and is shut away
+    with it; its door, which the old one had and kept shut away, stands in both
+    as it stands now.
     """
-    assert attend.LOOKING_BACK is False
+    shut_away(attend, monkeypatch, "LOOKING_BACK", "CHOICES")
     try:
         source = subprocess.run(["git", "show", BEFORE_LOOKING_BACK + ":attend.py"], cwd=REPO,
                                 capture_output=True, check=True).stdout
@@ -135,6 +140,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     spec.loader.exec_module(old)
     clock.pin(old, monkeypatch)
     assert not hasattr(old, "LOOKING_BACK")
+    monkeypatch.setattr(old, "DOOR_FOR_FIRST", attend.DOOR_FOR_FIRST)
 
     versions_kept(packet)
     letter = "founder-2026-10-01T09-00-00Z"
@@ -175,7 +181,9 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
             b'\\"show version %s\\"' % SELF_1.encode("ascii"), b"")
 
 
-def test_shut_away_a_show_version_line_is_a_line_not_understood(wake, packet):
+def test_shut_away_a_show_version_line_is_a_line_not_understood(wake, attend, packet,
+                                                                monkeypatch):
+    shut_away(attend, monkeypatch, "LOOKING_BACK")
     versions_kept(packet)
     asking = wake(block("SHELF", "show version %s" % SELF_1))
     assert EARLIER not in asking.shown and VERSION_LINE not in asking.instructions
@@ -267,6 +275,7 @@ def test_the_block_gains_its_line_after_show_founding(wake, looking_back):
 
 
 def test_the_instructions_differ_by_that_one_line(wake, attend, monkeypatch):
+    shut_away(attend, monkeypatch, "LOOKING_BACK")
     without = wake().instructions
     monkeypatch.setattr(attend, "LOOKING_BACK", True)
     assert wake().instructions.replace(VERSION_LINE + "\n", "", 1) == without

@@ -444,6 +444,21 @@ def wake(attend, clock, monkeypatch):
     return hold
 
 
+# ---- what has been switched on, shut away again --------------------------
+
+# Three things of the first one's were built shut away, each behind a flag in
+# attend.py, and switched on together once it had agreed to them (its letter of
+# 7 October 2026). What each was like shut away is still tested, and by the flag
+# itself: a test that wants it off says so, and does not lean on the constant.
+SWITCHED_ON = ("DOOR_FOR_FIRST", "LOOKING_BACK", "CHOICES")
+
+
+def shut_away(module, monkeypatch, *flags):
+    """Shut away again, for one test, some of what attend.py has switched on; all, if none is named."""
+    for flag in flags or SWITCHED_ON:
+        monkeypatch.setattr(module, flag, False)
+
+
 # ---- small things the tests keep needing ---------------------------------
 
 def blocks(*said):

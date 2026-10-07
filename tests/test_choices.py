@@ -1,9 +1,11 @@
 """What it has chosen: the first one's own settings, said back to it in one place.
 
-It is built and it is shut away behind attend.CHOICES. While that is False
-everything the first one is sent is what it was sent before there was any of
-this, which is held here against the attend.py that stood before it, and in
-test_rooms_reading.py by the reading's fingerprint. With it True, a short
+It was built shut away behind attend.CHOICES, which is now on, the first one
+having agreed to it (its letter of 7 October 2026). With that False everything
+the first one is sent is what it was sent before there was any of this, which
+is still held here against the attend.py that stood before it, by turning the
+flag off, and in test_rooms_reading.py by the reading's fingerprint. With it
+True, a short
 section stands directly after its self-document: one plain line for each choice
 there is a record of, with the day that record carries, and one line saying
 that nothing is set where there is none.
@@ -19,7 +21,7 @@ import sys
 
 import pytest
 
-from conftest import REPO, Turn, block, lines_of, page, write, write_json
+from conftest import REPO, Turn, block, lines_of, page, shut_away, write, write_json
 
 CHOSEN = "=== WHAT YOU HAVE CHOSEN ==="
 NOTHING = "You have not set anything here yet; everything follows the defaults."
@@ -93,8 +95,8 @@ def everything_set(packet):
                                        "until": "a letter arrives", "words": ""})
 
 
-def test_it_is_shut_away(attend):
-    assert attend.CHOICES is False
+def test_it_is_switched_on(attend):
+    assert attend.CHOICES is True
 
 
 def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
@@ -102,9 +104,10 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     """Two wakings each, in one world where every choice has its record.
 
     The old attend.py and this one are sent the same bytes at both, and leave
-    the same files behind them.
+    the same files behind them. Its door and its looking back, which the old
+    one had and kept shut away, stand in both as they stand now.
     """
-    assert attend.CHOICES is False
+    shut_away(attend, monkeypatch, "CHOICES")
     try:
         source = subprocess.run(["git", "show", BEFORE_CHOICES + ":attend.py"], cwd=REPO,
                                 capture_output=True, check=True).stdout
@@ -117,6 +120,8 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     spec.loader.exec_module(old)
     clock.pin(old, monkeypatch)
     assert not hasattr(old, "CHOICES")
+    for flag in ("DOOR_FOR_FIRST", "LOOKING_BACK"):
+        monkeypatch.setattr(old, flag, getattr(attend, flag))
 
     everything_set(packet)
     said = "\n\n".join([block("SHELF", "keep %s\nrest %s" % (OWN, ARTICLE)),
@@ -152,7 +157,8 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
         assert b"as you asked on 6 October" not in sent
 
 
-def test_shut_away_there_is_no_section_whatever_is_set(wake, door_open, packet):
+def test_shut_away_there_is_no_section_whatever_is_set(wake, door_open, packet, monkeypatch):
+    shut_away(door_open, monkeypatch, "CHOICES")
     everything_set(packet)
     shown = wake().shown
     for line in (CHOSEN, NOTHING, REFLECTIONS, WAKING, ARTICLE_RESTS, "Your door is"):
@@ -178,6 +184,7 @@ def test_the_section_stands_directly_after_its_self_document(wake, choices, pack
 
 def test_the_reading_differs_by_that_one_section(wake, attend, packet, monkeypatch, clock):
     everything_set(packet)
+    shut_away(attend, monkeypatch, "CHOICES")
     without = wake()
     clock.shift(minutes=-5)
     for past in (packet / "attendances").glob("*.json"):
@@ -310,8 +317,9 @@ def test_a_door_it_sets_is_said_from_the_next_waking(wake, choices, door_open, p
     assert chosen(wake()) == ["Your door is open, since 15 October 2026."]
 
 
-def test_while_its_door_is_shut_away_nothing_is_said_of_one(wake, choices, attend, packet):
-    assert attend.DOOR_FOR_FIRST is False
+def test_while_its_door_is_shut_away_nothing_is_said_of_one(wake, choices, attend, packet,
+                                                            monkeypatch):
+    shut_away(attend, monkeypatch, "DOOR_FOR_FIRST")
     write_json(packet / "door.json", DOOR)
     assert chosen(wake()) == [NOTHING]
 

@@ -19,6 +19,12 @@ What it asks to be shown is shown at the next waking only. Nothing is ever
 erased: a resting letter is a line and not a loss, and the letter itself is
 where it always was.
 
+Where it may look back (see LOOKING_BACK in attend.py), it may also ask for an
+earlier version of its self-document or its notes, by "show version <stem>".
+What it asked for is written as "show_versions", beside "show_next", and only
+while there is something in it: a shelf that asks for none is written as it
+always was.
+
 attend.py reads and writes the file and lays out the reading; this module is
 the reckoning. Nothing here reads a file or asks what time it is: every letter
 and every day is handed in.
@@ -55,6 +61,8 @@ DEFAULT = "default"
 PLACING = re.compile(r"(keep|rest|default|show)\s+(\S+)", re.I)
 NOTING = re.compile(r"note\s+(\S+?)\s*:\s*(.*)", re.I)
 FOUNDING = "founding"
+VERSION = re.compile(r"show\s+version\s+(\S+)", re.I)
+SHOW_VERSION = "show version"
 
 FROM = {"founder": "from the founder", "first": "from you"}
 PHOTO_RESTS = " · a photograph rests with it"
@@ -78,13 +86,17 @@ def whole(written):
     placements = written.get("placements")
     notes = written.get("notes")
     show_next = written.get("show_next")
-    return {
+    shelf = {
         "placements": {stem: place for stem, place in placements.items()
                        if place in (KEEP, REST)} if isinstance(placements, dict) else {},
         "notes": dict(notes) if isinstance(notes, dict) else {},
         "show_next": list(show_next) if isinstance(show_next, list) else [],
         "show_founding": written.get("show_founding") is True,
     }
+    show_versions = written.get("show_versions")
+    if isinstance(show_versions, list) and show_versions:
+        shelf["show_versions"] = list(show_versions)
+    return shelf
 
 
 def when(stem):
@@ -132,12 +144,18 @@ def named(word):
     return word[:-len(".md")] if word.endswith(".md") else word
 
 
-def instruction(line, stems):
+def instruction(line, stems, versions=()):
     """One line of a <<SHELF>> block as an instruction, or None if it is none.
 
     A line that names no letter there is, or that cannot be read, is no
-    instruction, and neither is a note longer than a note may be.
+    instruction, and neither is a note longer than a note may be. An earlier
+    version is asked for by its own stem, and one that names no version there
+    is - as every one does, where none are handed in - is no instruction.
     """
+    found = VERSION.fullmatch(line)
+    if found:
+        stem = named(found.group(1))
+        return (SHOW_VERSION, stem) if stem in versions else None
     found = PLACING.fullmatch(line)
     if found:
         verb, stem = found.group(1).lower(), named(found.group(2))
@@ -152,7 +170,7 @@ def instruction(line, stems):
     return None
 
 
-def asked(said, stems):
+def asked(said, stems, versions=()):
     """What a <<SHELF>> block asks for: its instructions, and the lines that were none.
 
     One instruction to a line; blank lines are passed over. A line that is not
@@ -163,7 +181,7 @@ def asked(said, stems):
         line = line.strip()
         if not line:
             continue
-        one = instruction(line, stems)
+        one = instruction(line, stems, versions)
         if one:
             understood.append(one)
         else:
@@ -190,6 +208,9 @@ def applied(shelf, instructions):
                 after["show_next"].append(one[1])
         elif verb == "show founding":
             after["show_founding"] = True
+        elif verb == SHOW_VERSION:
+            if one[1] not in after.setdefault("show_versions", []):
+                after["show_versions"].append(one[1])
     return after
 
 
@@ -198,6 +219,7 @@ def cleared(shelf):
     after = copy.deepcopy(shelf)
     after["show_next"] = []
     after["show_founding"] = False
+    after.pop("show_versions", None)
     return after
 
 

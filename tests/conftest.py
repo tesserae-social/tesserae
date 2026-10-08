@@ -18,6 +18,7 @@ Three rules hold across the whole suite, and this file is where they are kept:
 import base64
 import importlib
 import json
+import re
 import shutil
 import socket
 import subprocess
@@ -495,6 +496,32 @@ def named_notes_unexplained(module, monkeypatch):
     assert module.HOW_TO_ACT.count(said) == 1
     monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.replace(said, ""))
     monkeypatch.setattr(module, "SHELF_NOTES", "")
+
+
+# A moment a sentence of the reading names, where it now says "on" a day and
+# said "at" a raw stamp before: the fields its sentences carry a moment in.
+SAID_ON_A_DAY = re.compile(r" on \{((?:asked|proposed|answered|sealed|released|closes)_at|at)\}")
+
+
+def stamps_as_before(module, monkeypatch):
+    """Say each moment, for one test, as the raw stamp the reading gave before days were in words.
+
+    That is behind no flag either. Every moment the reading names goes through
+    attend.on_day, or attend.at_moment where its time is said with it, so
+    giving the stamp back as it is undoes all of them; and
+    each sentence that said "at" a stamp and now says "on" a day is put back as
+    it was. A day further off that its waking time changes from, which was
+    written 2026-10-18 and is now said in words too, is not undone here.
+    """
+    monkeypatch.setattr(module, "on_day", lambda stamp: stamp)
+    monkeypatch.setattr(module, "at_moment", lambda stamp: stamp)
+    monkeypatch.setattr(module, "here", lambda: None)  # and each day as the day its stamp carries
+    put_back = 0
+    for name, said in list(vars(module).items()):
+        if name.isupper() and isinstance(said, str) and SAID_ON_A_DAY.search(said):
+            monkeypatch.setattr(module, name, SAID_ON_A_DAY.sub(r" at {\1}", said))
+            put_back += 1
+    assert put_back  # there are such sentences, or this is undoing nothing
 
 
 def solstices_as_before(monkeypatch):

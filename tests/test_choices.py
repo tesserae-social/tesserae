@@ -22,7 +22,7 @@ import sys
 import pytest
 
 from conftest import (REPO, Turn, block, explained_as_before, lines_of, page, shut_away,
-                      solstices_as_before, write, write_json)
+                      solstices_as_before, stamps_as_before, write, write_json)
 
 CHOSEN = "=== WHAT YOU HAVE CHOSEN ==="
 NOTHING = "You have not set anything here yet; everything follows the defaults."
@@ -39,8 +39,10 @@ DAWN = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
         "chosen_in": "letter at attendance 2026-09-20T03-30",
         "note": "Dawn wakings, daily for now, in the first one's words."}
 
-REFLECTIONS = "Your reflections are kept private, by your choice since 20 September 2026."
-WAKING = "You wake daily at dawn, by your choice since 20 September 2026."
+# Each day is the day it was on its own clock: 03:08 UTC on 20 September was
+# still the evening of the 19th in Indianapolis.
+REFLECTIONS = "Your reflections are kept private, by your choice since 19 September 2026."
+WAKING = "You wake daily at dawn, by your choice since 19 September 2026."
 ARTICLE_RESTS = "The 1 October letter rests, as you asked on 6 October."
 
 ARTICLE = "founder-2026-10-01T15-15-05Z"
@@ -110,6 +112,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     """
     shut_away(attend, monkeypatch, "CHOICES")
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
+    stamps_as_before(attend, monkeypatch)  # and said each moment as its raw stamp
     solstices_as_before(monkeypatch)  # and read the whole record back at the solstices
     try:
         source = subprocess.run(["git", "show", BEFORE_CHOICES + ":attend.py"], cwd=REPO,
@@ -251,7 +254,7 @@ def test_with_no_preferences_written_nothing_is_said_of_its_reflections(wake, ch
 @pytest.mark.parametrize("at", ["dawn", "sunset", "09:30"])
 def test_its_waking_time_is_said_from_rhythm(wake, choices, packet, at):
     write_json(packet / "rhythm.json", dict(DAWN, at=at))
-    assert chosen(wake()) == ["You wake daily at %s, by your choice since 20 September 2026." % at]
+    assert chosen(wake()) == ["You wake daily at %s, by your choice since 19 September 2026." % at]
 
 
 def test_a_change_that_is_waiting_is_said_as_the_waking_line_says_it(wake, choices, packet):
@@ -267,7 +270,7 @@ def test_a_change_further_off_names_its_day(wake, choices, packet):
     write_json(packet / "rhythm.json", dict(
         DAWN, at="sunset", set_at="2026-10-14T20-00-00Z", effective_from="2026-10-18",
         until_then="dawn"))
-    assert chosen(wake()) == ["You wake daily at dawn; from 2026-10-18, daily at sunset, "
+    assert chosen(wake()) == ["You wake daily at dawn; from 18 October 2026, daily at sunset, "
                               "by your choice on 14 October 2026."]
 
 

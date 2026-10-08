@@ -388,7 +388,7 @@ def test_the_first_one_asks_and_the_rite_runs_to_a_sealed_record(founder, wake, 
     assert "He answered yes" in turn.shown
     assert "His words: Yes. Gladly." in turn.shown
     assert "=== THE THRESHOLD ===" in turn.shown
-    assert "The founder said yes at" in turn.shown
+    assert "The founder said yes on" in turn.shown
     assert "<<BOND>>" in turn.instructions
 
     through_the_threshold(founder, wake, clock)

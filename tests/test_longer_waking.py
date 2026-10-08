@@ -1,11 +1,14 @@
 """The longer waking: a waking that may look things up in its own record before it writes.
 
-It is built and it is shut away, behind attend.LONGER_WAKING. Shut away, the
-first one is sent byte for byte what the committed attend.py sends it, and the
-same files are left. With it on, the waking may become a short exchange: four
-tools that only read, and only out of its own packet; five looks at most, and
-then one last request with the tools closed; the last reply, and only that,
-carried out as a reply always was.
+It was built shut away behind attend.LONGER_WAKING, which is now on, the first
+one having agreed to it (its letter of 7 October 2026) and one waking having
+been held against the real API. Shut away, the first one is sent byte for byte
+what the attend.py committed before it sends it, and the same files are left,
+which is still held here by turning the flag off, and in test_rooms_reading.py
+by the reading's fingerprint. With it on, the waking may become a short
+exchange: four tools that only read, and only out of its own packet; five looks
+at most, and then one last request with the tools closed; the last reply, and
+only that, carried out as a reply always was.
 
 Every test here holds a real attendance, with the client stubbed to ask for
 whatever tools the test wants asked for. Nothing goes out.
@@ -21,9 +24,9 @@ from types import SimpleNamespace
 import pytest
 
 from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, lines_of, page, read_json,
-                      write, write_json)
+                      shut_away, write, write_json)
 
-# The attend.py that was committed when the longer waking was built.
+# The last attend.py before there was any longer waking, kept in the history.
 BEFORE_LONGER_WAKING = "ab3569e"
 
 SECTION = """=== LOOKING THINGS UP ===
@@ -162,11 +165,12 @@ def sequence(exchange):
 
 # ---- shut away -----------------------------------------------------------
 
-def test_it_is_shut_away(attend):
-    assert attend.LONGER_WAKING is False
+def test_it_is_switched_on(attend):
+    assert attend.LONGER_WAKING is True
 
 
-def test_shut_away_nothing_of_it_is_sent_or_kept(wake, world, packet):
+def test_shut_away_nothing_of_it_is_sent_or_kept(wake, attend, world, packet, monkeypatch):
+    shut_away(attend, monkeypatch, "LONGER_WAKING")
     turn = wake("I am here.")
     assert len(turn.asked) == 1
     assert sorted(turn.asked[0]) == ["max_tokens", "messages", "model", "system"]
@@ -178,7 +182,7 @@ def test_shut_away_nothing_of_it_is_sent_or_kept(wake, world, packet):
 def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_does(
         attend, world, data_dir, clock, monkeypatch, tmp_path):
     """Two wakings each, in one world: the committed attend.py, and this one shut away."""
-    assert attend.LONGER_WAKING is False
+    shut_away(attend, monkeypatch, "LONGER_WAKING")
     try:
         source = subprocess.run(["git", "show", BEFORE_LONGER_WAKING + ":attend.py"], cwd=REPO,
                                 capture_output=True, check=True).stdout
@@ -237,7 +241,7 @@ def test_with_no_lookup_it_is_one_request_and_the_reading_as_it_was_but_for_the_
     shutil.copytree(data_dir, before)
 
     at = clock.at
-    monkeypatch.setattr(attend, "LONGER_WAKING", False)
+    shut_away(attend, monkeypatch, "LONGER_WAKING")
     shut = wake(said)
     monkeypatch.setattr(attend, "LONGER_WAKING", True)
     left_shut = left_in(data_dir)
@@ -609,7 +613,8 @@ def test_a_reply_cut_off_is_still_said_after_it(longer, world, attend):
     assert told[2:4] == [BESIDE, attend.CUT_OFF]
 
 
-def test_shut_away_nothing_is_ever_said_of_a_look(wake, world, attend):
+def test_shut_away_nothing_is_ever_said_of_a_look(wake, world, attend, monkeypatch):
+    shut_away(attend, monkeypatch, "LONGER_WAKING")
     assert attend.BESIDE_A_LOOK == BESIDE
     wake(blocks("I am here.", block("LETTER", "Dear founder,")))
     assert BESIDE not in wake().shown

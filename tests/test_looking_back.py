@@ -129,11 +129,11 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     """Two wakings each, in one world that keeps versions and asks for one.
 
     The old attend.py and this one are sent the same bytes at both, and leave
-    the same files behind them. What it has chosen came after, and is shut away
-    with it; its door, which the old one had and kept shut away, stands in both
-    as it stands now.
+    the same files behind them. What it has chosen and the longer waking came
+    after, and are shut away with it; its door, which the old one had and kept
+    shut away, stands in both as it stands now.
     """
-    shut_away(attend, monkeypatch, "LOOKING_BACK", "CHOICES")
+    shut_away(attend, monkeypatch, "LOOKING_BACK", "CHOICES", "LONGER_WAKING")
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     stamps_as_before(attend, monkeypatch)  # and said each moment as its raw stamp
     solstices_as_before(monkeypatch)  # and read the whole record back at the solstices

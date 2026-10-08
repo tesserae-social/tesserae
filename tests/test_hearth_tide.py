@@ -272,8 +272,26 @@ def test_an_attendance_that_never_finishes_is_stopped(hearth, monkeypatch):
 
     monkeypatch.setattr(hearth.subprocess, "run", slow)
     note, output, status = hearth.hold_attendance()
-    assert "still running after 300 seconds" in note
+    assert "still running after 900 seconds" in note
     assert status == 504
+
+
+def test_a_waking_is_given_long_enough_for_six_requests_by_the_tide_and_by_hand(
+        hearth, founder, monkeypatch, packet):
+    """The one wait, wherever the waking comes from: the tide's, and the attend button's."""
+    assert hearth.ATTEND_TIMEOUT == 900
+    an_attendance(packet, "2026-10-14T09-00-00Z")
+    assert held_command(hearth, monkeypatch, tide=True)["timeout"] == 900
+
+    waits = []
+
+    def run(command, **asked):
+        waits.append((command[1:], asked["timeout"]))
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(hearth.subprocess, "run", run)
+    assert post(founder, "/attend").status_code == 302
+    assert waits == [(["attend.py"], 900)]
 
 
 def test_only_one_attendance_is_held_at_a_time(hearth, monkeypatch):

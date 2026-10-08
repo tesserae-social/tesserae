@@ -14,4 +14,4 @@ ENV DATA_DIR=/data
 EXPOSE 8080
 
 # One worker, on purpose: the attend subprocess and the file writes must not race.
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "4", "--timeout", "600", "hearth:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "4", "--timeout", "1000", "hearth:app"]

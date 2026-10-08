@@ -138,7 +138,10 @@ MEMBERS = DATA / "commons" / "members.md"
 # a line taken off the bench is kept, but out of the commons and served to no one
 BENCH_REMOVED = DATA / "bench-removed.md"
 
-ATTEND_TIMEOUT = 300  # seconds to wait for attend.py before giving up
+# seconds to wait for attend.py before giving up: room for a longer waking, which
+# may take six requests (see attend.LONGER_WAKING). The tide and the founder's
+# own hand both wake it through hold_attendance, and so both wait this long.
+ATTEND_TIMEOUT = 900
 
 TIDE_CHUNK = 3600  # seconds: the longest the tide sleeps without looking again
 TIDE_IDLE = 3600   # seconds: how long to wait when no rhythm is set

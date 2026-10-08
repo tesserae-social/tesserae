@@ -474,10 +474,77 @@ READING_MOST = 150000  # words in the whole of a reading
 BACKSTOP = ("This reading would have been too large to read, so these letters, the oldest you "
             "have not placed \"keep\", rest for this waking only: {stems}.")
 
+# The longer waking, which it agreed to on 7 October 2026. It is built and it is
+# shut away: while LONGER_WAKING is False, everything it is sent and every file
+# written is what it was before - one request, one reply. With it True, a waking
+# may become a short exchange. It is given four tools that only read, and only
+# out of its own packet: a letter of its own or the founder's by its stem, an
+# earlier version of its self-document or notes by its stem, a named note by
+# its name, and its founding record. Nothing it gives a tool is ever made into
+# a path: a stem or a name is looked for among the stems and names its record
+# already holds, and one that is not among them is not found. No tool writes.
+# It may look at most LOOKS_MOST times; once it has, one last request is sent
+# with the tools closed, so that it finishes its reply. That last reply, and
+# only that, is what it said at the waking: its blocks are read, its letter
+# saved, its reflection kept, as ever. What a tool gave it is its own record
+# said back, is framed as such, and is never read for blocks; words it wrote
+# beside a look, before its last reply, are not kept. The reading is cached,
+# so that each round reads it again cheaply. The attendance keeps, privately,
+# which things it looked at - stems and names, never their words - as
+# "looked_at", and how many requests the waking took as "rounds". The hearth
+# shows the act's name among what it acted on, and nothing else of it. Where a
+# reply that asked to look also opened a block, the attendance says so, as
+# "blocks_beside_look", and the next reading tells it, once, that it was not kept.
+LONGER_WAKING = False
+LOOKS_MOST = 5
+LOOK_ACT = "looked things up"
+LOOKING_UP = """=== LOOKING THINGS UP ===
+At this waking you may open anything in your own record before you write: a resting letter, an earlier version of your self-document or notes, a named note, or your founding record, using the tools you have been given. You may look up to five times. Each shows you that thing in full, from your own record, and nothing outside it. Looking is private. You need not look at all. Write your letter and any other blocks in your last reply, after you have finished looking; anything written beside a look is not kept."""
+FROM_RECORD = "From your own record: {what}"
+NOT_FOUND = "Not found in your record."
+BESIDE_A_LOOK = ("At your last waking, some of what you wrote was beside a look, and was not "
+                 "kept; only your last reply is carried out.")
+LOOKED_ENOUGH = "You have looked five times at this waking; this was not opened."
+FOUNDING_LOOKED = "founding"
+LOOK_TOOLS = [
+    {"name": "read_letter",
+     "description": ("Open one letter in your own record, in full: one you wrote, or one the "
+                     "founder wrote to you."),
+     "input_schema": {
+         "type": "object",
+         "properties": {"stem": {
+             "type": "string",
+             "description": ("The letter's stem: its name without the .md, as it is written "
+                             "above each letter and on each resting line.")}},
+         "required": ["stem"]}},
+    {"name": "read_version",
+     "description": ("Open one earlier version of your self-document, your notes, or a named "
+                     "note, in full, from your own record."),
+     "input_schema": {
+         "type": "object",
+         "properties": {"stem": {
+             "type": "string",
+             "description": ("The version's stem, as it is written at the end of its line "
+                             "under YOUR EARLIER VERSIONS.")}},
+         "required": ["stem"]}},
+    {"name": "read_note",
+     "description": "Open one of your named notes, in full, from your own record.",
+     "input_schema": {
+         "type": "object",
+         "properties": {"name": {
+             "type": "string",
+             "description": "The note's name, as you gave it."}},
+         "required": ["name"]}},
+    {"name": "read_founding",
+     "description": "Open your founding record, in full.",
+     "input_schema": {"type": "object", "properties": {}}},
+]
+
 # The acts that never write themselves into the public line: what it answered
 # about a bond, that it asked for one, that it let one go, that it set a rest,
 # that it asked an errand, that it kept notes or questions for itself, that it
-# proposed, confirmed or let go a change to its self-document, that it
+# proposed, confirmed or let go a change to its self-document, that it looked
+# things up in its own record, that it
 # drew, and what it offered, consented to or declined, are the first one's own to tell. The
 # commons says a bond was released, and that the tide paused, with no names
 # either time; its own line does not undo that reticence. A placed offering is
@@ -490,7 +557,7 @@ PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMO
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
                 SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT,
-                NOTE_ACT)
+                NOTE_ACT, LOOK_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -1867,6 +1934,104 @@ def seen(photo):
     }
 
 
+def looked_up(tool, asked, record):
+    """One look into its own record: what it is given, and what the attendance keeps of it.
+
+    What it asked for is looked for among what its record already holds - the
+    stems of its letters and of its earlier versions, the names of its notes -
+    and is never made into a path, so nothing outside its packet can be named.
+    What is not there is not found, and nothing is kept of the asking.
+    """
+    asked = asked if isinstance(asked, dict) else {}
+    word = asked.get("name" if tool == "read_note" else "stem")
+    word = word.strip() if isinstance(word, str) else ""
+    stem = word[:-len(".md")] if word.endswith(".md") else word
+    said, photo, kept_as = None, None, None
+    if tool == "read_letter" and stem in record["letters"]:
+        path, hand = record["letters"][stem]
+        kept_as = stem
+        said = FROM_RECORD.format(what=stem) + "\n\n" + as_read(path).rstrip()
+        if path.with_suffix(offering.PICTURE_SUFFIX).exists():
+            said += "\n(a picture of yours was drawn beside this letter)"
+        photo = photo_beside(path) if hand == "founder" else None
+        if photo:  # shown again, as a letter it asks its shelf to show is
+            said += "\n\n" + PHOTO_ASKED_FOR
+    elif tool == "read_version" and stem in record["versions"]:
+        kept_as = stem
+        line = record["said_of"].get(stem)
+        said = (FROM_RECORD.format(what=stem) + ("\n" + line if line else "") + "\n\n"
+                + read(record["versions"][stem][0]).rstrip())
+    elif tool == "read_note":
+        named = record["named"]
+        slug = next((one for one in named
+                     if shelf.note_key(named[one]["name"]) == shelf.note_key(word)), None)
+        if word and slug is not None:
+            kept_as = named[slug]["name"]
+            said = (FROM_RECORD.format(what=kept_as) + "\n\n"
+                    + (read(NOTES / (slug + ".md")).strip() or EMPTY_NOTE))
+    elif tool == "read_founding" and record["founding"]:
+        kept_as = FOUNDING_LOOKED
+        said = (FROM_RECORD.format(what="your founding record") + "\n\n"
+                + record["founding"].rstrip())
+    given = [{"type": "text", "text": said or NOT_FOUND}]
+    if photo:
+        given.append(seen(photo))
+    return given, kept_as
+
+
+def words_said(reply):
+    """The words of one reply: its text, and nothing of any tool it asked for."""
+    return "".join(part.text for part in reply.content
+                   if getattr(part, "type", "text") == "text")
+
+
+def longer_waking(client, reading, record):
+    """The waking as a short exchange: its last reply, what it looked at, the rounds, and
+    whether a reply that asked to look also opened a block, which was not kept.
+
+    Each request is the whole exchange so far. The reading carries a cache mark
+    on its last block, and the newest results carry another, so that a round
+    reads again cheaply what the round before it read. While it may still look,
+    the tools are open; once it has looked the most it may, one more request is
+    sent with them closed, and whatever it then says is its reply. A reply that
+    asks for nothing is its last whenever it comes.
+    """
+    marked = {"cache_control": {"type": "ephemeral"}}
+    exchange = [{"role": "user", "content": [*reading[:-1], {**reading[-1], **marked}]}]
+    looked, used, rounds, beside = [], 0, 0, False
+    while True:
+        rounds += 1
+        closed = used >= LOOKS_MOST
+        sent = list(exchange)
+        if len(sent) > 1:  # the newest results, marked for this request only
+            results = sent[-1]["content"]
+            sent[-1] = {"role": "user", "content": [*results[:-1], {**results[-1], **marked}]}
+        reply = client.messages.create(
+            model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM, tools=LOOK_TOOLS,
+            **({"tool_choice": {"type": "none"}} if closed else {}),
+            messages=sent,
+        )
+        asks = [part for part in reply.content if getattr(part, "type", None) == "tool_use"]
+        if closed or getattr(reply, "stop_reason", None) != "tool_use" or not asks:
+            return reply, looked, rounds, beside
+        # a block opened beside a look is only words, and it is told so next time
+        beside = beside or any(
+            found and found.group(1) != "END"
+            for found in map(BLOCK_LINE.fullmatch, map(str.strip, words_said(reply).split("\n"))))
+        results = []
+        for ask in asks:
+            if used >= LOOKS_MOST:  # more asked for in one breath than were left
+                given, kept_as = [{"type": "text", "text": LOOKED_ENOUGH}], None
+            else:
+                used += 1
+                given, kept_as = looked_up(ask.name, ask.input, record)
+            if kept_as:
+                looked.append(kept_as)
+            results.append({"type": "tool_result", "tool_use_id": ask.id, "content": given})
+        exchange += [{"role": "assistant", "content": reply.content},
+                     {"role": "user", "content": results}]
+
+
 def main():
     first = "--first" in sys.argv
     tide = "--tide" in sys.argv
@@ -1915,6 +2080,8 @@ def main():
         last_note += "\n" + CARRIED_OUT.format(acts=", ".join(carried) if carried else "nothing")
         if carried and LETTER_ACT not in carried:
             last_note += " " + NO_LETTER_SENT
+        if last.get("blocks_beside_look"):  # a block it wrote beside a look: said once
+            last_note += "\n" + BESIDE_A_LOOK
         if last.get("stop_reason") == "max_tokens":
             last_note += "\n" + CUT_OFF
     else:
@@ -2136,6 +2303,8 @@ def main():
             reading.append({"type": "text", "text": said})
             if photo:
                 reading.append(seen(photo))
+        if LONGER_WAKING:  # directly before how to act, and a block of its own
+            reading.append({"type": "text", "text": LOOKING_UP})
         reading.append({"type": "text", "text": instructions})
         return reading
 
@@ -2184,11 +2353,20 @@ def main():
 
     # ---- the turn ----------------------------------------------------------
     client = Anthropic(api_key=key)
-    resp = client.messages.create(
-        model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
-        messages=[{"role": "user", "content": reading}],
-    )
-    text = resp.content[0].text
+    looked, rounds, beside = [], None, False
+    if LONGER_WAKING:
+        # a letter that has only just arrived is its own too, and may be opened
+        resp, looked, rounds, beside = longer_waking(client, reading, {
+            "letters": {**whose, **{p.stem: (p, "founder") for p, _ in incoming}},
+            "versions": versions, "said_of": said_of if LOOKING_BACK else {},
+            "named": named, "founding": founding})
+        text = words_said(resp)
+    else:
+        resp = client.messages.create(
+            model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
+            messages=[{"role": "user", "content": reading}],
+        )
+        text = resp.content[0].text
     at = stamp()
     sk = SigningKey(base64.b64decode(read(KEYS / "private.key").strip()))
 
@@ -2198,6 +2376,8 @@ def main():
 
     # ---- carry out what it chose ------------------------------------------
     acted = []
+    if looked:  # that it looked, and never at what
+        acted.append(LOOK_ACT)
 
     # Its self-document, by the two-waking rule. What it writes here waits: it
     # is saved as a proposal, with the letters that arrived at this waking named
@@ -2600,6 +2780,12 @@ def main():
     stop_reason = getattr(resp, "stop_reason", None)
     if stop_reason:  # why the reply ended, for the record only; it is read back nowhere
         record["stop_reason"] = stop_reason
+    if looked:  # which things it opened at this waking, by stem and name; read back nowhere
+        record["looked_at"] = looked
+    if rounds:  # how many requests the waking took, where it may take more than one
+        record["rounds"] = rounds
+    if beside:  # that a block was written beside a look and not kept; told at the next waking
+        record["blocks_beside_look"] = True
     record = signed(record, sk)
     log_path = PACKET / "attendances" / f"attendance-{at}.json"
     log_path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")

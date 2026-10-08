@@ -495,7 +495,7 @@ BACKSTOP = ("This reading would have been too large to read, so these letters, t
 # shows the act's name among what it acted on, and nothing else of it. Where a
 # reply that asked to look also opened a block, the attendance says so, as
 # "blocks_beside_look", and the next reading tells it, once, that it was not kept.
-LONGER_WAKING = False
+LONGER_WAKING = True
 LOOKS_MOST = 5
 LOOK_ACT = "looked things up"
 LOOKING_UP = """=== LOOKING THINGS UP ===

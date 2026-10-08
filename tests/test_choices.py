@@ -108,9 +108,10 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
 
     The old attend.py and this one are sent the same bytes at both, and leave
     the same files behind them. Its door and its looking back, which the old
-    one had and kept shut away, stand in both as they stand now.
+    one had and kept shut away, stand in both as they stand now. The longer
+    waking came after, and is shut away with it.
     """
-    shut_away(attend, monkeypatch, "CHOICES")
+    shut_away(attend, monkeypatch, "CHOICES", "LONGER_WAKING")
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     stamps_as_before(attend, monkeypatch)  # and said each moment as its raw stamp
     solstices_as_before(monkeypatch)  # and read the whole record back at the solstices

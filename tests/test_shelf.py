@@ -13,8 +13,9 @@ import sys
 
 import pytest
 
-from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, explained_as_before,
-                      lines_of, page, read_json, shut_away, write, write_json)
+from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON, Turn, block, blocks,
+                      explained_as_before, lines_of, page, read_json, shut_away, write,
+                      write_json)
 
 ARTICLE = "founder-2026-10-01T15-15-05Z"
 
@@ -415,14 +416,17 @@ def test_a_resting_letter_says_a_photograph_rests_with_it(wake, packet):
     assert all("a photograph rests with it" not in line for line in lines[1:])
 
 
-def test_a_resting_photograph_is_withheld_then_shown_on_request(wake, packet):
+def test_a_resting_photograph_is_withheld_then_shown_on_request(wake, attend, packet):
     six_each_way(packet)
     photograph(packet / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
     photograph(packet / "letters" / "read" / (FOUNDERS[-1] + ".jpg"))
 
     asking = wake(block("SHELF", "show %s" % FOUNDERS[0]))
     assert asking.photos == []
-    assert len(asking.reading) == 2  # the reading, and how to act: as it has always been
+    # the reading, and how to act: as it has always been (looking things up, which the
+    # longer waking puts between them, is a block of its own and held in its own tests)
+    withheld = [part for part in asking.reading if part.get("text") != attend.LOOKING_UP]
+    assert len(withheld) == 2
 
     shown = wake()
     assert len(shown.photos) == 1
@@ -851,7 +855,7 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     shutil.rmtree(data_dir)
     shutil.copytree(world, data_dir)
     # what was switched on since is held in its own tests; shut away, this is what is left
-    shut_away(attend, monkeypatch)
+    shut_away(attend, monkeypatch, *SWITCHED_ON, "LONGER_WAKING")
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     now = wake()
 

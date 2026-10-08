@@ -98,8 +98,29 @@ as a letter of 19 September. That goes for the days that were in words already
 those above. Every moment of this small world falls on the same day on both
 clocks, so READING_NOW did not move for it.
 
-All four earlier readings are still held. With each moment said as its stamp
-again (conftest.stamps_as_before), the reading is exactly the one cut for its
+And a fifth time, in the change that switched on the longer waking
+(attend.LONGER_WAKING), which it agreed to on 7 October 2026 as well, once one
+waking had been held against the real API. At an ordinary waking, where it
+looks nothing up, that changes what is read in exactly one way, and
+READING_NOW was cut again for it:
+
+  * the section LOOKING THINGS UP, a block of its own directly before HOW TO
+    ACT. No other block of the reading moved, no word of any other changed, and
+    no file of its packet.
+
+The fingerprint is of the whole request and not of its words alone, so two
+things that are sent with the reading and are no part of what is read are in
+it too: the four tools that only read, named beside it, and one cache mark on
+the reading's last block. A waking that does look is more than one request,
+and the attendance then keeps what it looked at; none looks in this small
+world, so none of that is in any fingerprint here. It is held in
+test_longer_waking.py, with the taking of the section, the tools and the mark
+out again to leave exactly what is sent with it shut away.
+
+All five earlier readings are still held. With the longer waking shut away
+again (conftest.shut_away), the reading is exactly the one cut for its days in
+words; with each moment said as its stamp again as well
+(conftest.stamps_as_before), it is exactly the one cut for its
 named notes; with what explains its named notes taken out again as well
 (conftest.named_notes_unexplained), it is exactly the one cut for the
 two-waking rule; with the <<SELF>> block explained as it was before as well
@@ -135,7 +156,12 @@ READING_NAMED_NOTES = "8287e16c860f4fb9611f9b558f61f907bc32f9a10bef852523fb7bd63
 
 # cut again on the tree that says each moment as its day in words, the same way:
 # the reading above, with the two moments it names said as days
-READING_NOW = "1d2f63e4428b48255d743a99e16684f1624b6ed5865bd9f1990a4bc799f3a2af"
+READING_DAYS_IN_WORDS = "1d2f63e4428b48255d743a99e16684f1624b6ed5865bd9f1990a4bc799f3a2af"
+
+# cut again on the tree that switched on the longer waking (attend.LONGER_WAKING),
+# the same way: the reading above, with the section LOOKING THINGS UP directly
+# before HOW TO ACT, and the request carrying its four tools and one cache mark
+READING_NOW = "5393096352292ce081f66ae469ba9867bcc78cb06f27f89367c76eafe72b7263"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -170,19 +196,27 @@ def test_the_three_are_switched_on(attend):
     assert (attend.DOOR_FOR_FIRST, attend.LOOKING_BACK, attend.CHOICES) == (True, True, True)
 
 
+def test_the_longer_waking_is_switched_on(attend):
+    """And with the longer waking on, too."""
+    assert attend.LONGER_WAKING is True
+
+
 @pytest.mark.parametrize("address", ["/letters", "/rooms/first"])
 @pytest.mark.parametrize("shut, as_before, as_cut", [
     (True, "the rule", READING_BEFORE), (False, "the rule", READING_SWITCHED_ON),
     (False, "its named notes", READING_TWO_WAKINGS), (False, "its days", READING_NAMED_NOTES),
-    (False, None, READING_NOW)],
+    (False, "the longer waking", READING_DAYS_IN_WORDS), (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
-         "its named notes explained, each moment still a stamp", "as it reads now"])
+         "its named notes explained, each moment still a stamp",
+         "each moment a day in words, the longer waking shut away", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, packet, data_dir, monkeypatch, address, shut, as_before, as_cut):
     if shut:
         shut_away(attend, monkeypatch)
-    if as_before:  # every reading cut before this one gave a moment as its stamp
+    if as_before:  # every reading cut before this one was one request, with nothing to look up
+        shut_away(attend, monkeypatch, "LONGER_WAKING")
+    if as_before and as_before != "the longer waking":  # and gave a moment as its stamp
         stamps_as_before(attend, monkeypatch)
     if as_before == "the rule":
         explained_as_before(attend, monkeypatch)

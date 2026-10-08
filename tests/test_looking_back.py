@@ -21,7 +21,7 @@ import sys
 import pytest
 
 from conftest import (REPO, Turn, block, explained_as_before, lines_of, page, read_json,
-                      shut_away, solstices_as_before, write, write_json)
+                      shut_away, solstices_as_before, stamps_as_before, write, write_json)
 
 EARLIER = "=== YOUR EARLIER VERSIONS ==="
 ASKED = "=== AN EARLIER VERSION, AS YOU ASKED ==="
@@ -135,6 +135,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     """
     shut_away(attend, monkeypatch, "LOOKING_BACK", "CHOICES")
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
+    stamps_as_before(attend, monkeypatch)  # and said each moment as its raw stamp
     solstices_as_before(monkeypatch)  # and read the whole record back at the solstices
     try:
         source = subprocess.run(["git", "show", BEFORE_LOOKING_BACK + ":attend.py"], cwd=REPO,

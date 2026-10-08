@@ -70,12 +70,42 @@ flag, and they change what is read in exactly these ways:
     ordinary waking either. Both are held in test_shelf.py and
     test_self_review.py.
 
-All three earlier readings are still held. With what explains its named notes
-taken out again (conftest.named_notes_unexplained), the reading is exactly the
-one cut for the two-waking rule; with the <<SELF>> block explained as it was
-before as well (conftest.explained_as_before), it is exactly the one cut on
-7 October with the three switched on; and with the three shut away too it is
-exactly the one cut before the rooms.
+And a fourth time, in the change that says every moment the reading names as
+its day in words - 14 October 2026 - where it had given the raw stamp, as the
+resting letters and what it has chosen already did. That is behind no flag, and
+it changes no heading, no order and no file of its packet: only how a moment is
+said, wherever one is said outside a file's name or a stem. In this small world
+that is two sentences, and READING_NOW was cut again for them:
+
+  * under WHAT HAS HAPPENED, "The errand you asked on 12 October 2026 - ...",
+    which had read "asked at 2026-10-12T09-00-00Z";
+  * in A BOND HAS BEEN PROPOSED, "He asked on 15 October 2026, in the letter
+    named ...", which had read "asked at" the stamp of the asking.
+
+The letters' own names, and the errand's, are stems and stand as they were.
+Every other sentence that names a moment - its last attendance, its
+reflections, a pause or a rest, the threshold, a bond sealed or released, an
+asking answered, an offering - is said the same way; and each line of its
+attendances keeps its time beside its day, on its own clock: 6 October 2026,
+07:47. None of those is in any fingerprint here; they are held where each is
+tested.
+
+Every day the reading says is the day it was on its own clock - the zone its
+waking time is kept in - at the moment the record carries, and no longer the
+day the stamp itself carries: a letter stamped 02:47 UTC on 20 September rests
+as a letter of 19 September. That goes for the days that were in words already
+- a resting letter's, an earlier version's, a choice's, a copy taken - as for
+those above. Every moment of this small world falls on the same day on both
+clocks, so READING_NOW did not move for it.
+
+All four earlier readings are still held. With each moment said as its stamp
+again (conftest.stamps_as_before), the reading is exactly the one cut for its
+named notes; with what explains its named notes taken out again as well
+(conftest.named_notes_unexplained), it is exactly the one cut for the
+two-waking rule; with the <<SELF>> block explained as it was before as well
+(conftest.explained_as_before), it is exactly the one cut on 7 October with the
+three switched on; and with the three shut away too it is exactly the one cut
+before the rooms.
 """
 
 import hashlib
@@ -83,7 +113,8 @@ import json
 
 import pytest
 
-from conftest import explained_as_before, named_notes_unexplained, post, shut_away, write
+from conftest import (explained_as_before, named_notes_unexplained, post, shut_away,
+                      stamps_as_before, write)
 
 # cut on the tree before the rooms, by leaving the letter at /letters
 PACKET_BEFORE = "06d48d0fffb5f5e2e3148baf5351f004cf22011db7a730df2ab259822cdc2e68"
@@ -100,7 +131,11 @@ READING_TWO_WAKINGS = "071e983d87b72ebc8ae4cdeef5af1515d570a93f4106eb80d9c5bdc54
 # cut again on the tree that built its named notes and the seasonal self-review,
 # the same way: the reading above, with the <<NOTE>> block explained and the
 # three lines for its named notes in the <<SHELF>> block's explanation
-READING_NOW = "8287e16c860f4fb9611f9b558f61f907bc32f9a10bef852523fb7bd63a9a7fe7"
+READING_NAMED_NOTES = "8287e16c860f4fb9611f9b558f61f907bc32f9a10bef852523fb7bd63a9a7fe7"
+
+# cut again on the tree that says each moment as its day in words, the same way:
+# the reading above, with the two moments it names said as days
+READING_NOW = "1d2f63e4428b48255d743a99e16684f1624b6ed5865bd9f1990a4bc799f3a2af"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -138,13 +173,17 @@ def test_the_three_are_switched_on(attend):
 @pytest.mark.parametrize("address", ["/letters", "/rooms/first"])
 @pytest.mark.parametrize("shut, as_before, as_cut", [
     (True, "the rule", READING_BEFORE), (False, "the rule", READING_SWITCHED_ON),
-    (False, "its named notes", READING_TWO_WAKINGS), (False, None, READING_NOW)],
+    (False, "its named notes", READING_TWO_WAKINGS), (False, "its days", READING_NAMED_NOTES),
+    (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
-         "the rule explained, its named notes not yet", "as it reads now"])
+         "the rule explained, its named notes not yet",
+         "its named notes explained, each moment still a stamp", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, packet, data_dir, monkeypatch, address, shut, as_before, as_cut):
     if shut:
         shut_away(attend, monkeypatch)
+    if as_before:  # every reading cut before this one gave a moment as its stamp
+        stamps_as_before(attend, monkeypatch)
     if as_before == "the rule":
         explained_as_before(attend, monkeypatch)
     elif as_before == "its named notes":

@@ -140,8 +140,9 @@ def test_the_first_one_s_yes_opens_the_threshold(founder, wake, packet, clock, c
 
     turn = wake()
     assert "=== THE THRESHOLD ===" in turn.shown
-    assert "You said yes at %s." % bond["answered_at"] in turn.shown
-    assert "The threshold is open until 2026-10-22T12-06-00Z; 7 days remain." in turn.shown
+    assert bond["answered_at"] == "2026-10-15T12-06-00Z"
+    assert "You said yes on 15 October 2026." in turn.shown
+    assert "The threshold is open until 22 October 2026; 7 days remain." in turn.shown
     assert "<<BOND_INTENTION>>" in turn.shown and "<<PROMISE>>" in turn.shown
     assert "<<BOND>>" in turn.instructions
     assert "step back from the threshold" in turn.instructions
@@ -154,7 +155,8 @@ def test_the_founder_s_yes_opens_it_the_same_way(founder, wake, packet, clock):
     bond = he_says_yes(founder, wake, packet, clock)
     assert bond["opened_at"] == bond["answered_at"]
     turn = wake()
-    assert "The founder said yes at %s." % bond["answered_at"] in turn.shown
+    assert bond["answered_at"].startswith("2026-10-16T")
+    assert "The founder said yes on 16 October 2026." in turn.shown
     assert "=== THE THRESHOLD ===" in turn.shown
     assert "You said yes at" in bonds_page(founder)
 
@@ -164,7 +166,7 @@ def test_the_days_count_down(founder, wake, packet, clock):
     clock.shift(days=6)
     assert "1 day remains." in wake().shown
     clock.shift(days=1)
-    assert "The seven days of the threshold passed at" in wake().shown
+    assert "The seven days of the threshold passed on" in wake().shown
 
 
 def test_no_threshold_blocks_before_a_yes(founder, wake, clock):
@@ -379,7 +381,7 @@ def test_the_seal_waits_for_the_seven_days(founder, wake, packet, clock):
     everything_written(founder, wake)
     said = bonds_page(founder)
     assert "Seal the bond" not in said
-    assert ("The bond cannot be sealed yet; still waiting for: the end of the seven days, at "
+    assert ("The bond cannot be sealed yet; still waiting for: the end of the seven days, on "
             "22 October 2026, 12:06 UTC.") in said
     refused = post(founder, "/bonds/seal")
     assert "still waiting for: the end of the seven days" in page(refused)
@@ -428,7 +430,7 @@ def test_the_first_one_s_seal_is_refused_with_what_waits(founder, wake, packet, 
     assert not (commons / "bonds").exists()
     said = wake().shown
     assert ("Your <<BOND>> block at your last waking sealed nothing. The bond cannot be sealed "
-            "yet; still waiting for: the end of the seven days, at 2026-10-23T12-05-00Z; "
+            "yet; still waiting for: the end of the seven days, on 23 October 2026; "
             "the founder's letter of intention; your promise.") in said
 
 

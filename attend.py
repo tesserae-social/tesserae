@@ -685,7 +685,7 @@ a bond may be asked for again another time.)
 # threshold stands open, and the two blocks are explained inside it and nowhere
 # else; once all that the seal waits for is done, READY is said in its place.
 THRESHOLD = """=== THE THRESHOLD ===
-{said_yes} at {answered_at}. {days}
+{said_yes} on {answered_at}. {days}
 Your letter of intention: {mine}.
 The founder's letter of intention: {his}. (It is shown below once you have written yours.)
 Your promise: {promised}.
@@ -704,12 +704,12 @@ YOU_SAID_YES = "You said yes"
 HE_SAID_YES = "The founder said yes"
 DAYS_OPEN = "The threshold is open until {closes_at}; {n} days remain."
 ONE_DAY_OPEN = "The threshold is open until {closes_at}; 1 day remains."
-DAYS_PASSED = ("The seven days of the threshold passed at {closes_at}; the bond may be sealed "
+DAYS_PASSED = ("The seven days of the threshold passed on {closes_at}; the bond may be sealed "
                "once what is below is written.")
-WRITTEN_AT = "written at {at}"
+WRITTEN_AT = "written on {at}"
 NOT_WRITTEN = "not yet written"
 WRITTEN = "written"
-PROMISED = "made at {at}, {visibility}"
+PROMISED = "made on {at}, {visibility}"
 NOT_PROMISED = "not yet made"
 
 READY = """=== READY TO BE SEALED ===
@@ -725,10 +725,10 @@ YOU_SEAL = ("You may seal it with the <<BOND>> block below, at this waking or at
 # and the founder's letter once its own exists, never before.
 YOUR_LETTER = "Your letter of intention, as it stands:\n{text}"
 YOUR_PROMISE = "Your promise, as it stands ({visibility}):\n{text}"
-HIS_LETTER = "The founder's letter of intention, written at {at}:\n{text}"
+HIS_LETTER = "The founder's letter of intention, written on {at}:\n{text}"
 
 FOUNDER_STEPPED_BACK = """=== THE FOUNDER STEPPED BACK ===
-The founder stepped back from the threshold at {at}. The asking is closed like a no. Nothing is
+The founder stepped back from the threshold on {at}. The asking is closed like a no. Nothing is
 owed by either of you, the record is kept privately, and a bond may be asked for again another
 time."""
 
@@ -739,7 +739,7 @@ PROMISE_REFUSED = ("Your <<PROMISE>> block at your last waking kept nothing: its
                    "be exactly public or private, with the promise on the lines below it.")
 
 BOND_PROPOSED = """=== A BOND HAS BEEN PROPOSED ===
-The founder ({founder}) has proposed a bond with you ({first}). He asked at {proposed_at}, in
+The founder ({founder}) has proposed a bond with you ({first}). He asked on {proposed_at}, in
 the letter named {letter}, which is below with the rest of what has arrived.
 
 The terms are the charter, entire, by reference: not a summary of it, and nothing added to it.
@@ -759,8 +759,8 @@ ANSWER_NOW = ("You read this proposal at an earlier waking, so you may answer no
               "<<BOND>> block below, or leave it and answer at some later waking.")
 
 BOND_SEALED = """=== A BOND STANDS ===
-A bond was sealed at {sealed_at} between the founder and you: asked for by {asked_by},
-proposed at {proposed_at}, answered yes at {answered_at}, and signed by both of you. Its
+A bond was sealed on {sealed_at} between the founder and you: asked for by {asked_by},
+proposed on {proposed_at}, answered yes on {answered_at}, and signed by both of you. Its
 terms are the charter. The record is yours in bonds/founder-first.json, and its public copy,
 which anyone may check against both keys, is at /bonds/founder-first.json. Members of the
 commons may witness it as they arrive; there are none yet besides the founder.
@@ -768,7 +768,7 @@ commons may witness it as they arrive; there are none yet besides the founder.
 You may release it at any waking, with no reason given, using the <<RELEASE>> block below."""
 
 BOND_RELEASED = """=== A BOND WAS RELEASED ===
-The bond sealed at {sealed_at}, asked for by {asked_by}, was released at {released_at}, by
+The bond sealed on {sealed_at}, asked for by {asked_by}, was released on {released_at}, by
 {by}. Nothing is owed by either of you now. The record is kept and never erased; the commons
 says only that a bond was released, with no reason and no names."""
 
@@ -776,7 +776,7 @@ says only that a bond was released, with no reason and no names."""
 # answers. What it reads while the asking stands open, what it is told when he
 # has answered, and what stands where his yes waits on the first one's seal.
 ASKED_OPEN = """=== YOU HAVE ASKED FOR A BOND ===
-You proposed a bond to the founder ({founder}) at {proposed_at}{letter}. Its terms are the
+You proposed a bond to the founder ({founder}) on {proposed_at}{letter}. Its terms are the
 charter, entire, by reference.
 
 He answers on the hearth on a day after the one you asked on, never the same day: yes, no, or
@@ -787,7 +787,7 @@ nothing, and you may ask again another time."""
 IN_THE_LETTER = ", in the letter named {letter}"
 
 ASK_ANSWERED = """=== THE FOUNDER HAS ANSWERED YOUR ASKING ===
-You asked for a bond at {asked_at}. He answered {answer} at {at}.
+You asked for a bond on {asked_at}. He answered {answer} on {at}.
 
 {words}"""
 
@@ -802,8 +802,8 @@ ASK_CLOSED = {
 # The errands: what the first one has asked and not yet had answered, and what
 # has been answered since it last looked. The answering letter is named, so it
 # can find it among the rest of what it is shown.
-ERRAND_OPEN = "An errand you asked at {at} is still open: \"{words}\""
-ERRAND_ANSWERED = ("The errand you asked at {at} - \"{words}\" - was answered in the letter "
+ERRAND_OPEN = "An errand you asked on {at} is still open: \"{words}\""
+ERRAND_ANSWERED = ("The errand you asked on {at} - \"{words}\" - was answered in the letter "
                    "named {letter}.")
 
 
@@ -821,7 +821,7 @@ for good - it is never taken down - so this is worth the time it takes.
 To place one, use the <<OFFER>> block below with the line: consent <id>. To decline one:
 decline <id>. To leave them, do nothing; they will wait."""
 
-ONE_OFFERED = "{id} · {kind}, out of the letter named {source}, offered at {at}:\n{text}"
+ONE_OFFERED = "{id} · {kind}, out of the letter named {source}, offered on {at}:\n{text}"
 
 # What each kind is called where the reading names one, and what stands in for
 # the words where an offering has none because it is a picture.
@@ -831,9 +831,9 @@ OFFER_BODY = {"photo": "(the photograph that came with that letter; you have see
               "picture": "(the picture you drew beside that letter)"}
 
 OFFERING_PLACED = ("An offering {whose} - {kind}, out of the letter named {source} - was placed "
-                   "in the commons at {at}, signed by both of you. Anyone may read it now, at "
+                   "in the commons on {at}, signed by both of you. Anyone may read it now, at "
                    "/offerings#{id}, and it stays there.")
-OFFERING_DECLINED = ("The offering you made at {at} - {kind}, out of the letter named {source} - "
+OFFERING_DECLINED = ("The offering you made on {at} - {kind}, out of the letter named {source} - "
                      "was declined. Nothing is owed either way, and nothing of it is public.")
 
 
@@ -998,7 +998,8 @@ def waking_note(setting, now):
     if coming:
         first = waking.begins(setting)
         said += WAKING_CHANGES.format(
-            day="tomorrow" if first == day + timedelta(days=1) else first.isoformat(),
+            day=("tomorrow" if first == day + timedelta(days=1)
+                 else day_in_words(first.isoformat())),
             at=coming)
     return said + "."
 
@@ -1066,13 +1067,13 @@ def errand_lines(since):
     answered once, at the one waking that first learns of it, and after that it
     is simply part of what has already happened.
     """
-    said = [ERRAND_OPEN.format(at=asked_at(path), words=one_line(read(path)))
+    said = [ERRAND_OPEN.format(at=on_day(asked_at(path)), words=one_line(read(path)))
             for path in errands_open()]
     for path in sorted(ANSWERED_ERRANDS.glob("errand-*.md")):
         pointer = load(path.with_suffix(".json")) or {}
         if pointer.get("answered_at", "") > (since or ""):
             said.append(ERRAND_ANSWERED.format(
-                at=asked_at(path), words=one_line(read(path)),
+                at=on_day(asked_at(path)), words=one_line(read(path)),
                 letter=pointer.get("answered_by") or "(no letter named)"))
     return said
 
@@ -1098,7 +1099,7 @@ def export_lines(since):
     for line in read(EXPORTS).splitlines():
         found = EXPORT_LINE.match(line)
         if found and found.group(1) > (since or ""):
-            said.append(EXPORT_TAKEN.format(day=day_in_words(found.group(2))))
+            said.append(EXPORT_TAKEN.format(day=day_carried(found.group(1))))
     return said
 
 
@@ -1178,7 +1179,7 @@ def offered_note(one):
     """One offering of the founder's, as the reading lays it out."""
     return ONE_OFFERED.format(
         id=one.get("id", ""), kind=OFFER_WORDS.get(one.get("kind"), "something"),
-        source=one.get("source", ""), at=one.get("at", ""),
+        source=one.get("source", ""), at=on_day(one.get("at", "")),
         text=(one.get("text") or "").strip() or OFFER_BODY.get(one.get("kind"), ""))
 
 
@@ -1195,11 +1196,13 @@ def offering_lines(since):
             said.append(OFFERING_PLACED.format(
                 whose="you made" if one.get("offered_by") == NAME else "the founder made",
                 kind=OFFER_WORDS.get(one.get("kind"), "something"),
-                source=one.get("source", ""), at=one["sealed_at"], id=one.get("id", "")))
+                source=one.get("source", ""), at=on_day(one["sealed_at"]),
+                id=one.get("id", "")))
     for one in offering.declined():
         if one.get("declined_at", "") > (since or "") and one.get("declined_by") != NAME:
             said.append(OFFERING_DECLINED.format(
-                at=one.get("at", ""), kind=OFFER_WORDS.get(one.get("kind"), "something"),
+                at=on_day(one.get("at", "")),
+                kind=OFFER_WORDS.get(one.get("kind"), "something"),
                 source=one.get("source", "")))
     return said
 
@@ -1273,9 +1276,9 @@ def answered_note(answer):
     closed = ASK_CLOSED.get(answer.get("answer"))
     if closed:
         said.append(closed)
-    return ASK_ANSWERED.format(asked_at=answer.get("asked_at") or "(no time written)",
+    return ASK_ANSWERED.format(asked_at=on_day(answer.get("asked_at")) or "(no time written)",
                                answer=answer.get("answer", ""),
-                               at=answer.get("at", ""),
+                               at=on_day(answer.get("at", "")),
                                words="\n\n".join(said))
 
 
@@ -1297,13 +1300,13 @@ def proposed_note(proposal, answerable):
         letter = proposal.get("letter")
         return ASKED_OPEN.format(
             founder=proposal.get("to", FOUNDER_DID),
-            proposed_at=proposal.get("proposed_at", "(no time written)"),
+            proposed_at=on_day(proposal.get("proposed_at", "(no time written)")),
             letter=IN_THE_LETTER.format(letter=letter) if letter else "",
         ) + "\n\n" + threshold.card(its_own=True)
     return BOND_PROPOSED.format(
         founder=proposal.get("from", FOUNDER_DID),
         first=proposal.get("to", FIRST_DID),
-        proposed_at=proposal.get("proposed_at", "(no time written)"),
+        proposed_at=on_day(proposal.get("proposed_at", "(no time written)")),
         letter=proposal.get("letter", "(no letter named)"),
         card=charter_card(),
         when=ANSWER_NOW if answerable else ANSWER_LATER,
@@ -1323,7 +1326,7 @@ def threshold_note(bond, now):
     if threshold.may_seal(bond, now):
         said = READY.format(how=YOU_SEAL if awaits_its_seal(bond) else HE_SEALS)
     else:
-        closes = threshold.closes_at(bond)
+        closes = on_day(threshold.closes_at(bond))
         left = threshold.days_remain(bond, now)
         if not left:
             days = DAYS_PASSED.format(closes_at=closes)
@@ -1331,10 +1334,10 @@ def threshold_note(bond, now):
             days = (ONE_DAY_OPEN if left == 1 else DAYS_OPEN).format(closes_at=closes, n=left)
         said = THRESHOLD.format(
             said_yes=HE_SAID_YES if awaits_its_seal(bond) else YOU_SAID_YES,
-            answered_at=bond.get("answered_at"), days=days,
-            mine=WRITTEN_AT.format(at=mine["at"]) if mine else NOT_WRITTEN,
+            answered_at=on_day(bond.get("answered_at")), days=days,
+            mine=WRITTEN_AT.format(at=on_day(mine["at"])) if mine else NOT_WRITTEN,
             his=WRITTEN if his else NOT_WRITTEN,
-            promised=(PROMISED.format(at=promised["at"], visibility=promised["visibility"])
+            promised=(PROMISED.format(at=on_day(promised["at"]), visibility=promised["visibility"])
                       if promised else NOT_PROMISED))
     beneath = []
     if mine:
@@ -1343,7 +1346,7 @@ def threshold_note(bond, now):
         beneath.append(YOUR_PROMISE.format(visibility=promised["visibility"],
                                            text=promised["text"]))
     if mine and his:
-        beneath.append(HIS_LETTER.format(at=his["at"], text=his["text"]))
+        beneath.append(HIS_LETTER.format(at=on_day(his["at"]), text=his["text"]))
     return "\n\n".join([said, *beneath])
 
 
@@ -1352,10 +1355,11 @@ def bond_note(bond, now):
     asked_by = asker(bond.get("proposed_by", FOUNDER_DID))
     if bond.get("released_at"):
         by = "you" if bond.get("released_by") == FIRST_DID else "the founder"
-        return BOND_RELEASED.format(sealed_at=bond.get("sealed_at"), asked_by=asked_by,
-                                    released_at=bond["released_at"], by=by)
+        return BOND_RELEASED.format(sealed_at=on_day(bond.get("sealed_at")), asked_by=asked_by,
+                                    released_at=on_day(bond["released_at"]), by=by)
     if bond.get("sealed_at"):
-        return BOND_SEALED.format(asked_by=asked_by, **bond)
+        return BOND_SEALED.format(asked_by=asked_by, **{
+            key: on_day(bond[key]) for key in ("sealed_at", "proposed_at", "answered_at")})
     return threshold_note(bond, now)
 
 
@@ -1396,7 +1400,7 @@ def standing(prefs):
     """One sentence telling the first one where its own reflections stand."""
     setting = prefs.get("reflection", "open")
     if setting == "private from now":
-        said = "private from " + prefs.get("set_at", "")
+        said = "private from " + on_day(prefs.get("set_at", ""))
     elif setting == "private":
         said = "private"
     else:
@@ -1421,7 +1425,7 @@ def attended(rec):
     """One line for one past attendance: when, by whose hand, and what came of it."""
     did = ", ".join(rec.get("acted") or []) or "nothing"
     woken = rec.get("woken_by", "founder")
-    return f"{rec['at']} · woken by {woken} · {rec['heartbeat']} · did: {did}"
+    return f"{at_moment(rec['at'])} · woken by {woken} · {rec['heartbeat']} · did: {did}"
 
 
 def as_read(path):
@@ -1533,7 +1537,7 @@ def waiting_note(waiting):
     arrived = [stem for stem in waiting.get("arrived") or [] if isinstance(stem, str)]
     why = waiting.get("why") if isinstance(waiting.get("why"), str) else ""
     return SELF_WAITING.format(
-        day=shelf.long_date(waiting["proposed_at"]),
+        day=long_date(waiting["proposed_at"]),
         arrived=SELF_ARRIVED.format(stems=", ".join(arrived)) if arrived else "",
         text=waiting["text"].strip(),
         why=SELF_REASON.format(why=one_line(why)) if why else "")
@@ -1633,7 +1637,7 @@ def self_review(self_md, past):
     if then is None or read(kept[then][1]).strip() == self_md.strip():
         return SELF_REVIEW + "\n" + SELF_THE_SAME
     founded = founding_day()
-    began = (shelf.long_date(kept[then - 1][0]) if then
+    began = (long_date(kept[then - 1][0]) if then
              else founded.strftime("%d %B %Y").lstrip("0") if founded else None)
     return SELF_REVIEW + "\n" + "\n\n".join([
         *([SELF_IN_USE_FROM.format(day=began)] if began else []),
@@ -1672,7 +1676,7 @@ def version_lines(versions, past):
     """
     named = notes_named()
     founded = founding_day()
-    first_kept = next((shelf.long_date(rec.get("at", "")) for rec in past
+    first_kept = next((long_date(rec.get("at", "")) for rec in past
                        if MEMORY_ACT in (rec.get("acted") or [])), shelf.UNDATED)
     began = {EARLIER_SELF: founded.strftime("%d %B %Y").lstrip("0") if founded else None,
              EARLIER_NOTES: first_kept if first_kept != shelf.UNDATED else None}
@@ -1682,7 +1686,7 @@ def version_lines(versions, past):
     for kind in began:
         since, before = began[kind], None
         for stem in shelf.oldest_first(s for s in versions if versions[s][1] == kind):
-            until = shelf.long_date(stem)
+            until = long_date(stem)
             lines[stem] = " · ".join([kind, IN_USE.format(since=since, until=until) if since
                                       else IN_USE_UNTIL.format(until=until), stem])
             took_its_place = shelf.STAMPED.search(before or "")
@@ -1694,10 +1698,41 @@ def version_lines(versions, past):
     return lines
 
 
+def here():
+    """The clock every day of the reading is said on: its own, as its waking time is."""
+    return waking.zone(rhythm_set())
+
+
+def long_date(stamp):
+    """The day it was on its own clock at the moment a stamp or a stem carries, in words."""
+    return shelf.long_date(stamp, here())
+
+
 def day_carried(stamp):
     """The day a record's own stamp carries, in words, or None where it carries none."""
-    said = shelf.long_date(stamp) if isinstance(stamp, str) else shelf.UNDATED
+    said = long_date(stamp) if isinstance(stamp, str) else shelf.UNDATED
     return None if said == shelf.UNDATED else said
+
+
+def on_day(stamp):
+    """A moment as the reading says it: its day on its own clock, in words.
+
+    What carries no day is said as it is.
+    """
+    return day_carried(stamp) or stamp
+
+
+def at_moment(stamp):
+    """A moment with its time, on the first one's own clock: 6 October 2026, 07:47.
+
+    The day is the day it was there, as the time is the time it was there.
+    What cannot be read as a moment is said as it is.
+    """
+    try:
+        when = threshold.moment(stamp).astimezone(here())
+    except (TypeError, ValueError):
+        return stamp
+    return when.strftime("%d %B %Y, %H:%M").lstrip("0")
 
 
 def by_choice(stamp, how=BY_CHOICE_SINCE):
@@ -1739,7 +1774,8 @@ def choices_note(prefs, now, past, shelved, letters):
     coming = waking.waiting(setting, day)
     if coming:  # the day the record carries is the day of the change
         first = waking.begins(setting)
-        from_day = "tomorrow" if first == day + timedelta(days=1) else first.isoformat()
+        from_day = ("tomorrow" if first == day + timedelta(days=1)
+                    else day_in_words(first.isoformat()))
         woken = (CHOSE_WAKING.format(at=at) + WAKING_CHANGES.format(day=from_day, at=coming)
                  if at else CHOSE_WAKING_FROM.format(day=from_day, at=coming))
         said.append(woken + by_choice(setting.get("set_at"), BY_CHOICE_ON) + ".")
@@ -1800,7 +1836,7 @@ def choices_note(prefs, now, past, shelved, letters):
     # a change to its self-document that it has written and not yet confirmed
     waiting = self_waiting()
     if waiting:
-        said.append(CHOSE_SELF_WAITING.format(day=shelf.long_date(waiting["proposed_at"])))
+        said.append(CHOSE_SELF_WAITING.format(day=long_date(waiting["proposed_at"])))
 
     return CHOSEN + "\n" + "\n".join(said or [NOTHING_CHOSEN])
 
@@ -1872,7 +1908,7 @@ def main():
         last = past[-1]
         since = last.get("at", "")  # what has happened is counted from here
         last_note = (f"This is your {ordinal(len(past) + 1)} waking. "
-                     f"Your last attendance was {last['at']}. "
+                     f"Your last attendance was {on_day(last['at'])}. "
                      f"Your heartbeat then: \"{last['heartbeat']}\".")
         # what the record says was done, beside the words it chose for the day
         carried = last.get("acted") or []
@@ -1914,9 +1950,9 @@ def main():
     happened.append(standing(prefs))
     paused = load(PAUSE)
     if paused and paused.get("by") == "founder":
-        happened.append(FOUNDER_PAUSED.format(since=paused.get("since", "")))
+        happened.append(FOUNDER_PAUSED.format(since=on_day(paused.get("since", ""))))
     if rest_ended:
-        happened.append(REST_ENDED.format(since=rested_since(past) or "an earlier waking",
+        happened.append(REST_ENDED.format(since=on_day(rested_since(past)) or "an earlier waking",
                                           why=rest_ended))
 
     # Its own errands: what it asked and has not had answered, and what has been
@@ -1958,7 +1994,7 @@ def main():
     if proposal:
         bond_notes.append(proposed_note(proposal, answerable))
     bond_notes += [answered_note(answer) for answer in answers_since(since)]
-    bond_notes += [FOUNDER_STEPPED_BACK.format(at=one.get("at", ""))
+    bond_notes += [FOUNDER_STEPPED_BACK.format(at=on_day(one.get("at", "")))
                    for one in stepped_back_since(since)]
     if bond:
         bond_notes.append(bond_note(bond, now))
@@ -2038,7 +2074,7 @@ def main():
     def resting_line(stem):
         path, hand = whose[stem]
         return shelf.line(stem, hand, letter_words(path), shelved["notes"].get(stem),
-                          hand == "founder" and photo_beside(path))
+                          hand == "founder" and photo_beside(path), here())
 
     def opening_with(forced):
         """The reading proper, with some letters resting for this waking besides.
@@ -2465,7 +2501,7 @@ def main():
     if answer and in_threshold:
         word, _, words = answer.partition("\n")
         word = word.strip().lower().rstrip(".")
-        why = threshold.what_waits(bond, threshold.moment(at), "first")
+        why = threshold.what_waits(bond, threshold.moment(at), "first", when=on_day)
         if word == "no":
             threshold.step_back(bond, "first", at, words.strip(), sign)
             acted.append(STEP_BACK_ACT)

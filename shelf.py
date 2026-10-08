@@ -39,7 +39,7 @@ and every day is handed in.
 
 import copy
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 KEEP = "keep"
 REST = "rest"
@@ -135,12 +135,20 @@ def oldest_first(stems):
     return sorted(stems, key=moment)
 
 
-def long_date(stem):
-    """The day of a letter, said the way a person says it: 1 October 2026."""
-    day = when(stem)
-    if not day:
+def long_date(stem, here=None):
+    """The day of a letter, said the way a person says it: 1 October 2026.
+
+    Where a clock is handed in, it is the day it was on that clock at the
+    moment the name carries; where none is, the day the name itself carries.
+    """
+    found = STAMPED.search(stem)
+    if not found:
         return UNDATED
-    return datetime.strptime(day, "%Y-%m-%d").strftime("%d %B %Y").lstrip("0")
+    day = datetime.strptime(found.group(1), "%Y-%m-%d")
+    if here is not None:
+        day = datetime.strptime(found.group(0), "%Y-%m-%dT%H-%M-%SZ").replace(
+            tzinfo=timezone.utc).astimezone(here)
+    return day.strftime("%d %B %Y").lstrip("0")
 
 
 def resting(shelf, founders, own):
@@ -285,9 +293,9 @@ def first_words(text):
     return said + "…" if len(words) > FIRST_WORDS else said
 
 
-def line(stem, whose, text, note, photo):
-    """One resting letter, as one line."""
-    said = " · ".join([stem, long_date(stem), FROM[whose], note or first_words(text)])
+def line(stem, whose, text, note, photo, here=None):
+    """One resting letter, as one line; its day on the clock handed in, where one is."""
+    said = " · ".join([stem, long_date(stem, here), FROM[whose], note or first_words(text)])
     return said + (PHOTO_RESTS if photo else "")
 
 

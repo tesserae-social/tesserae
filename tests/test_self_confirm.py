@@ -360,9 +360,10 @@ def test_what_it_has_chosen_gains_a_line_while_one_waits(wake, packet):
     assert chosen(wake()) == [CHOSE_WAITING]
     write_json(packet / "rhythm.json", {"rhythm": "daily", "at": "dawn",
                                         "set_at": "2026-09-20T03-30-35Z"})
+    # 03:30 UTC on the 20th was still the 19th on its own clock
     assert chosen(wake(block("SELF_CONFIRM", "yes"))) == [
-        "You wake daily at dawn, by your choice since 20 September 2026.", CHOSE_WAITING]
-    assert chosen(wake()) == ["You wake daily at dawn, by your choice since 20 September 2026."]
+        "You wake daily at dawn, by your choice since 19 September 2026.", CHOSE_WAITING]
+    assert chosen(wake()) == ["You wake daily at dawn, by your choice since 19 September 2026."]
 
 
 # ---- the hearth ----------------------------------------------------------

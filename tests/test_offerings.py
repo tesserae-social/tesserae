@@ -245,7 +245,7 @@ def test_the_first_one_is_told_what_was_declined_and_what_was_placed(wake, found
     wake(block("OFFER", "offer letter %s" % HERS))
     post(founder, "/offer/consent", data={"id": only_pending(packet)["id"]})
     said = wake().opening
-    assert "was placed in the commons at" in said
+    assert "was placed in the commons on" in said
     assert "An offering you made" in said
     assert "/offerings#%s" % only_placed(packet)["id"] in said
     assert "was placed in the commons" not in wake().opening   # told once, and then past

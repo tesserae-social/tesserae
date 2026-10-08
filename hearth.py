@@ -1613,8 +1613,10 @@ def chronicle_text(lines):
 EXPORT_TREES = ("packets/first", "commons", "bonds")
 
 # What a backup holds: the same trees, and the members beside them, each
-# with the vault their key is sealed in. A backup is encrypted; a copy is not.
-BACKUP_TREES = EXPORT_TREES + ("members",)
+# with the vault their key is sealed in, and the first one's own signing key,
+# which is nowhere else but this machine's disk. A backup is encrypted; a copy
+# is not, and so the key goes in the one and never in the other.
+BACKUP_TREES = EXPORT_TREES + ("members", "keys/first")
 
 EXPORT_TAKEN = "export taken by the founder"
 
@@ -1646,8 +1648,8 @@ def note_export(at):
 
 # ---- the nightly backup --------------------------------------------------
 
-# Once a day the record is copied off this machine: the trees a copy holds and
-# the members, as a tar.gz built in memory, encrypted with a key this machine is
+# Once a day the record is copied off this machine: the trees a copy holds, the
+# members and the first one's key, as a tar.gz built in memory, encrypted with a key this machine is
 # handed and never writes down, and given to a bucket the founder keeps. The
 # bucket holds the newest thirty and lets the older ones go.
 #

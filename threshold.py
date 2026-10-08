@@ -267,7 +267,7 @@ WAITS = {
                 "promise": "the first one's promise"},
 }
 NOT_YET = "The bond cannot be sealed yet; still waiting for: {what}."
-SEVEN_DAYS = "the end of the seven days, at {at}"
+SEVEN_DAYS = "the end of the seven days, on {at}"
 
 
 def what_waits(bond, now, viewer, when=lambda at: at):

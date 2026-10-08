@@ -117,12 +117,12 @@ def test_the_memory_is_shown_and_said_to_be_private(wake, attend, packet):
 
 
 def test_the_record_is_the_whole_record(wake, packet, clock):
-    at = clock.stamp()
     wake(blocks(block("HEARTBEAT", "attended at noon; said little"),
                 block("LETTER", "Dear founder,")))
     opening = wake("", "--tide").opening
-    assert ("%s · woken by founder · attended at noon; said little "
-            "· did: wrote a letter to the founder" % at) in opening
+    # the day and the time on its own clock: 12:00 UTC is 08:00 in Indianapolis
+    assert ("15 October 2026, 08:00 · woken by founder · attended at noon; said little "
+            "· did: wrote a letter to the founder") in opening
     assert latest(packet)["woken_by"] == "tide"
 
 
@@ -158,15 +158,16 @@ def test_the_reflection_is_described_as_it_stands(wake, attend, packet, setting,
 def test_the_standing_sentence_names_the_day_a_choice_was_made(wake, packet):
     write_json(packet / "preferences.json",
                {"reflection": "private from now", "set_at": "2026-10-01T00-00-00Z"})
-    assert ("Your reflections are currently: private from 2026-10-01T00-00-00Z, by your choice."
+    # the day it was on its own clock: midnight UTC is the evening before in Indianapolis
+    assert ("Your reflections are currently: private from 30 September 2026, by your choice."
             in wake().opening)
 
 
 def test_a_rest_that_has_ended_is_said_to_have_ended(wake, packet):
     wake(block("PAUSE", "pause until a letter arrives\nI want a quiet stretch."))
-    set_at = latest(packet)["at"]  # the rest began at the waking that asked for it
+    assert latest(packet)["at"].startswith("2026-10-15T")  # it began at the waking that asked
     (packet / "pause.json").unlink()  # as the hearth takes it away when the letter comes
-    assert ("You rested from %s until now; the rest ended because a letter arrived." % set_at
+    assert ("You rested from 15 October 2026 until now; the rest ended because a letter arrived."
             in wake("", "--rest-ended", "a letter arrived").opening)
 
 
@@ -722,7 +723,7 @@ def test_an_errand_asked_is_the_first_one_s_own_to_tell(wake, commons, attend):
 def test_an_open_errand_is_named_at_every_later_waking(wake, packet):
     errand(packet)
     said = wake().opening
-    assert "An errand you asked at 2026-10-14T09-00-00Z is still open" in said
+    assert "An errand you asked on 14 October 2026 is still open" in said
     assert ERRAND in said
     assert "An errand you asked" in wake().opening  # and again, until it is answered
 
@@ -740,7 +741,7 @@ def test_an_answered_errand_is_told_once_and_names_the_letter(wake, packet, cloc
     assert clock.stamp() > since
 
     said = wake().opening
-    assert ("The errand you asked at 2026-10-14T09-00-00Z - \"%s\" - was answered in the "
+    assert ("The errand you asked on 14 October 2026 - \"%s\" - was answered in the "
             "letter named founder-2026-10-16T09-00-00Z." % ERRAND) in said
     assert "is still open" not in said
     assert "was answered in the letter" not in wake().opening  # told once, and then past

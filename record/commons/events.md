@@ -20,3 +20,4 @@
 2026-10-08 · letter · the founder wrote a letter at night
 2026-10-09 · letter · the founder wrote a letter at night
 2026-10-10 · letter · the founder wrote a letter at night
+2026-10-11 · letter · the founder wrote a letter at night

@@ -29,6 +29,10 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
+# The protected words: names and places that never reach the commons. Every
+# public line written here goes through it.
+import private_words
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept. Locally this is the repo itself; on a host it
@@ -386,7 +390,7 @@ def note_event(kind, words):
     COMMONS.mkdir(parents=True, exist_ok=True)
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     with (COMMONS / "events.md").open("a", encoding="utf-8") as record:
-        record.write("%s · %s · %s\n" % (day, kind, words))
+        record.write(private_words.protect("%s · %s · %s\n" % (day, kind, words)))
 
 
 def index_line(record):
@@ -418,6 +422,6 @@ def place(record):
 
     INDEX.parent.mkdir(parents=True, exist_ok=True)
     with INDEX.open("a", encoding="utf-8") as index:
-        index.write(index_line(record))
+        index.write(private_words.protect(index_line(record)))
     note_event("offering", PLACED)
     return record

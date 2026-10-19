@@ -80,6 +80,10 @@ import tessera
 # that signs any yet.
 import witness
 
+# The protected words: names and places that never reach the commons. Every
+# public line written here goes through it.
+import private_words
+
 # The founder's key is read out of FOUNDER_KEY the one way, here and in
 # setup_keeper.py alike.
 from vault import key_from_text
@@ -974,7 +978,7 @@ def tend_members():
         lines = MEMBERS.read_bytes().decode("utf-8").splitlines(keepends=True)
         kept = [ATTENDS_AT.sub("attends at " + at, line, count=1)
                 if at and FIRST_ONES_LINE.match(line) else line for line in lines]
-        kept = [with_its_door(line) for line in kept]
+        kept = [private_words.protect(with_its_door(line)) for line in kept]
         if kept != lines:
             beside = MEMBERS.with_name(MEMBERS.name + ".tmp")
             beside.write_bytes("".join(kept).encode("utf-8"))
@@ -1120,7 +1124,7 @@ def note_event(kind, words, day=None):
     EVENTS.parent.mkdir(parents=True, exist_ok=True)
     day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     with EVENTS.open("a", encoding="utf-8") as record:
-        record.write(f"{day} · {kind} · {words}\n")
+        record.write(private_words.protect(f"{day} · {kind} · {words}\n"))
 
 
 # A letter from the founder is a tile in the mosaic, and one tile a day however
@@ -1616,17 +1620,24 @@ def chronicle_text(lines):
 EXPORT_TREES = ("packets/first", "commons", "bonds")
 
 # What a backup holds: the same trees, and the members beside them, each
-# with the vault their key is sealed in, and the first one's own signing key,
-# which is nowhere else but this machine's disk. A backup is encrypted; a copy
-# is not, and so the key goes in the one and never in the other.
-BACKUP_TREES = EXPORT_TREES + ("members", "keys/first")
+# with the vault their key is sealed in, the first one's own signing key,
+# which is nowhere else but this machine's disk, and the list of protected
+# words, which is nowhere else either. A backup is encrypted; a copy is not,
+# and so the key and the list go in the one and never in the other.
+BACKUP_TREES = EXPORT_TREES + ("members", "keys/first", "private-words.txt")
 
 EXPORT_TAKEN = "export taken by the founder"
 
 
 def export_files(trees=EXPORT_TREES):
-    """Every file a copy holds, each with the name it takes inside the zip."""
+    """Every file a copy holds, each with the name it takes inside the zip.
+
+    A tree is a folder, and everything under it; or one file, kept as itself.
+    """
     for tree in trees:
+        if (DATA / tree).is_file():
+            yield DATA / tree, tree
+            continue
         for path in sorted((DATA / tree).rglob("*")):
             if path.is_file():
                 yield path, path.relative_to(DATA).as_posix()
@@ -2258,6 +2269,31 @@ def plain(path):
     answer = Response(text, content_type="text/plain; charset=utf-8")
     answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
     answer.headers["Cache-Control"] = "no-cache"
+    return answer
+
+
+# Everything the hearth hands to anyone as words, by the view that hands it out:
+# the files of the commons, the commons' own page, the bench, a sealed bond's
+# page, and a placed offering's words. Each goes out with no protected word in
+# it, whenever its words were written; on a page only the words between its
+# tags are read. The signed records - a bond's, an offering's, a witness's
+# marks - are none of these: they go out exactly as they were signed, since a
+# word changed in one would break the signature anyone may check it by.
+PUBLIC_WORDS = frozenset({
+    "commons_heartbeats", "commons_events", "commons_bench", "commons_members",
+    "commons_bonds", "commons_offerings", "commons_offering",
+    "commons", "bench", "bond_page",
+})
+
+
+@app.after_request
+def keep_private_words(answer):
+    if request.endpoint not in PUBLIC_WORDS or answer.direct_passthrough:
+        return answer
+    if answer.mimetype == "text/html":
+        answer.set_data(private_words.protect_page(answer.get_data(as_text=True)))
+    elif answer.mimetype in ("text/plain", "text/markdown"):
+        answer.set_data(private_words.protect(answer.get_data(as_text=True)))
     return answer
 
 
@@ -3517,7 +3553,7 @@ def place_line(day, who, line):
     """Put one line on the bench, in the plain words it was written in."""
     BENCH.parent.mkdir(parents=True, exist_ok=True)
     with BENCH.open("a", encoding="utf-8") as bench:
-        bench.write(f"- {day} · {who} · {line}\n")
+        bench.write(private_words.protect(f"- {day} · {who} · {line}\n"))
 
 
 def take_off(raw):

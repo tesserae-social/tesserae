@@ -16,6 +16,7 @@ import pytest
 from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON, Turn, block, blocks,
                       explained_as_before, lines_of, page, read_json, shut_away, write,
                       write_json)
+from conftest import heartbeat_not_yet_public, note_example_as_now
 
 ARTICLE = "founder-2026-10-01T15-15-05Z"
 
@@ -829,6 +830,9 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)
     clock.pin(old, monkeypatch)
+    # nor did it yet say its heartbeat is public, or give a note's example as this one does
+    heartbeat_not_yet_public(attend, monkeypatch)
+    note_example_as_now(old, attend, monkeypatch)
 
     # three letters read, one with a photograph and one with its plain things; two
     # written, one with a picture beside it; one arrived, with a photograph; a draft

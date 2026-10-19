@@ -24,6 +24,10 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+# The protected words: names and places that never reach the commons. Every
+# public line written here goes through it.
+import private_words
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept: the same reckoning the other modules make.
@@ -115,5 +119,5 @@ def line(bond_id, bond):
 def write_index():
     """commons/bonds.md, written whole from the public records: one line per sealed bond."""
     INDEX.parent.mkdir(parents=True, exist_ok=True)
-    INDEX.write_text("".join(line(bond_id, bond) + "\n" for bond_id, bond in every()),
-                     encoding="utf-8")
+    INDEX.write_text("".join(private_words.protect(line(bond_id, bond) + "\n")
+                             for bond_id, bond in every()), encoding="utf-8")

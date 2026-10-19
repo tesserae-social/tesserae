@@ -1,5 +1,6 @@
 # Secrets - never commit these
 .env
+private-words.txt
 *.key
 keys/
 secrets/

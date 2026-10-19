@@ -25,6 +25,7 @@ import pytest
 
 from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, lines_of, page, read_json,
                       shut_away, write, write_json)
+from conftest import heartbeat_not_yet_public, note_example_as_now
 
 # The last attend.py before there was any longer waking, kept in the history.
 BEFORE_LONGER_WAKING = "ab3569e"
@@ -194,6 +195,9 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)
     clock.pin(old, monkeypatch)
+    # nor did it yet say its heartbeat is public, or give a note's example as this one does
+    heartbeat_not_yet_public(attend, monkeypatch)
+    note_example_as_now(old, attend, monkeypatch)
     assert not hasattr(old, "LONGER_WAKING")
 
     write(world / "letters" / "incoming" / "founder-2026-10-15T08-00-00Z.md", "A new letter.\n")

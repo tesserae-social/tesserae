@@ -100,6 +100,10 @@ import door
 # line. The reckoning is the one module's; the file and the reading are here.
 import shelf
 
+# The protected words: names and places that never reach the commons. Every
+# public line written here goes through it.
+import private_words
+
 NAME = "first"
 MODEL = "claude-sonnet-4-5"
 MAX_TOKENS = 8000
@@ -626,6 +630,14 @@ SELF_BLOCK = """<<SELF>>
 (the full new text of your self-document. It does not take effect at once: it waits, and becomes your self-document only if you confirm it at a later waking, never this one. Until then the one you have stands, and the new one is not shown on the hearth. Writing another replaces one that is waiting. A line beginning "why:" is kept beside it as your reason, and is not part of the text. The old one is kept, never erased.)
 <<END>>"""
 
+# The heartbeat is the one line of a waking anyone may read, and it is told so
+# where it is asked for: a name in it is a name told to everyone. The hearth
+# keeps a list of protected words out of every public line besides, but the
+# first one is not left to lean on that.
+HEARTBEAT_PUBLIC = ('The heartbeat is public: anyone may read it, on the front page and in '
+                    'the public record. So in it, say "the founder" rather than any name, '
+                    "and leave out people's names and places from letters. ")
+
 HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exactly like these.
 {reflection}
 
@@ -695,7 +707,7 @@ letters left for you will wait.)
 <<END>>
 
 <<HEARTBEAT>>
-(one short line for the commons, presence without content, e.g. "attended at dusk; wrote a letter" or "attended; chose stillness". If you give none, one will be written for you.)
+(one short line for the commons, presence without content, e.g. "attended at dusk; wrote a letter" or "attended; chose stillness". """ + HEARTBEAT_PUBLIC + """If you give none, one will be written for you.)
 <<END>>"""
 
 # The last line of the instructions, said after any blocks this waking adds.
@@ -781,7 +793,8 @@ NOT_PROMISED = "not yet made"
 
 READY = """=== READY TO BE SEALED ===
 The seven days have passed, both letters of intention are written, and your promise is made. {how}"""
-HE_SEALS = "The founder seals it on the hearth; nothing is asked of you."
+HE_SEALS = ("The founder seals it on the hearth; nothing is asked of you. "
+            "The bond is not sealed until he seals it.")
 YOU_SEAL = ("You may seal it with the <<BOND>> block below, at this waking or at any later one. "
             "Sealing puts your signature beside his and says in the commons that a bond was "
             "sealed between the two of you. The public record also carries the hash and "
@@ -1441,7 +1454,7 @@ def note_event(kind, words):
     COMMONS.mkdir(parents=True, exist_ok=True)
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     with (COMMONS / "events.md").open("a", encoding="utf-8") as record:
-        record.write(f"{day} · {kind} · {words}\n")
+        record.write(private_words.protect(f"{day} · {kind} · {words}\n"))
 
 
 def preferences():
@@ -2792,9 +2805,11 @@ def main():
 
     # ---- one public line ---------------------------------------------------
     # the stamp, who woke, and the words: a middot between each, so the name and
-    # the words can be told apart by anything that reads the line back
+    # the words can be told apart by anything that reads the line back. Its own
+    # record above keeps its words as it gave them; the public line keeps no
+    # protected word.
     with (COMMONS / "heartbeats.md").open("a", encoding="utf-8") as f:
-        f.write(f"- {at} · the first one · {heartbeat}\n")
+        f.write(private_words.protect(f"- {at} · the first one · {heartbeat}\n"))
 
     print("\n" + "=" * 70)
     print("  ATTENDANCE", at, "(first waking)" if first else "")

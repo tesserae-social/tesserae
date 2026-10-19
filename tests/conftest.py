@@ -275,6 +275,7 @@ def load(name):
     sys.modules.pop("witness", None)  # it keeps the marks under DATA_DIR, and reads bonds
     sys.modules.pop("door", None)  # it keeps each door under DATA_DIR, and reads members
     sys.modules.pop("rooms", None)  # it finds a room's place under DATA_DIR, and reads members
+    sys.modules.pop("private_words", None)  # it keeps its list under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 
@@ -496,6 +497,39 @@ def named_notes_unexplained(module, monkeypatch):
     assert module.HOW_TO_ACT.count(said) == 1
     monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.replace(said, ""))
     monkeypatch.setattr(module, "SHELF_NOTES", "")
+
+
+def heartbeat_not_yet_public(module, monkeypatch):
+    """Take out, for one test, what tells it that its heartbeat is public (19 October 2026).
+
+    That is behind no flag either. It added one thing to the reading, at every
+    waking: two sentences inside the <<HEARTBEAT>> block's explanation, saying
+    that anyone may read the line and so to name no one in it.
+    """
+    said = module.HEARTBEAT_PUBLIC
+    assert module.HOW_TO_ACT.count(said) == 1
+    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.replace(said, ""))
+
+
+# The name a note is given as an example, in the explanation of <<NOTE>>.
+NOTE_EXAMPLE = re.compile(r'"name: [^"]*"')
+
+
+def note_example_as_now(old, new, monkeypatch):
+    """Give an attend.py committed before 19 October 2026 the <<NOTE>> block's example as now.
+
+    The example then was the founder's own name, which is no longer anywhere in
+    the source. An older attend.py read out of the history still gives it, so
+    to be held to this one it is given this one's example instead - and that is
+    the only difference between the two explanations, which is checked without
+    the name. One from before its named notes has no such block, and is left.
+    """
+    if not hasattr(old, "NOTE_BLOCK"):
+        return
+    assert NOTE_EXAMPLE.sub("", old.NOTE_BLOCK) == NOTE_EXAMPLE.sub("", new.NOTE_BLOCK)
+    assert old.HOW_TO_ACT.count(old.NOTE_BLOCK) == 1
+    monkeypatch.setattr(old, "HOW_TO_ACT", old.HOW_TO_ACT.replace(old.NOTE_BLOCK, new.NOTE_BLOCK))
+    monkeypatch.setattr(old, "NOTE_BLOCK", new.NOTE_BLOCK)
 
 
 # A moment a sentence of the reading names, where it now says "on" a day and

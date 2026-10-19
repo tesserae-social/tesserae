@@ -30,7 +30,8 @@ rest note <name>: a named note shown as one line
 show note <name>: a named note in full at your next waking only
 Letters you haven't placed follow the default:"""
 
-FOUNDER_NOTE = "WHAT I KNOW OF THE FOUNDER: he writes in the morning.\n\nAnd a second paragraph of it."
+FOUNDER_NOTE = ("WHAT I KNOW OF THE FOUNDER: he writes in the morning.\n\n"
+                "And a second paragraph of it.")
 RIVER = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen"
 RIVER_RESTS = ("the river · rests · one two three four five six seven eight nine ten eleven "
                "twelve…")
@@ -127,8 +128,8 @@ def test_an_empty_text_leaves_the_note_empty_and_keeps_what_it_was(wake, packet,
 
 
 def test_several_notes_may_be_written_at_one_waking(wake, packet):
-    wake(blocks(note("about the founder", FOUNDER_NOTE), "Between them, a thought.", note("the river", RIVER),
-                note("About the founder", "And again, the same note.")))
+    wake(blocks(note("about the founder", FOUNDER_NOTE), "Between them, a thought.",
+                note("the river", RIVER), note("About the founder", "And again, the same note.")))
     assert kept(packet, "about-the-founder") == "And again, the same note.\n"
     assert kept(packet, "the-river") == RIVER + "\n"
     # what stood before the waking's second writing of it is what is kept beside it
@@ -211,7 +212,8 @@ def test_a_twenty_first_note_is_refused_and_told_once(wake, attend, packet):
 def test_notes_md_and_the_memory_block_are_unchanged(wake, attend, packet, clock):
     write(packet / "memory" / "notes.md", "What I carry forward.\n")
     at = clock.stamp()
-    wake(blocks(block("MEMORY", "What I carry forward now."), note("about the founder", FOUNDER_NOTE)))
+    wake(blocks(block("MEMORY", "What I carry forward now."),
+                note("about the founder", FOUNDER_NOTE)))
     assert (packet / "memory" / "notes.md").read_text(
         encoding="utf-8") == "What I carry forward now.\n"
     assert [p.name for p in (packet / "memory" / "history").glob("*")] == [
@@ -269,7 +271,7 @@ def test_rest_note_shows_it_as_one_line_and_keep_note_in_full_again(wake, packet
 
     wake(block("SHELF", 'rest note "about the founder"'))
     assert section(wake(), NAMED) == (
-        "about the founder · rests · WHAT I KNOW OF THE FOUNDER: he writes in the morning. And a…\n"
+        "about the founder · rests · WHAT I KNOW OF THE FOUNDER: he writes in the morning. And…\n"
         + RIVER_RESTS)
 
     wake(block("SHELF", "keep note about the founder\nkeep note the river"))
@@ -298,7 +300,8 @@ def test_show_note_gives_a_resting_one_in_full_at_the_next_waking_only(wake, pac
     held = read_json(packet / "shelf.json")
     assert "show_notes" not in held and held["note_placements"] == {"the-river": "rest"}
 
-    assert section(wake(), NAMED) == "--- about the founder ---\n" + FOUNDER_NOTE + "\n\n" + RIVER_RESTS
+    assert section(wake(), NAMED) == (
+        "--- about the founder ---\n" + FOUNDER_NOTE + "\n\n" + RIVER_RESTS)
 
 
 def test_a_note_may_be_written_and_placed_at_the_same_waking(wake, packet):
@@ -360,10 +363,13 @@ def test_the_shelf_reckons_a_named_note_by_its_name():
 
     notes = {shelf.note_key("About the founder"): "about-the-founder"}
     assert shelf.note_key('  "ABOUT   the founder" ') == "about the founder"
-    assert shelf.asked("rest note ABOUT THE FOUNDER\nshow note about the founder\nkeep note the sea",
-                       set(), (), notes) == (
-        [("rest note", "about-the-founder"), ("show note", "about-the-founder")], ["keep note the sea"])
-    assert shelf.asked("rest note about the founder", set()) == ([], ["rest note about the founder"])
+    assert shelf.asked(
+        "rest note ABOUT THE FOUNDER\nshow note about the founder\nkeep note the sea",
+        set(), (), notes) == (
+        [("rest note", "about-the-founder"), ("show note", "about-the-founder")],
+        ["keep note the sea"])
+    assert shelf.asked("rest note about the founder", set()) == (
+        [], ["rest note about the founder"])
 
     rested = shelf.applied(shelf.initial(), [("rest note", "about-the-founder"),
                                              ("show note", "about-the-founder")])
@@ -374,7 +380,8 @@ def test_the_shelf_reckons_a_named_note_by_its_name():
         "about-the-founder"}
     assert shelf.whole(rested) == rested
     # a shelf that places no named note is written as it always was
-    assert shelf.applied(shelf.cleared(rested), [("keep note", "about-the-founder")]) == shelf.initial()
+    assert shelf.applied(shelf.cleared(rested),
+                         [("keep note", "about-the-founder")]) == shelf.initial()
     assert shelf.whole({"note_placements": {"x": "keep"}, "show_notes": []}) == {
         "placements": {}, "notes": {}, "show_next": [], "show_founding": False}
 
@@ -461,7 +468,8 @@ def test_keeping_one_is_private(wake, attend, packet, commons):
 def test_nothing_of_them_is_on_the_hearth(wake, hearth, founder, visitor, packet):
     write_json(packet / "preferences.json", {"reflection": "open"})
     wake("I wrote something down.\n\n" + note("about the founder", FOUNDER_NOTE))
-    wake(blocks(note("About the founder", "WHAT I KNOW OF THE FOUNDER, again."), note("the river", RIVER)))
+    wake(blocks(note("About the founder", "WHAT I KNOW OF THE FOUNDER, again."),
+                note("the river", RIVER)))
     wake("I let one rest.\n\n" + block("SHELF", "rest note the river\nshow note the river"))
     assert NAMED in wake("I read them.").shown
 
@@ -469,9 +477,10 @@ def test_nothing_of_them_is_on_the_hearth(wake, hearth, founder, visitor, packet
                  "/commons", "/bench", "/rooms/first"]:
         for client in (founder, visitor):
             said = page(client.get(path))
-            for private in ("WHAT I KNOW", "about the founder", "About the founder", "about-the-founder", "the river",
-                            "the-river", "one two three", "NAMED NOTES", "note_placements",
-                            "show_notes", "rest note", "&lt;&lt;NOTE&gt;&gt;", "name:"):
+            for private in ("WHAT I KNOW", "about the founder", "About the founder",
+                            "about-the-founder", "the river", "the-river", "one two three",
+                            "NAMED NOTES", "note_placements", "show_notes", "rest note",
+                            "&lt;&lt;NOTE&gt;&gt;", "name:"):
                 assert private not in said, (path, private)
     said = page(founder.get("/attendances"))
     assert "I wrote something down." in said and "I let one rest." in said

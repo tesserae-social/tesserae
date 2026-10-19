@@ -22,6 +22,7 @@ import pytest
 
 from conftest import (REPO, Turn, block, explained_as_before, lines_of, page, read_json,
                       shut_away, solstices_as_before, stamps_as_before, write, write_json)
+from conftest import heartbeat_not_yet_public, note_example_as_now
 
 EARLIER = "=== YOUR EARLIER VERSIONS ==="
 ASKED = "=== AN EARLIER VERSION, AS YOU ASKED ==="
@@ -148,6 +149,9 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)
     clock.pin(old, monkeypatch)
+    # nor did it yet say its heartbeat is public, or give a note's example as this one does
+    heartbeat_not_yet_public(attend, monkeypatch)
+    note_example_as_now(old, attend, monkeypatch)
     assert not hasattr(old, "LOOKING_BACK")
     monkeypatch.setattr(old, "DOOR_FOR_FIRST", attend.DOOR_FOR_FIRST)
 

@@ -15,6 +15,7 @@ from nacl.exceptions import BadSignatureError
 
 from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, explained_as_before,
                       lines_of, read_json, shut_away, verify, write, write_json)
+from conftest import heartbeat_not_yet_public, note_example_as_now
 
 SECTIONS = [
     "=== WHAT HAS HAPPENED ===",
@@ -397,6 +398,9 @@ def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)
     clock.pin(old, monkeypatch)
+    # nor did it yet say its heartbeat is public, or give a note's example as this one does
+    heartbeat_not_yet_public(attend, monkeypatch)
+    note_example_as_now(old, attend, monkeypatch)
 
     then = Turn("")
     monkeypatch.setattr(old, "Anthropic", then.client)

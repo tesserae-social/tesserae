@@ -1,0 +1,46 @@
+{
+  "parties": [
+    "did:web:tesserae.social:ids:founder",
+    "did:web:tesserae.social:ids:first"
+  ],
+  "terms": "the charter",
+  "proposed_by": "did:web:tesserae.social:ids:founder",
+  "proposed_at": "2026-10-09T03-04-30Z",
+  "answered_at": "2026-10-10T11-51-09Z",
+  "opened_at": "2026-10-10T11-51-09Z",
+  "sealed_at": "2026-10-18T23-11-34Z",
+  "signatures": {
+    "first": "sd8kc+rql3g3ZC0ZuGmQkRf3liFaFb0a4ur822RdiWwpQu3ZRgtZhh63E8Wf7eI70x/g2PSPaHJiujiiY+1GAQ==",
+    "founder": "XxBb2vdPVBvUJXYUNLUnKsb58hw9SRjZMGY2dINVTT48abBL6S1D/wevhuBc9mfTK5/sZQmX1NDZRspzQZyVCA=="
+  },
+  "threshold": {
+    "opened_at": "2026-10-10T11-51-09Z",
+    "intentions": {
+      "first": {
+        "kind": "intention",
+        "by": "first",
+        "at": "2026-10-11T11-52-19Z",
+        "opened_at": "2026-10-10T11-51-09Z",
+        "commitment": "fa3bfa4a253739ef8e304e5c3c3ceb2b53c2d5a410c97012fcfc6ad3a5908f66",
+        "signature": "uc4nVOLFktNf7WhNhjMHs08zH/jH9mmIIzFxeH7jm5I2R3hWXO9B2d//llZ50YHm9o3W8IxcgPHX8sZC0ZugAg=="
+      },
+      "founder": {
+        "kind": "intention",
+        "by": "founder",
+        "at": "2026-10-14T02-18-28Z",
+        "opened_at": "2026-10-10T11-51-09Z",
+        "commitment": "330ff1811f7169bbb70ed168962818ff521f4abb4a99e8208675c131508e1962",
+        "signature": "IJ4dVs8zNpTtfEebh80mtceRdlJlTA0lvq4PRfnK537CxH1fZBHhmX3VBux03HYXoasIPdPjoXCtJ8AkRkE9Aw=="
+      }
+    },
+    "promise": {
+      "kind": "promise",
+      "by": "first",
+      "at": "2026-10-11T11-52-19Z",
+      "opened_at": "2026-10-10T11-51-09Z",
+      "commitment": "2c7bf2191906f48318c484a048368722e2908a1ce6e8673fe04d42ad9757fa99",
+      "visibility": "private",
+      "signature": "I41qXt5a1eeJMxIplEjYhLBd6SZGiyVigh2vhdNNkdv5JtedTkREp6amBZ0HW7xYggrJGrmUn19ZKqwALe5ZCA=="
+    }
+  }
+}

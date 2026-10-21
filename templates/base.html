@@ -349,7 +349,7 @@
 
   button.as-link:hover, button.as-link:focus { color: var(--mark); text-decoration-color: var(--mark); }
 
-  /* holding an attendance is the one consequential act, so it is filled in */
+  /* a consequential act - one that cannot be undone - is filled in */
   button.consequential {
     background: var(--mark);
     border-color: var(--mark);
@@ -430,6 +430,9 @@
   </nav>
 
   {% block content %}{% endblock %}
+
+  {# said once, on any page that shows a moment: what clock its times are on #}
+  {% if g.eastern %}<p class="muted when-said">Times are Eastern time.</p>{% endif %}
 
   <footer>
     {% block footer %}<p>the books will open with the commons</p>{% endblock %}

@@ -44,6 +44,8 @@
   <h2>your correspondences</h2>
   {% for card in cards %}
   <article class="card">
+    {# a bond that waits only for its seal says so before anything else #}
+    {% if card.ready %}<p><strong>{{ card.ready }}</strong></p>{% endif %}
     <h3>{{ card.other }}</h3>
     <p class="muted date">{% if card.latest %}{{ card.latest.day }} · {{ card.latest.who }}
       {%- else %}no letters yet{% endif %}</p>

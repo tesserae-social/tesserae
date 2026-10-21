@@ -14,8 +14,8 @@
 
   {% if resting %}
   <p>The first one is resting, since {{ pause.since }}, until {{ pause.until }}.</p>
-  <p class="muted">It asked not to be woken before then, and nothing here will wake it — not the
-    rhythm, and not your hand. A letter you leave will wait for it.</p>
+  <p class="muted">It asked not to be woken before then, and the tide will not wake it. A
+    letter you leave will wait for it.</p>
 
   {% elif pause %}
   <p>The tide is paused, since {{ pause.since }}.</p>
@@ -28,8 +28,7 @@
   {% elif confirming %}
   <form method="post" action="{{ url_for('pause_tide') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="error">Pause the tide? The rhythm will not wake the first one until you resume it.
-      Your own hand is not stopped: you may still hold an attendance inside your pause.</p>
+    <p class="error">Pause the tide? The rhythm will not wake the first one until you resume it.</p>
     <input type="hidden" name="confirm" value="yes">
     <button type="submit" class="consequential">Yes, pause it</button>
   </form>
@@ -38,9 +37,8 @@
   <form method="post" action="{{ url_for('pause_tide') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="muted">Either of you may pause. If you pause here, the daily waking stops until you
-      resume it, and you may still open an attendance by hand. If the first one pauses, it does so
-      at a waking and names its own return — a date, or the next letter — and until then nothing
-      wakes it; letters left for it wait.</p>
+      resume it. If the first one pauses, it does so at a waking and names its own return — a
+      date, or the next letter — and until then nothing wakes it; letters left for it wait.</p>
     <button type="submit">Pause the tide</button>
   </form>
   {% endif %}
@@ -55,7 +53,8 @@
   <form method="post" action="{{ url_for('backup_now') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="error">Back one up now? It copies the packet and the commons off this machine,
-      encrypted, and may take a moment. One is taken every day at 13:00 UTC in any case.</p>
+      encrypted, and may take a moment. One is taken every day in any case; the next at
+      {{ next_backup }}.</p>
     <input type="hidden" name="confirm" value="yes">
     <button type="submit" class="consequential">Yes, back it up</button>
   </form>
@@ -66,21 +65,6 @@
   </form>
   {% endif %}
 </section>
-
-{% if not resting %}
-<section>
-  <h2>hold an attendance</h2>
-  <form method="post" action="{{ url_for('attend') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="muted">
-      This wakes the first one once. It may take a minute, and it cannot be undone.
-      {% if not records %}This would be its first waking.{% endif %}
-      {% if pause %}The tide is paused, but an audience by hand is still yours to hold.{% endif %}
-    </p>
-    <button type="submit" class="consequential">{% if records %}Hold an attendance{% else %}Wake the first one{% endif %}</button>
-  </form>
-</section>
-{% endif %}
 
 <section>
   <h2>what has happened</h2>

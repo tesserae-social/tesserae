@@ -4,8 +4,15 @@
 {% block heading %}{{ room.other }}{% endblock %}
 
 {# One correspondence, whole, and shown only to the two who are in it: the
-   letters first, then the bond. #}
+   letters first, then the bond - except while an asking or a threshold is in
+   progress, when the bond comes first, so that what waits on either of them,
+   and the seal above all, is the first thing in the room. #}
 {% block content %}
+{% if proposal or threshold %}
+{% include "room_bond.html" %}
+{% include "letters.html" %}
+{% else %}
 {% include "letters.html" %}
 {% include "room_bond.html" %}
+{% endif %}
 {% endblock %}

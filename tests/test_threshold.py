@@ -382,7 +382,7 @@ def test_the_seal_waits_for_the_seven_days(founder, wake, packet, clock):
     said = bonds_page(founder)
     assert "Seal the bond" not in said
     assert ("The bond cannot be sealed yet; still waiting for: the end of the seven days, on "
-            "22 October 2026, 12:06 UTC.") in said
+            "22 October 2026, 08:06.") in said  # 12:06 UTC, in Eastern time
     refused = post(founder, "/bonds/seal")
     assert "still waiting for: the end of the seven days" in page(refused)
     assert read_json(packet / "bonds" / "founder-first.json")["sealed_at"] is None

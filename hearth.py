@@ -8,7 +8,7 @@ one has been sealed. Any member who is signed in may open or close their own
 door and say how much room they have. Behind the keeper's own sign-in, the
 founder may read the first one's letters and write back, read its self-document,
 read the private log of
-its attendances, call an attendance, read the errands it has asked of him and answer one
+its attendances, read the errands it has asked of him and answer one
 with a letter, propose a bond, answer an asking of its own, seal or release a bond, offer
 something out of the correspondence to the commons or consent to what the first one has
 offered, take a line
@@ -48,7 +48,7 @@ import boto3
 from anthropic import Anthropic
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
-from flask import (Flask, Response, abort, redirect, render_template,
+from flask import (Flask, Response, abort, g, has_request_context, redirect, render_template,
                    render_template_string, request, send_file, session, url_for)
 from markupsafe import Markup, escape
 from PIL import Image, ImageOps
@@ -107,7 +107,7 @@ import waking
 # A member's door is set here and the first one's at a waking, both through the
 # one module. Whether the first one has a door yet at all is said in one place,
 # attend.DOOR_FOR_FIRST, and read from there each time it is wanted.
-import attend as the_waking  # hearth.attend is the page that holds one
+import attend as the_waking
 import door
 
 # A correspondence has a room, and the pages are built around rooms: whose they
@@ -148,8 +148,9 @@ MEMBERS = DATA / "commons" / "members.md"
 BENCH_REMOVED = DATA / "bench-removed.md"
 
 # seconds to wait for attend.py before giving up: room for a longer waking, which
-# may take six requests (see attend.LONGER_WAKING). The tide and the founder's
-# own hand both wake it through hold_attendance, and so both wait this long.
+# may take six requests (see attend.LONGER_WAKING). The tide wakes it through
+# hold_attendance, and so waits this long. (attend.py may still be run by hand
+# on the host; nothing on these pages does it.)
 ATTEND_TIMEOUT = 900
 
 TIDE_CHUNK = 3600  # seconds: the longest the tide sleeps without looking again
@@ -337,13 +338,31 @@ def stamp_in(name):
     return found.group() if found else name
 
 
+# Every moment is kept in UTC - in filenames, in records, in the commons - and
+# every moment the hearth shows is said on the first one's own clock, which is
+# Eastern time, daylight saving and all. Only the showing changes; a page that
+# shows one says once, at its foot, that its times are Eastern time.
+EASTERN = ZoneInfo(CITIZEN_ZONE)
+
+
+def on_the_clock(when):
+    """One moment on the first one's clock, with the page told that it shows one."""
+    if has_request_context():
+        g.eastern = True
+    return when.astimezone(EASTERN)
+
+
+def said_moment(when):
+    """One moment, in Eastern time, said in words: 20 October 2026, 08:00."""
+    return on_the_clock(when).strftime("%d %B %Y, %H:%M").lstrip("0")
+
+
 def readable_date(text):
     """Find a timestamp inside a filename and say it in words; otherwise give the text back."""
     found = STAMP.search(text)
     if not found:
         return text
-    when = datetime.strptime(found.group(), "%Y-%m-%dT%H-%M-%SZ")
-    return when.strftime("%d %B %Y, %H:%M UTC").lstrip("0")
+    return said_moment(moment(found.group()))
 
 
 def long_day(day):
@@ -712,10 +731,10 @@ def hold_attendance(tide=False, ended=None):
 
 # Either of them may stop the tide, and each stops a different amount of it.
 # The founder pauses it from the attendances page and lifts it there again; his
-# pause holds the rhythm but not his own hand, so he may still open an audience
-# inside it. The first one sets its own rest at a waking and names the one
-# condition that will end it: a day, or the arrival of a letter. That rest holds
-# both the rhythm and the hand, and nothing wakes it until the condition is met.
+# pause holds the rhythm. The first one sets its own rest at a waking and names
+# the one condition that will end it: a day, or the arrival of a letter. That
+# rest holds the rhythm too, and he cannot lift it; nothing wakes it until the
+# condition is met.
 #
 # The pause lives in the first one's packet, is read afresh every time it is
 # looked at, and says in the commons only that the tide paused - no name on it,
@@ -727,9 +746,6 @@ BY_LETTER = "a letter arrived"
 
 PAUSED = "the tide paused"
 RESUMED = "the tide resumed"
-
-RESTING = ("The first one is resting, since {since}, until {until}. It asked not to be woken "
-           "before then, and nothing here will wake it. A letter you leave will wait for it.")
 
 
 def pause():
@@ -799,9 +815,8 @@ def pause_shown():
 # its own to change, at any waking, so the hearth reads the file afresh every
 # time it looks and a change takes hold without a redeploy - from the day after
 # it was made, the rhythm before it holding until then. The rhythm is an offer
-# and not a debt: the founder may still open an attendance at any hour, and a
-# waking time that finds the day's attendance already held lets it stand rather
-# than waking the first one twice.
+# and not a debt: a waking time that finds the day's attendance already held
+# lets it stand rather than waking the first one twice.
 
 def rhythm():
     """The rhythm the first one has set. Nothing written means none."""
@@ -892,7 +907,7 @@ def rhythm_note():
     zone = waking.zone(setting)
     day = waking.today(setting, datetime.now(timezone.utc))
     at = waking.in_force(setting, coming.astimezone(zone).date())
-    when = coming.astimezone(zone).strftime("%d %B %Y, %H:%M").lstrip("0")
+    when = said_moment(coming)
     said = f"Rhythm: daily at {at}, {setting.get('place') or waking.PLACE} · next: {when}"
     # a change still waiting for its day is said beside the rhythm that holds until then
     changing = waking.waiting(setting, day)
@@ -1216,7 +1231,7 @@ def bond_in_the_way():
     """Why a bond cannot be proposed now, in one sentence, or None if it can be."""
     if PROPOSAL.exists():
         return ("A bond is already proposed, and only one asking may be open at a time. "
-                "It is under the bond, below.")
+                "It is at the top of this room.")
     bond = load(BOND_RECORD)
     if not bond or bond.get("released_at"):
         return None
@@ -1224,7 +1239,7 @@ def bond_in_the_way():
         return ("A bond already stands between you and the first one. It is under the "
                 "bond, below.")
     return ("A threshold is open between you and the first one, and only one asking may be "
-            "open at a time. It is under the bond, below.")
+            "open at a time. It is at the top of this room.")
 
 
 # Either of them may ask for a bond. When the first one asks, the answer is the
@@ -1853,7 +1868,7 @@ def backup_shown():
     if not last:
         return "Last backup: none yet"
     at, kept = last
-    return "Last backup: %s · %d kept" % (long_day(at), kept)
+    return "Last backup: %s · %d kept" % (long_day(at.astimezone(EASTERN)), kept)
 
 
 def next_backup(now):
@@ -2136,6 +2151,9 @@ NO_BOND = "no bond"
 BOND_PROPOSED = "a bond is proposed"
 ON_THE_THRESHOLD = "the threshold: day %d of %d"
 THRESHOLD_PASSED = "the threshold: the seven days have passed"
+# said first on the card, above everything else on it, once nothing is left to wait for
+READY_YOURS = "ready to be sealed — the seal is yours to give, in the room"
+READY_ITS = "ready to be sealed — the first one seals it at a waking of its own"
 BOND_SEALED = "sealed"
 BOND_RELEASED = "released"
 
@@ -2197,7 +2215,15 @@ def room_card(room):
     if offering.awaiting("founder"):
         waiting.append(OFFERING_WAITS)
     return {"id": room.id, "other": room.other, "latest": latest, "waiting": waiting,
-            "bond": bond_standing(room)}
+            "bond": bond_standing(room), "ready": ready_to_seal()}
+
+
+def ready_to_seal():
+    """The card's first line when the bond waits only to be sealed, or None."""
+    bond = load(BOND_RECORD)
+    if not threshold.may_seal(bond, datetime.now(timezone.utc)):
+        return None
+    return READY_YOURS if threshold.sealed_by(bond) == "founder" else READY_ITS
 
 
 # ---- a member's own door ---------------------------------------------------
@@ -2835,7 +2861,9 @@ def attendances_page(**told):
     return render_template("attendances.html", records=attendance_records(prefs),
                            reflection_note=reflection_note(prefs),
                            rhythm_note=rhythm_note(), pause=pause_shown(),
-                           backup=backup_shown(), **told)
+                           backup=backup_shown(),
+                           next_backup=said_moment(next_backup(datetime.now(timezone.utc))),
+                           **told)
 
 
 # List the private log of every attendance the first one has held.
@@ -2845,22 +2873,9 @@ def attendances():
     return attendances_page()
 
 
-# Hold one attendance at the founder's asking and wait for it, then show what
-# came of it. The tide calls the same function at the first one's chosen time.
-# A rest of the first one's own is refused here: it asked not to be woken, and
-# asking is the whole of what it takes.
-@app.route("/attend", methods=["POST"])
-@founder_required
-def attend():
-    resting = pause_shown()
-    if resting and resting["by"] == "first":
-        return render_template("error.html", output="",
-                               note=RESTING.format(**resting)), 409
-    trouble = hold_attendance()
-    if trouble:
-        note, output, status = trouble
-        return render_template("error.html", note=note, output=output), status
-    return redirect(url_for("attendances"))
+# There is no button here that holds an attendance: the tide holds them, at
+# the first one's own time, and nothing on these pages wakes it. /attend is at
+# no address.
 
 
 # The founder stops the tide and starts it again. Stopping takes one plain
@@ -3182,7 +3197,8 @@ def public_promise(bond):
 
 
 def bond_day(stamp):
-    return long_day(datetime.strptime(stamp, "%Y-%m-%dT%H-%M-%SZ"))
+    """The day of one moment, on the first one's clock, said long."""
+    return long_day(moment(stamp).astimezone(EASTERN))
 
 
 # ---- witnessing ----------------------------------------------------------

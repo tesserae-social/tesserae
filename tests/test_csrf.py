@@ -72,7 +72,7 @@ def test_every_post_without_a_token_is_refused_but_the_exempt(hearth, keeper):
     routes = changing_routes(hearth)
     endpoints = {endpoint for endpoint, _, _ in routes}
     # the walk found what it should: a sanity check on the walk, not the list
-    assert {"login", "logout", "letters", "attend", "take_off_bench", "bench"} <= endpoints
+    assert {"login", "logout", "letters", "seal_bond", "take_off_bench", "bench"} <= endpoints
 
     let_through = set()
     for endpoint, method, path in routes:
@@ -98,12 +98,11 @@ def test_a_letter_with_its_token_is_left(founder, packet):
     assert [p.suffix for p in (packet / "letters" / "incoming").iterdir()] == [".md"]
 
 
-def test_the_attend_button_with_its_token_holds_an_attendance(founder, hearth, monkeypatch):
+def test_there_is_no_attend_button_to_post_to_even_with_its_token(founder, hearth, monkeypatch):
     held = []
-    monkeypatch.setattr(hearth, "hold_attendance", lambda: held.append(1))
-    answer = post(founder, "/attend")
-    assert answer.status_code == 302 and answer.headers["Location"].endswith("/attendances")
-    assert held == [1]
+    monkeypatch.setattr(hearth, "hold_attendance", lambda **how: held.append(how))
+    assert post(founder, "/attend").status_code == 404
+    assert held == []
 
 
 def test_the_bench_take_off_with_its_token_takes_the_line_off(founder, hearth, commons):
@@ -137,11 +136,9 @@ def test_signing_in_without_a_token_is_refused(hearth, visitor):
     assert visitor.get("/rooms/first").status_code == 302
 
 
-def test_the_token_may_come_as_a_header(founder, hearth, monkeypatch):
-    held = []
-    monkeypatch.setattr(hearth, "hold_attendance", lambda: held.append(1))
-    answer = founder.post("/attend", headers={"X-CSRF-Token": token(founder)})
-    assert answer.status_code == 302 and held == [1]
+def test_the_token_may_come_as_a_header(founder, hearth):
+    answer = founder.post("/pause", headers={"X-CSRF-Token": token(founder)})
+    assert answer.status_code == 200 and "Pause the tide?" in page(answer)
 
 
 def test_every_form_on_the_founders_pages_carries_the_token(founder, hearth, commons):

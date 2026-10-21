@@ -380,7 +380,7 @@ def test_an_open_errand_stands_above_the_letter_form(founder, packet):
     said = page(founder.get("/rooms/first"))
     assert "asked of you" in said
     assert said.index("asked of you") < said.index("write to the first one")
-    assert "14 October 2026, 09:00 UTC" in said
+    assert "14 October 2026, 05:00" in said  # 09:00 UTC, in Eastern time
     assert "tell me what the light did" in said
     assert '<option value="errand-%s.md">' % ASKED_AT in said
 

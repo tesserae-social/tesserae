@@ -276,22 +276,11 @@ def test_an_attendance_that_never_finishes_is_stopped(hearth, monkeypatch):
     assert status == 504
 
 
-def test_a_waking_is_given_long_enough_for_six_requests_by_the_tide_and_by_hand(
-        hearth, founder, monkeypatch, packet):
-    """The one wait, wherever the waking comes from: the tide's, and the attend button's."""
+def test_a_waking_is_given_long_enough_for_six_requests(hearth, monkeypatch, packet):
+    """The tide's waking waits as long as a longer waking may take."""
     assert hearth.ATTEND_TIMEOUT == 900
     an_attendance(packet, "2026-10-14T09-00-00Z")
     assert held_command(hearth, monkeypatch, tide=True)["timeout"] == 900
-
-    waits = []
-
-    def run(command, **asked):
-        waits.append((command[1:], asked["timeout"]))
-        return subprocess.CompletedProcess(command, 0, "", "")
-
-    monkeypatch.setattr(hearth.subprocess, "run", run)
-    assert post(founder, "/attend").status_code == 302
-    assert waits == [(["attend.py"], 900)]
 
 
 def test_only_one_attendance_is_held_at_a_time(hearth, monkeypatch):
@@ -309,12 +298,14 @@ def test_only_one_attendance_is_held_at_a_time(hearth, monkeypatch):
     assert not hearth.ATTEND_LOCK.locked()  # and the lock is given back either way
 
 
-def test_the_founder_is_turned_away_while_the_first_one_rests(founder, hearth, packet):
+def test_nothing_on_the_hearth_wakes_it_while_the_first_one_rests(founder, hearth, packet,
+                                                                   monkeypatch):
     write_json(packet / "pause.json", {"by": "first", "since": "2026-10-10T09-00-00Z",
                                        "until": "2026-10-20", "words": ""})
-    answer = post(founder, "/attend")
-    assert answer.status_code == 409
-    assert "The first one is resting" in answer.get_data(as_text=True)
+    ran = []
+    monkeypatch.setattr(hearth.subprocess, "run", lambda *a, **k: ran.append(a))
+    assert post(founder, "/attend").status_code == 404
+    assert ran == []
 
 
 # ---- one tide, and one only ----------------------------------------------

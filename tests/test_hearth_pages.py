@@ -189,7 +189,7 @@ def test_a_private_reflection_is_withheld_as_before(founder, packet, hearth, set
     ({"reflection": "open"}, "Reflections: open"),
     ({"reflection": "private"}, "Reflections: private"),
     ({"reflection": "private from now", "set_at": "2026-10-03T00-00-00Z"},
-     "Reflections: private from 3 October 2026, 00:00 UTC"),
+     "Reflections: private from 2 October 2026, 20:00"),  # Eastern time, the evening before
 ])
 def test_the_page_says_how_the_reflections_stand(founder, packet, setting, note):
     write_json(packet / "preferences.json", setting)
@@ -208,7 +208,8 @@ def test_a_waking_is_shown_whole(founder, packet):
     an_attendance(packet, OLDER, first=True, woken_by="tide",
                   acted=["wrote a letter to the founder"], heartbeat="attended; wrote a letter")
     said = page(founder.get("/attendances"))
-    assert "1 October 2026, 09:00 UTC" in said
+    assert "1 October 2026, 05:00" in said  # 09:00 UTC, in Eastern time
+    assert "Times are Eastern time." in said
     assert "its first waking" in said
     assert "attended; wrote a letter" in said
     assert "wrote a letter to the founder" in said
@@ -238,8 +239,8 @@ def test_with_a_rhythm_the_page_names_the_next_dawn(founder, packet):
 def test_with_no_pause_the_tide_may_be_paused(founder):
     said = page(founder.get("/attendances"))
     assert "Pause the tide</button>" in said
-    assert "Hold an attendance" not in said  # no wakings yet; it offers the first
-    assert "Wake the first one" in said
+    assert "Hold an attendance" not in said  # there is no button that wakes it
+    assert "Wake the first one" not in said
 
 
 def test_pausing_takes_one_plain_question_first(founder, packet, commons):
@@ -258,9 +259,9 @@ def test_pausing_takes_one_plain_question_first(founder, packet, commons):
 def test_a_pause_of_the_founder_s_is_shown_and_may_be_lifted(founder, packet, commons):
     a_pause(packet)
     said = page(founder.get("/attendances"))
-    assert "The tide is paused, since 10 October 2026, 09:00 UTC." in said
+    assert "The tide is paused, since 10 October 2026, 05:00." in said
     assert "Resume the tide" in said
-    assert "an audience by hand is still yours to hold" in said
+    assert "by hand" not in said  # no attendance is offered inside the pause
 
     assert post(founder, "/resume").status_code == 302
     assert not (packet / "pause.json").exists()
@@ -281,9 +282,9 @@ def test_one_pause_at_a_time(founder, packet):
 def test_a_rest_of_the_first_one_s_own_is_shown_as_it_named_it(founder, packet, until, said_as):
     a_pause(packet, by="first", until=until)
     said = page(founder.get("/attendances"))
-    assert "The first one is resting, since 10 October 2026, 09:00 UTC, until %s." % said_as \
+    assert "The first one is resting, since 10 October 2026, 05:00, until %s." % said_as \
         in said
-    assert "rhythm, and not your hand" in said  # its own rest stops his hand too
+    assert "the tide will not wake it" in said
     assert "hold an attendance" not in said
     assert "Pause the tide</button>" not in said
 
@@ -548,8 +549,7 @@ def test_only_the_bench_and_the_error_page_keep_a_tagline(founder):
         for line in set_here.findall(source.read_text(encoding="utf-8")):
             if line.strip():
                 kept[source.name] = line
-    assert kept == {"bench.html": "a line from anyone passing",
-                    "error.html": "attend.py stopped before it was done"}
+    assert kept == {"bench.html": "a line from anyone passing"}
     # and the pages that had one draw no line for it now
     for path in ("/account", "/attendances", "/chronicle", "/export", "/logout", "/recover",
                  "/rooms/first", "/self", "/backups"):

@@ -542,7 +542,7 @@ def test_the_page_lists_what_is_in_the_bucket_newest_first(founder, bucket, hear
         stamp = (NOW + timedelta(days=day)).strftime("%Y-%m-%dT%H-%M-%SZ")
         assert 'href="/backups/tesserae-%s.tar.gz.enc"' % stamp in said
     assert said.index("2026-10-17") < said.index("2026-10-15")  # newest first
-    assert "17 October 2026, 12:00 UTC" in said  # said in words
+    assert "17 October 2026, 08:00" in said  # said in words, in Eastern time
     assert " KB" in said or " bytes" in said     # and with its size
     assert "3 kept" in said
 

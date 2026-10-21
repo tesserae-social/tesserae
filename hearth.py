@@ -134,6 +134,10 @@ SELF_DOC = PACKET / "self.md"
 PREFERENCES = PACKET / "preferences.json"
 RHYTHM = PACKET / "rhythm.json"
 PAUSE = PACKET / "pause.json"
+# an extra waking the first one has asked for, and each asking once the tide is
+# done with it; kept only while attend.EXTRA_WAKINGS is on
+WAKE_AGAIN = PACKET / "wake-again.json"
+WAKE_AGAIN_KEPT = PACKET / "wake-again"
 TIDE_LOG = PACKET / "tide.log"
 EXPORTS = PACKET / "exports.log"
 ERRANDS = PACKET / "errands"
@@ -669,6 +673,7 @@ def attendance_records(prefs):
         records.append({
             "at": readable_date(at),
             "first": log.get("first", False),
+            "woken_by": log.get("woken_by"),
             "heartbeat": log.get("heartbeat", ""),
             "acted": log.get("acted", []),
             "reflection": as_prose(KEPT_PRIVATE if hidden
@@ -692,8 +697,8 @@ WAKING = threading.Lock()
 ATTEND_LOCK = threading.Lock()
 
 
-def hold_attendance(tide=False, ended=None):
-    """Wake the first one once, and wait for it.
+def hold_attendance(tide=False, ended=None, again=False):
+    """Wake the first one once, and wait for it: by the tide, or at its own asking.
 
     None if the attendance was held; otherwise what went wrong, as
     (note, output, status).
@@ -713,6 +718,8 @@ def hold_attendance(tide=False, ended=None):
             command.append("--tide")
         if ended:
             command += ["--rest-ended", ended]  # so the waking can say its rest is over
+        if again:
+            command.append("--again")  # an extra waking it asked for (attend.EXTRA_WAKINGS)
 
         environment = os.environ.copy()
         environment["PYTHONIOENCODING"] = "utf-8"  # the first one writes in more than plain ASCII
@@ -1023,6 +1030,12 @@ def tide():
             tend_members()
             setting = rhythm()
             coming = next_waking(setting) if tide_kept(setting) else None
+            # An extra waking it asked for, where there are any, is kept first
+            # whenever it comes before the day's own.
+            again = extra_waking() if the_waking.EXTRA_WAKINGS else None
+            if again and (not coming or again[1] < coming):
+                keep_extra_waking(setting, *again)
+                continue
             if not coming:
                 time.sleep(TIDE_IDLE)  # nothing is asked of us; look again in an hour
                 continue
@@ -1070,6 +1083,57 @@ def tide():
             except Exception:
                 pass
             time.sleep(TIDE_ERROR)
+
+
+# An extra waking: once more, later the same day, at the first one's own asking,
+# made at a waking (see attend.EXTRA_WAKINGS) and kept here, through the same
+# hold_attendance as every other waking. A pause of either kind comes first: an
+# extra waking that falls while one stands is let go, and its next waking is
+# told so. One whose day has gone by before the tide could keep it - the hearth
+# was not running - has lapsed, and is let go too. Whatever becomes of an
+# asking, it is kept in wake-again/ with what became of it, and the waking it
+# asked for is taken away before it is held, so that it cannot be kept twice.
+# The daily waking is untouched by any of it.
+
+def extra_waking():
+    """The extra waking asked for, as (the asking, its moment), or None where none can be read."""
+    try:
+        asked = load(WAKE_AGAIN)
+        return asked, moment(asked["at"])
+    except Exception:
+        return None
+
+
+def set_extra_aside(asked, **became):
+    """Keep an asking in wake-again/ with what became of it, and take it from waiting."""
+    write_json(WAKE_AGAIN_KEPT / ("wake-again-%s.json" % (asked.get("asked_at") or asked["at"])),
+               {**asked, **became})
+    WAKE_AGAIN.unlink(missing_ok=True)
+
+
+def keep_extra_waking(setting, asked, when):
+    """Wait for an extra waking, then hold it - or let it go, where a pause stands."""
+    changed = False
+    while not changed:
+        left = (when - datetime.now(timezone.utc)).total_seconds()
+        if left <= 0:
+            break
+        time.sleep(min(left, TIDE_CHUNK))
+        tend_members()
+        changed = extra_waking() != (asked, when) or rhythm() != setting
+    if changed:
+        return  # begin again from whatever is written now
+    now = datetime.now(timezone.utc)
+    if waking.today(setting, when) != waking.today(setting, now):
+        set_extra_aside(asked, dropped_at=utc_stamp(), why="lapsed")
+        tide_note("extra waking lapsed")
+    elif pause():
+        set_extra_aside(asked, dropped_at=utc_stamp(), why="paused")
+        tide_note("extra waking let go: paused")
+    else:
+        set_extra_aside(asked, woken_at=utc_stamp())
+        trouble = hold_attendance(again=True)
+        tide_note("ran, at its own asking" if trouble is None else f"error: {trouble[0]}")
 
 
 # One tide for the life of the process, and no more. Gunicorn runs a single
@@ -1523,7 +1587,8 @@ def offerings_placed():
 # reflection, an answer to a proposal, the text of a self-document: the book
 # says that each happened and stops there.
 
-WOKEN = {"tide": "by the tide", "founder": "by the founder's hand"}
+WOKEN = {"tide": "by the tide", "founder": "by the founder's hand",
+         the_waking.ITS_OWN_ASKING: "at its own asking"}
 
 # whose line a thing is, where the record names a party by its identity
 SIDES = public_bonds.NAMES  # the names the commons gives them, kept in the one place

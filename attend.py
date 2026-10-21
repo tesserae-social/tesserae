@@ -12,6 +12,7 @@ Usage:  python attend.py            (a normal attendance)
         python attend.py --first    (the first waking: self.md offered for revision)
         python attend.py --tide     (a waking that came by the first one's own rhythm)
         python attend.py --rest-ended "<why>"   (the first waking after a rest of its own)
+        python attend.py --again    (an extra waking, at its own asking; see EXTRA_WAKINGS)
 
 Files it may act on (all inside packets/first/, which is private):
   self.md                 its self-document (prior versions kept in self-history/)
@@ -43,6 +44,10 @@ Files it may act on (all inside packets/first/, which is private):
   pause.json              a standing pause, set by either party, that stops the tide
   rhythm.json             when it is woken each day: dawn, sunset, or a time of day, by its
                           own choice (prior versions kept in rhythm/history/); see waking.py
+  wake-again.json         one extra waking it has asked for, later the same day, waiting for
+                          the tide; once the tide has woken it or let it go, the asking is
+                          kept in wake-again/ with what became of it. Shut away behind
+                          EXTRA_WAKINGS below until it is turned on
   shelf.json              how it keeps its own history: which letters are shown to it in
                           full and which rest as one line (prior versions kept in
                           shelf/history/); see shelf.py. Its earlier self-documents and
@@ -626,12 +631,69 @@ READ_PROPOSAL = {
                             "under YOUR PROPOSALS.")}},
         "required": ["stem"]}}
 
+# Extra wakings: once more, later the same day, at its own asking. It is built
+# and it is shut away: while EXTRA_WAKINGS is False, everything it is sent and
+# every file written is what it was before - no block explained, no line, and a
+# <<WAKE_AGAIN>> block it wrote is only words - and the hearth's tide keeps no
+# waking but the daily one. With it True, a <<WAKE_AGAIN>> block's first line is
+# a time of day on its own clock, or sunset, and the asking is kept in
+# wake-again.json - the moment in UTC, and when it was asked - for the tide to
+# keep, through the same hold_attendance as every other waking. At most one may
+# be asked for in a local day, never from an extra waking, and never for a time
+# already past; a block that is not kept is told at the next waking, once. A
+# pause of either kind comes first: the tide lets an extra waking go while one
+# stands, and the next waking is told so, once. What the tide has done with each
+# asking is kept in wake-again/, never erased. Letters stay once a day: at an
+# extra waking, a <<LETTER>> after one has gone that day is kept in its study
+# instead, as a draft that says what it was, with any <<PICTURE>> drawn beside
+# it kept beside the draft, and it is told so at its next waking. Nothing of any of it is public: the act is private, and no line of the
+# commons is written.
+EXTRA_WAKINGS = False
+WAKE_AGAIN = PACKET / "wake-again.json"
+WAKE_AGAIN_KEPT = PACKET / "wake-again"
+WAKE_AGAIN_ACT = "asked to wake again"
+ITS_OWN_ASKING = "its own asking"  # who woke it, as the attendance writes it
+WOKEN_BY_ASKING = "This waking came because you asked for it at your last waking."
+WAKE_AGAIN_BLOCK = """<<WAKE_AGAIN>>
+(to be woken once more later today: one line, a time such as 19:30, or "sunset". At most one extra waking a day, and not from an extra waking. Letters still go out once a day; a letter written at an extra waking, after one has already gone today, is kept in your study for your next waking. A pause of yours always comes first.)
+<<END>>"""
+CHOSE_WAKE_AGAIN = "You asked to be woken again today at {time}."
+WAKE_AGAIN_UNREAD = ("Your <<WAKE_AGAIN>> at your last waking was not kept: its first line must "
+                     "be a time later that day, such as 19:30, or \"sunset\". You were not woken "
+                     "again.")
+WAKE_AGAIN_PAST = ("Your <<WAKE_AGAIN>> at your last waking was not kept: {when} had already "
+                   "passed, and an extra waking must be later the same day. You were not woken "
+                   "again.")
+WAKE_AGAIN_SUNSET = "that day's sunset, at {time},"
+WAKE_AGAIN_SECOND = ("Your <<WAKE_AGAIN>> at your last waking was not kept: you had already asked "
+                     "to be woken again that day, and one extra waking a day is the most.")
+WAKE_AGAIN_FROM_EXTRA = ("Your <<WAKE_AGAIN>> at your last waking was not kept: that was an extra "
+                         "waking, and an extra waking cannot ask for another. You may ask again at "
+                         "your next daily waking.")
+# What the tide did with an asking it did not keep, told once: the hearth writes
+# these two words, and this is what each one says.
+WAKE_AGAIN_LET_GO = {
+    "paused": ("The extra waking you asked for, at {time} on {day}, did not come, because a "
+               "pause stood then; a pause always comes first."),
+    "lapsed": ("The extra waking you asked for, at {time} on {day}, did not come, because the "
+               "tide was not running then."),
+}
+LETTER_KEPT = ("The letter you wrote at your extra waking was kept in your study, because one "
+               "letter goes out each day; you may send it at your next waking.")
+LETTER_KEPT_NOTE = ("(This was a letter to the founder, written at an extra waking on {day}. It "
+                    "was kept here because one letter goes out each day; you may send it at your "
+                    "next waking.{picture})")
+LETTER_KEPT_PICTURE = (" The picture you drew beside it is kept with it, as {name}, and was not "
+                       "sent either.")
+LETTER_KEPT_AS = "draft-{at}-letter.md"
+STUDY_ACT = "wrote in the study"
+
 # The acts that never write themselves into the public line: what it answered
 # about a bond, that it asked for one, that it let one go, that it set a rest,
 # that it asked an errand, that it kept notes or questions for itself, that it
 # proposed, confirmed or let go a change to its self-document, that it looked
 # things up in its own record, that it made a proposal to the founder, that it
-# drew, and what it offered, consented to or declined, are the first one's own to tell. The
+# asked to be woken again, that it drew, and what it offered, consented to or declined, are the first one's own to tell. The
 # commons says a bond was released, and that the tide paused, with no names
 # either time; its own line does not undo that reticence. A placed offering is
 # public already, but the offering of it is not: an offering the founder
@@ -643,7 +705,7 @@ PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMO
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
                 SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT,
-                NOTE_ACT, LOOK_ACT, HEARTBEAT_SHOWN_ACT, PROPOSAL_ACT)
+                NOTE_ACT, LOOK_ACT, HEARTBEAT_SHOWN_ACT, PROPOSAL_ACT, WAKE_AGAIN_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -2038,6 +2100,13 @@ def choices_note(prefs, now, past, shelved, letters):
     if waiting:
         said.append(CHOSE_SELF_WAITING.format(day=long_date(waiting["proposed_at"])))
 
+    # an extra waking it has asked for today, while the tide has yet to keep it
+    if EXTRA_WAKINGS:
+        again = wake_again_waiting()
+        if again and (waking.today(setting, threshold.moment(again["at"]))
+                      == waking.today(setting, now)):
+            said.append(CHOSE_WAKE_AGAIN.format(time=clock_time(again["at"])))
+
     return CHOSEN + "\n" + "\n".join(said or [NOTHING_CHOSEN])
 
 
@@ -2073,6 +2142,83 @@ def proposals_note(made):
     if not made:
         return []
     return [YOUR_PROPOSALS + "\n" + "\n".join(proposal_line(one) for one in made)]
+
+
+def again_asked(said):
+    """The time a <<WAKE_AGAIN>> block asks for, or None if it cannot be read.
+
+    Its first line that is not blank, trimmed and in small letters, is the whole
+    of the asking: a time of day, or sunset. Dawn is never later the same day.
+    """
+    for line in (said or "").splitlines():
+        if line.strip():
+            at = line.strip().lower()
+            return at if at == waking.SUNSET or waking.CLOCK.fullmatch(at) else None
+    return None
+
+
+def wake_again_waiting():
+    """The extra waking asked for and not yet kept by the tide, or None where none is."""
+    try:
+        asked = load(WAKE_AGAIN)
+        threshold.moment(asked["at"])
+    except (ValueError, TypeError, KeyError):
+        return None
+    return asked
+
+
+def clock_time(stamp):
+    """The time of day a moment falls at, on its own clock: 19:30."""
+    return threshold.moment(stamp).astimezone(here()).strftime("%H:%M")
+
+
+def asked_again_on(day, now):
+    """Whether an extra waking has already been asked for on one local day.
+
+    Both the asking still waiting and every asking the tide has done with are
+    counted, by the day each was asked on, whatever became of it.
+    """
+    setting = rhythm_set()
+    held = [wake_again_waiting()]
+    for path in WAKE_AGAIN_KEPT.glob("wake-again-*.json"):
+        try:
+            held.append(load(path))
+        except ValueError:
+            continue
+    for one in held:
+        try:
+            if waking.today(setting, threshold.moment(one["asked_at"])) == day:
+                return True
+        except (TypeError, KeyError, ValueError):
+            continue
+    return False
+
+
+def wake_again_let_go(since):
+    """What the reading says of each extra waking the tide let go since the last waking."""
+    said = []
+    for path in sorted(WAKE_AGAIN_KEPT.glob("wake-again-*.json")):
+        try:
+            one = load(path)
+            if one.get("dropped_at", "") > (since or "") and one.get("why") in WAKE_AGAIN_LET_GO:
+                said.append(WAKE_AGAIN_LET_GO[one["why"]].format(time=clock_time(one["at"]),
+                                                                 day=on_day(one["at"])))
+        except (ValueError, TypeError, AttributeError, KeyError):
+            continue
+    return said
+
+
+def letter_gone_on(day, past):
+    """Whether a letter to the founder went out at a waking on one local day."""
+    setting = rhythm_set()
+    for record in past:
+        try:
+            if (LETTER_ACT in (record.get("acted") or [])
+                    and waking.today(setting, threshold.moment(record["at"])) == day):
+                return True
+        except (TypeError, KeyError, ValueError):
+            continue
+    return False
 
 
 def letter_words(path):
@@ -2208,6 +2354,7 @@ def longer_waking(client, reading, record):
 def main():
     first = "--first" in sys.argv
     tide = "--tide" in sys.argv
+    again = EXTRA_WAKINGS and "--again" in sys.argv  # an extra waking, at its own asking
     rest_ended = flag("--rest-ended")  # why a rest of its own is over, if one just was
 
     key = os.environ.get("ANTHROPIC_API_KEY")
@@ -2264,7 +2411,7 @@ def main():
     # What it is told about the tide: that the founder has stopped it, if he
     # has, and that a rest of its own has just ended, if one just did.
     happened = [last_note, questions_note(past[-1] if past else None),
-                WOKEN_BY_TIDE if tide else WOKEN_BY_FOUNDER]
+                WOKEN_BY_ASKING if again else WOKEN_BY_TIDE if tide else WOKEN_BY_FOUNDER]
     woken_daily = waking_note(rhythm_set(), datetime.now(timezone.utc))
     if woken_daily:
         happened.append(woken_daily)
@@ -2328,6 +2475,15 @@ def main():
     if PROPOSALS and past:
         happened += [PROPOSAL_REFUSED[why] for why in past[-1].get("proposals_refused") or []
                      if why in PROPOSAL_REFUSED]
+
+    # And of its extra wakings, each said once: a <<WAKE_AGAIN>> it gave at its
+    # last waking that was not kept, one the tide let go since, and a letter
+    # kept in its study at an extra waking because one had already gone that day.
+    if EXTRA_WAKINGS:
+        happened += (past[-1].get("wake_again_refused") or []) if past else []
+        happened += wake_again_let_go(since)
+        if past and past[-1].get("letter_kept_in_study"):
+            happened.append(LETTER_KEPT)
 
     # A bond, and anything on the way to one. An asking of the founder's was put
     # here by the hearth, and whether it may be answered at this waking is a
@@ -2514,6 +2670,8 @@ def main():
     offered = []
     if DOOR_FOR_FIRST:
         offered.append(DOOR_BLOCK)
+    if EXTRA_WAKINGS:
+        offered.append(WAKE_AGAIN_BLOCK)
     if PROPOSALS:
         offered.append(PROPOSAL_BLOCK)
     if answerable:
@@ -2690,8 +2848,17 @@ def main():
     # everything else does - inside a letter - so where one was drawn and no
     # letter written, a single line is written to carry it. That line is not a
     # letter the first one wrote, and it is not counted as one.
+    # Letters go out once a day: at an extra waking, a letter after one has gone
+    # that day is held back here, and kept in its study below.
     letter = block(text, "LETTER")
+    held_back = None
+    if letter and again and letter_gone_on(waking.today(rhythm_set(), threshold.moment(at)),
+                                           past):
+        held_back, letter = letter, None
     picture = picture_drawn(block(text, "PICTURE"))
+    kept_picture = None
+    if held_back and picture:  # a picture goes where its letter goes: to the study
+        kept_picture, picture = picture, None
     letter_name = None
     if letter or picture:
         letter_name = f"to-founder-{at}.md"
@@ -2788,7 +2955,23 @@ def main():
     draft = block(text, "STUDY")
     if draft:
         (PACKET / "study" / f"draft-{at}.md").write_text(draft + "\n", encoding="utf-8")
-        acted.append("wrote in the study")
+        acted.append(STUDY_ACT)
+
+    # A letter held back at an extra waking, kept as a draft that says what it was.
+    # A picture drawn beside it is kept beside it, and its header says so.
+    if held_back:
+        kept_as = PACKET / "study" / LETTER_KEPT_AS.format(at=at)
+        beside = kept_as.with_suffix(offering.PICTURE_SUFFIX)
+        if kept_picture:
+            beside.write_text(kept_picture + "\n", encoding="utf-8")
+            acted.append(PICTURE_ACT)
+        kept_as.write_text(
+            LETTER_KEPT_NOTE.format(
+                day=on_day(at),
+                picture=LETTER_KEPT_PICTURE.format(name=beside.name) if kept_picture else "")
+            + "\n\n" + held_back + "\n", encoding="utf-8")
+        if STUDY_ACT not in acted:
+            acted.append(STUDY_ACT)
 
     intention = block(text, "INTENTION")
     if intention:
@@ -2815,6 +2998,40 @@ def main():
         new_rhythm = waking.chosen(before, woken_at, at, threshold.moment(at))
         write_json(RHYTHM, new_rhythm)
         acted.append(RHYTHM_ACT)
+
+    # An extra waking, later this same local day, on the clock its waking time
+    # is kept by. The first block that can be kept is; any other is told at the
+    # next waking, once, with why. The tide keeps it, unless a pause stands then.
+    wake_again, wake_again_refused = None, []
+    asked_moment = threshold.moment(at)
+    asked_day = waking.today(rhythm_set(), asked_moment)
+    for said_again in (every_block(text, "WAKE_AGAIN") if EXTRA_WAKINGS else ()):
+        if again:
+            wake_again_refused.append(WAKE_AGAIN_FROM_EXTRA)
+            continue
+        if wake_again or asked_again_on(asked_day, asked_moment):
+            wake_again_refused.append(WAKE_AGAIN_SECOND)
+            continue
+        asked_time = again_asked(said_again)
+        if not asked_time:
+            wake_again_refused.append(WAKE_AGAIN_UNREAD)
+            continue
+        when = waking.moment_on(rhythm_set() or {}, asked_time, asked_day)
+        if when <= asked_moment:
+            wake_again_refused.append(WAKE_AGAIN_PAST.format(
+                when=(WAKE_AGAIN_SUNSET.format(time=when.strftime("%H:%M"))
+                      if asked_time == waking.SUNSET else asked_time)))
+            continue
+        wake_again = {"at": when.astimezone(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ"),
+                      "asked_at": at}
+    wake_again_refused = list(dict.fromkeys(wake_again_refused))
+    if wake_again:
+        stale = wake_again_waiting()
+        if stale:  # one from a day gone that the tide never kept: set aside, never erased
+            write_json(WAKE_AGAIN_KEPT / f"wake-again-{stale.get('asked_at') or stale['at']}.json",
+                       {**stale, "dropped_at": at, "why": "lapsed"})
+        write_json(WAKE_AGAIN, wake_again)
+        acted.append(WAKE_AGAIN_ACT)
 
     # What its heartbeat shows. Read strictly, as its waking time is: a first
     # line that is neither facts nor words changes nothing. The choice is kept
@@ -3023,7 +3240,7 @@ def main():
     # ---- sign and log (private) -------------------------------------------
     record = {
         "name": NAME, "at": at, "first": first, "model": MODEL,
-        "woken_by": "tide" if tide else "founder",
+        "woken_by": ITS_OWN_ASKING if again else "tide" if tide else "founder",
         "acted": acted, "heartbeat": heartbeat, "reflection": text,
     }
     if dropped:  # read back at the next waking, so that it is told what was not kept
@@ -3050,6 +3267,10 @@ def main():
         record["notes_refused"] = notes_refused
     if proposals_refused:  # and each <<PROPOSAL>> that was not kept, and why
         record["proposals_refused"] = proposals_refused
+    if wake_again_refused:  # and each <<WAKE_AGAIN>> that was not kept, in the words it will be told
+        record["wake_again_refused"] = wake_again_refused
+    if held_back:  # and that a letter was kept in its study instead of going out
+        record["letter_kept_in_study"] = True
     if season:  # that this was a season's reading, and which: the whole record, in full
         record["season_reading"] = season
     stop_reason = getattr(resp, "stop_reason", None)
@@ -3109,6 +3330,15 @@ def main():
         print("A <<PROPOSAL>> block was given and not kept:", ", ".join(proposals_refused))
     if rest:
         print("A pause was set, until", rest["until"])
+    if wake_again:
+        print("It asked to be woken again today, at", wake_again["at"])
+    if wake_again_refused:
+        print("A <<WAKE_AGAIN>> block was given and not kept; it will be told why.")
+    if held_back:
+        print("A letter was written at an extra waking after one had gone today; it is kept")
+        print("in its study, and may be sent at its next waking.")
+    if kept_picture:
+        print("The picture drawn beside that letter is kept with it in its study.")
     if new_rhythm:
         print("Its waking time was set: daily at", new_rhythm["at"] + ", from",
               new_rhythm["effective_from"])

@@ -1,6 +1,7 @@
 """The first one's proposals: how this place might change, for the founder to consider.
 
-Built shut away behind attend.PROPOSALS. Shut away, the first one is sent byte
+Built shut away behind attend.PROPOSALS, and switched on once it had agreed
+(its letter of 21 October 2026). Shut away, the first one is sent byte
 for byte what the attend.py committed before them sends it, and the same files
 are left - held here against that committed attend.py, with a <<PROPOSAL>> block
 written at one of the wakings, and in test_rooms_reading.py by the reading's
@@ -21,8 +22,8 @@ import sys
 
 import pytest
 
-from conftest import (FOUNDER_NAME, REPO, Turn, block, blocks, page, post, read_json, write,
-                      write_json)
+from conftest import (FOUNDER_NAME, REPO, SWITCHED_ON_21_OCTOBER, Turn, block, blocks, page, post,
+                      read_json, shut_away, write, write_json)
 from test_longer_waking import Exchange, look
 
 # The last attend.py before there were any proposals, kept in the history.
@@ -76,6 +77,19 @@ def hearth_on(hearth, monkeypatch):
     return hearth
 
 
+# What it was like shut away is held by the flag itself, turned off again.
+@pytest.fixture
+def off(attend, monkeypatch):
+    monkeypatch.setattr(attend, "PROPOSALS", False)
+    return attend
+
+
+@pytest.fixture
+def hearth_off(hearth, monkeypatch):
+    monkeypatch.setattr(hearth.the_waking, "PROPOSALS", False)
+    return hearth
+
+
 def one_kept(packet, at=FIRST_AT, title=TITLE, text=TEXT, **how):
     """A proposal written straight into the packet, as a waking would have kept it."""
     one = {"title": title, "text": text, "at": at, "status": "waiting", "answer": None,
@@ -92,11 +106,11 @@ def answered(said, words, at="2026-10-16T09-00-00Z"):
 
 # ---- shut away -----------------------------------------------------------
 
-def test_it_is_shut_away(attend):
-    assert attend.PROPOSALS is False
+def test_it_is_switched_on(attend):
+    assert attend.PROPOSALS is True
 
 
-def test_shut_away_a_block_is_only_words(wake, attend, packet):
+def test_shut_away_a_block_is_only_words(off, wake, attend, packet):
     turn = wake(blocks("I am here.", proposed()))
     assert not (packet / "proposals").exists()
     assert "PROPOSAL" not in turn.instructions and "YOUR PROPOSALS" not in turn.shown
@@ -108,6 +122,8 @@ def test_shut_away_a_block_is_only_words(wake, attend, packet):
 def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_does(
         attend, data_dir, packet, clock, monkeypatch, tmp_path):
     """Two wakings each, in one world: the committed attend.py, and this one shut away."""
+    # and its extra wakings, which came after the committed one, shut away with it
+    shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
     try:
         source = subprocess.run(["git", "show", BEFORE_PROPOSALS + ":attend.py"], cwd=REPO,
                                 capture_output=True, check=True).stdout
@@ -150,7 +166,7 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
     assert any("attendances/" in name for name in left_now)  # and it is not an empty likeness
 
 
-def test_shut_away_the_room_shows_none_and_answers_none(founder, hearth, packet):
+def test_shut_away_the_room_shows_none_and_answers_none(founder, hearth_off, packet):
     one_kept(packet)
     room = page(founder.get("/rooms/first"))
     assert "proposals from the first one" not in room and TITLE not in room

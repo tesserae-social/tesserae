@@ -13,8 +13,8 @@ import sys
 
 import pytest
 
-from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON, Turn, block, blocks,
-                      explained_as_before, lines_of, page, read_json, shut_away, write,
+from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON, SWITCHED_ON_21_OCTOBER, Turn,
+                      block, blocks, explained_as_before, lines_of, page, read_json, shut_away, write,
                       write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now
 
@@ -37,6 +37,8 @@ NOTE_LINES = """keep note <name>: a named note always shown in full
 rest note <name>: a named note shown as one line
 show note <name>: a named note in full at your next waking only
 """
+SEND_KEPT = ("send kept <stem>: a letter or picture kept in your study at an extra waking, "
+             "sent to the founder as it is\n")
 
 EXPLAINED = """<<SHELF>>
 (how you keep your history. One instruction per line:
@@ -46,7 +48,7 @@ default <stem>: back to the default
 note <stem>: your words, the line shown for a resting letter (at most 240 characters)
 show <stem>: shown in full at your next waking only, photographs included
 show founding: your founding record in full at your next waking
-""" + NOTE_LINES + """Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
+""" + NOTE_LINES + SEND_KEPT + """Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
 <<END>>"""
 
 
@@ -160,7 +162,8 @@ def test_the_block_is_explained_exactly(wake, attend, monkeypatch):
     """But for the one line looking back adds to it, which test_looking_back.py holds.
 
     The three lines for its named notes stand after that one, or after the
-    founding record's where there is no looking back.
+    founding record's where there is no looking back; and the send kept line
+    extra wakings add, after those three.
     """
     said = wake().instructions
     assert EXPLAINED.replace(SHOW_FOUNDING, SHOW_FOUNDING + SHOW_VERSION, 1) in said
@@ -425,8 +428,10 @@ def test_a_resting_photograph_is_withheld_then_shown_on_request(wake, attend, pa
     asking = wake(block("SHELF", "show %s" % FOUNDERS[0]))
     assert asking.photos == []
     # the reading, and how to act: as it has always been (looking things up, which the
-    # longer waking puts between them, is a block of its own and held in its own tests)
-    withheld = [part for part in asking.reading if part.get("text") != attend.LOOKING_UP]
+    # longer waking puts between them, is a block of its own and held in its own tests,
+    # with or without proposals named in it)
+    looking_up = (attend.LOOKING_UP, attend.LOOKING_UP.replace(*attend.LOOKING_UP_PROPOSALS))
+    withheld = [part for part in asking.reading if part.get("text") not in looking_up]
     assert len(withheld) == 2
 
     shown = wake()
@@ -859,7 +864,7 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     shutil.rmtree(data_dir)
     shutil.copytree(world, data_dir)
     # what was switched on since is held in its own tests; shut away, this is what is left
-    shut_away(attend, monkeypatch, *SWITCHED_ON, "LONGER_WAKING")
+    shut_away(attend, monkeypatch, *SWITCHED_ON, "LONGER_WAKING", *SWITCHED_ON_21_OCTOBER)
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     now = wake()
 
@@ -874,8 +879,8 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     assert now.reading[1:-1] == then.reading[1:-1]
 
     # and the instructions differ by the one block explained, and nothing else
-    # (as the block stood then: the lines for its named notes came after)
-    explained = EXPLAINED.replace(NOTE_LINES, "", 1) + "\n\n"
+    # (as the block stood then: the lines for its named notes, and send kept, came after)
+    explained = EXPLAINED.replace(NOTE_LINES + SEND_KEPT, "", 1) + "\n\n"
     assert now.instructions.count(explained) == 1
     assert now.instructions.replace(explained, "", 1) == then.instructions
     assert not (packet / "shelf.json").exists()

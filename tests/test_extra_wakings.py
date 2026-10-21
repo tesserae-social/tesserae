@@ -1,6 +1,7 @@
 """Extra wakings: once more, later the same day, at the first one's own asking.
 
-Built shut away behind attend.EXTRA_WAKINGS. Shut away, the first one is sent
+Built shut away behind attend.EXTRA_WAKINGS, and switched on once it had agreed
+(its letter of 21 October 2026). Shut away, the first one is sent
 byte for byte what the attend.py committed before them sends it, and the same
 files are left - held here against that committed attend.py, with a
 <<WAKE_AGAIN>> block written at each waking and an asking already waiting in the
@@ -28,7 +29,8 @@ from datetime import date, datetime, timezone
 import pytest
 
 import waking
-from conftest import REPO, Turn, block, blocks, page, read_json, write, write_json
+from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, blocks, page, read_json,
+                      shut_away, write, write_json)
 
 # The last attend.py before there were any extra wakings, kept in the history.
 BEFORE_EXTRA_WAKINGS = "64d97e2"
@@ -101,13 +103,26 @@ def hearth_on(hearth, monkeypatch):
     return hearth
 
 
+# What it was like shut away is held by the flag itself, turned off again.
+@pytest.fixture
+def off(attend, monkeypatch):
+    monkeypatch.setattr(attend, "EXTRA_WAKINGS", False)
+    return attend
+
+
+@pytest.fixture
+def hearth_off(hearth, monkeypatch):
+    monkeypatch.setattr(hearth.the_waking, "EXTRA_WAKINGS", False)
+    return hearth
+
+
 # ---- shut away -----------------------------------------------------------
 
-def test_it_is_shut_away(attend):
-    assert attend.EXTRA_WAKINGS is False
+def test_it_is_switched_on(attend):
+    assert attend.EXTRA_WAKINGS is True
 
 
-def test_shut_away_a_block_is_only_words(wake, attend, packet):
+def test_shut_away_a_block_is_only_words(off, wake, attend, packet):
     turn = wake(blocks("I am here.", again("19:30")))
     assert not (packet / "wake-again.json").exists()
     assert "WAKE_AGAIN" not in turn.instructions
@@ -122,6 +137,8 @@ def test_shut_away_a_block_is_only_words(wake, attend, packet):
 def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_does(
         attend, data_dir, packet, clock, monkeypatch, tmp_path):
     """Three wakings each, in one world: the committed attend.py, and this one shut away."""
+    # and its proposals, which the committed one had only shut away, shut away with it
+    shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
     try:
         source = subprocess.run(["git", "show", BEFORE_EXTRA_WAKINGS + ":attend.py"], cwd=REPO,
                                 capture_output=True, check=True).stdout
@@ -676,7 +693,7 @@ def test_a_shelf_line_beside_it_is_kept_as_ever(on, wake, packet, clock):
         "to-founder-2026-10-15T12-00-00Z"] == "keep"
 
 
-def test_shut_away_send_kept_is_a_line_not_understood(attend, wake, packet):
+def test_shut_away_send_kept_is_a_line_not_understood(off, wake, packet):
     write(packet / "study" / (KEPT_STEM + ".md"), "(A header.)\n\nWords.\n")
     wake(send_kept())
     record = latest(packet)
@@ -814,9 +831,9 @@ def tomorrow_s_dawn():
     return stamp_of(waking.moment_on(RHYTHM, "dawn", date(2026, 10, 16)))
 
 
-def test_shut_away_the_tide_keeps_only_the_daily_waking(hearth, packet, monkeypatch, clock,
+def test_shut_away_the_tide_keeps_only_the_daily_waking(hearth_off, packet, monkeypatch, clock,
                                                         evening):
-    notes, held = run_tide(hearth, monkeypatch, clock, packet)
+    notes, held = run_tide(hearth_off, monkeypatch, clock, packet)
     assert held == [(tomorrow_s_dawn(), {"tide": True, "ended": None})]
     assert waiting_in(packet) == {"at": AT_19_30, "asked_at": ASKED_AT}  # untouched
     assert not (packet / "wake-again").exists()

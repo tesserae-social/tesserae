@@ -13,8 +13,9 @@ import sys
 import pytest
 from nacl.exceptions import BadSignatureError
 
-from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, explained_as_before,
-                      lines_of, read_json, shut_away, verify, write, write_json)
+from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON_21_OCTOBER, Turn, block, blocks,
+                      explained_as_before, lines_of, read_json, shut_away, verify, write,
+                      write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now
 
 SECTIONS = [
@@ -411,6 +412,7 @@ def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
     # its door, its looking back and what it has chosen came long after, and each
     # is held to the letter in its own tests: shut away here, this is what is left
     shut_away(attend, monkeypatch)
+    shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)  # and so with these, later still
     # and so did the two-waking rule for its self-document, which is behind no
     # flag: the block that proposes one is explained here as it was before it
     explained_as_before(attend, monkeypatch)

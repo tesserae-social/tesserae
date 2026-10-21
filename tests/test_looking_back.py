@@ -20,8 +20,8 @@ import sys
 
 import pytest
 
-from conftest import (REPO, Turn, block, explained_as_before, lines_of, page, read_json,
-                      shut_away, solstices_as_before, stamps_as_before, write, write_json)
+from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
+                      page, read_json, shut_away, solstices_as_before, stamps_as_before, write, write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now
 
 EARLIER = "=== YOUR EARLIER VERSIONS ==="
@@ -58,6 +58,8 @@ NOTE_LINES = """keep note <name>: a named note always shown in full
 rest note <name>: a named note shown as one line
 show note <name>: a named note in full at your next waking only
 """
+SEND_KEPT = ("send kept <stem>: a letter or picture kept in your study at an extra waking, "
+             "sent to the founder as it is\n")
 
 EXPLAINED = """<<SHELF>>
 (how you keep your history. One instruction per line:
@@ -67,7 +69,7 @@ default <stem>: back to the default
 note <stem>: your words, the line shown for a resting letter (at most 240 characters)
 show <stem>: shown in full at your next waking only, photographs included
 show founding: your founding record in full at your next waking
-%s""" + NOTE_LINES + """Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
+%s""" + NOTE_LINES + SEND_KEPT + """Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
 <<END>>"""
 
 
@@ -130,11 +132,13 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     """Two wakings each, in one world that keeps versions and asks for one.
 
     The old attend.py and this one are sent the same bytes at both, and leave
-    the same files behind them. What it has chosen and the longer waking came
-    after, and are shut away with it; its door, which the old one had and kept
-    shut away, stands in both as it stands now.
+    the same files behind them. What it has chosen, the longer waking, its
+    proposals and its extra wakings came after, and are shut away with it; its
+    door, which the old one had and kept shut away, stands in both as it stands
+    now.
     """
-    shut_away(attend, monkeypatch, "LOOKING_BACK", "CHOICES", "LONGER_WAKING")
+    shut_away(attend, monkeypatch, "LOOKING_BACK", "CHOICES", "LONGER_WAKING",
+              *SWITCHED_ON_21_OCTOBER)
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     stamps_as_before(attend, monkeypatch)  # and said each moment as its raw stamp
     solstices_as_before(monkeypatch)  # and read the whole record back at the solstices

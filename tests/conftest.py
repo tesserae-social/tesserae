@@ -485,6 +485,12 @@ def wake(attend, clock, monkeypatch):
 # itself: a test that wants it off says so, and does not lean on the constant.
 SWITCHED_ON = ("DOOR_FOR_FIRST", "LOOKING_BACK", "CHOICES")
 
+# Its proposals and its extra wakings, each built shut away behind its own flag,
+# and switched on together once it had agreed to both (its letter of 21 October
+# 2026). Anything held to a reading or an attend.py from before them shuts both
+# away again, by name: shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER).
+SWITCHED_ON_21_OCTOBER = ("PROPOSALS", "EXTRA_WAKINGS")
+
 
 def shut_away(module, monkeypatch, *flags):
     """Shut away again, for one test, some of what attend.py has switched on; all, if none is named."""

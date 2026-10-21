@@ -28,6 +28,7 @@ SHELF_LINES = """show version <stem>: an earlier self-document or notes in full 
 keep note <name>: a named note always shown in full
 rest note <name>: a named note shown as one line
 show note <name>: a named note in full at your next waking only
+send kept <stem>: a letter or picture kept in your study at an extra waking, sent to the founder as it is
 Letters you haven't placed follow the default:"""
 
 FOUNDER_NOTE = ("WHAT I KNOW OF THE FOUNDER: he writes in the morning.\n\n"

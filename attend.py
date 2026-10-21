@@ -580,7 +580,7 @@ LOOK_TOOLS = [
 # with what became of it; the whole of one opens with read_proposal at a longer
 # waking. Nothing of any of it is public: the act is private, and no line of the
 # commons is written. See proposals.py for how each is kept.
-PROPOSALS = False
+PROPOSALS = True
 PROPOSALS_KEPT = PACKET / "proposals"
 PROPOSAL_ACT = "made a proposal"
 PROPOSAL_BLOCK = """<<PROPOSAL>>
@@ -651,7 +651,7 @@ READ_PROPOSAL = {
 # its next waking. Either is sent at a later waking by "send kept <stem>" in its
 # <<SHELF>>, as it was made, counting as that day's exchange. Nothing of any of
 # it is public: the act is private, and no line of the commons is written.
-EXTRA_WAKINGS = False
+EXTRA_WAKINGS = True
 WAKE_AGAIN = PACKET / "wake-again.json"
 WAKE_AGAIN_KEPT = PACKET / "wake-again"
 WAKE_AGAIN_ACT = "asked to wake again"

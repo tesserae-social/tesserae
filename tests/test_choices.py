@@ -21,8 +21,8 @@ import sys
 
 import pytest
 
-from conftest import (REPO, Turn, block, explained_as_before, lines_of, page, shut_away,
-                      solstices_as_before, stamps_as_before, write, write_json)
+from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
+                      page, shut_away, solstices_as_before, stamps_as_before, write, write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now
 
 CHOSEN = "=== WHAT YOU HAVE CHOSEN ==="
@@ -110,9 +110,10 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     The old attend.py and this one are sent the same bytes at both, and leave
     the same files behind them. Its door and its looking back, which the old
     one had and kept shut away, stand in both as they stand now. The longer
-    waking came after, and is shut away with it.
+    waking, its proposals and its extra wakings came after, and are shut away
+    with it.
     """
-    shut_away(attend, monkeypatch, "CHOICES", "LONGER_WAKING")
+    shut_away(attend, monkeypatch, "CHOICES", "LONGER_WAKING", *SWITCHED_ON_21_OCTOBER)
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     stamps_as_before(attend, monkeypatch)  # and said each moment as its raw stamp
     solstices_as_before(monkeypatch)  # and read the whole record back at the solstices

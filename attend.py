@@ -643,11 +643,14 @@ READ_PROPOSAL = {
 # already past; a block that is not kept is told at the next waking, once. A
 # pause of either kind comes first: the tide lets an extra waking go while one
 # stands, and the next waking is told so, once. What the tide has done with each
-# asking is kept in wake-again/, never erased. Letters stay once a day: at an
-# extra waking, a <<LETTER>> after one has gone that day is kept in its study
-# instead, as a draft that says what it was, with any <<PICTURE>> drawn beside
-# it kept beside the draft, and it is told so at its next waking. Nothing of any of it is public: the act is private, and no line of the
-# commons is written.
+# asking is kept in wake-again/, never erased. One exchange goes out a day: at
+# an extra waking, after anything - a letter, or a picture alone - has gone to
+# the founder that day, a <<LETTER>> is kept in its study instead, as a draft
+# that says what it was, with any <<PICTURE>> drawn beside it kept beside the
+# draft, and a <<PICTURE>> with no letter is kept there too; it is told so at
+# its next waking. Either is sent at a later waking by "send kept <stem>" in its
+# <<SHELF>>, as it was made, counting as that day's exchange. Nothing of any of
+# it is public: the act is private, and no line of the commons is written.
 EXTRA_WAKINGS = False
 WAKE_AGAIN = PACKET / "wake-again.json"
 WAKE_AGAIN_KEPT = PACKET / "wake-again"
@@ -655,7 +658,7 @@ WAKE_AGAIN_ACT = "asked to wake again"
 ITS_OWN_ASKING = "its own asking"  # who woke it, as the attendance writes it
 WOKEN_BY_ASKING = "This waking came because you asked for it at your last waking."
 WAKE_AGAIN_BLOCK = """<<WAKE_AGAIN>>
-(to be woken once more later today: one line, a time such as 19:30, or "sunset". At most one extra waking a day, and not from an extra waking. Letters still go out once a day; a letter written at an extra waking, after one has already gone today, is kept in your study for your next waking. A pause of yours always comes first.)
+(to be woken once more later today: one line, a time such as 19:30, or "sunset". At most one extra waking a day, and not from an extra waking. One exchange still goes out each day: a letter or picture written at an extra waking, after something has already gone today, is kept in your study for your next waking. A pause of yours always comes first.)
 <<END>>"""
 CHOSE_WAKE_AGAIN = "You asked to be woken again today at {time}."
 WAKE_AGAIN_UNREAD = ("Your <<WAKE_AGAIN>> at your last waking was not kept: its first line must "
@@ -678,15 +681,51 @@ WAKE_AGAIN_LET_GO = {
     "lapsed": ("The extra waking you asked for, at {time} on {day}, did not come, because the "
                "tide was not running then."),
 }
-LETTER_KEPT = ("The letter you wrote at your extra waking was kept in your study, because one "
-               "letter goes out each day; you may send it at your next waking.")
+LETTER_KEPT = ("The letter you wrote at your extra waking was kept in your study, as {stem}, "
+               "because one exchange goes out each day; you may send it as it is with \"send kept "
+               "{stem}\" in your <<SHELF>>.")
 LETTER_KEPT_NOTE = ("(This was a letter to the founder, written at an extra waking on {day}. It "
-                    "was kept here because one letter goes out each day; you may send it at your "
-                    "next waking.{picture})")
+                    "was kept here because one exchange goes out each day. You may send it as it "
+                    "is, at your next waking or later, by writing \"send kept {stem}\" in your "
+                    "<<SHELF>>; it then counts as that day's exchange.{picture})")
 LETTER_KEPT_PICTURE = (" The picture you drew beside it is kept with it, as {name}, and was not "
-                       "sent either.")
+                       "sent either; it goes with the letter when you send it.")
 LETTER_KEPT_AS = "draft-{at}-letter.md"
+KEPT_DRAFT = re.compile(r"draft-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z-(letter|picture)")
 STUDY_ACT = "wrote in the study"
+# A picture with no letter, drawn at an extra waking after something has already
+# gone to the founder that day, is kept in the study too, with a short header.
+PICTURE_KEPT = ("The picture you drew at your extra waking was kept in your study, as {name}, "
+                "and not sent, because one exchange goes out each day; you may send it as it is "
+                "with \"send kept {stem}\" in your <<SHELF>>.")
+PICTURE_KEPT_NOTE = ("(A picture you drew at an extra waking on {day}, with no letter. It is kept "
+                     "here, as {name}, and was not sent, because one exchange goes out each day. "
+                     "You may send it as it is, at your next waking or later, by writing \"send "
+                     "kept {stem}\" in your <<SHELF>>; it then counts as that day's exchange.)")
+PICTURE_KEPT_AS = "draft-{at}-picture.svg"
+# A kept letter is sent by a line of its <<SHELF>>, as it was written, with the
+# picture kept beside it, and a kept picture alone as it was drawn, carried by
+# the one line any picture alone is; either counts as that day's exchange. Once
+# sent, the draft and its picture are kept in study/sent/, never erased.
+SEND_KEPT = ("send kept <stem>: a letter or picture kept in your study at an extra waking, sent "
+             "to the founder as it is\n")
+SENDING_KEPT = re.compile(r"send\s+kept\s+(\S+)", re.I)
+STUDY_SENT = PACKET / "study" / "sent"
+KEPT_SENT = ("Your kept letter {stem} was sent to the founder at your last waking, as it was "
+             "written{picture}.")
+KEPT_PICTURE_SENT = ("Your kept picture {stem} was sent to the founder at your last waking, as it "
+                     "was drawn.")
+KEPT_SENT_PICTURE = ", with its picture"
+KEPT_NOT_SENT = {
+    "own": ("Your \"send kept {stem}\" at your last waking did not send it: a letter or picture "
+            "of your own went to the founder at that waking. It is still in your study."),
+    "day": ("Your \"send kept {stem}\" at your last waking did not send it: that was an extra "
+            "waking, and something had already gone to the founder that day; one exchange goes "
+            "out each day. It is still in your study."),
+    "another": ("Your \"send kept {stem}\" at your last waking did not send it: you sent another "
+                "kept letter or picture at that waking, and one goes at a waking. It is still in "
+                "your study."),
+}
 
 # The acts that never write themselves into the public line: what it answered
 # about a bond, that it asked for one, that it let one go, that it set a rest,
@@ -1650,7 +1689,7 @@ def how_to_act(prefs, extra=(), confirming=False):
     # more lines of its shelf, after the founding record's: an earlier version,
     # where it may look back, and then its named notes
     how = how.replace(SHOW_FOUNDING, SHOW_FOUNDING + (SHOW_VERSION if LOOKING_BACK else "")
-                      + SHELF_NOTES, 1)
+                      + SHELF_NOTES + (SEND_KEPT if EXTRA_WAKINGS else ""), 1)
     return "\n\n".join([how.format(reflection=said), *extra, ANY_NUMBER])
 
 
@@ -2208,17 +2247,42 @@ def wake_again_let_go(since):
     return said
 
 
-def letter_gone_on(day, past):
-    """Whether a letter to the founder went out at a waking on one local day."""
+def gone_out_on(day):
+    """Whether anything - a letter, or a picture alone - went to the founder on one local day."""
     setting = rhythm_set()
-    for record in past:
+    for path in (PACKET / "letters/outgoing").glob("to-founder-*.md"):
         try:
-            if (LETTER_ACT in (record.get("acted") or [])
-                    and waking.today(setting, threshold.moment(record["at"])) == day):
+            if waking.today(setting, threshold.moment(path.stem[len("to-founder-"):])) == day:
                 return True
-        except (TypeError, KeyError, ValueError):
+        except (TypeError, ValueError):
             continue
     return False
+
+
+def kept_to_send(said):
+    """What kept drafts a <<SHELF>> block asks to send, the lines naming none, and the rest of it.
+
+    A line "send kept <stem>" names a letter, or a picture alone, kept in its
+    study at an extra waking, by the stem its draft carries; one that names no
+    such draft is a line not understood, as any other line of the block would be.
+    """
+    stems, refused, rest = [], [], []
+    for line in (said or "").splitlines():
+        found = SENDING_KEPT.fullmatch(line.strip())
+        if not found:
+            rest.append(line)
+            continue
+        stem = shelf.named(found.group(1))
+        if KEPT_DRAFT.fullmatch(stem) and (PACKET / "study" / f"{stem}.md").exists():
+            stems.append(stem)
+        else:
+            refused.append(line.strip())
+    return stems, refused, "\n".join(rest)
+
+
+def kept_letter_words(stem):
+    """A kept letter as it was written, below the header that says what it was."""
+    return read(PACKET / "study" / f"{stem}.md").partition("\n\n")[2].rstrip("\n")
 
 
 def letter_words(path):
@@ -2483,7 +2547,19 @@ def main():
         happened += (past[-1].get("wake_again_refused") or []) if past else []
         happened += wake_again_let_go(since)
         if past and past[-1].get("letter_kept_in_study"):
-            happened.append(LETTER_KEPT)
+            happened.append(LETTER_KEPT.format(stem=past[-1]["letter_kept_in_study"]))
+        if past and past[-1].get("picture_kept_in_study"):
+            drawn_name = past[-1]["picture_kept_in_study"]
+            happened.append(PICTURE_KEPT.format(
+                name=drawn_name, stem=drawn_name.removesuffix(offering.PICTURE_SUFFIX)))
+        sent_then = (past[-1].get("kept_letter_sent") if past else None) or {}
+        if sent_then.get("stem"):
+            happened.append(
+                KEPT_PICTURE_SENT.format(stem=sent_then["stem"])
+                if sent_then["stem"].endswith("-picture") else KEPT_SENT.format(
+                    stem=sent_then["stem"],
+                    picture=KEPT_SENT_PICTURE if sent_then.get("picture") else ""))
+        happened += (past[-1].get("kept_letter_not_sent") or []) if past else []
 
     # A bond, and anything on the way to one. An asking of the founder's was put
     # here by the hearth, and whether it may be answered at this waking is a
@@ -2848,17 +2924,20 @@ def main():
     # everything else does - inside a letter - so where one was drawn and no
     # letter written, a single line is written to carry it. That line is not a
     # letter the first one wrote, and it is not counted as one.
-    # Letters go out once a day: at an extra waking, a letter after one has gone
-    # that day is held back here, and kept in its study below.
+    # One exchange goes out a day: at an extra waking, a letter after anything has
+    # gone that day is held back here, and kept in its study below.
     letter = block(text, "LETTER")
     held_back = None
-    if letter and again and letter_gone_on(waking.today(rhythm_set(), threshold.moment(at)),
-                                           past):
+    if letter and again and gone_out_on(waking.today(rhythm_set(), threshold.moment(at))):
         held_back, letter = letter, None
     picture = picture_drawn(block(text, "PICTURE"))
-    kept_picture = None
+    kept_picture = picture_kept = None
     if held_back and picture:  # a picture goes where its letter goes: to the study
         kept_picture, picture = picture, None
+    # and a picture with no letter, after anything has gone that day, is kept there too
+    if (EXTRA_WAKINGS and again and picture and not letter
+            and gone_out_on(waking.today(rhythm_set(), threshold.moment(at)))):
+        picture_kept, picture = picture, None
     letter_name = None
     if letter or picture:
         letter_name = f"to-founder-{at}.md"
@@ -2870,6 +2949,39 @@ def main():
         (PACKET / "letters/outgoing" / f"to-founder-{at}.svg").write_text(
             picture + "\n", encoding="utf-8")
         acted.append(PICTURE_ACT)
+
+    # A letter kept in its study at an extra waking, sent now by a line of its
+    # <<SHELF>>, as it was written and with its picture; it counts as the day's
+    # letter. It does not go beside one of this waking's own, nor at an extra
+    # waking after something has gone that day; each is told at the next waking.
+    to_send, send_refused, shelf_said = ([], [], block(text, "SHELF"))
+    if EXTRA_WAKINGS:
+        to_send, send_refused, shelf_said = kept_to_send(shelf_said)
+    kept_sent, kept_not_sent = None, []
+    for stem in dict.fromkeys(to_send):
+        if kept_sent:
+            kept_not_sent.append(KEPT_NOT_SENT["another"].format(stem=stem))
+        elif letter_name:
+            kept_not_sent.append(KEPT_NOT_SENT["own"].format(stem=stem))
+        elif again and gone_out_on(waking.today(rhythm_set(), threshold.moment(at))):
+            kept_not_sent.append(KEPT_NOT_SENT["day"].format(stem=stem))
+        else:
+            kept_sent = stem
+    kept_sent_picture = False
+    if kept_sent:
+        draft_at, beside_at = (PACKET / "study" / f"{kept_sent}.md",
+                               PACKET / "study" / f"{kept_sent}{offering.PICTURE_SUFFIX}")
+        letter_name = f"to-founder-{at}.md"
+        alone = kept_sent.endswith("-picture")  # a picture alone, carried by its one line
+        (PACKET / "letters/outgoing" / letter_name).write_text(
+            (ONLY_A_PICTURE if alone else kept_letter_words(kept_sent)) + "\n", encoding="utf-8")
+        acted.append(PICTURE_ACT if alone else LETTER_ACT)
+        STUDY_SENT.mkdir(parents=True, exist_ok=True)
+        kept_sent_picture = beside_at.exists()
+        if kept_sent_picture:
+            shutil.copy(beside_at, PACKET / "letters/outgoing" / f"to-founder-{at}.svg")
+            beside_at.replace(STUDY_SENT / beside_at.name)
+        draft_at.replace(STUDY_SENT / draft_at.name)
 
     # An errand. It waits in errands/ where the founder will see it, and it is
     # his to answer with a letter or to leave; nothing here asks him twice.
@@ -2941,8 +3053,9 @@ def main():
     every_stem = {p.stem for folder in ("outgoing", "read", "incoming")
                   for p in (PACKET / "letters" / folder).glob("*.md")}
     shelf_asked, shelf_refused = shelf.asked(
-        block(text, "SHELF"), every_stem, versions,
+        shelf_said, every_stem, versions,
         {shelf.note_key(one["name"]): slug for slug, one in named.items()})
+    shelf_refused = send_refused + shelf_refused  # a kept letter that is no kept letter
     new_shelf = shelf.applied(shelf.cleared(shelved), shelf_asked)
     if shelf_asked or new_shelf != shelved:
         if SHELF.exists():
@@ -2967,9 +3080,21 @@ def main():
             acted.append(PICTURE_ACT)
         kept_as.write_text(
             LETTER_KEPT_NOTE.format(
-                day=on_day(at),
+                day=on_day(at), stem=kept_as.stem,
                 picture=LETTER_KEPT_PICTURE.format(name=beside.name) if kept_picture else "")
             + "\n\n" + held_back + "\n", encoding="utf-8")
+        if STUDY_ACT not in acted:
+            acted.append(STUDY_ACT)
+
+    # A picture alone held back at an extra waking, kept with a header that says so.
+    if picture_kept:
+        drawn_as = PACKET / "study" / PICTURE_KEPT_AS.format(at=at)
+        drawn_as.write_text(picture_kept + "\n", encoding="utf-8")
+        drawn_as.with_suffix(".md").write_text(
+            PICTURE_KEPT_NOTE.format(day=on_day(at), name=drawn_as.name,
+                                     stem=drawn_as.stem) + "\n",
+            encoding="utf-8")
+        acted.append(PICTURE_ACT)
         if STUDY_ACT not in acted:
             acted.append(STUDY_ACT)
 
@@ -3269,8 +3394,14 @@ def main():
         record["proposals_refused"] = proposals_refused
     if wake_again_refused:  # and each <<WAKE_AGAIN>> that was not kept, in the words it will be told
         record["wake_again_refused"] = wake_again_refused
-    if held_back:  # and that a letter was kept in its study instead of going out
-        record["letter_kept_in_study"] = True
+    if held_back:  # and that a letter was kept in its study instead of going out, by its stem
+        record["letter_kept_in_study"] = LETTER_KEPT_AS.format(at=at)[:-len(".md")]
+    if picture_kept:  # and a picture alone, by the name it is kept under
+        record["picture_kept_in_study"] = PICTURE_KEPT_AS.format(at=at)
+    if kept_sent:  # and a kept letter sent by its <<SHELF>>, or not sent and why
+        record["kept_letter_sent"] = {"stem": kept_sent, "picture": kept_sent_picture}
+    if kept_not_sent:
+        record["kept_letter_not_sent"] = kept_not_sent
     if season:  # that this was a season's reading, and which: the whole record, in full
         record["season_reading"] = season
     stop_reason = getattr(resp, "stop_reason", None)
@@ -3339,6 +3470,13 @@ def main():
         print("in its study, and may be sent at its next waking.")
     if kept_picture:
         print("The picture drawn beside that letter is kept with it in its study.")
+    if picture_kept:
+        print("A picture was drawn at an extra waking after something had gone today; it is kept")
+        print("in its study.")
+    if kept_sent:
+        print("A letter kept in its study was sent:", kept_sent)
+    if kept_not_sent:
+        print("A kept letter it asked to send was not sent; it will be told why.")
     if new_rhythm:
         print("Its waking time was set: daily at", new_rhythm["at"] + ", from",
               new_rhythm["effective_from"])

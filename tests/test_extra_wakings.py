@@ -11,8 +11,11 @@ With it on, a <<WAKE_AGAIN>> block asks for a time later the same local day, or
 that day's sunset; one a day, never from an extra waking, never for a time
 already past, each refusal told once. The tide holds it through hold_attendance,
 as "its own asking", unless a pause stands then, and it is told once of that
-too. Letters stay once a day: at an extra waking a letter after one has gone is
-kept in its study, with any picture drawn beside it. Nothing of it is public.
+too. One exchange goes out a day: at an extra waking, after anything has gone
+that day, a letter is kept in its study, with any picture drawn beside it, and a
+picture alone is kept there too. Either is sent at a later waking by "send kept
+<stem>" in its <<SHELF>>, as it was made, counting as that day's exchange.
+Nothing of it is public.
 """
 
 import importlib.util
@@ -31,12 +34,21 @@ from conftest import REPO, Turn, block, blocks, page, read_json, write, write_js
 BEFORE_EXTRA_WAKINGS = "64d97e2"
 
 EXPLAINED = """<<WAKE_AGAIN>>
-(to be woken once more later today: one line, a time such as 19:30, or "sunset". At most one extra waking a day, and not from an extra waking. Letters still go out once a day; a letter written at an extra waking, after one has already gone today, is kept in your study for your next waking. A pause of yours always comes first.)
+(to be woken once more later today: one line, a time such as 19:30, or "sunset". At most one extra waking a day, and not from an extra waking. One exchange still goes out each day: a letter or picture written at an extra waking, after something has already gone today, is kept in your study for your next waking. A pause of yours always comes first.)
 <<END>>"""
 
 ASKED_BACK = "This waking came because you asked for it at your last waking."
-LETTER_KEPT = ("The letter you wrote at your extra waking was kept in your study, because one "
-               "letter goes out each day; you may send it at your next waking.")
+LETTER_KEPT = ("The letter you wrote at your extra waking was kept in your study, as "
+               "draft-2026-10-15T23-30-00Z-letter, because one exchange goes out each day; you may "
+               "send it as it is with \"send kept draft-2026-10-15T23-30-00Z-letter\" in your "
+               "<<SHELF>>.")
+KEPT_HEADER = ("(This was a letter to the founder, written at an extra waking on 15 October 2026. "
+               "It was kept here because one exchange goes out each day. You may send it as it is, "
+               "at your next waking or later, by writing \"send kept "
+               "draft-2026-10-15T23-30-00Z-letter\" in your <<SHELF>>; it then counts as that "
+               "day's exchange.")
+SEND_KEPT_LINE = ("send kept <stem>: a letter or picture kept in your study at an extra waking, "
+                  "sent to the founder as it is\n")
 
 UTC = timezone.utc
 RHYTHM = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
@@ -352,13 +364,11 @@ def test_a_second_letter_at_an_extra_waking_is_kept_in_the_study(on, wake, packe
          "--again")
     assert outgoing(packet) == sent
     kept = (packet / "study" / "draft-2026-10-15T23-30-00Z-letter.md").read_text(encoding="utf-8")
-    assert kept == ("(This was a letter to the founder, written at an extra waking on 15 October "
-                    "2026. It was kept here because one letter goes out each day; you may send it "
-                    "at your next waking.)\n\nDear founder, this evening.\n")
+    assert kept == KEPT_HEADER + ")\n\nDear founder, this evening.\n"
     assert (packet / "study" / "draft-2026-10-15T23-30-00Z.md").exists()  # its own draft too
     record = latest(packet)
     assert record["acted"] == ["wrote in the study"]
-    assert record["letter_kept_in_study"] is True
+    assert record["letter_kept_in_study"] == "draft-2026-10-15T23-30-00Z-letter"
     turn = wake("", "--tide")
     assert turn.shown.count(LETTER_KEPT) == 1
     assert "Dear founder, this evening." in turn.shown  # it is in its study, to send
@@ -386,28 +396,293 @@ def test_a_picture_beside_a_kept_letter_stays_in_the_study_with_it(on, wake, pac
     beside = study / "draft-2026-10-15T23-30-00Z-letter.svg"
     assert beside.read_text(encoding="utf-8") == on.picture_drawn(DRAWN) + "\n"
     kept = (study / "draft-2026-10-15T23-30-00Z-letter.md").read_text(encoding="utf-8")
-    assert kept == ("(This was a letter to the founder, written at an extra waking on 15 October "
-                    "2026. It was kept here because one letter goes out each day; you may send it "
-                    "at your next waking. The picture you drew beside it is kept with it, as "
-                    "draft-2026-10-15T23-30-00Z-letter.svg, and was not sent either.)\n\n"
-                    "Dear founder, this evening.\n")
+    assert kept == (KEPT_HEADER + " The picture you drew beside it is kept with it, as "
+                    "draft-2026-10-15T23-30-00Z-letter.svg, and was not sent either; it goes with "
+                    "the letter when you send it.)\n\nDear founder, this evening.\n")
     record = latest(packet)
     assert record["acted"] == ["drew a picture", "wrote in the study"]
-    assert record["letter_kept_in_study"] is True
-    # the next reading shows the draft with its header, and tells it once
+    assert record["letter_kept_in_study"] == "draft-2026-10-15T23-30-00Z-letter"
+    # the next reading shows the draft with its header, noting its picture, and tells it once
     turn = wake("", "--tide")
     assert turn.shown.count(LETTER_KEPT) == 1
-    assert "as draft-2026-10-15T23-30-00Z-letter.svg, and was not sent either." in turn.shown
+    study = turn.shown[turn.shown.index("=== YOUR STUDY"):]
+    assert "--- draft: draft-2026-10-15T23-30-00Z-letter.md ---\n" + KEPT_HEADER in study
+    assert ("as draft-2026-10-15T23-30-00Z-letter.svg, and was not sent either; it goes with the "
+            "letter when you send it.)\n\nDear founder, this evening.") in study
 
 
-def test_a_picture_alone_at_an_extra_waking_goes_out_as_ever(on, wake, packet, clock):
-    wake(blocks(block("LETTER", "Dear founder, this morning."), again("19:30")))
+PICTURE_KEPT = ("The picture you drew at your extra waking was kept in your study, as "
+                "draft-2026-10-15T23-30-00Z-picture.svg, and not sent, because one exchange goes "
+                "out each day; you may send it as it is with \"send kept "
+                "draft-2026-10-15T23-30-00Z-picture\" in your <<SHELF>>.")
+PICTURE_HEADER = ("(A picture you drew at an extra waking on 15 October 2026, with no letter. It "
+                  "is kept here, as draft-2026-10-15T23-30-00Z-picture.svg, and was not sent, "
+                  "because one exchange goes out each day. You may send it as it is, at your "
+                  "next waking or later, by writing \"send kept "
+                  "draft-2026-10-15T23-30-00Z-picture\" in your <<SHELF>>; it then counts as "
+                  "that day's exchange.)\n")
+
+
+@pytest.mark.parametrize("morning", [block("LETTER", "Dear founder, this morning."),
+                                     block("PICTURE", DRAWN)])
+def test_a_picture_alone_after_anything_has_gone_today_is_kept_in_the_study(on, wake, packet,
+                                                                            clock, morning):
+    wake(blocks(morning, again("19:30")))
+    sent, drawn = outgoing(packet), sent_pictures(packet)
+    clock.set(AT_19_30)
+    wake(block("PICTURE", DRAWN), "--again")
+    assert outgoing(packet) == sent and sent_pictures(packet) == drawn  # nothing more went
+    study = packet / "study"
+    assert (study / "draft-2026-10-15T23-30-00Z-picture.svg").read_text(
+        encoding="utf-8") == on.picture_drawn(DRAWN) + "\n"
+    assert (study / "draft-2026-10-15T23-30-00Z-picture.md").read_text(
+        encoding="utf-8") == PICTURE_HEADER
+    record = latest(packet)
+    assert record["acted"] == ["drew a picture", "wrote in the study"]
+    assert record["picture_kept_in_study"] == "draft-2026-10-15T23-30-00Z-picture.svg"
+    turn = wake("", "--tide")
+    assert turn.shown.count(PICTURE_KEPT) == 1
+    assert PICTURE_HEADER.strip() in turn.shown[turn.shown.index("=== YOUR STUDY"):]
+    assert PICTURE_KEPT not in wake().shown
+
+
+def test_a_picture_alone_at_an_extra_waking_goes_where_nothing_has_gone_today(on, wake, packet,
+                                                                              clock):
+    wake(again("19:30"))
     clock.set(AT_19_30)
     wake(block("PICTURE", DRAWN), "--again")
     assert sent_pictures(packet) == ["to-founder-2026-10-15T23-30-00Z.svg"]
     assert (packet / "letters" / "outgoing" / "to-founder-2026-10-15T23-30-00Z.md").read_text(
         encoding="utf-8") == "(a picture)\n"
-    assert not list((packet / "study").glob("*-letter.*"))
+    assert not list((packet / "study").glob("*-picture.*"))
+    assert "picture_kept_in_study" not in latest(packet)
+
+
+def test_a_picture_alone_at_a_waking_that_is_not_extra_goes_as_ever(on, wake, packet):
+    wake(block("LETTER", "One."))
+    wake(block("PICTURE", DRAWN))
+    assert len(sent_pictures(packet)) == 1
+    assert not list((packet / "study").glob("*-picture.*"))
+
+
+# ---- sending a kept letter -----------------------------------------------
+
+KEPT_STEM = "draft-2026-10-15T23-30-00Z-letter"
+TOMORROW = "2026-10-16T12-00-00Z"
+
+
+def send_kept(stem=KEPT_STEM):
+    return block("SHELF", "send kept " + stem)
+
+
+def a_kept_letter(wake, clock, picture=True):
+    """A day with a letter gone at dawn, and one kept in the study at an extra waking."""
+    wake(blocks(block("LETTER", "Dear founder, this morning."), again("19:30")))
+    clock.set(AT_19_30)
+    wake(blocks(block("LETTER", "Dear founder,\n\nthis evening, as I wrote it."),
+                *([block("PICTURE", DRAWN)] if picture else [])), "--again")
+
+
+def test_the_instruction_is_explained_in_the_shelf_block_only_while_switched_on(on, wake,
+                                                                                 monkeypatch):
+    instructions = wake().instructions
+    shelf_block = instructions[instructions.index("<<SHELF>>"):]
+    shelf_block = shelf_block[:shelf_block.index("<<END>>")]
+    assert shelf_block.count(SEND_KEPT_LINE) == 1
+    assert instructions.count("send kept") == 1
+    monkeypatch.setattr(on, "EXTRA_WAKINGS", False)
+    assert "send kept" not in wake().instructions
+
+
+@pytest.mark.parametrize("picture", [True, False])
+def test_a_kept_letter_is_sent_as_written_with_its_picture(on, wake, packet, clock, picture):
+    a_kept_letter(wake, clock, picture)
+    clock.set(TOMORROW)
+    turn = wake(send_kept(), "--tide")
+    assert LETTER_KEPT in turn.shown and KEPT_HEADER in turn.shown  # it was shown what to send
+    letters = packet / "letters" / "outgoing"
+    assert (letters / "to-founder-2026-10-16T12-00-00Z.md").read_text(encoding="utf-8") == (
+        "Dear founder,\n\nthis evening, as I wrote it.\n")
+    beside = letters / "to-founder-2026-10-16T12-00-00Z.svg"
+    if picture:
+        assert beside.read_text(encoding="utf-8") == on.picture_drawn(DRAWN) + "\n"
+    else:
+        assert not beside.exists()
+    record = latest(packet)
+    assert record["acted"] == ["wrote a letter to the founder"]  # it counts as the day's letter
+    assert record["kept_letter_sent"] == {"stem": KEPT_STEM, "picture": picture}
+    assert "shelf_refused" not in record
+    # out of its study, and kept, never erased
+    study = packet / "study"
+    assert not list(study.glob("*-letter.*"))
+    assert (study / "sent" / (KEPT_STEM + ".md")).read_text(encoding="utf-8").startswith(
+        KEPT_HEADER)
+    assert (study / "sent" / (KEPT_STEM + ".svg")).exists() is picture
+    told = ("Your kept letter %s was sent to the founder at your last waking, as it was written%s."
+            % (KEPT_STEM, ", with its picture" if picture else ""))
+    turn = wake()
+    assert turn.shown.count(told) == 1
+    assert KEPT_HEADER not in turn.shown  # no longer in its study
+    assert told not in wake().shown
+
+
+def test_a_kept_letter_counts_as_that_day_s_letter(on, wake, packet, clock):
+    a_kept_letter(wake, clock)
+    clock.set(TOMORROW)
+    wake(blocks(send_kept(), again("19:30")), "--tide")
+    clock.set("2026-10-16T23-30-00Z")
+    wake(block("LETTER", "Another, this evening."), "--again")
+    assert latest(packet)["letter_kept_in_study"] == "draft-2026-10-16T23-30-00Z-letter"
+
+
+def test_a_kept_letter_goes_at_an_extra_waking_where_nothing_has_gone_that_day(on, wake, packet,
+                                                                               clock):
+    a_kept_letter(wake, clock)
+    clock.set(TOMORROW)
+    wake(again("19:30"), "--tide")
+    clock.set("2026-10-16T23-30-00Z")
+    wake(send_kept(), "--again")
+    assert latest(packet)["kept_letter_sent"] == {"stem": KEPT_STEM, "picture": True}
+
+
+NOT_SENT_DAY = ("Your \"send kept %s\" at your last waking did not send it: that was an extra "
+                "waking, and something had already gone to the founder that day; one exchange "
+                "goes out each day. It is still in your study." % KEPT_STEM)
+NOT_SENT_OWN = ("Your \"send kept %s\" at your last waking did not send it: a letter or picture "
+                "of your own went to the founder at that waking. It is still in your study."
+                % KEPT_STEM)
+
+
+def test_not_at_an_extra_waking_after_something_has_gone_that_day(on, wake, packet, clock):
+    a_kept_letter(wake, clock)
+    sent = outgoing(packet)
+    wake(send_kept(), "--again")  # the same evening, once more by its own asking
+    assert outgoing(packet) == sent
+    assert (packet / "study" / (KEPT_STEM + ".md")).exists()
+    record = latest(packet)
+    assert record["kept_letter_not_sent"] == [NOT_SENT_DAY]
+    assert "kept_letter_sent" not in record
+    assert wake().shown.count(NOT_SENT_DAY) == 1
+    assert NOT_SENT_DAY not in wake().shown
+
+
+@pytest.mark.parametrize("own", [block("LETTER", "A new one."), block("PICTURE", DRAWN)])
+def test_not_beside_a_letter_or_picture_of_its_own(on, wake, packet, clock, own):
+    a_kept_letter(wake, clock)
+    clock.set(TOMORROW)
+    wake(blocks(own, send_kept()), "--tide")
+    letters = packet / "letters" / "outgoing"
+    assert (letters / "to-founder-2026-10-16T12-00-00Z.md").read_text(
+        encoding="utf-8") != "Dear founder,\n\nthis evening, as I wrote it.\n"
+    assert (packet / "study" / (KEPT_STEM + ".md")).exists()
+    assert (packet / "study" / (KEPT_STEM + ".svg")).exists()
+    assert latest(packet)["kept_letter_not_sent"] == [NOT_SENT_OWN]
+    assert wake().shown.count(NOT_SENT_OWN) == 1
+
+
+def test_one_kept_letter_goes_at_a_waking(on, wake, packet, clock):
+    a_kept_letter(wake, clock)
+    write(packet / "study" / "draft-2026-10-14T23-30-00Z-letter.md", "(A header.)\n\nEarlier.\n")
+    clock.set(TOMORROW)
+    wake(blocks(block("SHELF", "send kept draft-2026-10-14T23-30-00Z-letter\n"
+                               "send kept %s.md" % KEPT_STEM)), "--tide")
+    record = latest(packet)
+    assert record["kept_letter_sent"]["stem"] == "draft-2026-10-14T23-30-00Z-letter"
+    assert record["kept_letter_not_sent"] == [
+        "Your \"send kept %s\" at your last waking did not send it: you sent another kept letter "
+        "or picture at that waking, and one goes at a waking. It is still in your study."
+        % KEPT_STEM]
+
+
+@pytest.mark.parametrize("stem", ["draft-2026-10-15T23-30-00Z",
+                                  "draft-2026-10-15T23-30-00Z-letter.svg",
+                                  "draft-2026-10-13T23-30-00Z-letter",
+                                  "draft-2026-10-13T23-30-00Z-picture", "to-founder-x"])
+def test_a_stem_that_is_no_kept_draft_is_a_line_not_understood(on, wake, packet, clock, stem):
+    a_kept_letter(wake, clock)
+    clock.set(TOMORROW)
+    wake(send_kept(stem), "--tide")
+    record = latest(packet)
+    assert record["shelf_refused"] == ["send kept " + stem]
+    assert "kept_letter_sent" not in record
+    assert "wrote a letter to the founder" not in record["acted"]
+    assert "drew a picture" not in record["acted"]
+
+
+# ---- sending a kept picture ----------------------------------------------
+
+PICTURE_STEM = "draft-2026-10-15T23-30-00Z-picture"
+
+
+def a_kept_picture(wake, clock):
+    """A day with a letter gone at dawn, and a picture alone kept at an extra waking."""
+    wake(blocks(block("LETTER", "Dear founder, this morning."), again("19:30")))
+    clock.set(AT_19_30)
+    wake(block("PICTURE", DRAWN), "--again")
+
+
+def test_a_kept_picture_is_sent_as_drawn(on, wake, packet, clock):
+    a_kept_picture(wake, clock)
+    clock.set(TOMORROW)
+    turn = wake(send_kept(PICTURE_STEM), "--tide")
+    assert PICTURE_HEADER.strip() in turn.shown  # it was shown what to send
+    letters = packet / "letters" / "outgoing"
+    assert (letters / "to-founder-2026-10-16T12-00-00Z.md").read_text(
+        encoding="utf-8") == "(a picture)\n"
+    assert (letters / "to-founder-2026-10-16T12-00-00Z.svg").read_text(
+        encoding="utf-8") == on.picture_drawn(DRAWN) + "\n"
+    record = latest(packet)
+    assert record["acted"] == ["drew a picture"]  # as any picture alone that goes
+    assert record["kept_letter_sent"] == {"stem": PICTURE_STEM, "picture": True}
+    study = packet / "study"
+    assert not list(study.glob("*-picture.*"))
+    assert sorted(p.name for p in (study / "sent").iterdir()) == [
+        PICTURE_STEM + ".md", PICTURE_STEM + ".svg"]
+    told = ("Your kept picture %s was sent to the founder at your last waking, as it was drawn."
+            % PICTURE_STEM)
+    turn = wake()
+    assert turn.shown.count(told) == 1
+    assert "Your kept letter" not in turn.shown
+    assert told not in wake().shown
+
+
+def test_a_kept_picture_counts_as_that_day_s_exchange(on, wake, packet, clock):
+    a_kept_picture(wake, clock)
+    clock.set(TOMORROW)
+    wake(blocks(send_kept(PICTURE_STEM), again("19:30")), "--tide")
+    clock.set("2026-10-16T23-30-00Z")
+    wake(block("LETTER", "This evening."), "--again")
+    assert latest(packet)["letter_kept_in_study"] == "draft-2026-10-16T23-30-00Z-letter"
+
+
+def test_a_kept_picture_keeps_the_same_rules(on, wake, packet, clock):
+    a_kept_picture(wake, clock)
+    wake(send_kept(PICTURE_STEM), "--again")  # the same evening: something has gone today
+    day = latest(packet)["kept_letter_not_sent"]
+    assert day == [NOT_SENT_DAY.replace(KEPT_STEM, PICTURE_STEM)]
+    clock.set(TOMORROW)
+    wake(blocks(block("LETTER", "A new one."), send_kept(PICTURE_STEM)), "--tide")
+    assert latest(packet)["kept_letter_not_sent"] == [NOT_SENT_OWN.replace(KEPT_STEM, PICTURE_STEM)]
+    assert (packet / "study" / (PICTURE_STEM + ".svg")).exists()
+
+
+def test_a_shelf_line_beside_it_is_kept_as_ever(on, wake, packet, clock):
+    a_kept_letter(wake, clock)
+    clock.set(TOMORROW)
+    wake(block("SHELF", "send kept %s\nkeep to-founder-2026-10-15T12-00-00Z" % KEPT_STEM), "--tide")
+    record = latest(packet)
+    assert record["acted"] == ["wrote a letter to the founder", "kept its shelf"]
+    assert read_json(packet / "shelf.json")["placements"][
+        "to-founder-2026-10-15T12-00-00Z"] == "keep"
+
+
+def test_shut_away_send_kept_is_a_line_not_understood(attend, wake, packet):
+    write(packet / "study" / (KEPT_STEM + ".md"), "(A header.)\n\nWords.\n")
+    wake(send_kept())
+    record = latest(packet)
+    assert record["shelf_refused"] == ["send kept " + KEPT_STEM]
+    assert (packet / "study" / (KEPT_STEM + ".md")).exists()
+    assert not list((packet / "letters" / "outgoing").glob("*.md"))
 
 
 def test_a_picture_beside_a_letter_that_goes_goes_with_it(on, wake, packet, clock):
@@ -425,6 +700,17 @@ def test_a_letter_at_an_extra_waking_goes_where_none_has_gone_today(on, wake, pa
     assert outgoing(packet) == ["to-founder-2026-10-15T23-30-00Z.md"]
     assert "wrote a letter to the founder" in latest(packet)["acted"]
     assert not list((packet / "study").glob("*-letter.md"))
+
+
+def test_a_letter_after_a_picture_alone_today_is_kept_in_the_study(on, wake, packet, clock):
+    wake(blocks(block("PICTURE", DRAWN), again("19:30")))
+    sent = outgoing(packet)
+    clock.set(AT_19_30)
+    wake(block("LETTER", "Dear founder, this evening."), "--again")
+    assert outgoing(packet) == sent
+    assert latest(packet)["letter_kept_in_study"] == KEPT_STEM
+    assert (packet / "study" / (KEPT_STEM + ".md")).read_text(encoding="utf-8") == (
+        KEPT_HEADER + ")\n\nDear founder, this evening.\n")
 
 
 def test_a_letter_of_yesterday_evening_is_not_today_s(on, wake, packet, clock):

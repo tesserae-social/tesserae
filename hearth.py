@@ -110,6 +110,11 @@ import waking
 import attend as the_waking
 import door
 
+# The first one's proposals: made at its wakings and answered here, both through
+# the one module. Whether there are any yet is said in one place,
+# attend.PROPOSALS, and read from there each time it is wanted.
+import proposals
+
 # A correspondence has a room, and the pages are built around rooms: whose they
 # are, and whether one is theirs, is asked of the one module and nowhere else.
 import rooms
@@ -133,6 +138,7 @@ TIDE_LOG = PACKET / "tide.log"
 EXPORTS = PACKET / "exports.log"
 ERRANDS = PACKET / "errands"
 ANSWERED_ERRANDS = ERRANDS / "answered"
+PROPOSALS_KEPT = PACKET / "proposals"
 BONDS = PACKET / "bonds"
 PROPOSAL = BONDS / "proposal.json"
 BOND_RECORD = BONDS / "founder-first.json"
@@ -590,7 +596,10 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 # the bond when it may be shown: its letter of intention only once
                 # yours is written, so a reflection must not show it any sooner
                 "BOND_INTENTION": "(wrote a letter of intention: in your room, under the bond)",
-                "PROMISE": "(made a promise: in your room, under the bond)"}
+                "PROMISE": "(made a promise: in your room, under the bond)",
+                # and a proposal, which is between the two of them and shown whole in
+                # the room, where it may be answered
+                "PROPOSAL": "(made a proposal: in your room, under proposals from the first one)"}
 
 # A new self-document it has written waits for its own yes at a later waking,
 # and until then it is no one's to read but its own - and one it lets go never
@@ -2146,6 +2155,7 @@ NEW_LETTER = "a new letter from %s"
 LETTER_UNREAD = "your letter is waiting to be read"
 ERRAND_ASKED = "an errand asked of you"
 OFFERING_WAITS = "an offering is waiting for your answer"
+PROPOSAL_WAITS = "a proposal is waiting for your answer"
 
 NO_BOND = "no bond"
 BOND_PROPOSED = "a bond is proposed"
@@ -2214,6 +2224,8 @@ def room_card(room):
         waiting.append(ERRAND_ASKED)
     if offering.awaiting("founder"):
         waiting.append(OFFERING_WAITS)
+    if the_waking.PROPOSALS and proposals.waiting(PROPOSALS_KEPT):
+        waiting.append(PROPOSAL_WAITS)
     return {"id": room.id, "other": room.other, "latest": latest, "waiting": waiting,
             "bond": bond_standing(room), "ready": ready_to_seal()}
 
@@ -2542,7 +2554,88 @@ def room_page(room=None, things=(), draft="", **told):
         answers=bond_answers(), mine=founder_answers(),
         threshold=threshold_shown(), stepped=steps_back_shown(),
         card=(threshold.card_lines(its_own=proposal["by_first"]) if proposal else None),
+        # and what the first one has proposed for this place, which comes first
+        # in the room while one waits for an answer
+        proposals=proposals_shown(), proposal_waits=proposal_waits(),
         **told)
+
+
+# ---- the first one's proposals -------------------------------------------
+
+# How this place might change, as the first one proposes it: each shown whole in
+# the room, newest first, with what became of it. The one that waits is answered
+# here - yes, not now, or let's talk, with his own words if he gives any - and a
+# yes may later be marked built. The first one reads the answer at its next
+# waking. Nothing of any of it is public. Shut away, with everything else of it,
+# while attend.PROPOSALS is False.
+PROPOSAL_STATUS = {proposals.WAITING: "waiting for your answer",
+                   proposals.YES: "you said yes",
+                   proposals.NOT_NOW: "you said not now",
+                   proposals.LETS_TALK: "you said let's talk",
+                   proposals.BUILT: "built"}
+
+
+def proposals_shown():
+    """Every proposal of the first one's, newest first, as the room shows them; none while
+    they are shut away."""
+    if not the_waking.PROPOSALS:
+        return []
+    shown = []
+    for one in proposals.every(PROPOSALS_KEPT):
+        said = one.get("answer") if isinstance(one.get("answer"), dict) else {}
+        shown.append({
+            "at": one["at"], "date": readable_date(one["at"]), "title": one["title"],
+            "prose": as_prose(one["text"]),
+            "status": one.get("status"),
+            "said": PROPOSAL_STATUS.get(one.get("status"), one.get("status") or ""),
+            "answered_at": readable_date(one.get("answered_at") or ""),
+            "words": as_prose(said.get("words") or ""),
+            "built_at": readable_date(one.get("built_at") or ""),
+        })
+    return shown
+
+
+def proposal_waits():
+    """Whether a proposal of the first one's waits for an answer."""
+    return bool(the_waking.PROPOSALS and proposals.waiting(PROPOSALS_KEPT))
+
+
+def proposals_open():
+    """Nothing of the proposals is here while they are shut away."""
+    if not the_waking.PROPOSALS:
+        abort(404)
+
+
+def to_proposals(**told):
+    """Back to the room, at the proposals."""
+    return to_room(_anchor="proposals", **told)
+
+
+def answered_by():
+    """Whoever is answering, as a proposal keeps it: a member, a human, and today the founder."""
+    return proposals.member(session.get("member"), proposals.HUMAN)
+
+
+@app.route("/proposals/answer", methods=["POST"])
+@founder_required
+def answer_proposal():
+    proposals_open()
+    said = request.form.get("answer", "").strip().lower()
+    words = request.form.get("words", "").replace("\r\n", "\n").strip()
+    if not proposals.answer(PROPOSALS_KEPT, request.form.get("at", ""), said, words,
+                            answered_by(), utc_stamp()):
+        return to_proposals()
+    return to_proposals(proposal_answered=said)
+
+
+@app.route("/proposals/built", methods=["POST"])
+@founder_required
+def proposal_built():
+    proposals_open()
+    if not proposals.mark_built(PROPOSALS_KEPT, request.form.get("at", ""), answered_by(),
+                                utc_stamp()):
+        return to_proposals()
+    return to_proposals(proposal_built=1)
 
 
 def fitted(image):
@@ -2620,7 +2713,10 @@ def room_view(room):
                      # and what has just been done about the bond
                      sealed=said("sealed"), released=said("released"),
                      bond_answered=said("bond_answered"), intended=said("intended"),
-                     stepped_back=said("stepped_back"))
+                     stepped_back=said("stepped_back"),
+                     # and about a proposal
+                     proposal_answered=said("proposal_answered"),
+                     proposal_built=said("proposal_built"))
 
 
 # Where the letters were before there were rooms. A letter posted here is still

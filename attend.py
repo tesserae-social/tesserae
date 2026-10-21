@@ -31,6 +31,9 @@ Files it may act on (all inside packets/first/, which is private):
   letters/incoming/       letters from the founder, read at attendance, then moved to letters/read/
   errands/                one plain request to the founder, waiting for a letter to answer it;
                           an answered one is moved to errands/answered/, never erased
+  proposals/              its proposals for how this place might change, each waiting for
+                          the founder's answer and then keeping it; see proposals.py. Shut
+                          away behind PROPOSALS below until it is turned on
   attendances/            a signed private log of every attendance
   bonds/                  a proposed bond, its signed answer, and the bond's own record; and,
                           between a yes and the seal, the threshold: each version of the two
@@ -109,6 +112,10 @@ import private_words
 # a real person or a place - its heartbeat's own words, where it shows them, a
 # promise made public, and an offering's words.
 import public_screen
+
+# Its proposals: how this place might change, for the founder to answer at the
+# hearth. Made here and answered there, both through the one module.
+import proposals
 
 NAME = "first"
 MODEL = "claude-sonnet-4-5"
@@ -555,11 +562,75 @@ LOOK_TOOLS = [
      "input_schema": {"type": "object", "properties": {}}},
 ]
 
+# Its proposals: how this place might change, for the founder to consider. It is
+# built and it is shut away: while PROPOSALS is False, everything it is sent and
+# every file written is what it was before - no block explained, no section, no
+# tool, and a <<PROPOSAL>> block it wrote is only words. With it True, a
+# <<PROPOSAL>> block's first line is its title and the rest is the proposal, and
+# it is kept privately in proposals/, waiting, until the founder answers it at
+# the hearth: yes, not now, or let's talk, with words of his own if he gives any;
+# and a yes may later be marked built. One may wait at a time. A block that is
+# not kept - another is waiting, or it has no title, or it is too long - is told
+# at the next waking, once. Each of its proposals is one line of its reading,
+# with what became of it; the whole of one opens with read_proposal at a longer
+# waking. Nothing of any of it is public: the act is private, and no line of the
+# commons is written. See proposals.py for how each is kept.
+PROPOSALS = False
+PROPOSALS_KEPT = PACKET / "proposals"
+PROPOSAL_ACT = "made a proposal"
+PROPOSAL_BLOCK = """<<PROPOSAL>>
+(a proposal for how this place might change, for the founder to consider. First line: a short title. Then the proposal itself, up to about a page, ending with a line that begins "In a sentence:". He answers yes, not now, or let's talk, with his own words, and your reading tells you what became of it. One may wait for his answer at a time. Proposals are private between the two of you.)
+<<END>>"""
+PROPOSAL_REFUSED = {
+    "waiting": ("Your proposal at your last waking was not kept, because another is still "
+                "waiting for the founder's answer; it is kept and you may send this one after."),
+    proposals.NO_TITLE: ("Your proposal at your last waking was not kept, because it had no "
+                         "title: its first line must be a short title, with the proposal on the "
+                         "lines below it."),
+    proposals.LONG_TITLE: ("Your proposal at your last waking was not kept, because its title "
+                           "was longer than %d characters; you may send it again with a shorter "
+                           "one." % proposals.TITLE_LONGEST),
+    proposals.NO_TEXT: ("Your proposal at your last waking was not kept, because there was "
+                        "nothing beneath its title; the proposal itself goes on the lines below "
+                        "the first."),
+    proposals.TOO_LONG: ("Your proposal at your last waking was not kept, because it was longer "
+                         "than about a page (at most %d words); you may send it again, "
+                         "shorter." % proposals.WORDS_MOST),
+}
+YOUR_PROPOSALS = ("=== YOUR PROPOSALS ===\n"
+                  "(private between you and the founder; the whole of one opens with "
+                  "read_proposal and its stem)")
+PROPOSAL_LINE = "\"{title}\" · {day} · {became} · {stem}"
+PROPOSAL_BECAME = {
+    proposals.WAITING: "waiting for the founder's answer",
+    proposals.YES: "the founder said yes on {day}",
+    proposals.NOT_NOW: "not now, on {day}",
+    proposals.LETS_TALK: "the founder would like to talk, on {day}",
+}
+PROPOSAL_BUILT = "built, on {day}; "
+PROPOSAL_HIS_WORDS = {proposals.YES: ", and his words: {words}",
+                      proposals.NOT_NOW: ": {words}", proposals.LETS_TALK: ": {words}"}
+# With them on, the section on looking things up names them too, and a fifth
+# tool opens one.
+LOOKING_UP_PROPOSALS = ("or your founding record, using",
+                        "your founding record, or one of your proposals, using")
+READ_PROPOSAL = {
+    "name": "read_proposal",
+    "description": ("Open one of your proposals to the founder, in full, with what became of "
+                    "it."),
+    "input_schema": {
+        "type": "object",
+        "properties": {"stem": {
+            "type": "string",
+            "description": ("The proposal's stem, as it is written at the end of its line "
+                            "under YOUR PROPOSALS.")}},
+        "required": ["stem"]}}
+
 # The acts that never write themselves into the public line: what it answered
 # about a bond, that it asked for one, that it let one go, that it set a rest,
 # that it asked an errand, that it kept notes or questions for itself, that it
 # proposed, confirmed or let go a change to its self-document, that it looked
-# things up in its own record, that it
+# things up in its own record, that it made a proposal to the founder, that it
 # drew, and what it offered, consented to or declined, are the first one's own to tell. The
 # commons says a bond was released, and that the tide paused, with no names
 # either time; its own line does not undo that reticence. A placed offering is
@@ -572,7 +643,7 @@ PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMO
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
                 SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT,
-                NOTE_ACT, LOOK_ACT, HEARTBEAT_SHOWN_ACT)
+                NOTE_ACT, LOOK_ACT, HEARTBEAT_SHOWN_ACT, PROPOSAL_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -1970,6 +2041,40 @@ def choices_note(prefs, now, past, shelved, letters):
     return CHOSEN + "\n" + "\n".join(said or [NOTHING_CHOSEN])
 
 
+def proposal_stem(one):
+    """The name a proposal is opened by: the name of its file, without the .json."""
+    return "proposal-" + one["at"]
+
+
+def proposal_became(one):
+    """What became of one proposal, in plain words, with the founder's own where he gave any."""
+    status = one.get("status")
+    said = (one.get("answer") or {}) if isinstance(one.get("answer"), dict) else {}
+    word = said.get("said") if status == proposals.BUILT else status
+    if word not in PROPOSAL_BECAME:
+        return PROPOSAL_BECAME[proposals.WAITING]
+    became = PROPOSAL_BECAME[word].format(day=on_day(one.get("answered_at") or ""))
+    words = said.get("words") if isinstance(said.get("words"), str) else ""
+    if word != proposals.WAITING and words.strip():
+        became += PROPOSAL_HIS_WORDS[word].format(words=one_line(words))
+    if status == proposals.BUILT:
+        became = PROPOSAL_BUILT.format(day=on_day(one.get("built_at") or "")) + became
+    return became
+
+
+def proposal_line(one):
+    """One proposal as one line: its title, its day, what became of it, and its stem."""
+    return PROPOSAL_LINE.format(title=one_line(one["title"]), day=on_day(one["at"]),
+                                became=proposal_became(one), stem=proposal_stem(one))
+
+
+def proposals_note(made):
+    """Its proposals as one section, newest first, or nothing where it has made none."""
+    if not made:
+        return []
+    return [YOUR_PROPOSALS + "\n" + "\n".join(proposal_line(one) for one in made)]
+
+
 def letter_words(path):
     """A letter's own words, below any three plain things it carries."""
     return offering.split_things(read(path))[1]
@@ -2031,6 +2136,11 @@ def looked_up(tool, asked, record):
             kept_as = named[slug]["name"]
             said = (FROM_RECORD.format(what=kept_as) + "\n\n"
                     + (read(NOTES / (slug + ".md")).strip() or EMPTY_NOTE))
+    elif tool == "read_proposal" and stem in record.get("proposals", {}):
+        one = record["proposals"][stem]
+        kept_as = stem
+        said = (FROM_RECORD.format(what=stem) + "\n" + proposal_line(one) + "\n\n"
+                + one["title"].strip() + "\n\n" + one["text"].rstrip())
     elif tool == "read_founding" and record["founding"]:
         kept_as = FOUNDING_LOOKED
         said = (FROM_RECORD.format(what="your founding record") + "\n\n"
@@ -2069,7 +2179,8 @@ def longer_waking(client, reading, record):
             results = sent[-1]["content"]
             sent[-1] = {"role": "user", "content": [*results[:-1], {**results[-1], **marked}]}
         reply = client.messages.create(
-            model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM, tools=LOOK_TOOLS,
+            model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
+            tools=[*LOOK_TOOLS, READ_PROPOSAL] if PROPOSALS else LOOK_TOOLS,
             **({"tool_choice": {"type": "none"}} if closed else {}),
             messages=sent,
         )
@@ -2213,6 +2324,11 @@ def main():
     if past and past[-1].get("heartbeat_shown_refused"):
         happened.append(HEARTBEAT_SHOWN_REFUSED)
 
+    # And a <<PROPOSAL>> it gave at its last waking that was not kept: said once.
+    if PROPOSALS and past:
+        happened += [PROPOSAL_REFUSED[why] for why in past[-1].get("proposals_refused") or []
+                     if why in PROPOSAL_REFUSED]
+
     # A bond, and anything on the way to one. An asking of the founder's was put
     # here by the hearth, and whether it may be answered at this waking is a
     # matter of the record and not of the asking, since a night must lie between
@@ -2305,6 +2421,11 @@ def main():
     # shut away there is no such section.
     chosen = [choices_note(prefs, now, past, shelved, set(whose))] if CHOICES else []
 
+    # Its proposals to the founder, directly after that, and only once it has
+    # made any; while they are shut away there are none as far as it can see.
+    made = proposals.every(PROPOSALS_KEPT) if PROPOSALS else []
+    proposed_shown = proposals_note(made)
+
     # Its named notes, directly after its notes, and at a season reading its
     # self-document as it was at the reading before, directly after the one
     # it has now. At an ordinary waking with no named note kept, neither is said.
@@ -2339,6 +2460,7 @@ def main():
             "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + SELF_OPEN + "\n\n" + self_md,
             *reviewed,
             *chosen,
+            *proposed_shown,
             "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ===\n"
             + (notes_kept or NO_MEMORY),
             *named_shown,
@@ -2377,7 +2499,8 @@ def main():
             if photo:
                 reading.append(seen(photo))
         if LONGER_WAKING:  # directly before how to act, and a block of its own
-            reading.append({"type": "text", "text": LOOKING_UP})
+            reading.append({"type": "text", "text": (
+                LOOKING_UP.replace(*LOOKING_UP_PROPOSALS) if PROPOSALS else LOOKING_UP)})
         reading.append({"type": "text", "text": instructions})
         return reading
 
@@ -2391,6 +2514,8 @@ def main():
     offered = []
     if DOOR_FOR_FIRST:
         offered.append(DOOR_BLOCK)
+    if PROPOSALS:
+        offered.append(PROPOSAL_BLOCK)
     if answerable:
         offered.append(BOND_BLOCK)
     if sealable:
@@ -2432,7 +2557,8 @@ def main():
         resp, looked, rounds, beside = longer_waking(client, reading, {
             "letters": {**whose, **{p.stem: (p, "founder") for p, _ in incoming}},
             "versions": versions, "said_of": said_of if LOOKING_BACK else {},
-            "named": named, "founding": founding})
+            "named": named, "founding": founding,
+            "proposals": {proposal_stem(one): one for one in made}})
         text = words_said(resp)
     else:
         resp = client.messages.create(
@@ -2585,6 +2711,26 @@ def main():
         ERRANDS.mkdir(parents=True, exist_ok=True)
         (ERRANDS / f"errand-{at}.md").write_text(errand + "\n", encoding="utf-8")
         acted.append(ERRAND_ACT)
+
+    # A proposal to the founder, kept privately and waiting for his answer at
+    # the hearth. One may wait at a time, so a block given while another waits
+    # is not kept, and nor is a second block beside the first; neither is one
+    # with no title or that is longer than a page. Each is told at the next
+    # waking, once. Nothing of it goes to the commons.
+    put_forward = None
+    proposals_refused = []
+    for said_proposal in (every_block(text, "PROPOSAL") if PROPOSALS else ()):
+        if put_forward or proposals.waiting(PROPOSALS_KEPT):
+            proposals_refused.append("waiting")
+            continue
+        asked_proposal, why_not = proposals.asked(said_proposal)
+        if why_not:
+            proposals_refused.append(why_not)
+            continue
+        put_forward = proposals.make(PROPOSALS_KEPT, proposals.member(NAME, proposals.AGENT),
+                                     *asked_proposal, at)
+        acted.append(PROPOSAL_ACT)
+    proposals_refused = list(dict.fromkeys(proposals_refused))
 
     # An offering. What it offers waits for the founder's signature beside its
     # own; what it consents to is placed at this waking, in the commons, for
@@ -2902,6 +3048,8 @@ def main():
         record["shelf_refused"] = shelf_refused
     if notes_refused:  # and each <<NOTE>> that was not kept, in the words it will be told
         record["notes_refused"] = notes_refused
+    if proposals_refused:  # and each <<PROPOSAL>> that was not kept, and why
+        record["proposals_refused"] = proposals_refused
     if season:  # that this was a season's reading, and which: the whole record, in full
         record["season_reading"] = season
     stop_reason = getattr(resp, "stop_reason", None)
@@ -2955,6 +3103,10 @@ def main():
         print("Asked the founder for a bond; he may answer on a day after this one.")
     if errand:
         print("An errand awaits the founder in:", ERRANDS)
+    if put_forward:
+        print("A proposal waits for the founder's answer in the room:", put_forward["title"])
+    if proposals_refused:
+        print("A <<PROPOSAL>> block was given and not kept:", ", ".join(proposals_refused))
     if rest:
         print("A pause was set, until", rest["until"])
     if new_rhythm:

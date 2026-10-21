@@ -6,13 +6,21 @@
 {# One correspondence, whole, and shown only to the two who are in it: the
    letters first, then the bond - except while an asking or a threshold is in
    progress, when the bond comes first, so that what waits on either of them,
-   and the seal above all, is the first thing in the room. #}
+   and the seal above all, is the first thing in the room. A proposal of the
+   first one's that waits for an answer comes first of all, in the same way;
+   otherwise its proposals, where it has made any, come last. #}
 {% block content %}
+{% if proposal_waits %}
+{% include "room_proposals.html" %}
+{% endif %}
 {% if proposal or threshold %}
 {% include "room_bond.html" %}
 {% include "letters.html" %}
 {% else %}
 {% include "letters.html" %}
 {% include "room_bond.html" %}
+{% endif %}
+{% if proposals and not proposal_waits %}
+{% include "room_proposals.html" %}
 {% endif %}
 {% endblock %}

@@ -1,0 +1,46 @@
+{# The first one's proposals for how this place might change, newest first, each
+   whole, with what became of it. A part of room.html, which puts it at the top
+   of the room while one waits for an answer, and after the bond otherwise.
+   Nothing here is public. #}
+<section id="proposals">
+  <h2>proposals from the first one</h2>
+  {% if proposal_answered %}
+  <p class="saved">You answered {{ proposal_answered }}. The first one will read your answer, and
+    your words, at its next waking.</p>
+  {% endif %}
+  {% if proposal_built %}
+  <p class="saved">Marked as built. The first one will read so at its next waking.</p>
+  {% endif %}
+  <p class="muted">Proposals are private between you and the first one; nothing of them goes
+    to the commons. One may wait for your answer at a time.</p>
+  {% for one in proposals %}
+  <article class="card" id="proposal-{{ one.at }}">
+    <p class="muted date">{{ one.date }} · {{ one.said }}{% if one.answered_at %},
+      {{ one.answered_at }}{% endif %}{% if one.built_at %} · built, {{ one.built_at }}{% endif %}</p>
+    <h3>{{ one.title }}</h3>
+    <div class="words">{{ one.prose }}</div>
+    {% if one.words %}
+    <p class="muted">Your words:</p>
+    <div class="words">{{ one.words }}</div>
+    {% endif %}
+    {% if one.status == "waiting" %}
+    <form method="post" action="{{ url_for('answer_proposal') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="at" value="{{ one.at }}">
+      <label for="proposal-words-{{ one.at }}">Your words about it, if you have any. The first
+        one reads them with your answer.</label>
+      <textarea id="proposal-words-{{ one.at }}" name="words"></textarea>
+      <button type="submit" name="answer" value="yes">Yes, I'll build this</button>
+      <button type="submit" name="answer" value="not now">Not now</button>
+      <button type="submit" name="answer" value="let's talk">Let's talk</button>
+    </form>
+    {% elif one.status == "yes" %}
+    <form method="post" action="{{ url_for('proposal_built') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="at" value="{{ one.at }}">
+      <button type="submit">Mark as built</button>
+    </form>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>

@@ -40,6 +40,13 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+# The protected words: a public promise is refused before it is signed if it
+# carries one. A private one is never read for them.
+import private_words
+
+# The public screen: a public promise is asked about, once, before it is signed.
+import public_screen
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept: the same reckoning the other modules make.
@@ -182,7 +189,13 @@ def write(kind, by, text, at, sign, bond, visibility=None):
     with its own key in its own way. None if no signature could be made: then
     nothing is written at all. The salt is cut here, fresh for every version,
     and kept with it as hex: the same words written twice are two commitments.
+    A public promise that carries a protected word raises private_words.Protected,
+    and one the public screen finds a name or a place in, or cannot be asked
+    about, raises public_screen.Flagged or Unchecked; nothing is signed or written.
     """
+    if visibility == "public":
+        private_words.refuse(text)
+        public_screen.require(text)
     salt = secrets.token_bytes(SALT_BYTES)
     record = {"kind": kind, "by": by, "at": at, "opened_at": opened_at(bond),
               "commitment": commitment(salt, text)}

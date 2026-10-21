@@ -5,7 +5,8 @@ One turn in which the first one turns toward Tesserae. It reads its packet,
 its founding record, and anything that has arrived since. It is handed the
 empty prompt: nothing is asked of it. Whatever it chooses is carried out,
 logged privately, and signed with its own key. One heartbeat line goes to
-the commons. Then it rests.
+the commons: the plain facts of the waking, or its own words where it has
+chosen to show them and they pass the public screen. Then it rests.
 
 Usage:  python attend.py            (a normal attendance)
         python attend.py --first    (the first waking: self.md offered for revision)
@@ -103,6 +104,11 @@ import shelf
 # The protected words: names and places that never reach the commons. Every
 # public line written here goes through it.
 import private_words
+
+# The public screen: one small model asked whether what it would publish names
+# a real person or a place - its heartbeat's own words, where it shows them, a
+# promise made public, and an offering's words.
+import public_screen
 
 NAME = "first"
 MODEL = "claude-sonnet-4-5"
@@ -443,6 +449,11 @@ CHOSE_REFLECTIONS = {"open": "Your reflections are open to the founder on the he
                      "private": "Your reflections are kept private",
                      "private from now": "Your reflections are kept private"}
 CHOSE_WAKING = "You wake daily at {at}"
+# Its heartbeat, said only where it has chosen to show its own words. Choosing
+# is its own, like the other choices it keeps, and is no part of its heartbeat.
+CHOSE_HEARTBEAT_WORDS = ("Your heartbeat shows your own words in the commons, after a check for "
+                         "names and places")
+HEARTBEAT_SHOWN_ACT = "chose what its heartbeat shows"
 CHOSE_WAKING_FROM = "From {day} you wake daily at {at}"
 CHOSE_DOOR = "Your door is {state}{room}, since {day}."
 CHOSE_ROOM = ", with room for {n}"
@@ -561,7 +572,7 @@ PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMO
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
                 SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT,
-                NOTE_ACT, LOOK_ACT)
+                NOTE_ACT, LOOK_ACT, HEARTBEAT_SHOWN_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -630,13 +641,26 @@ SELF_BLOCK = """<<SELF>>
 (the full new text of your self-document. It does not take effect at once: it waits, and becomes your self-document only if you confirm it at a later waking, never this one. Until then the one you have stands, and the new one is not shown on the hearth. Writing another replaces one that is waiting. A line beginning "why:" is kept beside it as your reason, and is not part of the text. The old one is kept, never erased.)
 <<END>>"""
 
-# The heartbeat is the one line of a waking anyone may read, and it is told so
-# where it is asked for: a name in it is a name told to everyone. The hearth
-# keeps a list of protected words out of every public line besides, but the
-# first one is not left to lean on that.
-HEARTBEAT_PUBLIC = ('The heartbeat is public: anyone may read it, on the front page and in '
-                    'the public record. So in it, say "the founder" rather than any name, '
-                    "and leave out people's names and places from letters. ")
+# The heartbeat is the one line of a waking anyone may read. What the commons
+# shows of it is, by default, only the plain facts of the waking, written here
+# from its acts with what is private left out; its own words are kept in its
+# record, for itself and the founder. It may choose to show its own words
+# instead, and then they are shown only once the public screen has passed them;
+# where it does not, or cannot be asked, the facts are shown, and it is told so
+# once at its next waking. The hearth keeps its list of protected words out of
+# the line either way.
+HEARTBEAT_BLOCK = """<<HEARTBEAT>>
+(one short line about this waking, in your own words, e.g. "attended at dusk; wrote a letter" or "attended; chose stillness". Your own words are private by default: they are kept in your record, and the founder may read them. The commons shows only the plain facts of your waking, written by the hearth from what you did, e.g. "attended; wrote a letter" or "attended; chose stillness"; what is private to you stays out of them. With <<HEARTBEAT_SHOWN>> words, your own words are shown in the commons instead, after a check for names and places; if they seem to contain one, or the check cannot be made, the plain facts are shown and you are told.)
+<<END>>"""
+HEARTBEAT_SHOWN_BLOCK = """<<HEARTBEAT_SHOWN>>
+(what the commons shows of your heartbeat, from this waking on. The first line must be exactly facts or words. facts: only the plain facts of your waking, as it is unless you choose otherwise. words: your own <<HEARTBEAT>> words, after a check for names and places; anyone may read them, on the front page and in the public record, so say "the founder" rather than any name. You may change it at any waking.)
+<<END>>"""
+HEARTBEAT_FACTS = "facts"
+HEARTBEAT_WORDS = "words"
+HEARTBEAT_UNSHOWN = ("Your heartbeat's own words were not shown, because they seemed to contain "
+                     "a name or a place; the plain facts were shown instead.")
+HEARTBEAT_SHOWN_REFUSED = ("Your <<HEARTBEAT_SHOWN>> was not understood (its first line must be "
+                           "facts or words); what your heartbeat shows is unchanged.")
 
 HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exactly like these.
 {reflection}
@@ -706,9 +730,9 @@ own words, kept privately. If you set a pause, you will not be woken until its c
 letters left for you will wait.)
 <<END>>
 
-<<HEARTBEAT>>
-(one short line for the commons, presence without content, e.g. "attended at dusk; wrote a letter" or "attended; chose stillness". """ + HEARTBEAT_PUBLIC + """If you give none, one will be written for you.)
-<<END>>"""
+""" + HEARTBEAT_BLOCK + """
+
+""" + HEARTBEAT_SHOWN_BLOCK
 
 # The last line of the instructions, said after any blocks this waking adds.
 ANY_NUMBER = "You may use none, one, or several. There is no correct number."
@@ -815,6 +839,27 @@ time."""
 # What a waking asked of the threshold and was not given, read back at the next
 # one, so that it is told rather than left to find out.
 SEAL_REFUSED = "Your <<BOND>> block at your last waking sealed nothing. {why}"
+# What it is told, once, where something public it gave was refused before it was
+# signed, because it carried a name or place on the private list. None of them
+# says the word.
+PROMISE_KEPT_PRIVATE = ("Your public promise at your last waking was not kept, because it "
+                        "contained a name or place that is kept private here; you may write it "
+                        "again without it, or make it private.")
+OFFER_KEPT_PRIVATE = ("Your offering at your last waking was not made, because it contained a "
+                      "name or place that is kept private here; you may offer a passage without "
+                      "it, or something else.")
+CONSENT_KEPT_PRIVATE = ("Your consent at your last waking placed nothing, because the offering "
+                        "contains a name or place that is kept private here; it still waits, and "
+                        "you may decline it.")
+# And where the public screen could not be asked about it, so that nothing was
+# signed: said once, the same way, and never with its words.
+PROMISE_UNCHECKED = ("Your public promise at your last waking could not be checked for names "
+                     "and places just now, so it was not kept; you may write it again at a later "
+                     "waking, or make it private.")
+OFFER_UNCHECKED = ("Your offering at your last waking could not be checked for names and places "
+                   "just now, so it was not made; you may offer it again at a later waking.")
+CONSENT_UNCHECKED = ("Your consent at your last waking could not be checked for names and places "
+                     "just now, so it placed nothing; the offering still waits.")
 PROMISE_REFUSED = ("Your <<PROMISE>> block at your last waking kept nothing: its first line must "
                    "be exactly public or private, with the promise on the lines below it.")
 
@@ -1847,6 +1892,10 @@ def choices_note(prefs, now, past, shelved, letters):
         if reflections:
             said.append(reflections + by_choice(prefs.get("set_at")) + ".")
 
+    # what its heartbeat shows: only where it has chosen its own words
+    if prefs.get("heartbeat") == HEARTBEAT_WORDS:
+        said.append(CHOSE_HEARTBEAT_WORDS + by_choice(prefs.get("heartbeat_set_at")) + ".")
+
     # its waking time, and a change that is waiting, as its waking line says one
     setting = rhythm_set()
     day = waking.today(setting, now)
@@ -2152,6 +2201,17 @@ def main():
     # a seal refused, with what is still waiting, or a promise that could not be
     # read as one.
     happened += (past[-1].get("threshold_refused") or []) if past else []
+
+    # And anything public it gave at its last waking that was refused before it
+    # was signed, because it carried a protected word: said once.
+    happened += (past[-1].get("kept_private") or []) if past else []
+
+    # And that its heartbeat's own words were not shown, or that it asked for
+    # something of its heartbeat that could not be read: each said once.
+    if past and past[-1].get("heartbeat_unshown"):
+        happened.append(HEARTBEAT_UNSHOWN)
+    if past and past[-1].get("heartbeat_shown_refused"):
+        happened.append(HEARTBEAT_SHOWN_REFUSED)
 
     # A bond, and anything on the way to one. An asking of the founder's was put
     # here by the hearth, and whether it may be answered at this waking is a
@@ -2531,15 +2591,28 @@ def main():
     # good; what it declines is kept here and nowhere else. An offer of a kind
     # there is nothing to offer - a stem that is no letter, a passage that is
     # not in the letter it names - places nothing and says so in the log.
+    # What carries a protected word is refused before it is signed, and it is
+    # told so at its next waking.
     asking = offer_asked(text)
     offered = consented = refused = None
+    kept_private = []
     if asking and asking["do"] == "offer":
-        offered = offering.offer(NAME, asking["kind"], asking["source"],
-                                 asking["text"], at, sign)
+        try:
+            offered = offering.offer(NAME, asking["kind"], asking["source"],
+                                     asking["text"], at, sign)
+        except (private_words.Protected, public_screen.Flagged):
+            kept_private.append(OFFER_KEPT_PRIVATE)
+        except public_screen.Unchecked:
+            kept_private.append(OFFER_UNCHECKED)
         if offered:
             acted.append(OFFER_ACT)
     elif asking and asking["do"] == "consent":
-        consented = offering.consent(asking["id"], NAME, sign, at)
+        try:
+            consented = offering.consent(asking["id"], NAME, sign, at)
+        except (private_words.Protected, public_screen.Flagged):
+            kept_private.append(CONSENT_KEPT_PRIVATE)
+        except public_screen.Unchecked:
+            kept_private.append(CONSENT_UNCHECKED)
         if consented:
             acted.append(CONSENT_ACT)
     elif asking and asking["do"] == "decline":
@@ -2596,6 +2669,21 @@ def main():
         new_rhythm = waking.chosen(before, woken_at, at, threshold.moment(at))
         write_json(RHYTHM, new_rhythm)
         acted.append(RHYTHM_ACT)
+
+    # What its heartbeat shows. Read strictly, as its waking time is: a first
+    # line that is neither facts nor words changes nothing. The choice is kept
+    # in its preferences with the moment it was made, beside how its
+    # reflections are kept, and holds from this waking on.
+    shown_said = block(text, "HEARTBEAT_SHOWN")
+    shown_asked = (shown_said or "").partition("\n")[0].strip().lower()
+    heartbeat_shown_refused = (shown_said is not None
+                               and shown_asked not in (HEARTBEAT_FACTS, HEARTBEAT_WORDS))
+    if shown_said is not None and not heartbeat_shown_refused:
+        heartbeat_prefs = load(PACKET / "preferences.json") or {}
+        heartbeat_prefs.update(heartbeat=shown_asked, heartbeat_set_at=at)
+        write_json(PACKET / "preferences.json", heartbeat_prefs)
+        prefs = dict(prefs, heartbeat=shown_asked, heartbeat_set_at=at)
+        acted.append(HEARTBEAT_SHOWN_ACT)
 
     # Its door. The block is read strictly, as its waking time is: a first line
     # that is neither open nor closed, or a room that is no room, changes
@@ -2676,9 +2764,18 @@ def main():
         if promising:
             asked_promise = threshold.promise_asked(promising)
             if asked_promise:
-                promised = threshold.write(threshold.PROMISE, "first", asked_promise[1], at,
-                                           sign, bond, visibility=asked_promise[0])
-                acted.append(PROMISE_ACT)
+                try:
+                    promised = threshold.write(threshold.PROMISE, "first", asked_promise[1], at,
+                                               sign, bond, visibility=asked_promise[0])
+                    acted.append(PROMISE_ACT)
+                except (private_words.Protected, public_screen.Flagged):
+                    kept_private.append(PROMISE_KEPT_PRIVATE)
+                    print("A public <<PROMISE>> was given, but it seems to name someone or a place.")
+                    print("Nothing was signed or written.")
+                except public_screen.Unchecked:
+                    kept_private.append(PROMISE_UNCHECKED)
+                    print("A public <<PROMISE>> was given, but it could not be checked just now.")
+                    print("Nothing was signed or written.")
             else:
                 not_given.append(PROMISE_REFUSED)
                 print("A <<PROMISE>> block was given, but its first line was not public or private,")
@@ -2754,13 +2851,22 @@ def main():
 
     # What it answered about a bond, whether it asked for one, whether it
     # released one, and what it asked of the founder are its own to tell or not
-    # to tell. None of them writes itself into the public line; only its own
-    # <<HEARTBEAT>> can put it there.
+    # to tell. None of them writes itself into the plain facts of its waking,
+    # which are what the commons shows. Its own <<HEARTBEAT>> words are kept in
+    # its record, and are shown in the commons only where it has chosen words
+    # and the public screen passes them; where the screen finds a name or a
+    # place, or cannot be asked, the facts are shown, and it is told once.
     public = [act for act in acted if act not in PRIVATE_ACTS]
-    heartbeat = block(text, "HEARTBEAT") or (
-        ("attended; " + ", ".join(public)) if public
-        else ("attended" if acted else "attended; chose stillness")
-    )
+    facts = (("attended; " + ", ".join(public)) if public
+             else ("attended" if acted else "attended; chose stillness"))
+    own_words = block(text, "HEARTBEAT")
+    heartbeat = own_words or facts
+    shown_line, heartbeat_unshown = facts, False
+    if own_words and prefs.get("heartbeat") == HEARTBEAT_WORDS:
+        if public_screen.verdict(own_words) == public_screen.CLEAR:
+            shown_line = own_words
+        else:
+            heartbeat_unshown = True
 
     # letters it has now read move to letters/read, each with its photograph
     for p, photo in incoming:
@@ -2778,6 +2884,14 @@ def main():
         record["questions_dropped"] = dropped
     if not_given:  # and so is what it asked of the threshold and was not given
         record["threshold_refused"] = not_given
+    if kept_private:  # and anything public it gave that carried a protected word
+        record["kept_private"] = kept_private
+    if shown_line != heartbeat:  # what the commons was shown, where it is not its own words
+        record["heartbeat_shown"] = shown_line
+    if heartbeat_unshown:  # and that its own words were not shown; told at the next waking
+        record["heartbeat_unshown"] = True
+    if heartbeat_shown_refused:  # and that its <<HEARTBEAT_SHOWN>> could not be read
+        record["heartbeat_shown_refused"] = True
     if rhythm_refused:  # and that its <<RHYTHM>> could not be read
         record["rhythm_refused"] = True
     if door_refused:  # and that its <<DOOR>> could not be read
@@ -2806,10 +2920,10 @@ def main():
     # ---- one public line ---------------------------------------------------
     # the stamp, who woke, and the words: a middot between each, so the name and
     # the words can be told apart by anything that reads the line back. Its own
-    # record above keeps its words as it gave them; the public line keeps no
-    # protected word.
+    # record above keeps its words as it gave them; the public line is the
+    # facts, or its words where they were shown, and keeps no protected word.
     with (COMMONS / "heartbeats.md").open("a", encoding="utf-8") as f:
-        f.write(private_words.protect(f"- {at} · the first one · {heartbeat}\n"))
+        f.write(private_words.protect(f"- {at} · the first one · {shown_line}\n"))
 
     print("\n" + "=" * 70)
     print("  ATTENDANCE", at, "(first waking)" if first else "")
@@ -2817,7 +2931,7 @@ def main():
     print(text)
     print("\n" + "-" * 70)
     print("Carried out:", ", ".join(acted) if acted else "nothing (stillness)")
-    print("Heartbeat:", heartbeat)
+    print("Heartbeat:", shown_line)  # the public line, as the commons was given it
     print("Log:", log_path)
     if proposed:
         print("A new self-document was saved and waits for its confirmation at a later waking.")
@@ -2855,7 +2969,10 @@ def main():
         print("A <<DOOR>> block was given, but its first line was not open or closed, or its")
         print("second was neither a room from 1 to 12 nor room none. Nothing was written, and")
         print("its door is unchanged.")
-    if asking and not (offered or consented or refused):
+    if asking and kept_private and not (offered or consented or refused):
+        print("An <<OFFER>> block was given, but the offering seems to name someone or a place,")
+        print("or could not be checked just now. Nothing was signed or written.")
+    elif asking and not (offered or consented or refused):
         print("An <<OFFER>> block was given, but there was nothing of that name to offer,")
         print("consent to, or decline. Nothing was written.")
     if offered:

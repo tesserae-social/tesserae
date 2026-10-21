@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from conftest import block, lines_of, page, post, write
+from conftest import block, blocks, lines_of, page, post, write
 from test_bond_page import a_bond, placed, threshold_module  # noqa: F401 (fixtures)
 from test_offerings import HIS, a_correspondence, offer, only_pending, only_placed
 
@@ -71,7 +71,9 @@ def test_on_a_page_only_the_words_between_tags_are_read(attend):
 
 def test_the_heartbeat_line_keeps_no_protected_word_and_its_record_keeps_its_own(
         wake, listed, commons, packet):
-    wake(block("HEARTBEAT", "Quillon at the Ostle; attended"))
+    # its own words go to the commons only where it has chosen to show them
+    wake(blocks(block("HEARTBEAT_SHOWN", "words"),
+                block("HEARTBEAT", "Quillon at the Ostle; attended")))
     assert lines_of(commons / "heartbeats.md")[-1].endswith("the first one · the founder; attended")
     (record,) = (packet / "attendances").glob("attendance-*.json")
     assert json.loads(record.read_text(encoding="utf-8"))["heartbeat"] == (

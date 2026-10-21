@@ -44,6 +44,13 @@ from nacl.signing import VerifyKey
 
 import bonds
 
+# The protected words: a line is public, and is refused before it is signed if
+# it carries one.
+import private_words
+
+# The public screen: a line is asked about, once, before it is signed.
+import public_screen
+
 VERSION = 1
 
 REPO = Path(__file__).resolve().parent
@@ -70,6 +77,9 @@ NO_MARK = "no mark to correct"
 CORRECTED = "already corrected"
 NOT_A_LINE = "not a line"
 UNSIGNED = "unsigned"
+PROTECTED = "a protected word"
+SCREENED = "a name or a place"
+NOT_SCREENED = "not checked"
 
 # Two marks made at once must not both find the list as it was.
 LOCK = threading.Lock()
@@ -210,10 +220,24 @@ def add(bond_id, did, name, line, sign, at, correcting=False):
     The signing is handed in, as threshold.py takes it, so that each hand signs
     with its own key in its own way: it is given the bytes and gives back the
     signature as base64 text. Raises Refused, with nothing written, if the mark
-    may not be made or no signature came back.
+    may not be made or no signature came back, or if its line carries a
+    protected word: a mark is public, and never changed once it is signed. The
+    public screen is asked before the marks are held, and only of a mark that
+    may be made, so that no one waits on it and nothing is asked for nothing:
+    SCREENED where it finds a name or a place, NOT_SCREENED where it cannot be
+    asked.
     """
     if not is_line(line):
         raise Refused(NOT_A_LINE)
+    if private_words.carries(line):
+        raise Refused(PROTECTED)
+    bond = bonds.record(bond_id)
+    why = refusal(bond, did, marks(bond_id) if bond else [], correcting)
+    if why:
+        raise Refused(why)
+    found = public_screen.verdict(line)
+    if found != public_screen.CLEAR:
+        raise Refused(SCREENED if found == public_screen.FLAGGED else NOT_SCREENED)
     with LOCK:
         bond = bonds.record(bond_id)
         held = kept(bond_id) if bond else []

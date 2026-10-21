@@ -33,6 +33,10 @@ from pathlib import Path
 # public line written here goes through it.
 import private_words
 
+# The public screen: one small model asked whether the words name a real person
+# or a place, before anything is signed.
+import public_screen
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept. Locally this is the repo itself; on a host it
@@ -317,7 +321,11 @@ def offer(offered_by, kind, source, text, at, sign):
     The record is the offering as it was offered, and the signature is over
     that record; what is waited on is the other party's signature beside it.
     None where there is nothing of that kind to offer, or where a passage is
-    not in the letter it is said to come from.
+    not in the letter it is said to come from. Raises private_words.Protected,
+    with nothing signed or written, where the words carry a protected word:
+    what is placed is public, and what is signed is never changed. Raises
+    public_screen.Flagged or public_screen.Unchecked, the same way, where the
+    public screen finds a name or a place in them or cannot be asked.
     """
     if offered_by not in PARTIES or kind not in KINDS:
         return None
@@ -329,6 +337,8 @@ def offer(offered_by, kind, source, text, at, sign):
         said = offerable(source, kind)
         if said is None:
             return None
+    private_words.refuse(said)
+    public_screen.require(said)
 
     record = {
         "id": free_id(at),
@@ -352,11 +362,16 @@ def consent(one, who, sign, at=None):
     """Put the second signature on an offering, and place it.
 
     None where there is nothing of that name waiting on this party - which is
-    what a second press of the same button finds.
+    what a second press of the same button finds. Raises private_words.Protected,
+    with nothing signed and the offering still waiting, where its words carry a
+    word that was put on the list after it was offered, and the public screen's
+    two the same way: it is screened again as it is placed.
     """
     record = load(pending_path(one)) if re.fullmatch(r"[A-Za-z0-9:._-]+", one or "") else None
     if not record or who not in PARTIES or record.get("offered_by") == who:
         return None
+    private_words.refuse(record.get("text"))
+    public_screen.require(record.get("text"))
     signature = sign(canonical(record))
     if signature is None:
         return None

@@ -813,7 +813,7 @@ def test_an_open_reflection_hides_the_shelf_block_as_it_hides_the_memory(founder
 # ---- a fresh packet, as it was -------------------------------------------
 
 # The last attend.py before there was a shelf to keep, kept in the history.
-BEFORE_THE_SHELF = "d35f271"
+BEFORE_THE_SHELF = "46dafe1"
 
 
 def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(

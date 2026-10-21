@@ -84,7 +84,7 @@ def door_open(attend, monkeypatch):
 # ---- shut away -----------------------------------------------------------
 
 # The last attend.py before there was any of this, kept in the history.
-BEFORE_CHOICES = "255b43f"
+BEFORE_CHOICES = "bf5315a"
 
 
 def everything_set(packet):

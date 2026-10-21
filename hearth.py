@@ -84,6 +84,11 @@ import witness
 # public line written here goes through it.
 import private_words
 
+# The public screen: one small model asked whether what a hand would publish
+# names a real person or a place. A line on the bench, an offering's words, a
+# witness's line are each asked about before they are placed or signed.
+import public_screen
+
 # The founder's key is read out of FOUNDER_KEY the one way, here and in
 # setup_keeper.py alike.
 from vault import key_from_text
@@ -3259,6 +3264,8 @@ def sign_as_witness(bond_id, form):
     if not line:
         return bond_page(bond_id, witness_error=NOT_A_WITNESS_LINE,
                          witness_draft=request.form.get("line", ""))
+    if private_words.carries(line):  # refused before the vault is opened at all
+        return bond_page(bond_id, witness_error=private_words.KEPT_PRIVATE, witness_draft=line)
 
     now = datetime.now(timezone.utc)
     counted = tries_counted(name, now)
@@ -3275,8 +3282,14 @@ def sign_as_witness(bond_id, form):
         witness.add(bond_id, did, public_bonds.name_of(did), line,
                     lambda payload: base64.b64encode(key.sign(payload).signature).decode("ascii"),
                     utc_stamp(), correcting=form == "correct")
-    except witness.Refused:
-        pass  # another hand got there first; the page says how things stand
+    except witness.Refused as why:
+        if str(why) in (witness.PROTECTED, witness.SCREENED):  # a name or a place in it
+            return bond_page(bond_id, witness_error=private_words.KEPT_PRIVATE,
+                             witness_draft=line)
+        if str(why) == witness.NOT_SCREENED:
+            return bond_page(bond_id, witness_error=public_screen.COULD_NOT_CHECK,
+                             witness_draft=line)
+        # otherwise another hand got there first; the page says how things stand
     return redirect(url_for("bond_page", bond_id=bond_id))
 
 
@@ -3348,6 +3361,8 @@ def offer_to_the_commons():
         return room_page(error=NO_KEY_TO_SIGN)
     try:
         made = offering.offer("founder", kind, stem, passage, utc_stamp(), founder_signature)
+    except (private_words.Protected, public_screen.Flagged, public_screen.Unchecked) as refused:
+        return room_page(error=str(refused))
     except ValueError as trouble:
         return render_template("error.html", note=str(trouble), output=""), 500
     if not made:
@@ -3363,6 +3378,8 @@ def consent_to_an_offering():
     try:
         placed = offering.consent(request.form.get("id", ""), "founder",
                                   founder_signature, utc_stamp())
+    except (private_words.Protected, public_screen.Flagged, public_screen.Unchecked) as refused:
+        return room_page(error=str(refused))
     except ValueError as trouble:
         return render_template("error.html", note=str(trouble), output=""), 500
     if not placed:
@@ -3453,6 +3470,9 @@ AS_DEFAULT = "a passerby"
 BENCH_A_DAY = 3     # lines one visitor may leave in a day
 
 REFUSED = "The bench didn't take that line."
+# Said where the public screen finds a name or a place in a line, or cannot be
+# asked about one.
+NAMED = "The bench didn't take that line, because it seemed to contain a name or a place."
 
 BENCH_INVITATION = (
     "Passersby may leave a line. A line is read once by a small utility model before it is "
@@ -3579,15 +3599,17 @@ def take_off(raw):
 
 def bench_page(**told):
     """The bench, with whatever the visitor has just been told."""
+    told.setdefault("refusal", REFUSED)
     return render_template("bench.html", lines=bench_lines(),
-                           invitation=BENCH_INVITATION, refusal=REFUSED,
+                           invitation=BENCH_INVITATION,
                            as_default=AS_DEFAULT, limit=BENCH_LIMIT,
                            as_limit=AS_LIMIT, **told)
 
 
-def turned_away(form):
+def turned_away(form, refusal=REFUSED):
     """The bench again, saying the one sentence, with what was written kept in the form."""
-    return bench_page(refused=True, draft=form.get("line", ""), who=form.get("as", ""))
+    return bench_page(refused=True, refusal=refusal, draft=form.get("line", ""),
+                      who=form.get("as", ""))
 
 
 # The bench itself: open to anyone, with no account and no password.
@@ -3614,6 +3636,12 @@ def bench():
         return turned_away(request.form)
     if not in_good_spirit(line):
         return turned_away(request.form)
+    # and the public screen, on the line
+    found = public_screen.verdict(line)
+    if found == public_screen.FLAGGED:
+        return turned_away(request.form, NAMED)
+    if found != public_screen.CLEAR:
+        return turned_away(request.form, public_screen.COULD_NOT_CHECK)
 
     place_line(day, who, line)
     return redirect(url_for("bench", placed=1))

@@ -118,7 +118,7 @@ def looking_back(attend, monkeypatch):
 # ---- shut away -----------------------------------------------------------
 
 # The last attend.py before there was any looking back, kept in the history.
-BEFORE_LOOKING_BACK = "1e942d7"
+BEFORE_LOOKING_BACK = "427c17a"
 
 
 def test_it_is_switched_on(attend):

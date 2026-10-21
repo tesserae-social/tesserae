@@ -381,7 +381,7 @@ def test_keeping_questions_is_in_no_line_of_the_chronicle(wake, hearth):
 
 
 # The last attend.py before there were questions to carry, kept in the history.
-BEFORE_QUESTIONS = "199f1fa"
+BEFORE_QUESTIONS = "6141d59"
 
 
 def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
@@ -829,9 +829,12 @@ def test_the_first_one_may_not_answer_an_asking_of_its_own(wake, packet):
     assert not (packet / "bonds" / "founder-first.json").exists()
 
 
-def test_heartbeat_block_is_the_line_that_goes_to_the_commons(wake, commons, clock):
+def test_heartbeat_block_is_the_line_that_goes_to_the_commons_where_it_shows_words(
+        wake, commons, clock):
+    """Its own words go to the commons only by its choice (see test_heartbeat_shown.py)."""
     at = clock.stamp()
-    wake(block("HEARTBEAT", "attended at dusk; chose stillness"))
+    wake(blocks(block("HEARTBEAT_SHOWN", "words"),
+                block("HEARTBEAT", "attended at dusk; chose stillness")))
     assert lines_of(commons / "heartbeats.md") == [
         "- %s · the first one · attended at dusk; chose stillness" % at]
 
@@ -841,7 +844,7 @@ def test_a_written_line_keeps_the_name_and_the_words_apart(wake, commons, clock)
     at = clock.stamp()
     wake(block("HEARTBEAT", "attended"))
     stamp, who, words = lines_of(commons / "heartbeats.md")[0].lstrip("- ").split(" · ")
-    assert (stamp, who, words) == (at, "the first one", "attended")
+    assert (stamp, who, words) == (at, "the first one", "attended; chose stillness")
 
 
 # ---- what the public line may say ----------------------------------------

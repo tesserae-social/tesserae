@@ -138,8 +138,31 @@ were first cut as; that was checked when they were cut again, and is not kept
 here, since keeping it would put the name back. The three cut before its named
 notes never gave the example, and did not move.
 
-All six earlier readings are still held. With the heartbeat not yet said to be
-public (conftest.heartbeat_not_yet_public), the reading is exactly the one cut
+And a seventh time, in the change that made its heartbeat's own words private
+by default (20 October 2026): the commons shows only the plain facts of its
+waking, written from its acts, unless it chooses with <<HEARTBEAT_SHOWN>> to
+show its own words, which are then shown only once the public screen has passed
+them. That is behind no flag, and it changes what is read in exactly one way at
+every waking, and READING_NOW was cut again for it:
+
+  * the <<HEARTBEAT>> block's explanation, in HOW_TO_ACT, which now says its
+    own words are private by default and what the commons shows instead
+    (attend.HEARTBEAT_BLOCK), and directly beneath it the explanation of
+    <<HEARTBEAT_SHOWN>> (attend.HEARTBEAT_SHOWN_BLOCK). The two sentences that
+    said the heartbeat is public are gone from it. No other block moved, no
+    word of any other changed, and no file of its packet.
+
+Two more things it may be told come with it, and neither is in this small
+world: one line under WHAT YOU HAVE CHOSEN, only once it has chosen its own
+words; and one line under WHAT HAS HAPPENED, only at the waking after its own
+words were not shown, or after a <<HEARTBEAT_SHOWN>> that could not be read.
+Both are held in test_heartbeat_shown.py.
+
+All seven earlier readings are still held. With its heartbeat explained as it
+was before its own words became private (conftest.heartbeat_words_not_yet_private),
+the reading is exactly the one cut when it was told its heartbeat is public;
+with the heartbeat not yet said to be public either
+(conftest.heartbeat_not_yet_public), the reading is exactly the one cut
 for the longer waking; with the longer waking shut away again as well
 (conftest.shut_away), it is exactly the one cut for its days in words; with each moment said as its stamp again as well
 (conftest.stamps_as_before), it is exactly the one cut for its
@@ -156,8 +179,9 @@ import json
 
 import pytest
 
-from conftest import (explained_as_before, heartbeat_not_yet_public, named_notes_unexplained,
-                      post, shut_away, stamps_as_before, write)
+from conftest import (explained_as_before, heartbeat_not_yet_public,
+                      heartbeat_words_not_yet_private, named_notes_unexplained, post, shut_away,
+                      stamps_as_before, write)
 
 # cut on the tree before the rooms, by leaving the letter at /letters
 PACKET_BEFORE = "06d48d0fffb5f5e2e3148baf5351f004cf22011db7a730df2ab259822cdc2e68"
@@ -189,7 +213,12 @@ READING_LONGER_WAKING = "37ed1e0a4089058d7bf74c84561a116647293bde99d0d88e6bda5f5
 
 # cut again on the tree that told it its heartbeat is public, the same way: the
 # reading above, with two sentences more in the <<HEARTBEAT>> block's explanation
-READING_NOW = "d0f5404b9272a45ec7f3ba84f2dbea809785ff46ae011eb60509a6f1af4f28e2"
+READING_HEARTBEAT_PUBLIC = "d0f5404b9272a45ec7f3ba84f2dbea809785ff46ae011eb60509a6f1af4f28e2"
+
+# cut again on the tree that made its heartbeat's own words private by default,
+# the same way: the reading above, with the <<HEARTBEAT>> block explained as it
+# is now and <<HEARTBEAT_SHOWN>> explained beneath it
+READING_NOW = "bbc420b77e367b9c441623914cffe1f91238719130a48e8e9b8a111ceafe9973"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -234,21 +263,26 @@ def test_the_longer_waking_is_switched_on(attend):
     (True, "the rule", READING_BEFORE), (False, "the rule", READING_SWITCHED_ON),
     (False, "its named notes", READING_TWO_WAKINGS), (False, "its days", READING_NAMED_NOTES),
     (False, "the longer waking", READING_DAYS_IN_WORDS),
-    (False, "the heartbeat", READING_LONGER_WAKING), (False, None, READING_NOW)],
+    (False, "the heartbeat", READING_LONGER_WAKING),
+    (False, "its own words", READING_HEARTBEAT_PUBLIC), (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
          "its named notes explained, each moment still a stamp",
          "each moment a day in words, the longer waking shut away",
-         "the longer waking on, the heartbeat not yet said to be public", "as it reads now"])
+         "the longer waking on, the heartbeat not yet said to be public",
+         "the heartbeat said to be public, its own words not yet private", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, packet, data_dir, monkeypatch, address, shut, as_before, as_cut):
     if shut:
         shut_away(attend, monkeypatch)
-    if as_before:  # no reading cut before this one said that its heartbeat is public
+    if as_before == "its own words":  # the one before this one said its heartbeat is public
+        heartbeat_words_not_yet_private(attend, monkeypatch)
+    elif as_before:  # and none cut before that one said so at all
         heartbeat_not_yet_public(attend, monkeypatch)
-    if as_before and as_before != "the heartbeat":  # and each before that was one request
+    if as_before and as_before not in ("the heartbeat", "its own words"):  # one request
         shut_away(attend, monkeypatch, "LONGER_WAKING")
-    if as_before and as_before not in ("the heartbeat", "the longer waking"):  # and a stamp
+    if as_before and as_before not in ("the heartbeat", "its own words",
+                                       "the longer waking"):  # and a stamp
         stamps_as_before(attend, monkeypatch)
     if as_before == "the rule":
         explained_as_before(attend, monkeypatch)

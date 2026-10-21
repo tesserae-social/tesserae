@@ -86,6 +86,34 @@ def no_network(monkeypatch):
     monkeypatch.setattr(socket, "create_connection", refuse)
 
 
+class Screen:
+    """The public screen, stubbed: it answers NO, the word that clears a text, unless a
+    test says otherwise. A test may set says to another answer, to an exception to
+    raise, or to a function of the text and the allowed names. Every asking is kept,
+    with its allowed names, and the real asking is kept beside the stub as real.
+    """
+
+    def __init__(self):
+        self.says = "NO"
+        self.asked = []
+
+    def __call__(self, text, names):
+        self.asked.append((text, list(names)))
+        if isinstance(self.says, BaseException):
+            raise self.says
+        return self.says(text, names) if callable(self.says) else self.says
+
+
+@pytest.fixture(autouse=True)
+def screen(monkeypatch):
+    """No text is ever sent to be screened: the one call the screen makes is stubbed."""
+    import public_screen
+    stub = Screen()
+    stub.real = public_screen.ask
+    monkeypatch.setattr(public_screen, "ask", stub)
+    return stub
+
+
 # ---- the clock -----------------------------------------------------------
 
 class Clock:
@@ -499,16 +527,45 @@ def named_notes_unexplained(module, monkeypatch):
     monkeypatch.setattr(module, "SHELF_NOTES", "")
 
 
+# The two sentences that told it its heartbeat is public (19 October 2026), and
+# the <<HEARTBEAT>> block's explanation they stood in, as both were until its
+# own words became private by default (20 October 2026).
+HEARTBEAT_PUBLIC = ('The heartbeat is public: anyone may read it, on the front page and in '
+                    'the public record. So in it, say "the founder" rather than any name, '
+                    "and leave out people's names and places from letters. ")
+HEARTBEAT_AS_IT_WAS = ('<<HEARTBEAT>>\n(one short line for the commons, presence without '
+                       'content, e.g. "attended at dusk; wrote a letter" or "attended; chose '
+                       'stillness". ' + HEARTBEAT_PUBLIC + 'If you give none, one will be '
+                       'written for you.)\n<<END>>')
+
+
+def heartbeat_words_not_yet_private(module, monkeypatch):
+    """Explain its heartbeat, for one test, as it was before its own words became private.
+
+    That is behind no flag. It changed one thing in the reading, at every
+    waking: the <<HEARTBEAT>> block's explanation, which now says its own words
+    are private by default and the commons shows the plain facts, and directly
+    beneath it the explanation of <<HEARTBEAT_SHOWN>>. Put back, it is exactly
+    the block that said the heartbeat is public.
+    """
+    now = module.HEARTBEAT_BLOCK + "\n\n" + module.HEARTBEAT_SHOWN_BLOCK
+    assert module.HOW_TO_ACT.count(now) == 1
+    monkeypatch.setattr(module, "HOW_TO_ACT",
+                        module.HOW_TO_ACT.replace(now, HEARTBEAT_AS_IT_WAS))
+
+
 def heartbeat_not_yet_public(module, monkeypatch):
     """Take out, for one test, what tells it that its heartbeat is public (19 October 2026).
 
     That is behind no flag either. It added one thing to the reading, at every
     waking: two sentences inside the <<HEARTBEAT>> block's explanation, saying
-    that anyone may read the line and so to name no one in it.
+    that anyone may read the line and so to name no one in it. The explanation
+    has changed since (heartbeat_words_not_yet_private), and is put back as it
+    was first, so that the two sentences may be taken out of it.
     """
-    said = module.HEARTBEAT_PUBLIC
-    assert module.HOW_TO_ACT.count(said) == 1
-    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.replace(said, ""))
+    heartbeat_words_not_yet_private(module, monkeypatch)
+    assert module.HOW_TO_ACT.count(HEARTBEAT_PUBLIC) == 1
+    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.replace(HEARTBEAT_PUBLIC, ""))
 
 
 # The name a note is given as an example, in the explanation of <<NOTE>>.

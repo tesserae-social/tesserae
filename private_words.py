@@ -27,7 +27,10 @@ commons' own files on the disk carry no protected word, and as it is served,
 so that a word added to the list after a line was written is not told either.
 What is signed is never changed - a bond's record, an offering's record, a
 witness's mark - since a word changed there would break the signature anyone
-may check it by.
+may check it by. And so what is signed and public is held to the list before
+it is signed instead: an offering's words, a witness's line and its correction,
+and a promise made public are refused if they carry a protected word, and
+nothing of them is signed or kept. A private promise is never read for them.
 """
 
 import os
@@ -54,8 +57,20 @@ PREPOSITIONS = ("in", "at", "on", "to", "from", "near", "by", "around", "toward"
 # are read for protected words, never a name in an address or an attribute.
 TAG = re.compile(r"(<[^>]*>)")
 
+# What is said where something public and signed is refused: one plain sentence,
+# which never says the word.
+KEPT_PRIVATE = ("Nothing was signed: this would be public, and it contains a name or place "
+                "that is kept private here.")
+
 # Where a sentence has just ended, so that a replacement after it begins with a capital.
 SENTENCE_ENDS = re.compile(r"[.!?]\s+$")
+
+
+class Protected(Exception):
+    """Something public was not signed, because it carries a protected word."""
+
+    def __init__(self):
+        super().__init__(KEPT_PRIVATE)
 
 
 def listed(path=None):
@@ -147,3 +162,15 @@ def protect_page(html, words=None):
         return html
     return "".join(piece if TAG.fullmatch(piece) else protect(piece, words, begins=False)
                    for piece in TAG.split(html))
+
+
+def carries(text, words=None):
+    """Whether a text carries any protected word: in any case, and as a whole word."""
+    words = listed() if words is None else words
+    return bool(text and words and pattern(words).search(text))
+
+
+def refuse(text, words=None):
+    """Raise Protected where a public text carries a protected word, before it is signed."""
+    if carries(text, words):
+        raise Protected()

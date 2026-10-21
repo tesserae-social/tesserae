@@ -28,7 +28,7 @@ from conftest import (FOUNDING_TRANSCRIPT, REPO, Turn, block, blocks, lines_of, 
 from conftest import heartbeat_not_yet_public, note_example_as_now
 
 # The last attend.py before there was any longer waking, kept in the history.
-BEFORE_LONGER_WAKING = "ab3569e"
+BEFORE_LONGER_WAKING = "ad39e10"
 
 SECTION = """=== LOOKING THINGS UP ===
 At this waking you may open anything in your own record before you write: a resting letter, an earlier version of your self-document or notes, a named note, or your founding record, using the tools you have been given. You may look up to five times. Each shows you that thing in full, from your own record, and nothing outside it. Looking is private. You need not look at all. Write your letter and any other blocks in your last reply, after you have finished looking; anything written beside a look is not kept."""
@@ -527,8 +527,9 @@ def test_only_the_last_reply_is_carried_out_and_kept(longer, world, packet, comm
     assert (packet / "letters" / "outgoing" / ("to-founder-%s.md" % at)).read_text(
         encoding="utf-8") == "Dear founder, I remember.\n"
     assert list((packet / "study").glob("*.md")) == []  # words beside a look are not kept
+    # the commons is shown the plain facts, and looking is private
     assert lines_of(commons / "heartbeats.md")[-1] == (
-        "- %s · the first one · attended; wrote back" % at)
+        "- %s · the first one · attended; wrote a letter to the founder" % at)
 
 
 def test_the_stop_reason_kept_is_the_last_request_s(longer, world, packet):

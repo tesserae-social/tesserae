@@ -40,6 +40,7 @@ import pytest
 
 from conftest import (FOUNDER_NAME, NOTEBOOK_WORDS, PASSWORD, Turn, a_private_notebook, block,
                       load, page, post, read_json, write, write_json)
+from test_backup import KEY as BACKUP_KEY, Bucket, set_variables
 from test_hearth_bonds import sealed
 from test_offerings import offer, photo_bytes
 from test_proposals import proposed
@@ -640,3 +641,77 @@ def test_a_rehearsal_refuses_a_world_already_moved(moved):
                                   % moved.resolve()]
 
 
+
+
+# ---- a rehearsal on a backup restored without its notebook ---------------
+
+def restored_without_private(data, monkeypatch, clock, tmp_path):
+    """A real backup of one world, made by its own hearth, restored with --without-private."""
+    hearth, _ = the_hearth_of(data, monkeypatch, clock)
+    set_variables(monkeypatch)
+    bucket = Bucket()
+    monkeypatch.setattr(hearth, "bucket_client", lambda: bucket)
+    assert " · backed up · " in hearth.back_up(clock.at)
+    [name] = bucket.keys
+    archive = tmp_path / name.split("/")[-1]
+    archive.write_bytes(bucket.objects[name])
+    key_file = tmp_path / "backup.key"
+    key_file.write_text(BACKUP_KEY + "\n", encoding="utf-8")
+    out = tmp_path / ("restored-from-" + data.name)
+    done = subprocess.run([sys.executable, str(Path(mir.REPO) / "restore_backup.py"),
+                           str(archive), str(key_file), str(out), "--without-private"],
+                          capture_output=True, text=True)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert re.search(r"^[1-9]\d* entries left out, under packets/\*/private/$", done.stdout,
+                     re.MULTILINE)
+    # a backup holds no ids/; the notebook was there to be left out, and was
+    assert not (out / "ids").exists()
+    assert (data / "packets" / "first" / "private").is_dir()
+    assert not (out / "packets" / "first" / "private").exists()
+    return out
+
+
+def test_a_rehearsal_holds_on_a_backup_restored_without_its_notebook(
+        world, monkeypatch, clock, tmp_path, capsys):
+    restored = restored_without_private(world, monkeypatch, clock, tmp_path)
+    # the identity documents, where the restore has none, are the repository's: here,
+    # this suite's throwaway ones
+    monkeypatch.setattr(mir, "IDS", world / "ids")
+    before = everything(restored)
+
+    done, said = said_by(mir.rehearse, restored, QUIET)
+    assert done == 0, said
+    assert "  Done." in said
+    assert "what the first one was shown, whole:        the same, byte for byte" in "\n".join(
+        said)
+    assert said[-1] == "The rehearsal holds."
+    assert everything(restored) == before
+    printed = "\n".join(said) + capsys.readouterr().out
+    for words in NOTEBOOK_WORDS:
+        assert words not in printed
+
+
+def test_a_backup_of_a_room_already_moved_is_refused_for_that_and_nothing_else(
+        moved, monkeypatch, clock, tmp_path):
+    """The other layout: a backup taken after the move restores a moved room, which a
+    rehearsal refuses, as it would with the notebook there."""
+    restored = restored_without_private(moved, monkeypatch, clock, tmp_path)
+    done, said = said_by(mir.rehearse, restored, QUIET)
+    assert (done, said) == (1, ["refused: the room in %s has been moved already"
+                                % restored.resolve()])
+
+
+def test_the_identities_are_data_dir_s_where_it_has_them_and_the_repository_s_where_not(
+        world, tmp_path, monkeypatch):
+    elsewhere = tmp_path / "elsewhere-ids"
+    shutil.copytree(world / "ids", elsewhere)
+    monkeypatch.setattr(mir, "IDS", elsewhere)
+    from_data = mir.party_keys(world)
+
+    shutil.rmtree(world / "ids")
+    assert {party: bytes(key) for party, key in mir.party_keys(world).items()} \
+        == {party: bytes(key) for party, key in from_data.items()}
+
+    monkeypatch.setattr(mir, "IDS", tmp_path / "nowhere")
+    with pytest.raises(mir.Stop, match="ids/first/did.json"):
+        mir.party_keys(world)

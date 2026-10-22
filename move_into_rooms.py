@@ -71,11 +71,13 @@ written since the move included - and puts the old copy in before-rooms/ to no
 use: that is for a disaster, with the backup taken before the move.
 
 Before the move is made for real: press /backup-now, take that backup down,
-restore it with restore_backup.py on your own machine, and run --rehearse on the
-restored folder. That copies it twice into a folder of its own (leaving the
-private notebook behind), moves the one copy, wakes the first one on each with
-the model stubbed and the clock pinned, and says whether what it was shown, and
-the files it left, were the same byte for byte.
+restore it with restore_backup.py --without-private on your own machine, and run
+--rehearse on the restored folder. That copies it twice into a folder of its own
+(leaving the private notebook behind, where a restore has one), moves the one
+copy, wakes the first one on each with the model stubbed and the clock pinned,
+and says whether what it was shown, and the files it left, were the same byte
+for byte. A backup holds no ids/, so the two identity documents are read from
+the repository's own where the restored folder has none.
 
 Nothing here writes a public line, or pauses the tide: a pause would say so in
 the public record.
@@ -97,6 +99,11 @@ import rooms
 import waking
 
 REPO = Path(__file__).resolve().parent
+
+# The two parties' identity documents, where DATA_DIR has none: a backup holds
+# no ids/, and these are public and the repository's own. The one thing taken
+# from the repository's folder, and never the record itself.
+IDS = REPO / "ids"
 
 # Where the living files are kept, as DATA_DIR says, or None where it says
 # nothing: unlike the other modules, this one never takes the repository's
@@ -238,12 +245,16 @@ def differences(was, now):
 # ---- the signatures --------------------------------------------------------
 
 def party_keys(data):
-    """The two verifying keys, by the names the records give the parties, from ids/."""
+    """The two verifying keys, by the names the records give the parties, from ids/:
+    DATA_DIR's where it has one, and the repository's (IDS) where it has not."""
     from nacl.signing import VerifyKey
     keys = {}
     for party in PARTIES:
+        held = data / "ids" / party / "did.json"
+        if not held.is_file():
+            held = IDS / party / "did.json"
         try:
-            document = json.loads((data / "ids" / party / "did.json").read_text(encoding="utf-8"))
+            document = json.loads(held.read_text(encoding="utf-8"))
             keys[party] = VerifyKey(base64.b64decode(
                 document["verificationMethod"][0]["publicKeyBase64"]))
         except Exception as trouble:

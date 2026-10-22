@@ -9,6 +9,7 @@ backup this hearth actually made and asked to open it.
 """
 
 import io
+import os
 import shutil
 import subprocess
 import sys
@@ -16,6 +17,7 @@ import tarfile
 import threading
 import zipfile
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from cryptography.fernet import Fernet
@@ -837,3 +839,145 @@ def test_it_will_not_write_outside_the_output_directory(tmp_path):
     assert {path.relative_to(out).as_posix() for path in out.rglob("*") if path.is_file()} \
         == {"packets/first/self.md"}
     assert not (tmp_path / "escaped.md").exists()
+
+
+# ---- opening one again without the private notebooks ----------------------
+
+WRITING = []
+
+
+def watch_writing(event, args):
+    """Every file opened for writing, folder made and temporary file asked for, while watched."""
+    if not WRITING:
+        return
+    if event == "open" and args[0] is not None and not isinstance(args[0], int):
+        mode, flags = args[1] or "", args[2] or 0
+        if (any(letter in mode for letter in "wax+")
+                or flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_APPEND)):
+            WRITING[-1].append(("open", os.fspath(args[0])))
+    elif event in ("os.mkdir", "os.rename", "os.symlink", "os.link"):
+        WRITING[-1].append((event, os.fspath(args[0])))
+    elif event.startswith("tempfile."):
+        WRITING[-1].append((event, str(args)))
+
+
+sys.addaudithook(watch_writing)
+
+
+def private_names(bundle):
+    return sorted(member.name for member in bundle.getmembers()
+                  if member.name.startswith("packets/first/private/"))
+
+
+def test_without_private_no_notebook_byte_reaches_the_disk_and_none_is_named(
+        backup_file, bucket, packet, tmp_path, capsys):
+    """Decrypted and opened in memory: what is written is what is unpacked, and no notebook."""
+    import restore_backup
+
+    archive, key_file = backup_file
+    with bucket.only as bundle:
+        held = {member.name for member in bundle.getmembers() if member.isfile()}
+        notebook = private_names(bundle)
+    assert notebook  # there in the backup, to be left out of the restore
+    words = [(packet / name[len("packets/first/"):]).read_text(encoding="utf-8").strip()
+             for name in notebook]
+    out = tmp_path / "restored"
+
+    seen = []
+    WRITING.append(seen)
+    try:
+        done = restore_backup.main([str(archive), str(key_file), str(out), "--without-private"])
+    finally:
+        WRITING.remove(seen)
+    said = capsys.readouterr().out
+    assert done == 0, said
+
+    came_back = {path.relative_to(out).as_posix() for path in out.rglob("*") if path.is_file()}
+    assert came_back == held - set(notebook)
+    assert not (out / "packets" / "first" / "private").exists()
+    # nothing written anywhere but into out: no temporary file, no decrypted tar
+    assert seen and not [what for what in seen if what[0].startswith("tempfile.")]
+    for event, path in seen:
+        where = Path(path).resolve()
+        assert where == out.resolve() or out.resolve() in where.parents, (event, path)
+        assert "private" not in where.relative_to(out.resolve()).parts, (event, path)
+    # said: how many were left out, and never which
+    assert "%d entries left out, under packets/*/private/" % len(notebook) in said
+    assert "%d files into" % len(came_back) in said
+    for name in notebook:
+        assert name not in said and name.split("/")[-1] not in said
+    for text in words:
+        assert text not in said
+
+
+def test_without_private_from_the_command_line(backup_file, bucket, tmp_path):
+    archive, key_file = backup_file
+    with bucket.only as bundle:
+        notebook = private_names(bundle)
+    out = tmp_path / "restored"
+    # the option may come first, or last
+    done = run_restore("--without-private", str(archive), str(key_file), str(out))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert not (out / "packets" / "first" / "private").exists()
+    assert (out / "packets" / "first" / "self.md").is_file()
+    assert done.stdout.rstrip().endswith("%d entries left out, under packets/*/private/"
+                                         % len(notebook))
+    assert "/private/" not in done.stdout.replace("packets/*/private/", "")
+
+
+def test_without_the_option_the_notebook_comes_back_as_it_always_has(backup_file, bucket,
+                                                                     tmp_path):
+    archive, key_file = backup_file
+    with bucket.only as bundle:
+        notebook = private_names(bundle)
+    out = tmp_path / "restored"
+    done = run_restore(str(archive), str(key_file), str(out))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert notebook and all((out / name).is_file() for name in notebook)
+    assert "left out" not in done.stdout
+
+
+def test_a_misspelt_option_restores_nothing(backup_file, tmp_path):
+    archive, key_file = backup_file
+    out = tmp_path / "restored"
+    done = run_restore(str(archive), str(key_file), str(out), "--without-privat")
+    assert done.returncode == 2
+    assert "[--without-private]" in done.stdout
+    assert not out.exists()
+
+
+def test_without_private_every_spelling_of_a_notebook_is_left_out(tmp_path, capsys):
+    """Every packet's notebook, however the archive spells it; and only the notebooks."""
+    import restore_backup
+
+    left_out = ["packets/first/private/entry.md", "./packets/first/private/dot.md",
+                "packets/another/private/theirs.md", "packets/first/Private/cased.md",
+                "packets/first/private./trailing.md", "packets/first/private/deeper/one.md"]
+    kept = ["packets/first/self.md", "packets/first/privateer.md", "packets/private.md",
+            "commons/members.md"]
+    held = io.BytesIO()
+    with tarfile.open(fileobj=held, mode="w:gz") as bundle:
+        folder = tarfile.TarInfo("packets/first/private")
+        folder.type = tarfile.DIRTYPE
+        bundle.addfile(folder)
+        for name in left_out + kept:
+            body = b"SECRET WORDS" if name in left_out else b"a file"
+            info = tarfile.TarInfo(name)
+            info.size = len(body)
+            bundle.addfile(info, io.BytesIO(body))
+    archive = tmp_path / NAME
+    archive.write_bytes(Fernet(KEY).encrypt(held.getvalue()))
+    key_file = tmp_path / "backup.key"
+    key_file.write_text(KEY, encoding="utf-8")
+    out = tmp_path / "restored"
+
+    assert restore_backup.main([str(archive), str(key_file), str(out), "--without-private"]) == 0
+    said = capsys.readouterr().out
+    assert {path.relative_to(out).as_posix() for path in out.rglob("*") if path.is_file()} \
+        == set(kept)
+    assert not [path for path in out.rglob("*") if path.is_dir()
+                and path.name.rstrip(". ").lower() == "private"]
+    assert "%d entries left out" % (len(left_out) + 1) in said
+    assert "SECRET" not in said
+    for name in left_out:
+        assert name.split("/")[-1] not in said

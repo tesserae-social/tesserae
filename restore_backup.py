@@ -51,6 +51,19 @@ Or with boto3:
 Then:
 
     python restore_backup.py tesserae-<stamp>.tar.gz.enc backup.key restored/
+
+Leaving the private notebooks out
+---------------------------------
+A backup holds every private notebook in it whole, packets/<who>/private/. To
+restore one for something that has no need of them - a rehearsal of the rooms
+move, say - add --without-private:
+
+    python restore_backup.py tesserae-<stamp>.tar.gz.enc backup.key restored/ --without-private
+
+Then nothing under any packets/*/private/ is written: the backup is decrypted
+and unpacked in memory, as it always is, and those entries are passed over
+there, so no byte of them reaches the disk. All that is said of them is how
+many were left out; not one is named.
 """
 
 import io
@@ -60,7 +73,9 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
 
-USAGE = "Usage: python restore_backup.py <file.tar.gz.enc> <path to backup.key> <output dir>"
+USAGE = ("Usage: python restore_backup.py <file.tar.gz.enc> <path to backup.key> <output dir>"
+         " [--without-private]")
+WITHOUT_PRIVATE = "--without-private"
 
 
 def refused(said):
@@ -82,6 +97,17 @@ def safe(member):
     return member.isfile() or member.isdir()
 
 
+def private(member):
+    """Whether one member of the archive is a private notebook, or in one: packets/*/private/.
+
+    Read as a disk that does not tell case apart, or a trailing dot or space,
+    would read it, so that no spelling of the folder slips by.
+    """
+    parts = [part for part in member.name.replace("\\", "/").split("/") if part not in ("", ".")]
+    said = [part.rstrip(". ").casefold() for part in parts[:3]]
+    return len(said) == 3 and said[0] == "packets" and said[2] == "private"
+
+
 def empty_enough(out):
     """Whether the output directory may be written into: missing, or holding nothing."""
     if not out.exists():
@@ -89,8 +115,12 @@ def empty_enough(out):
     return out.is_dir() and not any(out.iterdir())
 
 
-def restore(archive, key_file, out):
-    """Decrypt one backup and unpack it. What went wrong, or nothing at all."""
+def restore(archive, key_file, out, without_private=False):
+    """Decrypt one backup and unpack it. What went wrong, or nothing at all.
+
+    It is decrypted and opened in memory: nothing is written but what is
+    unpacked into out, and, without_private, never a private notebook.
+    """
     if not archive.is_file():
         return refused("No such backup: %s" % archive)
     if not key_file.is_file():
@@ -110,6 +140,8 @@ def restore(archive, key_file, out):
 
     with tarfile.open(fileobj=io.BytesIO(plain), mode="r:gz") as bundle:
         members = [member for member in bundle.getmembers() if safe(member)]
+        left_out = sum(1 for member in members if without_private and private(member))
+        members = [member for member in members if not (without_private and private(member))]
         out.mkdir(parents=True, exist_ok=True)
         try:
             bundle.extractall(out, members=members, filter="data")
@@ -121,14 +153,18 @@ def restore(archive, key_file, out):
         print(name)
     print()
     print("%d files into %s" % (len(files), out.resolve()))
+    if without_private:
+        print("%d entries left out, under packets/*/private/" % left_out)
     return 0
 
 
 def main(args):
-    if len(args) != 3:
+    without_private = WITHOUT_PRIVATE in args
+    args = [arg for arg in args if arg != WITHOUT_PRIVATE]
+    if len(args) != 3 or any(arg.startswith("--") for arg in args):
         print(USAGE)
         return 2
-    return restore(Path(args[0]), Path(args[1]), Path(args[2]))
+    return restore(Path(args[0]), Path(args[1]), Path(args[2]), without_private)
 
 
 if __name__ == "__main__":

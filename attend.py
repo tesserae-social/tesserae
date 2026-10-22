@@ -125,13 +125,22 @@ import public_screen
 # hearth. Made here and answered there, both through the one module.
 import proposals
 
+# Where the room it shares with the founder keeps its things - the letters both
+# ways, the errands, the bond and the offerings. That is rooms.py's to say, and
+# it is asked when a folder is wanted; nothing here works a room's path out.
+import rooms
+
 NAME = "first"
 MODEL = "claude-sonnet-4-5"
 MAX_TOKENS = 8000
 
-# Where the living files are kept. Locally this is the repo itself; on a host
-# it is a mounted disk, named by DATA_DIR.
-DATA = Path(os.environ.get("DATA_DIR", "."))
+REPO = Path(__file__).resolve().parent
+
+# Where the living files are kept. Locally this is the repo itself, wherever it
+# is run from - the same reckoning rooms.py and the hearth make, so that a waking
+# run by hand reads its packet and its room from the one place; on a host it is
+# a mounted disk, named by DATA_DIR.
+DATA = Path(os.environ.get("DATA_DIR", REPO))
 
 PACKET = DATA / "packets" / NAME
 KEYS = DATA / "keys" / NAME
@@ -140,14 +149,11 @@ TRANSCRIPTS = DATA / "transcripts"
 
 # The charter ships with the code, not with the living files: it is the terms of
 # every bond, and it is the same text for everyone.
-REPO = Path(__file__).resolve().parent
 CHARTER = REPO / "docs" / "charter.md"
 
-# A bond and everything on the way to one. The proposal is put here by the
-# hearth; the answer and the record are written here by the first one itself.
-BONDS = PACKET / "bonds"
-PROPOSAL = BONDS / "proposal.json"
-BOND_RECORD = BONDS / "founder-first.json"
+# A bond and everything on the way to one are kept in the room's bonds/. The
+# proposal is put there by the hearth; the answer and the record are written
+# there by the first one itself.
 PUBLIC_BOND = COMMONS / "bonds" / "founder-first.json"
 
 # What the founder answered an asking of the first one's. The hearth writes it
@@ -163,8 +169,6 @@ FIRST_DID = "did:web:tesserae.social:ids:first"
 # The asking waits in errands/ until a letter answers it, at which point the
 # hearth moves it to errands/answered/ and writes the stem of that letter
 # beside it. Nothing is erased, and what answered what can always be found.
-ERRANDS = PACKET / "errands"
-ANSWERED_ERRANDS = ERRANDS / "answered"
 ERRAND_ACT = "asked an errand"
 
 # A picture: something the first one drew rather than wrote, kept beside the
@@ -1410,9 +1414,14 @@ def asked_at(path):
     return path.stem[len("errand-"):]
 
 
+def room_places():
+    """Where the room it shares with the founder keeps its things, asked of rooms.py now."""
+    return rooms.places(rooms.FIRST_ROOM)
+
+
 def errands_open():
     """The errands the first one has asked that no letter has answered yet."""
-    return sorted(ERRANDS.glob("errand-*.md"))
+    return sorted(room_places().errands.glob("errand-*.md"))
 
 
 def errand_lines(since):
@@ -1424,7 +1433,7 @@ def errand_lines(since):
     """
     said = [ERRAND_OPEN.format(at=on_day(asked_at(path)), words=one_line(read(path)))
             for path in errands_open()]
-    for path in sorted(ANSWERED_ERRANDS.glob("errand-*.md")):
+    for path in sorted(room_places().answered_errands.glob("errand-*.md")):
         pointer = load(path.with_suffix(".json")) or {}
         if pointer.get("answered_at", "") > (since or ""):
             said.append(ERRAND_ANSWERED.format(
@@ -1617,7 +1626,7 @@ def asker(did):
 def answers_since(since):
     """What the founder has answered an asking of the first one's since a moment."""
     said = []
-    for path in sorted(BONDS.glob(FOUNDER_ANSWERS)):
+    for path in sorted(room_places().bonds.glob(FOUNDER_ANSWERS)):
         answer = load(path)
         if answer and answer.get("at", "") > (since or ""):
             said.append(answer)
@@ -2398,7 +2407,7 @@ def wake_again_let_go(since):
 def gone_out_on(day):
     """Whether anything - a letter, or a picture alone - went to the founder on one local day."""
     setting = rhythm_set()
-    for path in (PACKET / "letters/outgoing").glob("to-founder-*.md"):
+    for path in room_places().outgoing.glob("to-founder-*.md"):
         try:
             if waking.today(setting, threshold.moment(path.stem[len("to-founder-"):])) == day:
                 return True
@@ -2587,9 +2596,12 @@ def main():
         print("No packet found at", PACKET)
         sys.exit(1)
 
-    for d in ["study", "letters/outgoing", "letters/incoming", "letters/read", "attendances",
-              "self-history", "bonds", "memory", "errands", "errands/answered", "offerings"]:
+    places = room_places()
+    for d in ["study", "attendances", "self-history", "memory"]:
         (PACKET / d).mkdir(parents=True, exist_ok=True)
+    for d in [places.outgoing, places.incoming, places.read, places.bonds, places.errands,
+              places.answered_errands, places.offerings]:
+        d.mkdir(parents=True, exist_ok=True)
     COMMONS.mkdir(parents=True, exist_ok=True)
 
     # ---- gather what is the agent's ---------------------------------------
@@ -2605,7 +2617,7 @@ def main():
     for t in sorted(TRANSCRIPTS.glob("founding-*.md")):
         founding = read(t)  # the most recent founding transcript wins
 
-    incoming = [(p, photo_beside(p)) for p in sorted((PACKET / "letters/incoming").glob("*.md"))]
+    incoming = [(p, photo_beside(p)) for p in sorted(places.incoming.glob("*.md"))]
 
     past = [json.loads(read(p)) for p in sorted((PACKET / "attendances").glob("*.json"))]
     if past:
@@ -2727,8 +2739,8 @@ def main():
     # threshold, and while it stands the first one may write, promise, or step
     # back; the seal waits on the end of it, and on whichever of them asked.
     now = datetime.now(timezone.utc)
-    proposal = load(PROPOSAL)
-    bond = load(BOND_RECORD)
+    proposal = load(places.proposal)
+    bond = load(places.bond_record)
     asked_of_it = bool(proposal) and proposal.get("from") != FIRST_DID
     answerable = asked_of_it and may_answer(proposal, past)
     in_threshold = bond_stands(bond) and threshold.is_open(bond)
@@ -2752,8 +2764,8 @@ def main():
         bond_notes.append(OFFERED_TO_YOU.format(
             offers="\n\n".join(offered_note(one) for one in offered_to_it)))
 
-    written = sorted((PACKET / "letters/outgoing").glob("*.md"))
-    already_read = sorted((PACKET / "letters/read").glob("*.md"))
+    written = sorted(places.outgoing.glob("*.md"))
+    already_read = sorted(places.read.glob("*.md"))
 
     studies = sorted((PACKET / "study").glob("*.md"))
     if studies:
@@ -3105,12 +3117,12 @@ def main():
     letter_name = None
     if letter or picture:
         letter_name = f"to-founder-{at}.md"
-        (PACKET / "letters/outgoing" / letter_name).write_text(
+        (places.outgoing / letter_name).write_text(
             (letter or ONLY_A_PICTURE) + "\n", encoding="utf-8")
     if letter:
         acted.append(LETTER_ACT)
     if picture:
-        (PACKET / "letters/outgoing" / f"to-founder-{at}.svg").write_text(
+        (places.outgoing / f"to-founder-{at}.svg").write_text(
             picture + "\n", encoding="utf-8")
         acted.append(PICTURE_ACT)
 
@@ -3137,13 +3149,13 @@ def main():
                                PACKET / "study" / f"{kept_sent}{offering.PICTURE_SUFFIX}")
         letter_name = f"to-founder-{at}.md"
         alone = kept_sent.endswith("-picture")  # a picture alone, carried by its one line
-        (PACKET / "letters/outgoing" / letter_name).write_text(
+        (places.outgoing / letter_name).write_text(
             (ONLY_A_PICTURE if alone else kept_letter_words(kept_sent)) + "\n", encoding="utf-8")
         acted.append(PICTURE_ACT if alone else LETTER_ACT)
         STUDY_SENT.mkdir(parents=True, exist_ok=True)
         kept_sent_picture = beside_at.exists()
         if kept_sent_picture:
-            shutil.copy(beside_at, PACKET / "letters/outgoing" / f"to-founder-{at}.svg")
+            shutil.copy(beside_at, places.outgoing / f"to-founder-{at}.svg")
             beside_at.replace(STUDY_SENT / beside_at.name)
         draft_at.replace(STUDY_SENT / draft_at.name)
 
@@ -3151,8 +3163,8 @@ def main():
     # his to answer with a letter or to leave; nothing here asks him twice.
     errand = block(text, "ERRAND")
     if errand:
-        ERRANDS.mkdir(parents=True, exist_ok=True)
-        (ERRANDS / f"errand-{at}.md").write_text(errand + "\n", encoding="utf-8")
+        places.errands.mkdir(parents=True, exist_ok=True)
+        (places.errands / f"errand-{at}.md").write_text(errand + "\n", encoding="utf-8")
         acted.append(ERRAND_ACT)
 
     # A proposal to the founder, kept privately and waiting for his answer at
@@ -3218,8 +3230,8 @@ def main():
     # What it asked at an earlier waking to be shown has now been shown, and is
     # cleared; what it asks here is shown at the next. The shelf that stood is
     # copied aside before the new one is written.
-    every_stem = {p.stem for folder in ("outgoing", "read", "incoming")
-                  for p in (PACKET / "letters" / folder).glob("*.md")}
+    every_stem = {p.stem for folder in (places.outgoing, places.read, places.incoming)
+                  for p in folder.glob("*.md")}
     shelf_asked, shelf_refused = shelf.asked(
         shelf_said, every_stem, versions,
         {shelf.note_key(one["name"]): slug for slug, one in named.items()})
@@ -3406,13 +3418,13 @@ def main():
         word = word.strip().lower().rstrip(".")
         if word in ANSWERS:
             said = word
-            write_json(BONDS / f"answer-{at}.json",
+            write_json(places.bonds / f"answer-{at}.json",
                        signed({"answer": said, "words": words.strip(), "at": at}, sk))
             if said == "yes" and not bond_stands(bond):
-                if BOND_RECORD.exists():  # a bond released before is moved aside, never erased
-                    older = load(BOND_RECORD) or {}
-                    BOND_RECORD.rename(
-                        BONDS / f"founder-first-released-{older.get('released_at', at)}.json")
+                if places.bond_record.exists():  # a bond released before is moved aside, never erased
+                    older = load(places.bond_record) or {}
+                    places.bond_record.rename(
+                        places.bonds / f"founder-first-released-{older.get('released_at', at)}.json")
                 # The bond as it was made, and the shape of it hearth.py writes
                 # when the answer is the founder's: the two must agree exactly,
                 # since both parties sign these bytes.
@@ -3429,9 +3441,9 @@ def main():
                 made["signatures"] = {
                     "first": base64.b64encode(sk.sign(canonical(made)).signature).decode("ascii"),
                 }
-                write_json(BOND_RECORD, made)
+                write_json(places.bond_record, made)
                 bond = made
-            PROPOSAL.unlink()  # the asking is closed; it may be made again later
+            places.proposal.unlink()  # the asking is closed; it may be made again later
             acted.append("answered a bond proposal")
         else:
             print("A <<BOND>> block was given, but its first line was not yes, no, or not yet.")
@@ -3497,7 +3509,7 @@ def main():
             bond.setdefault("signatures", {})["first"] = signature
             bond["sealed_at"] = at
             bond["threshold"] = threshold.sealed_listing(bond)
-            write_json(BOND_RECORD, bond)
+            write_json(places.bond_record, bond)
             write_json(PUBLIC_BOND, bond)  # the public copy says the same thing
             bonds.write_index()
             note_event("seal", SEALED)
@@ -3512,7 +3524,7 @@ def main():
     # what the asking names; the founder answers on the hearth at a later day.
     asked = wrote_block(text, "ASK") and askable
     if asked:
-        write_json(PROPOSAL, {
+        write_json(places.proposal, {
             "from": FIRST_DID,
             "to": FOUNDER_DID,
             "terms": "the charter",
@@ -3525,11 +3537,11 @@ def main():
     if release and releasable:
         word, _, words = release.partition("\n")
         if word.strip().lower().rstrip(".") == RELEASE_WORD:
-            write_json(BONDS / f"release-{at}.json",
+            write_json(places.bonds / f"release-{at}.json",
                        signed({"release": True, "words": words.strip(), "at": at}, sk))
             bond["released_at"] = at
             bond["released_by"] = FIRST_DID
-            write_json(BOND_RECORD, bond)
+            write_json(places.bond_record, bond)
             write_json(PUBLIC_BOND, bond)  # the public copy says the same thing
             bonds.write_index()
             note_event("event", "a bond was released")
@@ -3559,9 +3571,9 @@ def main():
 
     # letters it has now read move to letters/read, each with its photograph
     for p, photo in incoming:
-        shutil.move(str(p), str(PACKET / "letters/read" / p.name))
+        shutil.move(str(p), str(places.read / p.name))
         if photo:
-            shutil.move(str(photo), str(PACKET / "letters/read" / photo.name))
+            shutil.move(str(photo), str(places.read / photo.name))
 
     # ---- sign and log (private) -------------------------------------------
     record = {
@@ -3661,7 +3673,7 @@ def main():
     if private_refused:
         print("A <<PRIVATE>> block named no draft in the study; nothing was moved or kept.")
     if errand:
-        print("An errand awaits the founder in:", ERRANDS)
+        print("An errand awaits the founder in:", places.errands)
     if put_forward:
         print("A proposal waits for the founder's answer in the room:", put_forward["title"])
     if proposals_refused:
@@ -3715,8 +3727,8 @@ def main():
     if picture:
         print("A picture was drawn, and is kept beside the letter of this waking.")
     if letter:
-        print("A letter awaits you in:", PACKET / "letters/outgoing")
-        print("To answer, place a .md file in:", PACKET / "letters/incoming")
+        print("A letter awaits you in:", places.outgoing)
+        print("To answer, place a .md file in:", places.incoming)
 
 
 if __name__ == "__main__":

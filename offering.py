@@ -37,22 +37,15 @@ import private_words
 # or a place, before anything is signed.
 import public_screen
 
+# Where the letters and the offerings are kept: the room's, asked of the one
+# module that knows, each time they are wanted.
+import rooms
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept. Locally this is the repo itself; on a host it
 # is a mounted disk, named by DATA_DIR - the same reckoning hearth.py makes.
 DATA = Path(os.environ.get("DATA_DIR", REPO))
-
-PACKET = DATA / "packets" / "first"
-INCOMING = PACKET / "letters" / "incoming"
-READ = PACKET / "letters" / "read"
-OUTGOING = PACKET / "letters" / "outgoing"
-
-# where a letter may be found, whichever of them wrote it and whether or not the
-# first one has read it yet
-LETTERS = (INCOMING, READ, OUTGOING)
-
-OFFERINGS = PACKET / "offerings"
 
 COMMONS = DATA / "commons"
 INDEX = COMMONS / "offerings.md"
@@ -90,6 +83,11 @@ PRIVATE_FOREVER = ("No faces, no legal names — the charter keeps those private
 
 
 # ---- small things --------------------------------------------------------
+
+def kept():
+    """Where the room's things are kept, worked out now: there is one room."""
+    return rooms.places(rooms.FIRST_ROOM)
+
 
 def read_text(path):
     """Read a file as UTF-8, dropping the byte-order mark some editors leave."""
@@ -198,7 +196,9 @@ def letter_named(stem):
     """The letter that goes by one stem, wherever it is kept, or None."""
     if not stem or stem != Path(stem).name or not re.fullmatch(r"[A-Za-z0-9._-]+", stem):
         return None
-    for folder in LETTERS:
+    # wherever a letter may be found, whichever of them wrote it and whether
+    # or not the first one has read it yet
+    for folder in kept().letters:
         path = folder / (stem + ".md")
         if path.is_file() and path.resolve().parent == folder.resolve():
             return path
@@ -254,10 +254,11 @@ def quotes(stem, passage):
 
 def records(pattern):
     """The records under one shape of name, oldest first - the names carry the moment."""
-    if not OFFERINGS.exists():
+    offerings = kept().offerings
+    if not offerings.exists():
         return []
-    kept = [load(path) for path in sorted(OFFERINGS.glob(pattern))]
-    return [one for one in kept if one]
+    found = [load(path) for path in sorted(offerings.glob(pattern))]
+    return [one for one in found if one]
 
 
 def pending():
@@ -281,15 +282,15 @@ def declined():
 
 
 def pending_path(one):
-    return OFFERINGS / ("pending-%s.json" % one)
+    return kept().offerings / ("pending-%s.json" % one)
 
 
 def placed_path(one):
-    return OFFERINGS / ("%s.json" % one)
+    return kept().offerings / ("%s.json" % one)
 
 
 def declined_path(one):
-    return OFFERINGS / ("declined-%s.json" % one)
+    return kept().offerings / ("declined-%s.json" % one)
 
 
 def taken(one):

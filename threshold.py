@@ -35,10 +35,8 @@ so that the two hands leave one record and not two.
 import hashlib
 import json
 import math
-import os
 import secrets
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 # The protected words: a public promise is refused before it is signed if it
 # carries one. A private one is never read for them.
@@ -47,14 +45,9 @@ import private_words
 # The public screen: a public promise is asked about, once, before it is signed.
 import public_screen
 
-REPO = Path(__file__).resolve().parent
-
-# Where the living files are kept: the same reckoning the other modules make.
-DATA = Path(os.environ.get("DATA_DIR", REPO))
-
-PACKET = DATA / "packets" / "first"
-BONDS = PACKET / "bonds"
-BOND_RECORD = BONDS / "founder-first.json"
+# Where the bond's writings are kept: the room's, asked of the one module that
+# knows, each time they are wanted.
+import rooms
 
 DAYS = 7
 STAMP = "%Y-%m-%dT%H-%M-%SZ"
@@ -178,8 +171,13 @@ def payload(record):
     return json.dumps(statement(record), sort_keys=True).encode("utf-8")
 
 
+def kept():
+    """Where the room's things are kept, worked out now: there is one room."""
+    return rooms.places(rooms.FIRST_ROOM)
+
+
 def path_for(kind, by, at):
-    return BONDS / f"{kind}-{by}-{at}.json"
+    return kept().bonds / f"{kind}-{by}-{at}.json"
 
 
 def write(kind, by, text, at, sign, bond, visibility=None):
@@ -215,11 +213,12 @@ def write(kind, by, text, at, sign, bond, visibility=None):
 
 def versions(kind, by, bond):
     """Every version of one writing for this threshold, oldest first."""
-    if not bond or not BONDS.exists():
+    bonds = kept().bonds
+    if not bond or not bonds.exists():
         return []
     opened = opened_at(bond)
     found = []
-    for path in sorted(BONDS.glob(f"{kind}-{by}-*.json")):
+    for path in sorted(bonds.glob(f"{kind}-{by}-*.json")):
         record = json.loads(path.read_text(encoding="utf-8"))
         if record.get("opened_at") == opened:
             found.append(record)
@@ -332,20 +331,22 @@ def step_back(bond, by, at, words, sign=None):
               "words": words}
     if sign:
         record["signature"] = sign(json.dumps(record, sort_keys=True).encode("utf-8"))
-    BONDS.mkdir(parents=True, exist_ok=True)
-    (BONDS / f"step-back-{by}-{at}.json").write_text(
+    places = kept()
+    places.bonds.mkdir(parents=True, exist_ok=True)
+    (places.bonds / f"step-back-{by}-{at}.json").write_text(
         json.dumps(record, indent=2) + "\n", encoding="utf-8")
     bond = dict(bond, stepped_back_at=at, stepped_back_by=by)
-    (BONDS / f"founder-first-stepped-back-{at}.json").write_text(
+    (places.bonds / f"founder-first-stepped-back-{at}.json").write_text(
         json.dumps(bond, indent=2) + "\n", encoding="utf-8")
-    BOND_RECORD.unlink(missing_ok=True)
+    places.bond_record.unlink(missing_ok=True)
     return record
 
 
 def steps_back():
     """Every stepping back there has been, oldest first."""
-    if not BONDS.exists():
+    bonds = kept().bonds
+    if not bonds.exists():
         return []
     every = [json.loads(path.read_text(encoding="utf-8"))
-             for path in BONDS.glob("step-back-*.json")]
+             for path in bonds.glob("step-back-*.json")]
     return sorted(every, key=lambda one: one.get("at", ""))

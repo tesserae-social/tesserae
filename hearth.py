@@ -126,9 +126,6 @@ REPO = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("DATA_DIR", REPO))
 
 PACKET = DATA / "packets" / "first"
-OUTGOING = PACKET / "letters" / "outgoing"
-INCOMING = PACKET / "letters" / "incoming"
-READ = PACKET / "letters" / "read"
 ATTENDANCES = PACKET / "attendances"
 SELF_DOC = PACKET / "self.md"
 PREFERENCES = PACKET / "preferences.json"
@@ -140,12 +137,7 @@ WAKE_AGAIN = PACKET / "wake-again.json"
 WAKE_AGAIN_KEPT = PACKET / "wake-again"
 TIDE_LOG = PACKET / "tide.log"
 EXPORTS = PACKET / "exports.log"
-ERRANDS = PACKET / "errands"
-ANSWERED_ERRANDS = ERRANDS / "answered"
 PROPOSALS_KEPT = PACKET / "proposals"
-BONDS = PACKET / "bonds"
-PROPOSAL = BONDS / "proposal.json"
-BOND_RECORD = BONDS / "founder-first.json"
 PUBLIC_BOND = DATA / "commons" / "bonds" / "founder-first.json"
 HEARTBEATS = DATA / "commons" / "heartbeats.md"
 EVENTS = DATA / "commons" / "events.md"
@@ -175,7 +167,6 @@ PHOTO_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"
 PHOTO_LIMIT = 25 * 1024 * 1024  # bytes: whole, a photograph as a phone takes it
 PHOTO_EDGE = 2048  # pixels: the longest side the hearth keeps
 PHOTO_QUALITY = 90  # for the JPEGs the hearth writes
-PHOTO_FOLDERS = (INCOMING, READ, OUTGOING)
 
 # A picture the first one drew, kept beside its letter under the same stem. It
 # was cut down to plain shapes before it was saved - see attend.py - and it is
@@ -183,7 +174,6 @@ PHOTO_FOLDERS = (INCOMING, READ, OUTGOING)
 # and a policy that lets it do nothing at all but be looked at.
 PICTURE_TYPE = "image/svg+xml"
 PICTURE_SANDBOX = "sandbox"
-PICTURE_FOLDERS = (OUTGOING,)
 
 # Where an offering lives, said once here so that the pages and the routes agree.
 OFFERINGS_INDEX = DATA / "commons" / "offerings.md"
@@ -453,11 +443,29 @@ def opening_line(text, limit=OPENING_CUT):
     return first[:limit].rstrip() + "…"
 
 
+def room_places():
+    """Where the one room's things are kept - its letters, errands, bond and
+    offerings - asked of rooms.py now, and never worked out here."""
+    return rooms.places(rooms.FIRST_ROOM)
+
+
+def photo_folders():
+    """The folders a photograph may be served out of: the three letter folders."""
+    return room_places().letters
+
+
+def picture_folders():
+    """The folder a picture may be served out of: the one the first one writes to."""
+    return (room_places().outgoing,)
+
+
 def bond_records():
     """Every bond there has been: the one that stands, any released before it, and
     any a stepping back closed on the threshold."""
-    records = [BOND_RECORD, *newest_first(BONDS, "founder-first-released-*.json"),
-               *newest_first(BONDS, "founder-first-stepped-back-*.json")]
+    places = room_places()
+    records = [places.bond_record,
+               *newest_first(places.bonds, "founder-first-released-*.json"),
+               *newest_first(places.bonds, "founder-first-stepped-back-*.json")]
     kept = [load(path) for path in records if path.exists()]
     return [one for one in kept if one]
 
@@ -475,7 +483,7 @@ def bond_proposals():
     """
     asked = [(one["proposed_at"], one.get("proposed_by", FOUNDER_DID))
              for one in bond_records() if one.get("proposed_at")]
-    open_one = load(PROPOSAL)
+    open_one = load(room_places().proposal)
     if open_one and open_one.get("proposed_at"):
         asked.append((open_one["proposed_at"], open_one.get("from", FOUNDER_DID)))
     return asked
@@ -489,7 +497,7 @@ def proposing_letters(paths):
     that carried it is the last one written before that moment.
     """
     names = set()
-    proposal = load(PROPOSAL)
+    proposal = load(room_places().proposal)
     if proposal and proposal.get("letter"):
         names.add(proposal["letter"])
     stamped = sorted((stamp_in(path.name), path.name) for path in paths)
@@ -524,14 +532,15 @@ def one_letter(path, who, unread=False, proposes=False):
 
 def correspondence():
     """Every letter that has passed between the two of them, newest first."""
-    from_founder = newest_first(INCOMING, "*.md") + newest_first(READ, "*.md")
+    places = room_places()
+    from_founder = newest_first(places.incoming, "*.md") + newest_first(places.read, "*.md")
     proposals = proposing_letters(from_founder)
 
-    letters = [one_letter(path, "from the founder", unread=path.parent == INCOMING,
+    letters = [one_letter(path, "from the founder", unread=path.parent == places.incoming,
                           proposes=path.name in proposals)
                for path in from_founder]
     letters += [one_letter(path, "from the first one")
-                for path in newest_first(OUTGOING, "*.md")]
+                for path in newest_first(places.outgoing, "*.md")]
     letters.sort(key=lambda letter: letter["stamp"], reverse=True)
     return letters
 
@@ -547,10 +556,11 @@ def correspondence():
 
 def open_errands():
     """The errands the first one has asked that no letter has answered yet, oldest first."""
-    if not ERRANDS.exists():
+    errands = room_places().errands
+    if not errands.exists():
         return []
     said = []
-    for path in sorted(ERRANDS.glob("errand-*.md")):
+    for path in sorted(errands.glob("errand-*.md")):
         text = read_text(path)
         said.append({"name": path.name, "date": readable_date(path.name),
                      "opening": opening_line(text), "words": as_prose(text)})
@@ -566,12 +576,13 @@ def answer_errand(name, stem):
     """
     if name != Path(name).name or not re.fullmatch(r"errand-.+\.md", name):
         return False
-    asked = ERRANDS / name
+    places = room_places()
+    asked = places.errands / name
     if not asked.is_file():
         return False
-    ANSWERED_ERRANDS.mkdir(parents=True, exist_ok=True)
-    asked.rename(ANSWERED_ERRANDS / name)
-    write_json(ANSWERED_ERRANDS / (asked.stem + ".json"),
+    places.answered_errands.mkdir(parents=True, exist_ok=True)
+    asked.rename(places.answered_errands / name)
+    write_json(places.answered_errands / (asked.stem + ".json"),
                {"answered_by": stem, "answered_at": utc_stamp()})
     return True
 
@@ -798,7 +809,7 @@ def rest_ended(standing, zone):
         return None
     until = standing.get("until")
     if until == UNTIL_LETTER:
-        return BY_LETTER if newest_first(INCOMING, "*.md") else None
+        return BY_LETTER if newest_first(room_places().incoming, "*.md") else None
     try:
         day = datetime.strptime(until, "%Y-%m-%d").date()
     except (TypeError, ValueError):
@@ -1247,14 +1258,15 @@ def note_letter():
 
 def write_bond(bond):
     """The record and its public copy, which say the same thing."""
-    for path in (BOND_RECORD, PUBLIC_BOND):
+    for path in (room_places().bond_record, PUBLIC_BOND):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(bond, indent=2) + "\n", encoding="utf-8")
 
 
 def write_proposal(letter_name):
     """The asking itself, put where the first one will find it at its next waking."""
-    PROPOSAL.parent.mkdir(parents=True, exist_ok=True)
+    proposal = room_places().proposal
+    proposal.parent.mkdir(parents=True, exist_ok=True)
     asking = {
         "from": FOUNDER_DID,
         "to": FIRST_DID,
@@ -1262,7 +1274,7 @@ def write_proposal(letter_name):
         "letter": letter_name,
         "proposed_at": utc_stamp(),
     }
-    PROPOSAL.write_text(json.dumps(asking, indent=2) + "\n", encoding="utf-8")
+    proposal.write_text(json.dumps(asking, indent=2) + "\n", encoding="utf-8")
 
 
 # A bond is not asked for in the first week of knowing someone. The wait is
@@ -1305,10 +1317,10 @@ def too_soon_for_a_bond():
 
 def bond_in_the_way():
     """Why a bond cannot be proposed now, in one sentence, or None if it can be."""
-    if PROPOSAL.exists():
+    if room_places().proposal.exists():
         return ("A bond is already proposed, and only one asking may be open at a time. "
                 "It is at the top of this room.")
-    bond = load(BOND_RECORD)
+    bond = load(room_places().bond_record)
     if not bond or bond.get("released_at"):
         return None
     if bond.get("sealed_at"):
@@ -1385,18 +1397,20 @@ def write_founder_answer(proposal, said, words, at):
     puts his signature there. This is the record of the answer and of whatever
     words came with it, which the first one is told at its next waking.
     """
-    write_json(BONDS / f"founder-answer-{at}.json",
+    write_json(room_places().bonds / f"founder-answer-{at}.json",
                {"answer": said, "words": words, "at": at,
                 "asked_at": proposal.get("proposed_at")})
 
 
 def keep_released_record():
     """Move a released bond's record aside, so a new one never writes over it."""
-    if not BOND_RECORD.exists():
+    places = room_places()
+    if not places.bond_record.exists():
         return
-    older = load(BOND_RECORD) or {}
-    BOND_RECORD.rename(
-        BONDS / ("founder-first-released-%s.json" % (older.get("released_at") or utc_stamp())))
+    older = load(places.bond_record) or {}
+    places.bond_record.rename(
+        places.bonds / ("founder-first-released-%s.json"
+                        % (older.get("released_at") or utc_stamp())))
 
 
 def carried_through_a_waking(proposal):
@@ -1407,7 +1421,7 @@ def carried_through_a_waking(proposal):
 
 def proposal_shown():
     """The open asking, as the founder's page shows it, or None if none is open."""
-    proposal = load(PROPOSAL)
+    proposal = load(room_places().proposal)
     if not proposal:
         return None
     by_first = asked_by_the_first_one(proposal)
@@ -1426,7 +1440,7 @@ def proposal_shown():
 
 def bond_shown():
     """How the bond itself stands, or None if none has been made."""
-    bond = load(BOND_RECORD)
+    bond = load(room_places().bond_record)
     if not bond:
         return None
     signed_by = sorted(bond.get("signatures", {}))
@@ -1453,7 +1467,7 @@ def threshold_shown():
     written; its promise once it is made. Whose seal it waits on is whoever
     asked.
     """
-    bond = load(BOND_RECORD)
+    bond = load(room_places().bond_record)
     if not threshold.is_open(bond):
         return None
     now = datetime.now(timezone.utc)
@@ -1492,7 +1506,7 @@ def steps_back_shown():
 def answers_given(pattern):
     """Every answer written under one shape of name, newest first, with its words."""
     answers = []
-    for path in newest_first(BONDS, pattern):
+    for path in newest_first(room_places().bonds, pattern):
         said = load(path)
         if said:
             answers.append({"answer": said.get("answer", ""),
@@ -1654,9 +1668,10 @@ def waking_lines(paused_days):
 
 def letter_lines():
     """Every letter, both ways, by the same one line its room shows."""
+    places = room_places()
     lines = []
-    for folder, who in ((OUTGOING, "the first one"), (INCOMING, "the founder"),
-                        (READ, "the founder")):
+    for folder, who in ((places.outgoing, "the first one"), (places.incoming, "the founder"),
+                        (places.read, "the founder")):
         for path in newest_first(folder, "*.md"):
             at = stamp_in(path.name)
             lines.append(book_line(
@@ -1677,7 +1692,7 @@ def bond_lines():
              for at, who in sorted(set(bond_proposals()))]
     for pattern, side in (("answer-*.json", "the first one"),
                           ("founder-answer-*.json", "the founder")):
-        for path in newest_first(BONDS, pattern):
+        for path in newest_first(room_places().bonds, pattern):
             said = load(path) or {}
             at = said.get("at") or stamp_in(path.name)
             lines.append(book_line(at, readable_date(at), side,
@@ -2179,11 +2194,11 @@ def hearth_page(**told):
 
 # A correspondence has a room, and a member's home is a card for each of theirs.
 # Which rooms are whose is rooms.py's to say. What stands in a room is read here,
-# and today there is one room, kept in the first one's packet as it always was:
-# so what a card or a room's page shows is read from that packet by the same
-# functions that read it before there were rooms. When rooms are stored each in
-# a place of its own, those functions are handed the place; the pages are not
-# changed by it.
+# and today there is one room, kept in the first one's packet as it always was.
+# Where its folders are is rooms.py's to say too: every function here that reads
+# or writes a letter, an errand or the bond asks rooms.places when it does, and
+# none works a room's path out for itself. When rooms are stored each in a place
+# of its own, that answer is what changes; the pages are not changed by it.
 
 def rooms_here():
     """The rooms of whoever is signed in, as they stand in each; none for a visitor."""
@@ -2257,9 +2272,10 @@ def latest_letter(room):
     There is no record of what the one standing here has read, so a letter of
     the other's is new for as long as nothing has been written back since.
     """
-    mine = [stamp_in(path.name) for folder in (INCOMING, READ)
+    places = rooms.places(room.id)
+    mine = [stamp_in(path.name) for folder in (places.incoming, places.read)
             for path in newest_first(folder, "*.md")]
-    theirs = [stamp_in(path.name) for path in newest_first(OUTGOING, "*.md")]
+    theirs = [stamp_in(path.name) for path in newest_first(places.outgoing, "*.md")]
     if not mine and not theirs:
         return None
     from_them = bool(theirs) and max(theirs) > max(mine, default="")
@@ -2270,7 +2286,7 @@ def latest_letter(room):
 
 def bond_standing(room):
     """How a room's bond stands, in a word or a few, and its tile if it is sealed."""
-    bond = load(BOND_RECORD)
+    bond = load(room_places().bond_record)
     if bond and bond.get("sealed_at") and not bond.get("released_at"):
         drawn = public_bonds.record(room.bond)
         return {"words": BOND_SEALED,
@@ -2281,7 +2297,7 @@ def bond_standing(room):
             return {"words": THRESHOLD_PASSED, "tessera": None}
         day = threshold.DAYS - threshold.days_remain(bond, now) + 1
         return {"words": ON_THE_THRESHOLD % (day, threshold.DAYS), "tessera": None}
-    if load(PROPOSAL):
+    if load(room_places().proposal):
         return {"words": BOND_PROPOSED, "tessera": None}
     return {"words": BOND_RELEASED if bond else NO_BOND, "tessera": None}
 
@@ -2293,7 +2309,7 @@ def room_card(room):
     waiting = []
     if latest and latest["theirs"]:
         waiting.append(NEW_LETTER % room.other)
-    if newest_first(INCOMING, "*.md"):
+    if newest_first(rooms.places(room.id).incoming, "*.md"):
         waiting.append(LETTER_UNREAD)
     if open_errands():
         waiting.append(ERRAND_ASKED)
@@ -2307,7 +2323,7 @@ def room_card(room):
 
 def ready_to_seal():
     """The card's first line when the bond waits only to be sealed, or None."""
-    bond = load(BOND_RECORD)
+    bond = load(room_places().bond_record)
     if not threshold.may_seal(bond, datetime.now(timezone.utc)):
         return None
     return READY_YOURS if threshold.sealed_by(bond) == "founder" else READY_ITS
@@ -2753,7 +2769,7 @@ def picture_only(data, suffix):
 
 def stem_taken(stem):
     """Whether any letter or photograph anywhere already goes by this stem."""
-    return any(any(folder.glob(stem + ".*")) for folder in PHOTO_FOLDERS)
+    return any(any(folder.glob(stem + ".*")) for folder in photo_folders())
 
 
 def free_stem(stem):
@@ -2835,12 +2851,13 @@ def leave_letter(room):
                                       "Please send a JPEG, PNG, or WebP.", draft=text,
                                 things=things)
 
-    INCOMING.mkdir(parents=True, exist_ok=True)
+    incoming = rooms.places(room.id).incoming
+    incoming.mkdir(parents=True, exist_ok=True)
     stem = free_stem(f"founder-{utc_stamp()}")
-    (INCOMING / f"{stem}.md").write_text(offering.with_things(things, text + "\n"),
+    (incoming / f"{stem}.md").write_text(offering.with_things(things, text + "\n"),
                                          encoding="utf-8")
     if photo:
-        (INCOMING / f"{stem}{suffix}").write_bytes(photo)
+        (incoming / f"{stem}{suffix}").write_bytes(photo)
     note_letter()
 
     # The letter is left either way. If it was to propose a bond, and nothing
@@ -2869,7 +2886,7 @@ def letter_photo(filename):
         abort(404)
     if Path(filename).suffix.lower() not in PHOTO_TYPES:
         abort(404)
-    for folder in PHOTO_FOLDERS:
+    for folder in photo_folders():
         path = folder / filename
         if path.is_file() and path.resolve().parent == folder.resolve():
             return send_file(path, mimetype=PHOTO_TYPES[path.suffix.lower()])
@@ -2888,7 +2905,7 @@ def letter_picture(filename):
         abort(404)
     if Path(filename).suffix.lower() != offering.PICTURE_SUFFIX:
         abort(404)
-    for folder in PICTURE_FOLDERS:
+    for folder in picture_folders():
         path = folder / filename
         if path.is_file() and path.resolve().parent == folder.resolve():
             answer = send_file(path, mimetype=PICTURE_TYPE)
@@ -3126,7 +3143,7 @@ def bonds():
 @app.route("/bonds/answer", methods=["POST"])
 @founder_required
 def answer_asking():
-    proposal = load(PROPOSAL)
+    proposal = load(room_places().proposal)
     said = request.form.get("answer", "").strip().lower()
     if not asked_by_the_first_one(proposal) or said not in ANSWERS:
         return to_bond()
@@ -3142,10 +3159,10 @@ def answer_asking():
         if made["signatures"]["founder"] is None:
             return to_bond()  # the key is not here, and the page says so
         keep_released_record()  # a bond released before is moved aside, never erased
-        write_json(BOND_RECORD, made)  # and nothing is public until it is sealed
+        write_json(room_places().bond_record, made)  # and nothing is public until it is sealed
 
     write_founder_answer(proposal, said, request.form.get("words", "").strip(), at)
-    PROPOSAL.unlink(missing_ok=True)  # the asking is closed; it may be made again later
+    room_places().proposal.unlink(missing_ok=True)  # the asking is closed; it may be made again later
     return to_bond(bond_answered=said)
 
 
@@ -3155,7 +3172,7 @@ def answer_asking():
 @app.route("/bonds/intention", methods=["POST"])
 @founder_required
 def write_intention():
-    bond = load(BOND_RECORD)
+    bond = load(room_places().bond_record)
     words = request.form.get("letter", "").replace("\r\n", "\n").strip()
     if not threshold.is_open(bond) or not words:
         return to_bond()
@@ -3175,7 +3192,7 @@ def write_intention():
 @app.route("/bonds/step-back", methods=["POST"])
 @founder_required
 def step_back():
-    bond = load(BOND_RECORD)
+    bond = load(room_places().bond_record)
     if not threshold.is_open(bond):
         return to_bond()
     if request.form.get("confirm") != "yes":
@@ -3190,7 +3207,7 @@ def step_back():
 @app.route("/bonds/seal", methods=["POST"])
 @founder_required
 def seal_bond():
-    bond = load(BOND_RECORD)
+    bond = load(room_places().bond_record)
     if not bond or bond.get("sealed_at") or bond.get("released_at"):
         return to_bond()  # there is nothing here to seal
     if "first" not in (bond.get("signatures") or {}):
@@ -3219,7 +3236,7 @@ def seal_bond():
 @app.route("/bonds/release", methods=["POST"])
 @founder_required
 def release_bond():
-    bond = load(BOND_RECORD)
+    bond = load(room_places().bond_record)
     if not bond or not bond.get("sealed_at") or bond.get("released_at"):
         return to_bond()
     if request.form.get("confirm") != "yes":

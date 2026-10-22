@@ -193,7 +193,7 @@ def test_the_founder_s_own_folders_hold_no_pictures_to_serve(founder, packet, he
     """A picture is the first one's; nothing is served out of the letters it is sent."""
     write(packet / "letters" / "incoming" / "founder-2026-10-14T09-00-00Z.svg", DRAWN)
     assert founder.get("/letters/picture/founder-2026-10-14T09-00-00Z.svg").status_code == 404
-    assert hearth.PICTURE_FOLDERS == (hearth.OUTGOING,)
+    assert hearth.picture_folders() == (packet / "letters" / "outgoing",)
 
 
 def test_a_picture_appears_inside_the_letter_it_came_with(founder, packet, clock):

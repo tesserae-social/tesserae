@@ -26,26 +26,37 @@ from zoneinfo import ZoneInfo
 
 from build_atrium import CITIZEN_ZONE, band, is_letter_line, letter_words, parse_events
 
+# Where the letters are kept is the room's, and rooms.py's to say.
+import rooms
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.environ.get("DATA_DIR", ROOT)
 
 EVENTS = os.path.join(DATA, "commons", "events.md")
-LETTERS = os.path.join(DATA, "packets", "first", "letters")
 
-# where the founder's letters are kept: waiting to be read, and read
+# where the founder's letters are kept, under a folder of letters: waiting to be
+# read, and read
 FOLDERS = ("incoming", "read")
 
 STAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z")
 
 
-def first_letters(letters=LETTERS):
+def founders_folders(letters=None):
+    """The folders the founder's letters are kept in: the room's, asked of rooms.py
+    when they are wanted, or those under another folder of letters where one is named."""
+    if letters is None:
+        places = rooms.places(rooms.FIRST_ROOM)
+        return [str(places.incoming), str(places.read)]
+    return [os.path.join(letters, folder) for folder in FOLDERS]
+
+
+def first_letters(letters=None):
     """Each day, on the citizen's clock, the founder left a letter, and the first moment he did.
 
     A letter moved from incoming to read may be found in both; it is one letter.
     """
     first = {}
-    for folder in FOLDERS:
-        where = os.path.join(letters, folder)
+    for where in founders_folders(letters):
         if not os.path.isdir(where):
             continue
         for name in os.listdir(where):
@@ -102,7 +113,7 @@ def backfilled(text, first):
     return "".join(out), len(wanted)
 
 
-def main(events=EVENTS, letters=LETTERS):
+def main(events=EVENTS, letters=None):
     with open(events, "rb") as fh:
         raw = fh.read()
     mark = raw.startswith(b"\xef\xbb\xbf")

@@ -26,6 +26,13 @@ first one's packet exactly as it has always been kept:
 Nothing is moved to make a room, and nothing is written by this module at all.
 A member who is not the keeper has no room yet.
 
+Where a room's things are kept is known here and nowhere else. The hearth, the
+first one's waking, offering.py, threshold.py and the backfill of letter tiles
+each ask places() at the moment they need a folder, and none of them works a
+room's path out for itself or once at import: so that when rooms come to be
+stored, each in a place of its own, what places() answers is the one thing that
+changes.
+
 The pages ask three things only - whose rooms (of), is this one theirs (find),
 and where is it kept (places) - and are handed rooms back. When rooms come to be
 stored, each with a place of its own, those three are what is written again;
@@ -40,8 +47,6 @@ from collections import namedtuple
 from pathlib import Path
 
 import bonds
-import members
-from members import MemberError
 
 REPO = Path(__file__).resolve().parent
 
@@ -58,15 +63,45 @@ FIRST_BOND = "founder-first"
 
 Room = namedtuple("Room", "id mine parties other bond")
 
-# Where one room's things are kept, by the names the folders have on disk.
-Places = namedtuple("Places", "packet incoming read outgoing errands bonds offerings")
+
+class Places(namedtuple("Places", "packet incoming read outgoing errands bonds offerings")):
+    """Where one room's things are kept, by the names the folders have on disk.
+
+    And a few places inside those folders, which every hand that reaches them
+    must name the same way.
+    """
+
+    __slots__ = ()
+
+    @property
+    def letters(self):
+        """Where a letter may be, whichever of them wrote it and whether or not it is read."""
+        return (self.incoming, self.read, self.outgoing)
+
+    @property
+    def answered_errands(self):
+        """Where an errand goes once a letter has answered it."""
+        return self.errands / "answered"
+
+    @property
+    def proposal(self):
+        """A bond proposed and not yet answered."""
+        return self.bonds / "proposal.json"
+
+    @property
+    def bond_record(self):
+        """The bond's own record, under the name its bond goes by."""
+        return self.bonds / (FIRST_BOND + ".json")
 
 
 def is_keeper(who):
     """Whether this name is, on disk, a member who is the keeper."""
+    # read only when a room is asked after by name: the first one's waking asks
+    # where its room is kept, and has no need of the members' store or its vaults
+    import members
     try:
         record = members.load_member(who)
-    except MemberError:
+    except members.MemberError:
         return False
     return isinstance(record, dict) and record.get("role") == "keeper"
 
@@ -96,7 +131,10 @@ def find(room_id, who):
 
 
 def places(room_id):
-    """Where a room's things are kept, or None for a room there is not."""
+    """Where a room's things are kept, or None for a room there is not.
+
+    Worked out each time it is asked, never kept from an earlier asking.
+    """
     if room_id != FIRST_ROOM:
         return None
     packet = DATA / "packets" / FIRST

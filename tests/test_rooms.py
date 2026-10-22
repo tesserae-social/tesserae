@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 from nacl.pwhash import argon2id
 
-from conftest import FOUNDER_NAME, PASSWORD, REPO, block, page, post, write
+from conftest import FOUNDER_NAME, PASSWORD, REPO, block, load, page, post, write
 from test_hearth_bonds import answered_yes, propose, sealed, through_the_threshold
 
 MEMBER = "birch"
@@ -478,28 +478,106 @@ def test_a_plain_member_and_a_stranger_have_no_room(member, hearth):
 
 def test_the_room_is_kept_where_the_packet_has_always_been(hearth, packet):
     kept = hearth.rooms.places("first")
-    assert kept == (hearth.PACKET, hearth.INCOMING, hearth.READ, hearth.OUTGOING,
-                    hearth.ERRANDS, hearth.BONDS, packet / "offerings")
+    assert kept == (packet, packet / "letters" / "incoming", packet / "letters" / "read",
+                    packet / "letters" / "outgoing", packet / "errands", packet / "bonds",
+                    packet / "offerings")
     assert kept.packet == packet
     assert hearth.rooms.places("elsewhere") is None
 
 
-def test_rooms_writes_nothing_and_attend_knows_nothing_of_it():
-    """A room is a way of looking; the first one's waking does not look through it."""
-    def imported(name):
-        tree = ast.parse((REPO / name).read_text(encoding="utf-8"))
+# Every hand that reaches a room's letters, errands, bond or offerings, and the
+# names the folders were once kept under in each of them.
+ROOM_HANDS = ("attend.py", "hearth.py", "offering.py", "threshold.py",
+              "backfill_letter_tiles.py")
+ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
+NAMES_ONCE_KEPT = {"INCOMING", "READ", "OUTGOING", "LETTERS", "ERRANDS", "ANSWERED_ERRANDS",
+                   "BONDS", "PROPOSAL", "BOND_RECORD", "OFFERINGS", "PHOTO_FOLDERS",
+                   "PICTURE_FOLDERS"}
+
+
+def leftmost(node):
+    """The name a chain of a / b / c begins with, or None."""
+    while isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        node = node.left
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def test_rooms_alone_says_where_a_room_is_kept_and_writes_nothing():
+    """A room's place is rooms.py's to say, and no other hand works it out.
+
+    The first one's waking asks it too, as the hearth does - and reads nothing
+    of the members' store by asking, since rooms.py looks there only when a room
+    is asked after by name. rooms.py itself writes nothing at all.
+    """
+    def parsed(name):
+        return ast.parse((REPO / name).read_text(encoding="utf-8"))
+
+    def imported(tree, top_only=False):
         found = set()
-        for node in ast.walk(tree):
+        for node in (tree.body if top_only else ast.walk(tree)):
             if isinstance(node, ast.Import):
                 found |= {alias.name.split(".")[0] for alias in node.names}
             elif isinstance(node, ast.ImportFrom) and node.module:
                 found.add(node.module.split(".")[0])
         return found
 
-    read_at_a_waking = {"attend"} | {name for name in imported("attend.py")
-                                     if (REPO / (name + ".py")).exists()}
-    for name in sorted(read_at_a_waking):
-        assert "rooms" not in imported(name + ".py"), name
+    assert "rooms" in imported(parsed("attend.py"), top_only=True)
+    assert "members" not in imported(parsed("rooms.py"), top_only=True)
+
+    for name in ROOM_HANDS:
+        tree = parsed(name)
+        kept_at_import = {target.id for node in tree.body if isinstance(node, ast.Assign)
+                          for target in node.targets if isinstance(target, ast.Name)}
+        assert not kept_at_import & NAMES_ONCE_KEPT, (name, kept_at_import & NAMES_ONCE_KEPT)
+        for node in ast.walk(tree):
+            # nothing reaches into the packet for a room's folder
+            if (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div)
+                    and isinstance(node.right, ast.Constant)
+                    and str(node.right.value).split("/")[0] in ROOM_FOLDERS):
+                assert leftmost(node) != "PACKET", (name, node.lineno)
+            # nor joins the packet's name into a path of its own
+            if isinstance(node, ast.Call):
+                said = [arg.value for arg in node.args if isinstance(arg, ast.Constant)]
+                assert not ("packets" in said and set(said) & set(ROOM_FOLDERS)), (
+                    name, node.lineno)
+
     source = (Path(REPO) / "rooms.py").read_text(encoding="utf-8")
     for writes in ("write_text", "write_bytes", "open(", "mkdir", "rename", "unlink"):
         assert writes not in source, writes
+
+
+def test_where_a_room_is_kept_is_worked_out_each_time_it_is_asked(
+        hearth, attend, data_dir, tmp_path, monkeypatch):
+    """Nothing keeps a room's place from an earlier asking: told another, every hand follows."""
+    elsewhere = tmp_path / "elsewhere"
+    moved = elsewhere / "packets" / "first"
+    for module in (hearth, attend):  # each was loaded with its own rooms, as at a waking
+        monkeypatch.setattr(module.rooms, "DATA", elsewhere)
+    assert hearth.room_places().incoming == moved / "letters" / "incoming"
+    assert hearth.picture_folders() == (moved / "letters" / "outgoing",)
+    assert attend.room_places().bond_record == moved / "bonds" / "founder-first.json"
+    assert attend.offering.kept().offerings == moved / "offerings"
+    assert attend.threshold.kept().bonds == moved / "bonds"
+
+    for module in (hearth, attend):
+        monkeypatch.setattr(module.rooms, "DATA", data_dir)
+    assert attend.room_places().proposal == (
+        data_dir / "packets" / "first" / "bonds" / "proposal.json")
+
+
+def test_a_waking_run_by_hand_reads_its_packet_and_its_room_from_one_place(
+        tmp_path, monkeypatch):
+    """With no DATA_DIR, the living files are the repo's, wherever the waking is run from.
+
+    attend.py once took the folder it was run from, and rooms.py the repo: run
+    from anywhere else, the one would have read its self-document from there
+    and its letters from here.
+    """
+    monkeypatch.delenv("DATA_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)  # anywhere but the repo
+    attend = load("attend")
+    here = Path(REPO).resolve()
+    assert attend.DATA == attend.rooms.DATA == here
+    assert attend.PACKET == here / "packets" / "first"
+    assert attend.room_places().packet == attend.PACKET
+    assert attend.room_places().incoming == attend.PACKET / "letters" / "incoming"

@@ -313,10 +313,10 @@ def test_a_note_may_be_written_and_placed_at_the_same_waking(wake, packet):
     assert section(wake(), NAMED) == RIVER_RESTS
 
 
-def test_an_unknown_name_changes_nothing_and_is_told_once(wake, packet):
+def test_an_unknown_name_changes_nothing_and_is_told_once(wake, packet, room):
     two_notes(wake)
     letter = "founder-2026-09-21T10-00-00Z"
-    write(packet / "letters" / "read" / (letter + ".md"), "A letter, read long ago.\n")
+    write(room / "letters" / "read" / (letter + ".md"), "A letter, read long ago.\n")
     refused = ["rest note about the sea", "keep note", "show note nothing kept",
                "rest note %s" % letter,  # a letter is no named note
                "rest the river"]  # and a named note is no letter
@@ -333,10 +333,10 @@ def test_an_unknown_name_changes_nothing_and_is_told_once(wake, packet):
     assert not any("<<SHELF>>" in line for line in happened(wake()))  # once
 
 
-def test_named_notes_and_letters_are_placed_side_by_side(wake, packet):
+def test_named_notes_and_letters_are_placed_side_by_side(wake, packet, room):
     two_notes(wake)
     letter = "founder-2026-09-21T10-00-00Z"
-    write(packet / "letters" / "read" / (letter + ".md"), "A letter, read long ago.\n")
+    write(room / "letters" / "read" / (letter + ".md"), "A letter, read long ago.\n")
     wake(block("SHELF", "rest %s\nnote %s: the one about the lake\nrest note the river"
                % (letter, letter)))
     assert read_json(packet / "shelf.json") == {

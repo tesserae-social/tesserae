@@ -25,15 +25,15 @@ def leave(client, things=(), text=LETTER):
     return post(client, "/letters", data=form, content_type="multipart/form-data")
 
 
-def the_letter(packet):
+def the_letter(room):
     """The one letter waiting to be read, as it is kept."""
-    left = sorted((packet / "letters" / "incoming").glob("*.md"))
+    left = sorted((room / "letters" / "incoming").glob("*.md"))
     assert len(left) == 1
     return left[0]
 
 
-def kept_things(hearth, packet):
-    return hearth.offering.split_things(the_letter(packet).read_text(encoding="utf-8"))
+def kept_things(hearth, room):
+    return hearth.offering.split_things(the_letter(room).read_text(encoding="utf-8"))
 
 
 # ---- saving them ---------------------------------------------------------
@@ -46,63 +46,63 @@ def kept_things(hearth, packet):
     ([SLEPT, "", HANDS], [SLEPT, HANDS]),
     ([SLEPT, FROST, HANDS], [SLEPT, FROST, HANDS]),
 ])
-def test_zero_to_three_things_are_kept_with_the_letter(founder, hearth, packet, given, kept):
+def test_zero_to_three_things_are_kept_with_the_letter(founder, hearth, given, kept, room):
     assert leave(founder, given).status_code == 302
-    things, body = kept_things(hearth, packet)
+    things, body = kept_things(hearth, room)
     assert things == kept
     assert body == LETTER.strip() + "\n"
 
 
-def test_a_letter_with_none_is_kept_exactly_as_before(founder, packet):
+def test_a_letter_with_none_is_kept_exactly_as_before(founder, room):
     leave(founder, ["", "  ", ""])
-    assert the_letter(packet).read_text(encoding="utf-8") == LETTER.strip() + "\n"
+    assert the_letter(room).read_text(encoding="utf-8") == LETTER.strip() + "\n"
 
 
-def test_the_things_are_one_line_above_the_letter(founder, packet):
+def test_the_things_are_one_line_above_the_letter(founder, room):
     leave(founder, [SLEPT, FROST])
-    kept = the_letter(packet).read_text(encoding="utf-8")
+    kept = the_letter(room).read_text(encoding="utf-8")
     assert kept == ('<!-- three plain things: ["slept badly", "first frost on the car"] -->\n'
                     + LETTER.strip() + "\n")
 
 
-def test_no_more_than_three_are_kept(founder, hearth, packet):
+def test_no_more_than_three_are_kept(founder, hearth, room):
     leave(founder, [SLEPT, FROST, HANDS, "a fourth"])
-    assert kept_things(hearth, packet)[0] == [SLEPT, FROST, HANDS]
+    assert kept_things(hearth, room)[0] == [SLEPT, FROST, HANDS]
 
 
-def test_a_thing_is_cut_at_eighty_characters(founder, hearth, packet):
+def test_a_thing_is_cut_at_eighty_characters(founder, hearth, room):
     leave(founder, ["x" * 79, "y" * 80, "z" * 200])
-    assert kept_things(hearth, packet)[0] == ["x" * 79, "y" * 80, "z" * 80]
+    assert kept_things(hearth, room)[0] == ["x" * 79, "y" * 80, "z" * 80]
 
 
-def test_newlines_and_control_characters_are_taken_out(founder, hearth, packet):
+def test_newlines_and_control_characters_are_taken_out(founder, hearth, room):
     leave(founder, ["slept\nbadly", "first\r\nfrost on\tthe car", "\x00hands\x07 cold\x1b"])
-    assert kept_things(hearth, packet)[0] == ["slept badly", "first frost on the car",
+    assert kept_things(hearth, room)[0] == ["slept badly", "first frost on the car",
                                               "hands cold"]
 
 
-def test_a_thing_is_plain_text_and_cannot_close_its_line(founder, hearth, packet):
+def test_a_thing_is_plain_text_and_cannot_close_its_line(founder, hearth, room):
     leave(founder, ["<b>cold</b> --> ]", '"quoted"'])
-    raw = the_letter(packet).read_text(encoding="utf-8")
+    raw = the_letter(room).read_text(encoding="utf-8")
     first = raw.splitlines()[0]
     assert first.count("-->") == 1 and first.endswith(" -->")
-    assert kept_things(hearth, packet)[0] == ["<b>cold</b> --> ]", '"quoted"']
+    assert kept_things(hearth, room)[0] == ["<b>cold</b> --> ]", '"quoted"']
     shown = page(founder.get("/rooms/first"))
     assert "&lt;b&gt;cold&lt;/b&gt;" in shown
     assert "<b>cold</b>" not in shown
 
 
-def test_a_letter_that_begins_like_the_line_is_not_taken_for_things(founder, hearth, packet):
+def test_a_letter_that_begins_like_the_line_is_not_taken_for_things(founder, hearth, room):
     odd = '<!-- three plain things: ["not a thing"] -->\nand the rest of it'
     leave(founder, [], text=odd)
-    things, body = kept_things(hearth, packet)
+    things, body = kept_things(hearth, room)
     assert things == []
     assert body == odd + "\n"
 
 
-def test_things_without_a_letter_leave_nothing(founder, packet):
+def test_things_without_a_letter_leave_nothing(founder, room):
     leave(founder, [SLEPT], text="  ")
-    assert not any((packet / "letters" / "incoming").iterdir())
+    assert not any((room / "letters" / "incoming").iterdir())
 
 
 def test_the_things_come_back_when_a_letter_is_refused(founder):
@@ -149,9 +149,9 @@ def test_a_letter_without_them_shows_no_line(founder, packet):
 
 # ---- the reading ---------------------------------------------------------
 
-def test_the_reading_shows_them_directly_above_the_letter(founder, wake, packet):
+def test_the_reading_shows_them_directly_above_the_letter(founder, wake, room):
     leave(founder, [SLEPT, "", HANDS])
-    name = the_letter(packet).name
+    name = the_letter(room).name
     turn = wake()
     assert ("--- letter: %s ---\nThree plain things: slept badly · hands cold all morning\n"
             "Dear first one,\n\nThe lake was still this morning." % name) in turn.shown
@@ -162,18 +162,18 @@ def test_the_reading_shows_them_directly_above_the_letter(founder, wake, packet)
             "Dear first one," % name) in again
 
 
-def test_an_old_letter_reads_byte_for_byte_as_before(wake, packet):
+def test_an_old_letter_reads_byte_for_byte_as_before(wake, room):
     old = "Dear first one,\r\n\r\nAn old letter, **as it was**, with its own ending.\n\n\n"
     waiting = "founder-2026-10-14T09-00-00Z.md"
     earlier = "founder-2026-10-01T09-00-00Z.md"
-    (packet / "letters" / "incoming").mkdir(parents=True, exist_ok=True)
-    (packet / "letters" / "incoming" / waiting).write_bytes(old.encode("utf-8"))
-    (packet / "letters" / "read").mkdir(parents=True, exist_ok=True)
-    (packet / "letters" / "read" / earlier).write_bytes(old.encode("utf-8"))
+    (room / "letters" / "incoming").mkdir(parents=True, exist_ok=True)
+    (room / "letters" / "incoming" / waiting).write_bytes(old.encode("utf-8"))
+    (room / "letters" / "read").mkdir(parents=True, exist_ok=True)
+    (room / "letters" / "read" / earlier).write_bytes(old.encode("utf-8"))
 
     turn = wake()
     # exactly what the reading gave a letter before there were plain things
-    as_it_was = (packet / "letters" / "read" / waiting).read_text(encoding="utf-8")
+    as_it_was = (room / "letters" / "read" / waiting).read_text(encoding="utf-8")
     assert as_it_was == old.replace("\r\n", "\n")
     assert {"type": "text", "text": ("--- letter: %s ---\n%s" % (waiting, as_it_was)).rstrip()} \
         in turn.reading
@@ -183,32 +183,31 @@ def test_an_old_letter_reads_byte_for_byte_as_before(wake, packet):
 
 # ---- private: never offered ----------------------------------------------
 
-def test_offering_the_whole_letter_leaves_the_things_out(founder, packet, hearth):
+def test_offering_the_whole_letter_leaves_the_things_out(founder, hearth, room):
     leave(founder, [SLEPT, FROST, HANDS])
-    stem = the_letter(packet).stem
+    stem = the_letter(room).stem
     assert post(founder, "/offer", data={"kind": "letter", "source": stem}).status_code == 302
-    offered = read_json(sorted((packet / "offerings").glob("pending-*.json"))[0])
+    offered = read_json(sorted((room / "offerings").glob("pending-*.json"))[0])
     assert offered["text"] == LETTER.strip()
     for thing in (SLEPT, FROST, HANDS):
         assert thing not in offered["text"]
     assert "three plain things" not in offered["text"]
 
 
-def test_a_thing_cannot_be_offered_as_a_passage(founder, packet):
+def test_a_thing_cannot_be_offered_as_a_passage(founder, room):
     leave(founder, [SLEPT, FROST])
-    stem = the_letter(packet).stem
+    stem = the_letter(room).stem
     answer = post(founder, "/offer", data={"kind": "passage", "source": stem, "text": FROST})
     assert answer.status_code == 200
     assert "quoted word for word" in page(answer)
-    assert not list((packet / "offerings").glob("pending-*.json"))
+    assert not list((room / "offerings").glob("pending-*.json"))
 
 
-def test_the_first_one_offering_the_letter_leaves_the_things_out(founder, wake, packet,
-                                                                  commons):
+def test_the_first_one_offering_the_letter_leaves_the_things_out(founder, wake, commons, room):
     leave(founder, [SLEPT, FROST, HANDS])
-    stem = the_letter(packet).stem
+    stem = the_letter(room).stem
     wake(block("OFFER", "offer letter %s" % stem))
-    offered = read_json(sorted((packet / "offerings").glob("pending-*.json"))[0])
+    offered = read_json(sorted((room / "offerings").glob("pending-*.json"))[0])
     assert offered["text"] == LETTER.strip()
     post(founder, "/offer/consent", data={"id": offered["id"]})
     public = (commons / "offerings" / (offered["id"] + ".md")).read_text(encoding="utf-8")
@@ -218,8 +217,8 @@ def test_the_first_one_offering_the_letter_leaves_the_things_out(founder, wake, 
 
 # ---- the guard -----------------------------------------------------------
 
-def test_a_letter_with_things_and_no_token_is_refused(founder, packet):
+def test_a_letter_with_things_and_no_token_is_refused(founder, room):
     answer = founder.post("/letters", data={"letter": LETTER, "thing": [SLEPT]},
                           content_type="multipart/form-data")
     assert answer.status_code == 400
-    assert not any((packet / "letters" / "incoming").iterdir())
+    assert not any((room / "letters" / "incoming").iterdir())

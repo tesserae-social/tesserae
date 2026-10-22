@@ -1866,8 +1866,15 @@ def chronicle_text(lines):
 # one is shown and no copy carries (see attend.PRIVATE). The zip is built in
 # memory and handed straight out, so no copy of the record is ever written back
 # into the record.
+#
+# The room the first one shares with the founder - its letters, errands, bond
+# and offerings - goes in where it always went, under packets/first/, whether
+# it is kept in the packet still or has been moved into a folder of its own
+# (rooms.py): a copy says the same names and the same bytes either way, and
+# room.json, which only says the room has been moved, is not among them.
 
-EXPORT_TREES = ("packets/first", "commons", "bonds")
+PACKET_TREE = "packets/first"
+EXPORT_TREES = (PACKET_TREE, "commons", "bonds")
 LEFT_OUT = ("packets/first/private",)
 
 # What a backup holds: the same trees, and the members beside them, each
@@ -1876,24 +1883,49 @@ LEFT_OUT = ("packets/first/private",)
 # words, which is nowhere else either. A backup is encrypted; a copy is not,
 # and so the key and the list go in the one and never in the other. So does the
 # first one's private notebook, so that it survives: the backup is the
-# founder's, and he has promised never to open that part of it.
-BACKUP_TREES = EXPORT_TREES + ("members", "keys/first", "private-words.txt")
+# founder's, and he has promised never to open that part of it. A backup is the
+# disk as it is, every file under the name it has there, so that a restore is a
+# DATA_DIR that works: the rooms go in as they are kept, under rooms/.
+BACKUP_TREES = EXPORT_TREES + ("rooms", "members", "keys/first", "private-words.txt")
 
 EXPORT_TAKEN = "export taken by the founder"
 
 
-def export_files(trees=EXPORT_TREES, left_out=LEFT_OUT):
+def as_before_rooms(found):
+    """The packet's files, with the room's put back among them under the names they had there.
+
+    Where the room is still kept in the packet, that is what was found. Where it
+    has a folder of its own, the room's folders are read from there, and
+    anything left under those names in the packet is not the room's and is
+    passed over: what the room keeps is in one place at a time.
+    """
+    if not rooms.moved(rooms.FIRST_ROOM):
+        return found
+    places = rooms.places(rooms.FIRST_ROOM)
+    kept = [(path, name) for path, name in found if name.split("/")[2] not in rooms.ROOM_FOLDERS]
+    for folder in rooms.ROOM_FOLDERS:
+        for path in (places.home / folder).rglob("*"):
+            kept.append((path, PACKET_TREE + "/" + path.relative_to(places.home).as_posix()))
+    return kept
+
+
+def export_files(trees=EXPORT_TREES, left_out=LEFT_OUT, as_kept=False):
     """Every file a copy holds, each with the name it takes inside the zip.
 
     A tree is a folder, and everything under it; or one file, kept as itself.
-    Whatever is under a folder left out is not among them.
+    Whatever is under a folder left out is not among them. The room is given
+    under the packet's names (as_before_rooms), unless what is asked for is the
+    disk as it is kept, as a backup asks.
     """
     for tree in trees:
         if (DATA / tree).is_file():
             yield DATA / tree, tree
             continue
-        for path in sorted((DATA / tree).rglob("*")):
-            name = path.relative_to(DATA).as_posix()
+        found = [(path, path.relative_to(DATA).as_posix()) for path in (DATA / tree).rglob("*")]
+        if tree == PACKET_TREE and not as_kept:
+            found = as_before_rooms(found)
+        # in the order of the names, as they would sort on the disk
+        for path, name in sorted(found, key=lambda one: DATA / one[1]):
             if path.is_file() and not any(name.startswith(out + "/") for out in left_out):
                 yield path, name
 
@@ -1977,7 +2009,7 @@ def backup_archive():
     """
     holder = io.BytesIO()
     with ATTEND_LOCK, tarfile.open(fileobj=holder, mode="w:gz") as bundle:
-        for path, name in export_files(BACKUP_TREES, left_out=()):
+        for path, name in export_files(BACKUP_TREES, left_out=(), as_kept=True):
             bundle.add(path, arcname=name)
     return holder.getvalue()
 

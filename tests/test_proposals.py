@@ -22,6 +22,7 @@ import sys
 
 import pytest
 
+from conftest import before_rooms
 from conftest import (FOUNDER_NAME, REPO, SWITCHED_ON_21_OCTOBER, Turn, block, blocks, page, post,
                       read_json, shut_away, write, write_json)
 from conftest import notebook_unexplained
@@ -120,8 +121,9 @@ def test_shut_away_a_block_is_only_words(off, wake, attend, packet):
     assert attend.PROPOSAL_ACT not in record["acted"] and "proposals_refused" not in record
 
 
+@before_rooms
 def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_does(
-        attend, data_dir, packet, clock, monkeypatch, tmp_path):
+        attend, data_dir, packet, clock, monkeypatch, tmp_path, room):
     """Two wakings each, in one world: the committed attend.py, and this one shut away."""
     # and its extra wakings, which came after the committed one, shut away with it
     shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
@@ -139,7 +141,7 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
     clock.pin(old, monkeypatch)
     assert not hasattr(old, "PROPOSALS")
 
-    write(packet / "letters" / "incoming" / "founder-2026-10-15T08-00-00Z.md", "A new letter.\n")
+    write(room / "letters" / "incoming" / "founder-2026-10-15T08-00-00Z.md", "A new letter.\n")
     one_kept(packet, at="2026-10-14T09-00-00Z")  # even one already in the packet changes nothing
     said = blocks("I read it.", block("LETTER", "Dear founder,"), proposed(),
                   proposed(SECOND, SECOND_TEXT), block("PROPOSAL", ""))

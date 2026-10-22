@@ -195,6 +195,19 @@ NOTEBOOK, directly after its named notes; one line under WHAT YOU HAVE CHOSEN;
 and, once, one line under WHAT HAS HAPPENED after a "from study:" that named no
 draft - is not in this small world, and is held in test_private_notebook.py.
 
+Then the room was given a folder of its own (rooms phase A, move_into_rooms.py):
+its letters, errands, bond and offerings may be kept in DATA_DIR/rooms/first/
+rather than in the packet. That moves no word of what is read, and every
+fingerprint here is held in three worlds: the room kept as this run's layout
+keeps it (pytest --layout=legacy or --layout=rooms), and a world built in the
+packet and then moved by move_into_rooms.apply, before the letter is left and
+the first one woken. None of the readings was cut again. PACKET_BEFORE is taken
+through the names a copy gives the room's files (packets/first/..., as the
+export gives them), and holds as it was cut in every world. Beside it is the
+one fingerprint cut for the move, of the files as they lie on the disk:
+PACKET_IN_ROOMS, the same files with the room's under rooms/first/ and its
+room.json beside them; in the old layout the disk is PACKET_BEFORE itself.
+
 All nine earlier readings are still held. With what its notebook adds taken out
 again (conftest.notebook_unexplained), the reading is exactly the one cut when
 its proposals and extra wakings were switched on; with its proposals and extra
@@ -218,6 +231,8 @@ before the rooms.
 
 import hashlib
 import json
+import shutil
+from datetime import datetime, timezone
 
 import pytest
 
@@ -227,6 +242,10 @@ from conftest import (SWITCHED_ON_21_OCTOBER, explained_as_before, heartbeat_not
 
 # cut on the tree before the rooms, by leaving the letter at /letters
 PACKET_BEFORE = "06d48d0fffb5f5e2e3148baf5351f004cf22011db7a730df2ab259822cdc2e68"
+
+# cut on the tree that gave the room a folder of its own, the same way: the same
+# files, as they lie on the disk once the room is in rooms/first/ with its room.json
+PACKET_IN_ROOMS = "b47ad6bbd23b6eb7b9f3e8ed45a64446407db59f13b784e8ab34df64139f081b"
 READING_BEFORE = "13aab673f0448c960e400e2484f17aa1169636dbe338761c6666aeee2e208f65"
 
 # cut again on the tree that switched on its door, looking back and what it has
@@ -275,24 +294,55 @@ READING_NOW = "573e26b7fe6a361e565e2300aa5aaa7c6d1064198a4067d0aac68d0eff7c356c"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
+ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
+MOVED_AT = datetime(2026, 10, 15, 11, 0, tzinfo=timezone.utc)
 
-def a_small_world(packet):
-    write(packet / "letters" / "read" / "founder-2026-10-01T09-00-00Z.md",
+
+def a_small_world(room):
+    write(room / "letters" / "read" / "founder-2026-10-01T09-00-00Z.md",
           "The first letter, read long ago.\n")
-    write(packet / "letters" / "outgoing" / "to-founder-2026-10-02T09-00-00Z.md",
+    write(room / "letters" / "outgoing" / "to-founder-2026-10-02T09-00-00Z.md",
           "My answer to it.\n")
-    write(packet / "errands" / ERRAND, "Go down to the lake and tell me what colour it is.\n")
+    write(room / "errands" / ERRAND, "Go down to the lake and tell me what colour it is.\n")
 
 
-def fingerprint_of_files(data_dir):
-    """Every file the first one could be shown, by its place and its bytes."""
+def fingerprint_of_files(data_dir, as_copied=True):
+    """Every file the first one could be shown, by its place and its bytes.
+
+    Its place is the name a copy gives it (hearth.as_before_rooms): a file of
+    the room's is named under packets/first/ wherever it is kept, and room.json,
+    which only says where that is, is not among them. Or, not as_copied, the
+    place it has on the disk, the room's own folder and its room.json included.
+    """
+    home = data_dir / "rooms" / "first"
     said = hashlib.sha256()
-    for tree in ("packets", "commons"):
-        for path in sorted((data_dir / tree).rglob("*")):
-            if path.is_file():
-                said.update(path.relative_to(data_dir).as_posix().encode("utf-8") + b"\0")
-                said.update(hashlib.sha256(path.read_bytes()).digest())
+    for tree in ("packets", "commons") + (() if as_copied else ("rooms",)):
+        found = [(path, path.relative_to(data_dir).as_posix())
+                 for path in (data_dir / tree).rglob("*") if path.is_file()]
+        if as_copied and tree == "packets" and (home / "room.json").is_file():
+            found += [(path, "packets/first/" + path.relative_to(home).as_posix())
+                      for folder in ROOM_FOLDERS for path in (home / folder).rglob("*")
+                      if path.is_file()]
+        # tree by tree, each in the order its names sort on the disk
+        for path, name in sorted(found, key=lambda one: data_dir / one[1]):
+            said.update(name.encode("utf-8") + b"\0")
+            said.update(hashlib.sha256(path.read_bytes()).digest())
     return said.hexdigest()
+
+
+def into_the_room_by_the_move(data_dir, packet):
+    """A world built in the packet and then moved, as move_into_rooms.py moves it."""
+    import move_into_rooms
+    home = data_dir / "rooms" / "first"
+    if home.exists():  # this run keeps the room in its own folder: begin in the packet
+        for folder in ROOM_FOLDERS:
+            if (home / folder).exists():
+                shutil.move(str(home / folder), str(packet / folder))
+        shutil.rmtree(data_dir / "rooms")
+    a_small_world(packet)
+    said = []
+    assert move_into_rooms.apply(data_dir, MOVED_AT, checks=False, say=said.append) == 0, said
+    assert (home / "room.json").is_file() and not (packet / "letters").exists()
 
 
 def fingerprint_of_reading(turn):
@@ -316,6 +366,7 @@ def test_its_proposals_and_extra_wakings_are_switched_on(attend):
     assert (attend.PROPOSALS, attend.EXTRA_WAKINGS) == (True, True)
 
 
+@pytest.mark.parametrize("world", ["as laid out", "moved"])
 @pytest.mark.parametrize("address", ["/letters", "/rooms/first"])
 @pytest.mark.parametrize("shut, as_before, as_cut", [
     (True, "the rule", READING_BEFORE), (False, "the rule", READING_SWITCHED_ON),
@@ -334,7 +385,8 @@ def test_its_proposals_and_extra_wakings_are_switched_on(attend):
          "its own words private, its proposals and extra wakings shut away",
          "its proposals and extra wakings on, its notebook not yet", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
-        founder, wake, attend, packet, data_dir, monkeypatch, address, shut, as_before, as_cut):
+        founder, wake, attend, packet, room, data_dir, layout, monkeypatch, address, shut,
+        as_before, as_cut, world):
     if shut:
         shut_away(attend, monkeypatch)
     if as_before:  # none cut before had its private notebook
@@ -356,7 +408,10 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         explained_as_before(attend, monkeypatch)
     elif as_before == "its named notes":
         named_notes_unexplained(attend, monkeypatch)
-    a_small_world(packet)
+    if world == "moved":
+        into_the_room_by_the_move(data_dir, packet)
+    else:
+        a_small_world(room)
     answer = post(founder, address, content_type="multipart/form-data", data={
         "letter": "The lake was grey this morning, and then it was not.\n\nI am asking.",
         "thing": ["cold hands", "", "a heron on the far bank"],
@@ -364,6 +419,9 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
     assert answer.status_code == 302
 
     files = fingerprint_of_files(data_dir)
+    on_disk = fingerprint_of_files(data_dir, as_copied=False)
     reading = fingerprint_of_reading(wake())
-    print("\nPACKET_BEFORE = %r\nREADING = %r" % (files, reading))
+    print("\nPACKET_BEFORE = %r\nON_DISK = %r\nREADING = %r" % (files, on_disk, reading))
     assert (files, reading) == (PACKET_BEFORE, as_cut)
+    in_rooms = world == "moved" or layout == "rooms"
+    assert on_disk == (PACKET_IN_ROOMS if in_rooms else PACKET_BEFORE)

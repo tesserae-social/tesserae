@@ -166,6 +166,7 @@ def test_the_archive_holds_the_three_trees_whole(hearth, bucket, packet, commons
     with bucket.only as bundle:
         held = {member.name for member in bundle.getmembers() if member.isfile()}
         assert held == (files_under(packet, "packets/first/") | files_under(commons, "commons/")
+                        | files_under(data_dir / "rooms", "rooms/")  # the room, as it is kept
                         | files_under(data_dir / "members", "members/")
                         | {"keys/first/private.key", "keys/first/public.key"})
         # and what is in it is the file itself, byte for byte
@@ -188,7 +189,7 @@ def test_nothing_outside_the_three_trees_is_in_the_archive(hearth, bucket, packe
     assert (data_dir / "keys" / "founder" / "private.key").exists()  # there to be left out
     with bucket.only as bundle:
         for name in bundle.getnames():
-            assert name.startswith(("packets/first/", "commons/", "members/",
+            assert name.startswith(("packets/first/", "commons/", "rooms/", "members/",
                                     "keys/first/")), name
         # a member's key history names public keys; the one key in the clear that
         # goes in is the first one's own, and no other key does
@@ -240,10 +241,11 @@ def test_what_is_uploaded_is_encrypted_and_opens_with_the_key(hearth, bucket, pa
 def test_a_backup_writes_nothing_into_the_record(hearth, bucket, packet, commons,
                                                  data_dir, clock):
     a_whole_world(packet, commons)
-    before = files_now(packet) | files_now(commons)
+    before = files_now(packet) | files_now(commons) | files_now(data_dir / "rooms")
     hearth.back_up(clock.at)
 
-    assert files_now(packet) | files_now(commons) == before  # not one byte of it moved
+    # not one byte of it moved
+    assert files_now(packet) | files_now(commons) | files_now(data_dir / "rooms") == before
     assert hearth.BACKUP_LOG == data_dir / "backup.log"      # the line is kept outside
     assert not list(data_dir.rglob("*.tar.gz*"))             # and no archive anywhere
 
@@ -731,6 +733,7 @@ def test_a_backup_opens_again_into_the_same_three_trees(backup_file, packet, com
     came_back = {path.relative_to(out).as_posix()
                  for path in out.rglob("*") if path.is_file()}
     assert came_back == (files_under(packet, "packets/first/") | files_under(commons, "commons/")
+                         | files_under(data_dir / "rooms", "rooms/")
                          | files_under(data_dir / "members", "members/")
                          | files_under(data_dir / "keys" / "first", "keys/first/"))
     # byte for byte, and the list of them printed
@@ -756,6 +759,7 @@ def test_a_machine_with_no_members_yet_backs_up_and_restores(hearth, bucket, pac
     with bucket.only as bundle:
         held = {member.name for member in bundle.getmembers() if member.isfile()}
     assert held == (files_under(packet, "packets/first/") | files_under(commons, "commons/")
+                    | files_under(data_dir / "rooms", "rooms/")
                     | files_under(data_dir / "keys" / "first", "keys/first/"))
 
     archive = tmp_path / NAME

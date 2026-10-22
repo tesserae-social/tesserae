@@ -683,11 +683,11 @@ def test_with_the_flag_off_the_reading_is_the_same_with_a_door_or_without(
 
 
 def test_the_flag_adds_one_line_and_one_block_and_changes_nothing_else(
-        wake, attend, packet, data_dir, clock, tmp_path, monkeypatch):
+        wake, attend, packet, data_dir, clock, tmp_path, monkeypatch, room):
     """Byte for byte: with the flag on, take the door's line and block away, and what is
     left is exactly what it reads with the flag off."""
     a_rhythm(packet)
-    write(packet / "letters" / "incoming" / "founder-2026-10-14T09-00-00Z.md", "A letter.\n")
+    write(room / "letters" / "incoming" / "founder-2026-10-14T09-00-00Z.md", "A letter.\n")
     snapshot = tmp_path / "before"
     shutil.copytree(data_dir, snapshot)
     door_on(attend, monkeypatch, False)
@@ -878,15 +878,15 @@ def test_with_the_flag_on_a_block_that_cannot_be_read_changes_nothing(
     assert read_json(sorted((packet / "attendances").glob("*.json"))[-1])["acted"] == []
 
 
-def test_the_founders_letters_are_never_affected_by_its_door(wake, attend, packet, monkeypatch):
+def test_the_founders_letters_are_never_affected_by_its_door(wake, attend, monkeypatch, room):
     """A closed door, and a full one: his letter is read all the same."""
     door_on(attend, monkeypatch)
     attend.door.set_door("first", state="closed", room=1)
-    write(packet / "letters" / "incoming" / "founder-2026-10-14T09-00-00Z.md",
+    write(room / "letters" / "incoming" / "founder-2026-10-14T09-00-00Z.md",
           "The lake was still this morning.\n")
     turn = wake()
     assert "The lake was still this morning." in turn.shown
-    assert (packet / "letters" / "read" / "founder-2026-10-14T09-00-00Z.md").exists()
+    assert (room / "letters" / "read" / "founder-2026-10-14T09-00-00Z.md").exists()
 
 
 def test_the_two_hands_say_the_one_door(wake, attend, hearth, packet, commons, monkeypatch):

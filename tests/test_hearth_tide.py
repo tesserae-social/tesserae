@@ -228,11 +228,11 @@ def test_a_rest_that_waits_for_a_letter_waits(hearth, packet, monkeypatch):
     assert held == []
 
 
-def test_a_rest_that_waits_for_a_letter_ends_when_one_arrives(hearth, packet, monkeypatch):
+def test_a_rest_that_waits_for_a_letter_ends_when_one_arrives(hearth, packet, monkeypatch, room):
     set_rhythm(packet)
     write_json(packet / "pause.json", {"by": "first", "since": "2026-10-10T09-00-00Z",
                                        "until": hearth.UNTIL_LETTER, "words": ""})
-    write(packet / "letters" / "incoming" / "founder-2026-10-15T09-00-00Z.md", "Are you there?\n")
+    write(room / "letters" / "incoming" / "founder-2026-10-15T09-00-00Z.md", "Are you there?\n")
     notes, held = run_tide_once(hearth, monkeypatch, dawn(hearth, packet, date(2026, 10, 15)))
     assert notes == ["rest ended: %s" % hearth.BY_LETTER, "ran"]
     assert held == [{"tide": True, "ended": hearth.BY_LETTER}]

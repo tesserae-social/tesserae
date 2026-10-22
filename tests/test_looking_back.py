@@ -20,6 +20,7 @@ import sys
 
 import pytest
 
+from conftest import before_rooms
 from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
                       page, read_json, shut_away, solstices_as_before, stamps_as_before, write, write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now
@@ -128,8 +129,9 @@ def test_it_is_switched_on(attend):
     assert attend.LOOKING_BACK is True
 
 
+@before_rooms
 def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
-        attend, packet, data_dir, clock, monkeypatch, tmp_path):
+        attend, packet, data_dir, clock, monkeypatch, tmp_path, room):
     """Two wakings each, in one world that keeps versions and asks for one.
 
     The old attend.py and this one are sent the same bytes at both, and leave
@@ -163,7 +165,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
 
     versions_kept(packet)
     letter = "founder-2026-10-01T09-00-00Z"
-    write(packet / "letters" / "read" / (letter + ".md"), "A letter, read long ago.\n")
+    write(room / "letters" / "read" / (letter + ".md"), "A letter, read long ago.\n")
     # a shelf left asking for a version, as one would be if this were turned off again
     write_json(packet / "shelf.json", {"placements": {}, "notes": {}, "show_next": [],
                                        "show_founding": False, "show_versions": [SELF_1]})
@@ -335,10 +337,11 @@ def test_earlier_notes_are_shown_the_same_way_and_several_at_once(wake, looking_
             + ASKED + "\n" + LISTED[2] + "\n\n" + WORDS[SELF_2] + "\n\n" + INTENTIONS) in shown
 
 
-def test_a_version_is_asked_for_beside_letters_and_the_founding_record(wake, looking_back, packet):
+def test_a_version_is_asked_for_beside_letters_and_the_founding_record(wake, looking_back,
+                                                                       packet, room):
     versions_kept(packet)
     letter = "founder-2026-09-21T10-00-00Z"
-    write(packet / "letters" / "read" / (letter + ".md"), "A letter, read long ago.\n")
+    write(room / "letters" / "read" / (letter + ".md"), "A letter, read long ago.\n")
     wake(block("SHELF", "rest %s\nshow founding\nshow version %s" % (letter, NOTES_1)))
     assert read_json(packet / "shelf.json") == {
         "placements": {"founder-2026-10-01T15-15-05Z": "rest", letter: "rest"}, "notes": {},
@@ -348,10 +351,10 @@ def test_a_version_is_asked_for_beside_letters_and_the_founding_record(wake, loo
     assert "A synthetic founding" in shown.shown
 
 
-def test_an_unknown_stem_changes_nothing_and_is_told_once(wake, looking_back, packet):
+def test_an_unknown_stem_changes_nothing_and_is_told_once(wake, looking_back, packet, room):
     versions_kept(packet)
     letter = "founder-2026-09-21T10-00-00Z"
-    write(packet / "letters" / "read" / (letter + ".md"), "A letter, read long ago.\n")
+    write(room / "letters" / "read" / (letter + ".md"), "A letter, read long ago.\n")
     refused = ["show version self-before-1999-01-01T00-00-00Z",
                "show version",
                "show version %s" % letter,  # a letter is no version

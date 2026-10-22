@@ -387,12 +387,12 @@ def test_it_is_never_screened(wake, packet, screen, monkeypatch, attend):
 
 
 @pytest.mark.parametrize("kind", ["letter", "passage", "photo", "picture"])
-def test_nothing_in_it_can_be_offered_and_it_is_told_once(wake, packet, clock, kind):
+def test_nothing_in_it_can_be_offered_and_it_is_told_once(wake, packet, clock, kind, room):
     at = clock.stamp()
     wake(private(ENTRY))
     asked = "offer %s entry-%s" % (kind, at) + ("\n" + ENTRY if kind == "passage" else "")
     wake(block("OFFER", asked))
-    assert not list((packet / "offerings").glob("*.json"))
+    assert not list((room / "offerings").glob("*.json"))
     record = latest(packet)
     assert record["kept_private"] == [OFFER_REFUSED]
     assert "offered to the commons" not in record["acted"]
@@ -401,12 +401,12 @@ def test_nothing_in_it_can_be_offered_and_it_is_told_once(wake, packet, clock, k
     assert OFFER_REFUSED not in section(wake(), HAPPENED)
 
 
-def test_a_draft_moved_in_cannot_be_offered_either(wake, packet):
+def test_a_draft_moved_in_cannot_be_offered_either(wake, packet, room):
     a_draft(packet, picture=True)
     wake(private("from study: " + DRAFT_STEM))
     wake(block("OFFER", "offer picture from-study-" + DRAFT_STEM))
     assert latest(packet)["kept_private"] == [OFFER_REFUSED]
-    assert not list((packet / "offerings").glob("*.json"))
+    assert not list((room / "offerings").glob("*.json"))
 
 
 # ---- privacy: the console ------------------------------------------------

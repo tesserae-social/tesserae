@@ -10,6 +10,11 @@ Three rules hold across the whole suite, and this file is where they are kept:
     temporary directory: throwaway keys cut by cut_keys.py itself, a synthetic
     founding line in events.md, a synthetic packet. The repository's packets/,
     keys/, commons/ and transcripts/ are never read and never written.
+  * Both layouts are tested. While a room may be kept in the first one's packet
+    or in a folder of its own (rooms.py), the whole suite is run once in each:
+    pytest --layout=legacy, the default, and pytest --layout=rooms. A test
+    writes a room's letters, errands, bond and offerings through the room
+    fixture, and is given the same world either way.
   * Time is pinned. The clock fixture holds one moment; every module that asks
     what time it is is pinned to it, and a test that needs a different moment
     says so rather than waiting for one.
@@ -218,16 +223,45 @@ def did_public_key(document):
     return document["verificationMethod"][0]["publicKeyBase64"]
 
 
+# ---- the layout ----------------------------------------------------------
+
+LAYOUTS = ("legacy", "rooms")
+
+
+def pytest_addoption(parser):
+    parser.addoption("--layout", choices=LAYOUTS, default="legacy",
+                     help="where the room is kept: in the packet (legacy) or a folder of its own")
+
+
+@pytest.fixture(scope="session")
+def layout(request):
+    """Where this run keeps the room: "legacy", in the packet, or "rooms", in its own folder."""
+    return request.config.getoption("--layout")
+
+
+def make_room(data):
+    """The room in a folder of its own, as move_into_rooms.py leaves it: room.json is the sign."""
+    import bonds
+    home = data / "rooms" / "first"
+    home.mkdir(parents=True, exist_ok=True)
+    record = {"id": "first", "bond": "founder-first",
+              "parties": [bonds.FOUNDER_DID, bonds.FIRST_DID]}
+    (home / "room.json").write_bytes((json.dumps(record, indent=2) + "\n").encode("utf-8"))
+    return home
+
+
 # ---- a data directory of its own -----------------------------------------
 
 @pytest.fixture
-def data_dir(tmp_path, keys_cut):
+def data_dir(tmp_path, keys_cut, layout):
     """A whole living world, thrown away when the test ends."""
     data = tmp_path / "data"
     packet = data / "packets" / "first"
-    for folder in ("study", "letters/outgoing", "letters/incoming", "letters/read",
-                   "attendances", "self-history", "bonds", "memory", "offerings"):
+    room = make_room(data) if layout == "rooms" else packet
+    for folder in ("study", "attendances", "self-history", "memory"):
         (packet / folder).mkdir(parents=True, exist_ok=True)
+    for folder in ("letters/outgoing", "letters/incoming", "letters/read", "bonds", "offerings"):
+        (room / folder).mkdir(parents=True, exist_ok=True)
     (packet / "self.md").write_text(SELF_TEXT, encoding="utf-8")
 
     shutil.copytree(keys_cut / "keys", data / "keys")
@@ -246,6 +280,35 @@ def data_dir(tmp_path, keys_cut):
 @pytest.fixture
 def packet(data_dir):
     return data_dir / "packets" / "first"
+
+
+def room_beside(packet):
+    """Where the room is kept in the world a packet is in: its own folder, once it has one."""
+    home = packet.parents[1] / "rooms" / "first"
+    return home if (home / "room.json").is_file() else packet
+
+
+def on_disk(data, name):
+    """Where a file a copy names packets/first/... is kept, in either layout."""
+    parts = name.split("/")
+    if parts[:2] == ["packets", "first"] and parts[2:3] and parts[2] in ROOM_FOLDERS:
+        return room_beside(data / "packets" / "first") / "/".join(parts[2:])
+    return data / name
+
+
+ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
+
+
+# An attend.py committed before the rooms knows only the packet. A test that
+# holds today's reading to one of those is held where both can read it: in the
+# old layout, in either run.
+before_rooms = pytest.mark.parametrize("layout", ["legacy"])
+
+
+@pytest.fixture
+def room(data_dir, layout):
+    """Where the room's letters, errands, bond and offerings are kept in this run's layout."""
+    return data_dir / "rooms" / "first" if layout == "rooms" else data_dir / "packets" / "first"
 
 
 @pytest.fixture

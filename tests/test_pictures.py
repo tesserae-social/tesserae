@@ -15,12 +15,12 @@ DRAWN = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
          '<rect x="0" y="0" width="12" height="12" fill="#D85A30"/></svg>')
 
 
-def picture(packet, at):
-    return packet / "letters" / "outgoing" / ("to-founder-%s.svg" % at)
+def picture(room, at):
+    return room / "letters" / "outgoing" / ("to-founder-%s.svg" % at)
 
 
-def letter(packet, at):
-    return packet / "letters" / "outgoing" / ("to-founder-%s.md" % at)
+def letter(room, at):
+    return room / "letters" / "outgoing" / ("to-founder-%s.md" % at)
 
 
 # ---- what is kept of a picture -------------------------------------------
@@ -117,28 +117,28 @@ def acts(packet):
     return read_json(sorted((packet / "attendances").glob("*.json"))[-1])["acted"]
 
 
-def test_a_picture_is_kept_beside_the_letter_of_that_waking(wake, packet, clock, attend):
+def test_a_picture_is_kept_beside_the_letter_of_that_waking(wake, packet, clock, attend, room):
     at = clock.stamp()
     wake(blocks(block("LETTER", "Here is what I saw."), block("PICTURE", DRAWN)))
-    assert letter(packet, at).read_text(encoding="utf-8") == "Here is what I saw.\n"
-    assert "<rect" in picture(packet, at).read_text(encoding="utf-8")
+    assert letter(room, at).read_text(encoding="utf-8") == "Here is what I saw.\n"
+    assert "<rect" in picture(room, at).read_text(encoding="utf-8")
     assert acts(packet) == ["wrote a letter to the founder", attend.PICTURE_ACT]
 
 
-def test_a_picture_with_no_letter_stands_alone_behind_one_line(wake, packet, clock, attend):
+def test_a_picture_with_no_letter_stands_alone_behind_one_line(wake, packet, clock, attend, room):
     at = clock.stamp()
     wake(block("PICTURE", DRAWN))
-    assert letter(packet, at).read_text(encoding="utf-8") == attend.ONLY_A_PICTURE + "\n"
-    assert picture(packet, at).exists()
+    assert letter(room, at).read_text(encoding="utf-8") == attend.ONLY_A_PICTURE + "\n"
+    assert picture(room, at).exists()
     # the line is not a letter it wrote, and is not counted as one
     assert acts(packet) == [attend.PICTURE_ACT]
 
 
-def test_a_picture_that_is_refused_writes_nothing_at_all(wake, packet, clock):
+def test_a_picture_that_is_refused_writes_nothing_at_all(wake, clock, room):
     at = clock.stamp()
     wake(block("PICTURE", "<script>alert(1)</script>"))
-    assert not picture(packet, at).exists()
-    assert not letter(packet, at).exists()
+    assert not picture(room, at).exists()
+    assert not letter(room, at).exists()
 
 
 def test_the_picture_block_is_offered_at_every_waking(wake):
@@ -164,9 +164,9 @@ def test_a_picture_is_named_where_its_letter_is_read_back(wake, packet, clock):
 
 # ---- the picture, served -------------------------------------------------
 
-def test_a_picture_is_served_to_the_founder_alone_and_under_locks(founder, visitor, packet,
-                                                                  clock, hearth):
-    write(picture(packet, clock.stamp()), DRAWN)
+def test_a_picture_is_served_to_the_founder_alone_and_under_locks(founder, visitor,
+                                                                  clock, hearth, room):
+    write(picture(room, clock.stamp()), DRAWN)
     name = "to-founder-%s.svg" % clock.stamp()
 
     answer = founder.get("/letters/picture/" + name)
@@ -189,17 +189,17 @@ def test_only_a_picture_of_a_letter_is_served(founder, asked):
     assert founder.get("/letters/picture/" + asked).status_code == 404
 
 
-def test_the_founder_s_own_folders_hold_no_pictures_to_serve(founder, packet, hearth):
+def test_the_founder_s_own_folders_hold_no_pictures_to_serve(founder, hearth, room):
     """A picture is the first one's; nothing is served out of the letters it is sent."""
-    write(packet / "letters" / "incoming" / "founder-2026-10-14T09-00-00Z.svg", DRAWN)
+    write(room / "letters" / "incoming" / "founder-2026-10-14T09-00-00Z.svg", DRAWN)
     assert founder.get("/letters/picture/founder-2026-10-14T09-00-00Z.svg").status_code == 404
-    assert hearth.picture_folders() == (packet / "letters" / "outgoing",)
+    assert hearth.picture_folders() == (room / "letters" / "outgoing",)
 
 
-def test_a_picture_appears_inside_the_letter_it_came_with(founder, packet, clock):
+def test_a_picture_appears_inside_the_letter_it_came_with(founder, clock, room):
     stem = "to-founder-2026-10-14T09-00-00Z"
-    write(packet / "letters" / "outgoing" / (stem + ".md"), "Here is what I saw.\n")
-    write(packet / "letters" / "outgoing" / (stem + ".svg"), DRAWN)
+    write(room / "letters" / "outgoing" / (stem + ".md"), "Here is what I saw.\n")
+    write(room / "letters" / "outgoing" / (stem + ".svg"), DRAWN)
     said = page(founder.get("/rooms/first"))
     assert '<img class="photo" src="/letters/picture/%s.svg"' % stem in said
     assert 'alt="the picture the first one drew beside this letter"' in said

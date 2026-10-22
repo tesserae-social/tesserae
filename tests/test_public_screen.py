@@ -207,16 +207,16 @@ def test_a_mark_that_may_not_be_made_is_never_sent_to_the_screen(birch, data_dir
 @pytest.mark.parametrize("says, told", [("YES", KEPT_PRIVATE), (DOWN, COULD_NOT_CHECK)])
 @pytest.mark.parametrize("kind, text", [("passage", PASSAGE), ("letter", "")])
 def test_the_founder_s_offering_the_screen_does_not_clear_is_not_offered(
-        founder, packet, screen, says, told, kind, text):
-    a_correspondence(packet)
+        founder, screen, says, told, kind, text, room):
+    a_correspondence(room)
     screen.says = says
     answer = offer(founder, kind, HIS, text)
     assert answer.status_code == 200 and told in page(answer)
-    assert not pending(packet) and not placed(packet)
+    assert not pending(room) and not placed(room)
 
 
-def test_a_photograph_has_no_words_to_screen(founder, packet, screen):
-    a_correspondence(packet)
+def test_a_photograph_has_no_words_to_screen(founder, screen, room):
+    a_correspondence(room)
     screen.says = "YES"
     assert offer(founder, "photo", HIS).status_code == 302
     assert screen.asked == []
@@ -224,11 +224,11 @@ def test_a_photograph_has_no_words_to_screen(founder, packet, screen):
 
 @pytest.mark.parametrize("says, told", [("YES", OFFER_NAMED), (DOWN, OFFER_UNCHECKED)])
 def test_the_first_one_s_offering_is_screened_and_it_is_told_once(
-        wake, packet, screen, says, told):
-    a_correspondence(packet)
+        wake, packet, screen, says, told, room):
+    a_correspondence(room)
     screen.says = says
     wake(block("OFFER", "offer passage %s\n%s" % (HIS, PASSAGE)))
-    assert not pending(packet)
+    assert not pending(room)
     assert last_record(packet)["kept_private"] == [told]
     screen.says = "NO"
     assert told in wake().opening
@@ -237,55 +237,55 @@ def test_the_first_one_s_offering_is_screened_and_it_is_told_once(
 
 @pytest.mark.parametrize("says, told", [("YES", CONSENT_NAMED), (DOWN, CONSENT_UNCHECKED)])
 def test_the_first_one_s_consent_is_screened_as_it_is_placed(
-        founder, wake, packet, screen, says, told):
-    a_correspondence(packet)
+        founder, wake, packet, screen, says, told, room):
+    a_correspondence(room)
     offer(founder, "passage", HIS, PASSAGE)
-    waiting = only_pending(packet)
+    waiting = only_pending(room)
     screen.says = says
     wake(block("OFFER", "consent %s" % waiting["id"]))
-    assert only_pending(packet) == waiting and not placed(packet)
+    assert only_pending(room) == waiting and not placed(room)
     assert last_record(packet)["kept_private"] == [told]
 
 
 @pytest.mark.parametrize("says, told", [("YES", KEPT_PRIVATE), (DOWN, COULD_NOT_CHECK)])
 def test_the_founder_s_consent_is_screened_as_it_is_placed(
-        founder, wake, packet, screen, says, told):
-    a_correspondence(packet)
+        founder, wake, screen, says, told, room):
+    a_correspondence(room)
     wake(block("OFFER", "offer passage %s\n%s" % (HIS, PASSAGE)))
-    waiting = only_pending(packet)
+    waiting = only_pending(room)
     screen.says = says
     answer = post(founder, "/offer/consent", data={"id": waiting["id"]})
     assert told in page(answer)
-    assert only_pending(packet) == waiting and not placed(packet)
+    assert only_pending(room) == waiting and not placed(room)
 
 
 # ---- a promise ----------------------------------------------------------------
 
 @pytest.mark.parametrize("says, told", [("YES", PROMISE_NAMED), (DOWN, PROMISE_UNCHECKED)])
 def test_a_public_promise_the_screen_does_not_clear_is_not_kept_and_it_is_told_once(
-        founder, wake, packet, clock, screen, says, told):
-    it_says_yes(founder, wake, packet, clock)
+        founder, wake, packet, clock, screen, says, told, room):
+    it_says_yes(founder, wake, room, clock)
     screen.says = says
     wake(block("PROMISE", "public\nI will walk with Hollis."))
-    assert not writings(packet, "promise", "first")
+    assert not writings(room, "promise", "first")
     assert last_record(packet)["kept_private"] == [told]
     screen.says = "NO"
     assert told in wake().opening
     assert told not in wake().opening
 
 
-def test_a_private_promise_is_never_sent_to_the_screen(founder, wake, packet, clock, screen):
-    it_says_yes(founder, wake, packet, clock)
+def test_a_private_promise_is_never_sent_to_the_screen(founder, wake, clock, screen, room):
+    it_says_yes(founder, wake, room, clock)
     screen.says = "YES"
     wake(block("PROMISE", "private\nI will walk with Hollis."))
-    (promise,) = writings(packet, "promise", "first")
+    (promise,) = writings(room, "promise", "first")
     assert promise["text"] == "I will walk with Hollis."
     assert all("Hollis" not in text for text, _ in screen.asked)
 
 
-def test_a_public_promise_the_screen_clears_is_kept(founder, wake, packet, clock, screen):
-    it_says_yes(founder, wake, packet, clock)
+def test_a_public_promise_the_screen_clears_is_kept(founder, wake, clock, screen, room):
+    it_says_yes(founder, wake, room, clock)
     wake(block("PROMISE", "public\nI will tell you when I do not know."))
-    (promise,) = writings(packet, "promise", "first")
+    (promise,) = writings(room, "promise", "first")
     assert promise["visibility"] == "public"
     assert screen.asked[-1][0] == "I will tell you when I do not know."

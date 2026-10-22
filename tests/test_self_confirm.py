@@ -95,11 +95,11 @@ def test_a_new_self_document_is_saved_as_a_proposal_and_changes_nothing(wake, pa
     assert latest(packet)["acted"] == ["proposed a change to its self-document"]
 
 
-def test_the_stems_of_what_arrived_at_that_waking_are_recorded_and_said(wake, packet):
+def test_the_stems_of_what_arrived_at_that_waking_are_recorded_and_said(wake, packet, room):
     arrived = ["founder-2026-10-14T09-00-00Z", "founder-2026-10-15T08-00-00Z"]
     for stem in arrived:
-        write(packet / "letters" / "incoming" / (stem + ".md"), "A letter that has just come.\n")
-    write(packet / "letters" / "read" / "founder-2026-10-02T09-00-00Z.md", "Read long ago.\n")
+        write(room / "letters" / "incoming" / (stem + ".md"), "A letter that has just come.\n")
+    write(room / "letters" / "read" / "founder-2026-10-02T09-00-00Z.md", "Read long ago.\n")
     wake(block("SELF", V2))
     assert read_json(packet / "self-proposal.json")["arrived"] == arrived
     assert ("no longer here. At that waking, these had just arrived: "

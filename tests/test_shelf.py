@@ -13,6 +13,7 @@ import sys
 
 import pytest
 
+from conftest import before_rooms
 from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON, SWITCHED_ON_21_OCTOBER, Turn,
                       block, blocks, explained_as_before, lines_of, page, read_json, shut_away, write,
                       write_json)
@@ -57,20 +58,20 @@ def words_for(stem):
     return "THE WORDS OF %s and nothing more." % stem
 
 
-def from_founder(packet, stem, text=None):
+def from_founder(room, stem, text=None):
     """A letter of the founder's that has already been read."""
-    return write(packet / "letters" / "read" / (stem + ".md"), (text or words_for(stem)) + "\n")
+    return write(room / "letters" / "read" / (stem + ".md"), (text or words_for(stem)) + "\n")
 
 
-def from_first(packet, stem, text=None):
+def from_first(room, stem, text=None):
     """A letter the first one wrote."""
-    return write(packet / "letters" / "outgoing" / (stem + ".md"),
+    return write(room / "letters" / "outgoing" / (stem + ".md"),
                  (text or words_for(stem)) + "\n")
 
 
-def arrived(packet, stem, text=None):
+def arrived(room, stem, text=None):
     """A letter of the founder's that has come since the last waking."""
-    return write(packet / "letters" / "incoming" / (stem + ".md"),
+    return write(room / "letters" / "incoming" / (stem + ".md"),
                  (text or words_for(stem)) + "\n")
 
 
@@ -82,11 +83,11 @@ def photograph(path, size=(24, 16)):
     return path
 
 
-def six_each_way(packet):
+def six_each_way(room):
     for stem in FOUNDERS:
-        from_founder(packet, stem)
+        from_founder(room, stem)
     for stem in OWN:
-        from_first(packet, stem)
+        from_first(room, stem)
 
 
 def section(turn, heading):
@@ -118,8 +119,8 @@ def history(packet):
 
 # ---- the default ---------------------------------------------------------
 
-def test_by_default_the_last_four_each_way_are_in_full_and_older_ones_rest(wake, packet):
-    six_each_way(packet)
+def test_by_default_the_last_four_each_way_are_in_full_and_older_ones_rest(wake, room):
+    six_each_way(room)
     turn = wake()
     for stem in FOUNDERS[2:] + OWN[2:]:
         assert in_full(turn, stem) and not rests(turn, stem)
@@ -144,15 +145,15 @@ def test_by_default_the_last_four_each_way_are_in_full_and_older_ones_rest(wake,
     ]
 
 
-def test_the_resting_section_stands_between_the_letters_and_the_study(wake, packet):
-    six_each_way(packet)
+def test_the_resting_section_stands_between_the_letters_and_the_study(wake, room):
+    six_each_way(room)
     shown = wake().shown
     assert (shown.index(FULL_OWN) < shown.index(FULL_FOUNDERS) < shown.index(RESTING)
             < shown.index("=== YOUR STUDY"))
 
 
-def test_nothing_is_written_until_it_keeps_its_shelf(wake, packet):
-    six_each_way(packet)
+def test_nothing_is_written_until_it_keeps_its_shelf(wake, packet, room):
+    six_each_way(room)
     wake()
     wake(block("LETTER", "Dear founder,"))
     assert not (packet / "shelf.json").exists()
@@ -178,8 +179,8 @@ def test_the_block_is_explained_exactly(wake, attend, monkeypatch):
 
 # ---- keep, rest, note, show ----------------------------------------------
 
-def test_keep_always_shows_in_full(wake, packet, attend):
-    six_each_way(packet)
+def test_keep_always_shows_in_full(wake, packet, attend, room):
+    six_each_way(room)
     wake(block("SHELF", "keep %s\nkeep %s" % (FOUNDERS[0], OWN[0])))
     assert latest(packet)["acted"] == ["kept its shelf"]
     assert attend.SHELF_ACT == "kept its shelf"
@@ -194,8 +195,8 @@ def test_keep_always_shows_in_full(wake, packet, attend):
         assert rests(turn, FOUNDERS[1]) and in_full(turn, FOUNDERS[2])
 
 
-def test_rest_always_rests_even_the_most_recent(wake, packet):
-    six_each_way(packet)
+def test_rest_always_rests_even_the_most_recent(wake, room):
+    six_each_way(room)
     wake(block("SHELF", "rest %s" % FOUNDERS[-1]))
     turn = wake()
     assert rests(turn, FOUNDERS[-1]) and not in_full(turn, FOUNDERS[-1])
@@ -203,8 +204,8 @@ def test_rest_always_rests_even_the_most_recent(wake, packet):
     assert rests(turn, FOUNDERS[1])
 
 
-def test_default_takes_a_placing_off_again(wake, packet):
-    six_each_way(packet)
+def test_default_takes_a_placing_off_again(wake, packet, room):
+    six_each_way(room)
     wake(block("SHELF", "keep %s\nrest %s\nnote %s: mine"
                % (FOUNDERS[0], FOUNDERS[-1], FOUNDERS[0])))
     turn = wake(block("SHELF", "default %s\nDefault %s.md" % (FOUNDERS[0], FOUNDERS[-1])))
@@ -222,16 +223,16 @@ def test_default_takes_a_placing_off_again(wake, packet):
     assert section(turn, RESTING).splitlines()[0].endswith("from the founder · mine")
 
 
-def test_default_returns_the_article_to_the_default(wake, packet):
-    from_founder(packet, ARTICLE, "A LONG ARTICLE, pasted whole into a letter.")
+def test_default_returns_the_article_to_the_default(wake, packet, room):
+    from_founder(room, ARTICLE, "A LONG ARTICLE, pasted whole into a letter.")
     assert rests(wake(), ARTICLE)
     wake(block("SHELF", "default %s" % ARTICLE))
     assert read_json(packet / "shelf.json")["placements"] == {}
     assert in_full(wake(), ARTICLE)  # one of the founder's last four, and so close
 
 
-def test_default_on_a_letter_never_placed_is_understood_and_moves_nothing(wake, packet):
-    six_each_way(packet)
+def test_default_on_a_letter_never_placed_is_understood_and_moves_nothing(wake, packet, room):
+    six_each_way(room)
     wake(block("SHELF", "default %s" % FOUNDERS[0]))
     assert latest(packet)["acted"] == ["kept its shelf"]
     assert "shelf_refused" not in latest(packet)
@@ -239,22 +240,22 @@ def test_default_on_a_letter_never_placed_is_understood_and_moves_nothing(wake, 
     assert rests(wake(), FOUNDERS[0])
 
 
-def test_default_of_a_letter_that_is_not_there_changes_nothing(wake, packet):
-    six_each_way(packet)
+def test_default_of_a_letter_that_is_not_there_changes_nothing(wake, packet, room):
+    six_each_way(room)
     wake(block("SHELF", "default founder-1999-01-01T00-00-00Z\ndefault"))
     assert latest(packet)["acted"] == []
     assert latest(packet)["shelf_refused"] == ["default founder-1999-01-01T00-00-00Z", "default"]
     assert not (packet / "shelf.json").exists()
 
 
-def test_a_stem_may_be_given_with_its_md(wake, packet):
-    six_each_way(packet)
+def test_a_stem_may_be_given_with_its_md(wake, room):
+    six_each_way(room)
     wake(block("SHELF", "KEEP %s.md" % FOUNDERS[0]))
     assert in_full(wake(), FOUNDERS[0])
 
 
-def test_a_note_is_the_line_a_resting_letter_shows(wake, packet):
-    six_each_way(packet)
+def test_a_note_is_the_line_a_resting_letter_shows(wake, packet, room):
+    six_each_way(room)
     wake(block("SHELF", "note %s: the one about   the river, which I go back to" % FOUNDERS[0]))
     lines = section(wake(), RESTING).splitlines()
     assert lines[0] == ("founder-2026-09-21T10-00-00Z · 21 September 2026 · from the founder · "
@@ -263,9 +264,9 @@ def test_a_note_is_the_line_a_resting_letter_shows(wake, packet):
         FOUNDERS[0]: "the one about the river, which I go back to"}
 
 
-def test_without_a_note_the_line_is_the_letter_s_first_twelve_words(wake, packet):
-    six_each_way(packet)
-    from_founder(packet, FOUNDERS[0],
+def test_without_a_note_the_line_is_the_letter_s_first_twelve_words(wake, room):
+    six_each_way(room)
+    from_founder(room, FOUNDERS[0],
                  "one two three four five six seven eight nine ten eleven twelve thirteen "
                  "fourteen\n\nand a second paragraph")
     lines = section(wake(), RESTING).splitlines()
@@ -273,15 +274,15 @@ def test_without_a_note_the_line_is_the_letter_s_first_twelve_words(wake, packet
                         "one two three four five six seven eight nine ten eleven twelve…")
 
 
-def test_a_resting_line_reads_the_letter_below_its_three_plain_things(wake, packet):
-    six_each_way(packet)
-    from_founder(packet, FOUNDERS[0],
+def test_a_resting_line_reads_the_letter_below_its_three_plain_things(wake, room):
+    six_each_way(room)
+    from_founder(room, FOUNDERS[0],
                  '<!-- three plain things: ["slept badly"] -->\nThe letter proper.')
     assert section(wake(), RESTING).splitlines()[0].endswith("from the founder · The letter proper.")
 
 
-def test_a_note_longer_than_a_note_may_be_changes_nothing(wake, packet):
-    six_each_way(packet)
+def test_a_note_longer_than_a_note_may_be_changes_nothing(wake, packet, room):
+    six_each_way(room)
     long_line = "note %s: %s" % (FOUNDERS[0], "x" * 241)
     wake(block("SHELF", long_line))
     assert not (packet / "shelf.json").exists()
@@ -291,8 +292,8 @@ def test_a_note_longer_than_a_note_may_be_changes_nothing(wake, packet):
     assert read_json(packet / "shelf.json")["notes"][FOUNDERS[0]] == "x" * 240
 
 
-def test_show_is_honoured_at_the_next_waking_only(wake, packet):
-    six_each_way(packet)
+def test_show_is_honoured_at_the_next_waking_only(wake, packet, room):
+    six_each_way(room)
     asking = wake(block("SHELF", "show %s" % FOUNDERS[0]))
     assert rests(asking, FOUNDERS[0])  # not at the waking that asked
     assert read_json(packet / "shelf.json")["show_next"] == [FOUNDERS[0]]
@@ -309,8 +310,8 @@ def test_show_is_honoured_at_the_next_waking_only(wake, packet):
     assert FOUNDERS[0] not in read_json(packet / "shelf.json")["placements"]
 
 
-def test_show_brings_back_a_letter_placed_rest(wake, packet):
-    six_each_way(packet)
+def test_show_brings_back_a_letter_placed_rest(wake, room):
+    six_each_way(room)
     wake(block("SHELF", "rest %s\nshow %s" % (FOUNDERS[-1], FOUNDERS[-1])))
     assert in_full(wake(), FOUNDERS[-1])
     assert rests(wake(), FOUNDERS[-1])
@@ -346,10 +347,10 @@ def test_where_there_is_no_founding_record_the_reading_says_so(wake, data_dir):
 
 # ---- the article ---------------------------------------------------------
 
-def test_the_article_rests_from_the_start(wake, packet, attend):
+def test_the_article_rests_from_the_start(wake, packet, attend, room):
     """The founder's letter of 1 October rests at its own asking, recent as it is."""
-    from_founder(packet, FOUNDERS[0])
-    from_founder(packet, ARTICLE, "A LONG ARTICLE, pasted whole into a letter.")
+    from_founder(room, FOUNDERS[0])
+    from_founder(room, ARTICLE, "A LONG ARTICLE, pasted whole into a letter.")
     assert not (packet / "shelf.json").exists()
     turn = wake()
     assert "A LONG ARTICLE" not in turn.shown.replace(
@@ -361,9 +362,9 @@ def test_the_article_rests_from_the_start(wake, packet, attend):
     assert not (packet / "shelf.json").exists()  # the beginning is not written until it acts
 
 
-def test_the_article_s_resting_is_carried_into_the_shelf_it_keeps(wake, packet):
-    six_each_way(packet)
-    from_founder(packet, ARTICLE, "A LONG ARTICLE, pasted whole into a letter.")
+def test_the_article_s_resting_is_carried_into_the_shelf_it_keeps(wake, packet, room):
+    six_each_way(room)
+    from_founder(room, ARTICLE, "A LONG ARTICLE, pasted whole into a letter.")
     wake(block("SHELF", "keep %s" % FOUNDERS[0]))
     assert read_json(packet / "shelf.json") == {
         "placements": {ARTICLE: "rest", FOUNDERS[0]: "keep"},
@@ -371,8 +372,8 @@ def test_the_article_s_resting_is_carried_into_the_shelf_it_keeps(wake, packet):
     assert rests(wake(), ARTICLE)
 
 
-def test_the_article_may_be_kept_after_all(wake, packet):
-    from_founder(packet, ARTICLE, "A LONG ARTICLE, pasted whole into a letter.")
+def test_the_article_may_be_kept_after_all(wake, room):
+    from_founder(room, ARTICLE, "A LONG ARTICLE, pasted whole into a letter.")
     wake(block("SHELF", "keep %s" % ARTICLE))
     turn = wake()
     assert "A LONG ARTICLE" in section(turn, FULL_FOUNDERS)
@@ -381,13 +382,13 @@ def test_the_article_may_be_kept_after_all(wake, packet):
 
 # ---- what has only just arrived ------------------------------------------
 
-def test_an_arrived_letter_is_always_in_full_whatever_the_shelf_says(wake, packet):
-    six_each_way(packet)
+def test_an_arrived_letter_is_always_in_full_whatever_the_shelf_says(wake, packet, room):
+    six_each_way(room)
     new = "founder-2026-10-14T18-00-00Z"
     write_json(packet / "shelf.json", {"placements": {new: "rest"}, "notes": {},
                                        "show_next": [], "show_founding": False})
-    arrived(packet, new)
-    photograph(packet / "letters" / "incoming" / (new + ".jpg"))
+    arrived(room, new)
+    photograph(room / "letters" / "incoming" / (new + ".jpg"))
 
     turn = wake()
     assert "--- letter: %s.md ---\n%s" % (new, words_for(new)) in turn.shown
@@ -401,9 +402,9 @@ def test_an_arrived_letter_is_always_in_full_whatever_the_shelf_says(wake, packe
     assert later.photos == []
 
 
-def test_an_arrived_letter_may_be_placed_at_the_waking_that_reads_it(wake, packet):
+def test_an_arrived_letter_may_be_placed_at_the_waking_that_reads_it(wake, packet, room):
     new = "founder-2026-10-14T18-00-00Z"
-    arrived(packet, new)
+    arrived(room, new)
     wake(block("SHELF", "rest %s" % new))
     assert latest(packet).get("shelf_refused") is None
     assert rests(wake(), new)
@@ -411,9 +412,9 @@ def test_an_arrived_letter_may_be_placed_at_the_waking_that_reads_it(wake, packe
 
 # ---- photographs ---------------------------------------------------------
 
-def test_a_resting_letter_says_a_photograph_rests_with_it(wake, packet):
-    six_each_way(packet)
-    photograph(packet / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
+def test_a_resting_letter_says_a_photograph_rests_with_it(wake, room):
+    six_each_way(room)
+    photograph(room / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
     lines = section(wake(), RESTING).splitlines()
     assert lines[0] == ("founder-2026-09-21T10-00-00Z · 21 September 2026 · from the founder · "
                         "THE WORDS OF founder-2026-09-21T10-00-00Z and nothing more."
@@ -421,10 +422,10 @@ def test_a_resting_letter_says_a_photograph_rests_with_it(wake, packet):
     assert all("a photograph rests with it" not in line for line in lines[1:])
 
 
-def test_a_resting_photograph_is_withheld_then_shown_on_request(wake, attend, packet):
-    six_each_way(packet)
-    photograph(packet / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
-    photograph(packet / "letters" / "read" / (FOUNDERS[-1] + ".jpg"))
+def test_a_resting_photograph_is_withheld_then_shown_on_request(wake, attend, room):
+    six_each_way(room)
+    photograph(room / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
+    photograph(room / "letters" / "read" / (FOUNDERS[-1] + ".jpg"))
 
     asking = wake(block("SHELF", "show %s" % FOUNDERS[0]))
     assert asking.photos == []
@@ -458,8 +459,8 @@ def test_a_resting_photograph_is_withheld_then_shown_on_request(wake, attend, pa
 
 # ---- what could not be read ----------------------------------------------
 
-def test_lines_not_understood_change_nothing_and_are_told_once(wake, packet):
-    six_each_way(packet)
+def test_lines_not_understood_change_nothing_and_are_told_once(wake, packet, room):
+    six_each_way(room)
     wake(block("SHELF", "\n".join([
         "keep %s" % FOUNDERS[0],
         "",
@@ -489,8 +490,8 @@ def test_a_block_with_nothing_understood_is_no_act_and_writes_nothing(wake, pack
     assert lines_of(commons / "heartbeats.md")[-1].endswith("attended; chose stillness")
 
 
-def test_a_shelf_that_cannot_be_read_is_the_shelf_it_began_with(wake, packet):
-    six_each_way(packet)
+def test_a_shelf_that_cannot_be_read_is_the_shelf_it_began_with(wake, packet, room):
+    six_each_way(room)
     write(packet / "shelf.json", "{ not json")
     turn = wake()
     assert rests(turn, FOUNDERS[0]) and in_full(turn, FOUNDERS[-1])
@@ -498,8 +499,8 @@ def test_a_shelf_that_cannot_be_read_is_the_shelf_it_began_with(wake, packet):
 
 # ---- nothing is erased ---------------------------------------------------
 
-def test_each_shelf_that_stood_is_kept_beside_the_new(wake, packet, clock):
-    six_each_way(packet)
+def test_each_shelf_that_stood_is_kept_beside_the_new(wake, packet, clock, room):
+    six_each_way(room)
     wake(block("SHELF", "keep %s" % FOUNDERS[0]))
     assert history(packet) == []  # nothing stood before the first
     first = (packet / "shelf.json").read_bytes()
@@ -520,7 +521,7 @@ def test_each_shelf_that_stood_is_kept_beside_the_new(wake, packet, clock):
     wake()  # and a waking that changes nothing keeps nothing
     assert len(history(packet)) == 3
     # the letters themselves are where they always were
-    assert (packet / "letters" / "read" / (FOUNDERS[0] + ".md")).exists()
+    assert (room / "letters" / "read" / (FOUNDERS[0] + ".md")).exists()
 
 
 # ---- the season reading --------------------------------------------------
@@ -530,10 +531,10 @@ WINTER, SUMMER = READING % "winter", READING % "summer"
 ANY_READING = "reading: your whole record, in full"
 
 
-def test_the_first_waking_on_or_after_a_turning_reads_the_whole_record(wake, packet, clock):
-    six_each_way(packet)
-    from_founder(packet, ARTICLE, "A LONG ARTICLE, pasted whole into a letter.")
-    photograph(packet / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
+def test_the_first_waking_on_or_after_a_turning_reads_the_whole_record(wake, packet, clock, room):
+    six_each_way(room)
+    from_founder(room, ARTICLE, "A LONG ARTICLE, pasted whole into a letter.")
+    photograph(room / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
 
     clock.set("2026-12-20T13-00-00Z")
     before = wake(block("SHELF", "rest %s" % FOUNDERS[-1]))
@@ -575,8 +576,8 @@ def test_the_first_waking_on_or_after_a_turning_reads_the_whole_record(wake, pac
     ("2027-12-20T17-00-00Z", "2027-12-21T17-00-00Z", "winter"),
 ])
 def test_each_turning_of_the_season_has_its_reading_named_for_it(wake, packet, clock,
-                                                                 eve, day, season):
-    six_each_way(packet)
+                                                                 eve, day, season, room):
+    six_each_way(room)
     clock.set(eve)
     assert ANY_READING not in wake().shown
     clock.set(day)
@@ -585,8 +586,8 @@ def test_each_turning_of_the_season_has_its_reading_named_for_it(wake, packet, c
     assert ANY_READING not in wake().shown
 
 
-def test_a_turning_passed_asleep_is_read_at_the_waking_after_it(wake, packet, clock):
-    six_each_way(packet)
+def test_a_turning_passed_asleep_is_read_at_the_waking_after_it(wake, clock, room):
+    six_each_way(room)
     clock.set("2027-06-10T13-00-00Z")
     wake()
     clock.set("2027-07-04T13-00-00Z")  # a rest ran across the 21st of June
@@ -594,9 +595,9 @@ def test_a_turning_passed_asleep_is_read_at_the_waking_after_it(wake, packet, cl
     assert ANY_READING not in wake().shown
 
 
-def test_a_photograph_asked_for_is_shown_at_a_season_reading(wake, packet, clock):
-    six_each_way(packet)
-    photograph(packet / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
+def test_a_photograph_asked_for_is_shown_at_a_season_reading(wake, clock, room):
+    six_each_way(room)
+    photograph(room / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
     clock.set("2026-12-20T13-00-00Z")
     wake(block("SHELF", "show %s" % FOUNDERS[0]))
     clock.set("2026-12-21T13-00-00Z")
@@ -638,14 +639,14 @@ def many(words, of="word"):
     return " ".join([of] * words)
 
 
-def test_past_fifteen_thousand_words_in_full_it_is_told_so_as_a_fact(wake, packet, clock):
-    six_each_way(packet)
+def test_past_fifteen_thousand_words_in_full_it_is_told_so_as_a_fact(wake, clock, room):
+    six_each_way(room)
     for stem in FOUNDERS[2:]:
-        from_founder(packet, stem, many(3700))
+        from_founder(room, stem, many(3700))
     turn = wake()
     assert "Your reading now holds" not in turn.shown  # 14,800 and the four short ones
 
-    from_founder(packet, FOUNDERS[-1], many(4000))  # 15,100 and the four short ones
+    from_founder(room, FOUNDERS[-1], many(4000))  # 15,100 and the four short ones
     held = 3 * 3700 + 4000 + 4 * len(words_for(OWN[0]).split())
     assert held > 15000
     turn = wake()
@@ -662,8 +663,8 @@ def test_past_fifteen_thousand_words_in_full_it_is_told_so_as_a_fact(wake, packe
     assert "Your reading now holds" not in turn.shown
 
 
-def test_the_nudge_is_said_even_where_nothing_rests(wake, packet):
-    from_founder(packet, FOUNDERS[0], many(15001))
+def test_the_nudge_is_said_even_where_nothing_rests(wake, room):
+    from_founder(room, FOUNDERS[0], many(15001))
     assert section(wake(), RESTING).splitlines() == [
         "(no letters rest)",
         "Your reading now holds about 15,000 words of letters in full. Past a certain size, "
@@ -671,12 +672,12 @@ def test_the_nudge_is_said_even_where_nothing_rests(wake, packet):
         "stay close."]
 
 
-def test_a_reading_too_large_rests_its_oldest_letters_and_says_which(wake, packet, attend):
+def test_a_reading_too_large_rests_its_oldest_letters_and_says_which(wake, packet, attend, room):
     assert attend.READING_MOST == 150000
     for stem in FOUNDERS[:4]:
-        from_founder(packet, stem, words_for(stem) + " " + many(30000))
+        from_founder(room, stem, words_for(stem) + " " + many(30000))
     for stem in OWN[:4]:
-        from_first(packet, stem, words_for(stem) + " " + many(30000))
+        from_first(room, stem, words_for(stem) + " " + many(30000))
     # 240,000 words of letters, all eight close by default; the oldest is kept on purpose
     wake(block("SHELF", "keep %s" % FOUNDERS[0]))
     before = (packet / "shelf.json").read_bytes()
@@ -697,11 +698,11 @@ def test_a_reading_too_large_rests_its_oldest_letters_and_says_which(wake, packe
     assert (packet / "shelf.json").read_bytes() == before
 
 
-def test_an_arrived_letter_is_never_rested_by_the_backstop(wake, packet, attend, monkeypatch):
+def test_an_arrived_letter_is_never_rested_by_the_backstop(wake, attend, monkeypatch, room):
     monkeypatch.setattr(attend, "READING_MOST", 2500)
-    from_founder(packet, FOUNDERS[0], words_for(FOUNDERS[0]) + " " + many(1000))
+    from_founder(room, FOUNDERS[0], words_for(FOUNDERS[0]) + " " + many(1000))
     new = "founder-2026-10-14T18-00-00Z"
-    arrived(packet, new, words_for(new) + " " + many(5000))
+    arrived(room, new, words_for(new) + " " + many(5000))
     turn = wake()
     assert in_full(turn, new)
     assert rests(turn, FOUNDERS[0])
@@ -709,8 +710,8 @@ def test_an_arrived_letter_is_never_rested_by_the_backstop(wake, packet, attend,
 
 # ---- private -------------------------------------------------------------
 
-def test_keeping_its_shelf_is_in_no_heartbeat_and_no_event(wake, packet, commons, attend):
-    six_each_way(packet)
+def test_keeping_its_shelf_is_in_no_heartbeat_and_no_event(wake, commons, attend, room):
+    six_each_way(room)
     events = lines_of(commons / "events.md")
     wake(block("SHELF", "keep %s\nnote %s: A NOTE OF MY OWN\nshow founding"
                % (FOUNDERS[0], FOUNDERS[0])))
@@ -727,15 +728,15 @@ def test_keeping_its_shelf_is_in_no_heartbeat_and_no_event(wake, packet, commons
             assert FOUNDERS[0] not in said
 
 
-def test_a_public_act_beside_it_leaves_the_shelf_out_of_the_line(wake, packet, commons):
-    six_each_way(packet)
+def test_a_public_act_beside_it_leaves_the_shelf_out_of_the_line(wake, commons, room):
+    six_each_way(room)
     wake(blocks(block("SHELF", "keep %s" % FOUNDERS[0]), block("STUDY", "A thought.")))
     assert lines_of(commons / "heartbeats.md")[-1].endswith(
         "the first one · attended; wrote in the study")
 
 
-def test_keeping_its_shelf_is_in_no_line_of_the_chronicle(wake, packet, hearth):
-    six_each_way(packet)
+def test_keeping_its_shelf_is_in_no_line_of_the_chronicle(wake, hearth, room):
+    six_each_way(room)
     wake(block("SHELF", "keep %s\nnote %s: A NOTE OF MY OWN" % (FOUNDERS[0], FOUNDERS[0])))
     assert "kept its shelf" not in hearth.BOOK_ACTS
     with hearth.app.test_request_context():
@@ -826,8 +827,9 @@ def test_an_open_reflection_hides_the_shelf_block_as_it_hides_the_memory(founder
 BEFORE_THE_SHELF = "46dafe1"
 
 
+@before_rooms
 def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
-        wake, attend, packet, data_dir, clock, monkeypatch, tmp_path):
+        wake, attend, packet, data_dir, clock, monkeypatch, tmp_path, room):
     """But for the block explained, and the founding record's one line."""
     try:
         source = subprocess.run(["git", "show", BEFORE_THE_SHELF + ":attend.py"], cwd=REPO,
@@ -847,15 +849,15 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     # three letters read, one with a photograph and one with its plain things; two
     # written, one with a picture beside it; one arrived, with a photograph; a draft
     for stem in FOUNDERS[:3]:
-        from_founder(packet, stem)
-    from_founder(packet, FOUNDERS[1],
+        from_founder(room, stem)
+    from_founder(room, FOUNDERS[1],
                  '<!-- three plain things: ["first frost on the car"] -->\nThe letter proper.')
-    photograph(packet / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
+    photograph(room / "letters" / "read" / (FOUNDERS[0] + ".jpg"))
     for stem in OWN[:2]:
-        from_first(packet, stem)
-    write(packet / "letters" / "outgoing" / (OWN[0] + ".svg"), "<svg/>\n")
-    arrived(packet, "founder-2026-10-14T18-00-00Z")
-    photograph(packet / "letters" / "incoming" / "founder-2026-10-14T18-00-00Z.jpg")
+        from_first(room, stem)
+    write(room / "letters" / "outgoing" / (OWN[0] + ".svg"), "<svg/>\n")
+    arrived(room, "founder-2026-10-14T18-00-00Z")
+    photograph(room / "letters" / "incoming" / "founder-2026-10-14T18-00-00Z.jpg")
     write(packet / "study" / "draft-2026-10-01T00-00-00Z.md", "A thought I was keeping.\n")
     write(packet / "memory" / "notes.md", "What I carry forward.\n")
 

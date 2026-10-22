@@ -130,11 +130,11 @@ def test_a_bond_page_shows_no_protected_word(visitor, listed, placed, threshold_
 
 
 def test_an_offering_is_shown_with_no_protected_word_and_signed_as_it_was(
-        founder, wake, visitor, packet, commons, data_dir):
-    a_correspondence(packet)
+        founder, wake, visitor, commons, data_dir, room):
+    a_correspondence(room)
     offer(founder, "passage", HIS, "The lake was still this morning")
-    wake(block("OFFER", "consent %s" % only_pending(packet)["id"]))
-    one = only_placed(packet)
+    wake(block("OFFER", "consent %s" % only_pending(room)["id"]))
+    one = only_placed(room)
     write(data_dir / "private-words.txt", "lake => water\n")
     assert "The water was still" in page(visitor.get("/commons/offerings/%s.md" % one["id"]))
     assert "The water was still" in page(visitor.get("/commons"))
@@ -142,8 +142,8 @@ def test_an_offering_is_shown_with_no_protected_word_and_signed_as_it_was(
     assert "The lake was still" in signed and "water" not in signed
 
 
-def test_a_private_page_is_not_changed(hearth, founder, listed, packet):
-    write(packet / "letters" / "read" / "founder-2026-10-14T09-00-00Z.md",
+def test_a_private_page_is_not_changed(hearth, founder, listed, room):
+    write(room / "letters" / "read" / "founder-2026-10-14T09-00-00Z.md",
           "Dear first one,\n\nQuillon here, back from Varrowmere.\n")
     assert "Quillon here, back from Varrowmere." in page(founder.get("/rooms/first"))
 

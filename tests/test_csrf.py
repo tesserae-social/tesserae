@@ -91,11 +91,11 @@ def test_nothing_the_founder_does_is_exempt(hearth):
 
 # ---- a good token is taken -----------------------------------------------
 
-def test_a_letter_with_its_token_is_left(founder, packet):
+def test_a_letter_with_its_token_is_left(founder, room):
     answer = post(founder, "/letters", data={"letter": "Dear first one."},
                   content_type="multipart/form-data")
     assert answer.status_code == 302
-    assert [p.suffix for p in (packet / "letters" / "incoming").iterdir()] == [".md"]
+    assert [p.suffix for p in (room / "letters" / "incoming").iterdir()] == [".md"]
 
 
 def test_there_is_no_attend_button_to_post_to_even_with_its_token(founder, hearth, monkeypatch):
@@ -161,12 +161,12 @@ def test_the_login_form_carries_the_token(visitor):
 
 # ---- a bad token is not --------------------------------------------------
 
-def test_a_wrong_token_is_refused(founder, packet):
+def test_a_wrong_token_is_refused(founder, room):
     answer = founder.post("/letters", data={"letter": "Dear first one.",
                                             "csrf_token": "not the token at all"},
                           content_type="multipart/form-data")
     assert refused(answer)
-    assert not any((packet / "letters" / "incoming").iterdir())
+    assert not any((room / "letters" / "incoming").iterdir())
 
 
 def test_an_empty_token_is_refused(founder):

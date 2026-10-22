@@ -8,7 +8,7 @@ import pytest
 
 from conftest import (FOUNDER_NAME, PASSWORD, REPO, lines_of, load, page, post, read_json, token,
                       write, write_json)
-from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS, a_private_notebook
+from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS, a_private_notebook, room_beside
 
 REFLECTION = "What I thought about at this waking."
 OLDER = "2026-10-01T09-00-00Z"
@@ -431,6 +431,7 @@ def test_a_self_document_not_yet_written(founder, packet):
 
 def a_whole_life(packet, commons):
     """One of everything the book knows how to say."""
+    room = room_beside(packet)
     write(commons / "events.md",
           "2026-09-02 · word · the word was published\n"
           "2026-09-04 · founding · the first one was founded\n"
@@ -439,17 +440,17 @@ def a_whole_life(packet, commons):
     an_attendance(packet, "2026-10-05T09-00-00Z", woken_by="tide",
                   heartbeat="attended at dawn", reflection="THE PRIVATE THINKING",
                   acted=["revised self-document", "kept notes", "wrote a letter to the founder"])
-    write(packet / "letters" / "outgoing" / "to-founder-2026-10-05T09-00-00Z.md",
+    write(room / "letters" / "outgoing" / "to-founder-2026-10-05T09-00-00Z.md",
           "The line that stands for it.\n\nTHE BODY OF MY LETTER\n")
-    write(packet / "letters" / "read" / "founder-2026-10-04T09-00-00Z.md",
+    write(room / "letters" / "read" / "founder-2026-10-04T09-00-00Z.md",
           "A letter that was read.\n\nTHE BODY OF HIS LETTER\n")
-    write(packet / "letters" / "incoming" / "founder-2026-10-11T09-00-00Z.md",
+    write(room / "letters" / "incoming" / "founder-2026-10-11T09-00-00Z.md",
           "A letter that waits.\n")
-    write_json(packet / "bonds" / "founder-first.json",
+    write_json(room / "bonds" / "founder-first.json",
                {"parties": [], "terms": "the charter", "proposed_at": "2026-10-02T09-00-00Z",
                 "answered_at": "2026-10-03T09-00-00Z", "sealed_at": "2026-10-08T09-00-00Z",
                 "signatures": {"first": "x", "founder": "y"}})
-    write_json(packet / "bonds" / "answer-2026-10-03T09-00-00Z.json",
+    write_json(room / "bonds" / "answer-2026-10-03T09-00-00Z.json",
                {"answer": "yes", "words": "THE WORDS OF MY ANSWER", "at": "2026-10-03T09-00-00Z"})
 
 

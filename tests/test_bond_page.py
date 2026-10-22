@@ -74,8 +74,8 @@ def released(bond):
 # ---- commons/bonds.md ----------------------------------------------------
 
 def test_the_seal_writes_one_line_to_the_commons_and_nothing_private(
-        founder, wake, packet, commons, visitor, clock):
-    bond = sealed(founder, wake, packet, clock)
+        founder, wake, commons, visitor, clock, room):
+    bond = sealed(founder, wake, room, clock)
     day = bond["sealed_at"][:10]
     listed = (commons / "bonds.md").read_text(encoding="utf-8")
     assert listed == "%s · founder-first · the founder and the first one · sealed\n" % day
@@ -90,9 +90,9 @@ def test_the_seal_writes_one_line_to_the_commons_and_nothing_private(
     assert answer.headers["Cache-Control"] == "no-cache"
 
 
-def test_a_release_by_the_founder_is_written_onto_the_same_line(founder, wake, packet, commons,
-                                                                clock):
-    bond = sealed(founder, wake, packet, clock)
+def test_a_release_by_the_founder_is_written_onto_the_same_line(founder, wake, commons,
+                                                                clock, room):
+    bond = sealed(founder, wake, room, clock)
     clock.shift(days=3)
     post(founder, "/bonds/release", data={"confirm": "yes"})
     assert (commons / "bonds.md").read_text(encoding="utf-8") == (
@@ -100,9 +100,9 @@ def test_a_release_by_the_founder_is_written_onto_the_same_line(founder, wake, p
         % (bond["sealed_at"][:10], clock.day()))
 
 
-def test_a_release_at_a_waking_is_written_onto_the_same_line(founder, wake, packet, commons,
-                                                             clock):
-    bond = sealed(founder, wake, packet, clock)
+def test_a_release_at_a_waking_is_written_onto_the_same_line(founder, wake, commons,
+                                                             clock, room):
+    bond = sealed(founder, wake, room, clock)
     clock.shift(days=2)
     at = clock.day()
     wake(block("RELEASE", "release"))
@@ -111,10 +111,10 @@ def test_a_release_at_a_waking_is_written_onto_the_same_line(founder, wake, pack
         % (bond["sealed_at"][:10], at))
 
 
-def test_a_seal_at_a_waking_writes_the_line_too(founder, wake, packet, commons, clock):
+def test_a_seal_at_a_waking_writes_the_line_too(founder, wake, commons, clock, room):
     from test_hearth_bonds import answer, asks, through_the_threshold
 
-    asks(wake, packet)
+    asks(wake, room)
     clock.shift(days=1)
     answer(founder, "yes")
     through_the_threshold(founder, wake, clock)
@@ -124,9 +124,9 @@ def test_a_seal_at_a_waking_writes_the_line_too(founder, wake, packet, commons, 
         "%s · founder-first · the founder and the first one · sealed\n" % at)
 
 
-def test_a_threshold_stepped_back_from_leaves_no_line_and_no_page(founder, wake, packet,
-                                                                  commons, visitor, clock):
-    answered_yes(founder, wake, packet, clock)
+def test_a_threshold_stepped_back_from_leaves_no_line_and_no_page(founder, wake,
+                                                                  commons, visitor, clock, room):
+    answered_yes(founder, wake, room, clock)
     assert not (commons / "bonds.md").exists()
     assert visitor.get("/bonds/founder-first").status_code == 404
 
@@ -224,10 +224,10 @@ def test_an_unsealed_record_has_no_page_and_no_picture(visitor, placed, threshol
         assert visitor.get(path).status_code == 404, path
 
 
-def test_the_page_of_a_bond_sealed_end_to_end(founder, wake, packet, visitor, clock):
+def test_the_page_of_a_bond_sealed_end_to_end(founder, wake, visitor, clock, room):
     """Through the whole rite, the page says what the record says, and the private promise
     the rite made in it is nowhere on the page."""
-    sealed(founder, wake, packet, clock)
+    sealed(founder, wake, room, clock)
     said = page(visitor.get("/bonds/founder-first"))
     assert "a bond between the founder and the first one" in said
     assert "sealed on 22 October 2026" in said

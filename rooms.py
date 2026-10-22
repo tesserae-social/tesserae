@@ -12,19 +12,34 @@ its two parties stands in it:
     other     what the other party is called, in words safe to say anywhere
     bond      the name its bond goes by, sealed or not
 
-For now a room is derived and not stored. There is one correspondence here,
-between the keeper and the first one, and so one room, "first", which is the
-first one's packet exactly as it has always been kept:
+For now who is in a room is derived and not stored. There is one
+correspondence here, between the keeper and the first one, and so one room,
+"first". Its things are kept in one of two places, and which is read off the
+disk each time it is asked:
 
-    DATA_DIR/packets/first/letters/incoming    the keeper's letters, not yet read
-    DATA_DIR/packets/first/letters/read        the keeper's letters, read
-    DATA_DIR/packets/first/letters/outgoing    the first one's letters
-    DATA_DIR/packets/first/errands             what the first one has asked
-    DATA_DIR/packets/first/bonds               the asking, the answers, the bond
-    DATA_DIR/packets/first/offerings           what either has offered the commons
+    DATA_DIR/rooms/first/room.json             the room's own record: its id, its
+                                               bond, and its two parties by DID
+    DATA_DIR/rooms/first/letters/incoming      the keeper's letters, not yet read
+    DATA_DIR/rooms/first/letters/read          the keeper's letters, read
+    DATA_DIR/rooms/first/letters/outgoing      the first one's letters
+    DATA_DIR/rooms/first/errands               what the first one has asked
+    DATA_DIR/rooms/first/bonds                 the asking, the answers, the bond
+    DATA_DIR/rooms/first/offerings             what either has offered the commons
 
-Nothing is moved to make a room, and nothing is written by this module at all.
-A member who is not the keeper has no room yet.
+once the room has been moved into a folder of its own (move_into_rooms.py),
+which room.json being there is the sign of; and until then, the first one's
+packet, as the room has always been kept:
+
+    DATA_DIR/packets/first/letters/...         and errands, bonds, offerings,
+                                               exactly as above
+
+Both are read while both may be on a disk: the room's own folder is taken only
+where its room.json is, so that the move takes effect at the one moment that
+file appears, and is undone at the one moment it goes. Nothing is moved by
+this module, and nothing is written by it at all. A member who is not the
+keeper has no room yet. What stays in the packet whichever way the room is
+kept - the first one's self, its notebook, its proposals, its pause - is the
+first one's own, and not the room's.
 
 Where a room's things are kept is known here and nowhere else. The hearth, the
 first one's waking, offering.py, threshold.py and the backfill of letter tiles
@@ -61,11 +76,22 @@ FIRST = "first"
 FIRST_ROOM = "first"
 FIRST_BOND = "founder-first"
 
+# Where rooms are kept once each has a folder of its own, and the record that
+# says a folder there is a room: until it is there, the room is the packet's.
+ROOMS = "rooms"
+ROOM_RECORD = "room.json"
+
+# What a room keeps, by the folders it keeps them in: these are what move from
+# the packet into the room's own folder, whole, and nothing else does.
+ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
+
 Room = namedtuple("Room", "id mine parties other bond")
 
 
-class Places(namedtuple("Places", "packet incoming read outgoing errands bonds offerings")):
+class Places(namedtuple("Places", "home incoming read outgoing errands bonds offerings")):
     """Where one room's things are kept, by the names the folders have on disk.
+
+    home is the folder the room's folders are in: its own, or the packet's.
 
     And a few places inside those folders, which every hand that reaches them
     must name the same way.
@@ -130,14 +156,38 @@ def find(room_id, who):
     return None
 
 
-def places(room_id):
-    """Where a room's things are kept, or None for a room there is not.
+def record_of(room_id):
+    """Where a room's own record is, or would be once it has a folder of its own."""
+    return DATA / ROOMS / room_id / ROOM_RECORD
 
-    Worked out each time it is asked, never kept from an earlier asking.
+
+def moved(room_id):
+    """Whether a room is kept in a folder of its own: whether its room.json is there."""
+    return record_of(room_id).is_file()
+
+
+def record(room_id):
+    """What a room's room.json says, made from what is known of it: never read from it.
+
+    This is what move_into_rooms.py writes, and the one place it is said. The
+    parties are named by DID and never by a pseudonym, since the file goes
+    wherever the room is copied.
     """
     if room_id != FIRST_ROOM:
         return None
-    packet = DATA / "packets" / FIRST
-    letters = packet / "letters"
-    return Places(packet, letters / "incoming", letters / "read", letters / "outgoing",
-                  packet / "errands", packet / "bonds", packet / "offerings")
+    return {"id": FIRST_ROOM, "bond": FIRST_BOND,
+            "parties": [bonds.FOUNDER_DID, bonds.FIRST_DID]}
+
+
+def places(room_id):
+    """Where a room's things are kept, or None for a room there is not.
+
+    Worked out each time it is asked, never kept from an earlier asking: in its
+    own folder where its room.json is, and in the packet where it is not.
+    """
+    if room_id != FIRST_ROOM:
+        return None
+    home = DATA / ROOMS / room_id if moved(room_id) else DATA / "packets" / FIRST
+    letters = home / "letters"
+    return Places(home, letters / "incoming", letters / "read", letters / "outgoing",
+                  home / "errands", home / "bonds", home / "offerings")

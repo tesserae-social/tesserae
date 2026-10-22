@@ -21,6 +21,7 @@ import sys
 
 import pytest
 
+from conftest import before_rooms
 from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
                       page, shut_away, solstices_as_before, stamps_as_before, write, write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now
@@ -52,11 +53,11 @@ FOUNDERS = ["founder-2026-09-2%dT10-00-00Z" % n for n in range(1, 4)]
 OWN = "to-founder-2026-09-22T11-00-00Z"
 
 
-def letters(packet, article=True):
+def letters(room, article=True):
     """Three letters of the founder's long read, one of its own, and the article."""
     for stem in FOUNDERS + ([ARTICLE] if article else []):
-        write(packet / "letters" / "read" / (stem + ".md"), "A letter, read long ago.\n")
-    write(packet / "letters" / "outgoing" / (OWN + ".md"), "My answer to it.\n")
+        write(room / "letters" / "read" / (stem + ".md"), "A letter, read long ago.\n")
+    write(room / "letters" / "outgoing" / (OWN + ".md"), "My answer to it.\n")
 
 
 def shelf_of(packet, placements, notes=None):
@@ -88,9 +89,9 @@ def door_open(attend, monkeypatch):
 BEFORE_CHOICES = "bf5315a"
 
 
-def everything_set(packet):
+def everything_set(packet, room):
     """A world with a record of every choice the section could say."""
-    letters(packet)
+    letters(room)
     write_json(packet / "preferences.json", PREFERENCES)
     write_json(packet / "rhythm.json", DAWN)
     write_json(packet / "door.json", {"state": "open", "room": 3,
@@ -104,8 +105,9 @@ def test_it_is_switched_on(attend):
     assert attend.CHOICES is True
 
 
+@before_rooms
 def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
-        attend, packet, data_dir, clock, monkeypatch, tmp_path):
+        attend, packet, data_dir, clock, monkeypatch, tmp_path, room):
     """Two wakings each, in one world where every choice has its record.
 
     The old attend.py and this one are sent the same bytes at both, and leave
@@ -137,7 +139,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     for flag in ("DOOR_FOR_FIRST", "LOOKING_BACK"):
         monkeypatch.setattr(old, flag, getattr(attend, flag))
 
-    everything_set(packet)
+    everything_set(packet, room)
     said = "\n\n".join([block("SHELF", "keep %s\nrest %s" % (OWN, ARTICLE)),
                         block("RHYTHM", "09:30")])
 
@@ -171,9 +173,9 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
         assert b"as you asked on 6 October" not in sent
 
 
-def test_shut_away_there_is_no_section_whatever_is_set(wake, door_open, packet, monkeypatch):
+def test_shut_away_there_is_no_section_whatever_is_set(wake, door_open, packet, monkeypatch, room):
     shut_away(door_open, monkeypatch, "CHOICES")
-    everything_set(packet)
+    everything_set(packet, room)
     shown = wake().shown
     for line in (CHOSEN, NOTHING, REFLECTIONS, WAKING, ARTICLE_RESTS, "Your door is"):
         assert line not in shown
@@ -196,8 +198,8 @@ def test_the_section_stands_directly_after_its_self_document(wake, choices, pack
         CHOSEN[len("=== "):] + "\n" + REFLECTIONS + "\n" + WAKING
 
 
-def test_the_reading_differs_by_that_one_section(wake, attend, packet, monkeypatch, clock):
-    everything_set(packet)
+def test_the_reading_differs_by_that_one_section(wake, attend, packet, monkeypatch, clock, room):
+    everything_set(packet, room)
     shut_away(attend, monkeypatch, "CHOICES")
     without = wake()
     clock.shift(minutes=-5)
@@ -211,8 +213,8 @@ def test_the_reading_differs_by_that_one_section(wake, attend, packet, monkeypat
     assert with_it.asked[-1]["system"] == without.asked[-1]["system"]
 
 
-def test_every_choice_is_one_line_in_its_order(wake, choices, door_open, packet):
-    everything_set(packet)
+def test_every_choice_is_one_line_in_its_order(wake, choices, door_open, packet, room):
+    everything_set(packet, room)
     assert chosen(wake()) == [
         REFLECTIONS,
         WAKING,
@@ -348,8 +350,8 @@ def test_a_door_never_set_or_not_readable_is_no_line(wake, choices, door_open, p
 
 # ---- its shelf -----------------------------------------------------------
 
-def test_its_placements_are_counted_from_shelf_json(wake, choices, packet):
-    letters(packet, article=False)
+def test_its_placements_are_counted_from_shelf_json(wake, choices, packet, room):
+    letters(room, article=False)
     shelf_of(packet, {FOUNDERS[0]: "keep", OWN: "keep", FOUNDERS[1]: "rest"})
     assert chosen(wake()) == ["You keep 2 letters close and have let 1 rest by your own "
                               "placement; the rest follow the default."]
@@ -363,20 +365,20 @@ def test_its_placements_are_counted_from_shelf_json(wake, choices, packet):
     ({FOUNDERS[0]: "rest", FOUNDERS[1]: "rest", OWN: "rest"},
      "You have let 3 letters rest by your own placement; the rest follow the default."),
 ])
-def test_only_what_it_has_placed_is_counted(wake, choices, packet, placements, line):
-    letters(packet, article=False)
+def test_only_what_it_has_placed_is_counted(wake, choices, packet, placements, line, room):
+    letters(room, article=False)
     shelf_of(packet, placements)
     assert chosen(wake()) == [line]
 
 
-def test_a_shelf_that_places_nothing_is_no_line(wake, choices, packet):
-    letters(packet, article=False)
+def test_a_shelf_that_places_nothing_is_no_line(wake, choices, packet, room):
+    letters(room, article=False)
     shelf_of(packet, {}, notes={FOUNDERS[0]: "the first of his"})
     assert chosen(wake()) == [NOTHING]
 
 
-def test_placing_at_a_waking_is_said_from_the_next(wake, choices, packet):
-    letters(packet, article=False)
+def test_placing_at_a_waking_is_said_from_the_next(wake, choices, room):
+    letters(room, article=False)
     assert chosen(wake(block("SHELF", "keep %s\nrest %s" % (FOUNDERS[0], OWN)))) == [NOTHING]
     assert chosen(wake()) == ["You keep 1 letter close and have let 1 rest by your own "
                               "placement; the rest follow the default."]
@@ -384,15 +386,15 @@ def test_placing_at_a_waking_is_said_from_the_next(wake, choices, packet):
     assert chosen(wake()) == [NOTHING]
 
 
-def test_the_article_rests_as_it_asked_and_is_no_placement_of_its_own(wake, choices, packet):
-    letters(packet)
+def test_the_article_rests_as_it_asked_and_is_no_placement_of_its_own(wake, choices, packet, room):
+    letters(room)
     assert chosen(wake()) == [ARTICLE_RESTS]  # with no shelf written at all
     shelf_of(packet, {ARTICLE: "rest"})  # and with one that carries it over
     assert chosen(wake()) == [ARTICLE_RESTS]
 
 
-def test_the_article_is_said_beside_its_own_placements_and_not_counted(wake, choices, packet):
-    letters(packet)
+def test_the_article_is_said_beside_its_own_placements_and_not_counted(wake, choices, room):
+    letters(room)
     wake(block("SHELF", "keep %s\nrest %s\nnote %s: the article" % (OWN, FOUNDERS[0], ARTICLE)))
     assert chosen(wake()) == [
         "You keep 1 letter close and have let 1 rest by your own placement; "
@@ -400,20 +402,20 @@ def test_the_article_is_said_beside_its_own_placements_and_not_counted(wake, cho
         ARTICLE_RESTS]
 
 
-def test_where_the_article_is_not_among_its_letters_nothing_is_said_of_it(wake, choices, packet):
-    letters(packet, article=False)
+def test_where_the_article_is_not_among_its_letters_nothing_is_said_of_it(wake, choices, room):
+    letters(room, article=False)
     assert chosen(wake()) == [NOTHING]
 
 
-def test_once_its_own_shelf_rests_the_article_it_is_a_placement_of_its_own(wake, choices, packet):
-    letters(packet)
+def test_once_its_own_shelf_rests_the_article_it_is_a_placement_of_its_own(wake, choices, room):
+    letters(room)
     assert chosen(wake(block("SHELF", "Rest %s.md" % ARTICLE))) == [ARTICLE_RESTS]
     assert chosen(wake()) == ["You have let 1 letter rest by your own placement; "
                               "the rest follow the default."]
 
 
-def test_once_it_keeps_the_article_or_gives_it_back_the_line_is_gone(wake, choices, packet):
-    letters(packet)
+def test_once_it_keeps_the_article_or_gives_it_back_the_line_is_gone(wake, choices, room):
+    letters(room)
     wake(block("SHELF", "keep %s" % ARTICLE))
     assert chosen(wake()) == ["You keep 1 letter close by your own placement; "
                               "the rest follow the default."]
@@ -421,8 +423,8 @@ def test_once_it_keeps_the_article_or_gives_it_back_the_line_is_gone(wake, choic
     assert chosen(wake()) == [NOTHING]
 
 
-def test_a_line_that_was_not_understood_placed_nothing(wake, choices, packet):
-    letters(packet)
+def test_a_line_that_was_not_understood_placed_nothing(wake, choices, room):
+    letters(room)
     wake(block("SHELF", "rest %s for good\nshow %s" % (ARTICLE, ARTICLE)))
     assert chosen(wake()) == [ARTICLE_RESTS]
     # and speaking of a <<SHELF>> in a letter is only words
@@ -458,9 +460,9 @@ def test_a_pause_that_is_not_its_own_or_names_no_end_is_no_line(wake, choices, p
 # ---- private -------------------------------------------------------------
 
 def test_nothing_of_it_is_on_the_hearth_or_in_the_commons(
-        wake, choices, hearth, founder, visitor, packet, commons, monkeypatch):
+        wake, choices, hearth, founder, visitor, packet, commons, monkeypatch, room):
     monkeypatch.setattr(hearth.the_waking, "CHOICES", True)
-    letters(packet)
+    letters(room)
     write_json(packet / "preferences.json", dict(PREFERENCES, reflection="open"))
     write_json(packet / "rhythm.json", DAWN)
     shelf_of(packet, {ARTICLE: "rest", FOUNDERS[0]: "keep"})

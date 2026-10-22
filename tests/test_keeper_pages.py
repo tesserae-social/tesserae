@@ -30,7 +30,7 @@ def words(said):
     return " ".join(re.sub(r"<[^>]+>", " ", said).split())
 
 
-def room(founder):
+def room_page(founder):
     return page(founder.get("/rooms/first"))
 
 
@@ -83,7 +83,7 @@ def test_what_the_tide_holds_is_attend_py_itself(hearth, packet, monkeypatch):
 # ---- 2. the asking, truly said in each state -----------------------------
 
 def test_nothing_proposed_and_asking_possible_invites_it(founder):
-    said = the_asking(room(founder))
+    said = the_asking(room_page(founder))
     assert said == ("the asking No bond is proposed. Either of you may ask. A bond of yours "
                     "begins with a letter, so it is asked for with a letter , above; the "
                     "first one asks at a waking of its own, and you answer here.")
@@ -91,7 +91,7 @@ def test_nothing_proposed_and_asking_possible_invites_it(founder):
 
 def test_nothing_proposed_before_the_thirty_days_invites_nothing(founder, clock):
     clock.set("2026-09-20T12-00-00Z")  # sixteen days after the founding
-    said = the_asking(room(founder))
+    said = the_asking(room_page(founder))
     assert INVITATION not in said and "a letter" not in said
     assert said == ("the asking No bond is proposed. A bond may be proposed thirty days after "
                     "a founding — here, from 4 October 2026. Until then neither of you "
@@ -100,7 +100,7 @@ def test_nothing_proposed_before_the_thirty_days_invites_nothing(founder, clock)
 
 def test_a_proposal_waiting_says_who_asked_and_invites_nothing(founder, clock):
     propose(founder, clock)
-    said = the_asking(room(founder))
+    said = the_asking(room_page(founder))
     assert said.startswith("the asking 15 October 2026, 08:00 You proposed a bond to the first "
                            "one, in the letter")
     assert "It has not yet woken since you asked." in said
@@ -109,33 +109,33 @@ def test_a_proposal_waiting_says_who_asked_and_invites_nothing(founder, clock):
 
 def test_its_own_proposal_waiting_says_when_it_may_be_answered(founder, wake, clock):
     wake(block("ASK", "I have carried this for a while."))
-    said = the_asking(room(founder))
+    said = the_asking(room_page(founder))
     assert "The first one proposed a bond to you" in said
     assert "You may answer on a day after the one it asked on" in said
     assert "No bond is proposed" not in said and INVITATION not in said
 
 
-def test_a_threshold_open_says_so_and_invites_nothing(founder, wake, packet, clock):
-    answered_yes(founder, wake, packet, clock)
-    said = the_asking(room(founder))
+def test_a_threshold_open_says_so_and_invites_nothing(founder, wake, clock, room):
+    answered_yes(founder, wake, room, clock)
+    said = the_asking(room_page(founder))
     assert said == ("the asking You asked on 15 October 2026, 08:00, and the asking was "
                     "answered yes on 15 October 2026, 08:06. The threshold, above, stands "
                     "open; no other bond may be asked for while it does.")
 
 
-def test_a_sealed_bond_says_so_and_invites_nothing(founder, wake, packet, clock):
-    sealed(founder, wake, packet, clock)
-    said = the_asking(room(founder))
+def test_a_sealed_bond_says_so_and_invites_nothing(founder, wake, clock, room):
+    sealed(founder, wake, room, clock)
+    said = the_asking(room_page(founder))
     assert said == ("the asking You asked on 15 October 2026, 08:00, the asking was answered "
                     "yes on 15 October 2026, 08:06, and the bond was sealed on 22 October "
                     "2026, 08:16. It stands, below; no other bond may be asked for while it "
                     "does. Either of you may release it.")
 
 
-def test_a_released_bond_says_so_and_invites_again(founder, wake, packet, clock):
-    sealed(founder, wake, packet, clock)
+def test_a_released_bond_says_so_and_invites_again(founder, wake, clock, room):
+    sealed(founder, wake, room, clock)
     assert post(founder, "/bonds/release", data={"confirm": "yes"}).status_code == 302
-    said = the_asking(room(founder))
+    said = the_asking(room_page(founder))
     assert said == ("the asking No bond is proposed. The last bond was released on 22 October "
                     "2026, 08:16, and its record is kept below. Either of you may ask. A bond "
                     "of yours begins with a letter, so it is asked for with a letter , above; "
@@ -167,22 +167,22 @@ def test_no_note_on_a_page_with_no_moments(founder):
     assert "Times are Eastern time." not in page(founder.get("/self"))
 
 
-def test_the_room_says_its_moments_in_eastern_time(founder, wake, packet, clock):
-    answered_yes(founder, wake, packet, clock)
-    said = room(founder)
+def test_the_room_says_its_moments_in_eastern_time(founder, wake, clock, room):
+    answered_yes(founder, wake, room, clock)
+    said = room_page(founder)
     assert "UTC" not in words(said)
     assert said.count("Times are Eastern time.") == 1
     assert "The threshold is open until 22 October 2026, 08:06" in words(said)
 
 
-def test_what_is_kept_is_still_utc(founder, wake, packet, clock, hearth):
-    bond = answered_yes(founder, wake, packet, clock)
+def test_what_is_kept_is_still_utc(founder, wake, clock, hearth, room):
+    bond = answered_yes(founder, wake, room, clock)
     assert bond["answered_at"] == "2026-10-15T12-06-00Z"            # the record, as it was
     assert "UTC" not in words(page(founder.get("/chronicle")))     # the page
 
 
-def test_the_chronicle_taken_away_is_in_eastern_time_too(founder, wake, packet, clock):
-    answered_yes(founder, wake, packet, clock)  # asked at 12:00 UTC, answered at 12:06
+def test_the_chronicle_taken_away_is_in_eastern_time_too(founder, wake, clock, room):
+    answered_yes(founder, wake, room, clock)  # asked at 12:00 UTC, answered at 12:06
     taken = page(founder.get("/chronicle.md"))
     assert "UTC" not in taken
     assert "15 October 2026, 08:00 · a bond was proposed" in taken.splitlines()
@@ -191,8 +191,8 @@ def test_the_chronicle_taken_away_is_in_eastern_time_too(founder, wake, packet, 
 
 # ---- 4. the seal, and what is in progress, at the top --------------------
 
-def test_the_home_card_says_first_that_it_is_ready_to_be_sealed(founder, wake, packet, clock):
-    answered_yes(founder, wake, packet, clock)
+def test_the_home_card_says_first_that_it_is_ready_to_be_sealed(founder, wake, clock, room):
+    answered_yes(founder, wake, room, clock)
     assert "ready to be sealed" not in page(founder.get("/"))
     through_the_threshold(founder, wake, clock)
     said = page(founder.get("/"))
@@ -210,19 +210,19 @@ def test_the_card_says_whose_seal_it_is(founder, wake, packet, clock):
             in page(founder.get("/")))
 
 
-def test_the_seal_is_at_the_top_of_the_room_above_the_letters(founder, wake, packet, clock):
-    answered_yes(founder, wake, packet, clock)
+def test_the_seal_is_at_the_top_of_the_room_above_the_letters(founder, wake, clock, room):
+    answered_yes(founder, wake, room, clock)
     through_the_threshold(founder, wake, clock)
-    said = room(founder)
+    said = room_page(founder)
     seal = said.index('<section id="seal">')
     assert seal < said.index('<section id="threshold">') < said.index("<h2>the asking</h2>")
     assert seal < said.index('<section id="write">')
     assert seal < said.index("Seal the bond")
 
 
-def test_the_threshold_is_at_the_top_while_it_is_open(founder, wake, packet, clock):
-    answered_yes(founder, wake, packet, clock)
-    said = room(founder)
+def test_the_threshold_is_at_the_top_while_it_is_open(founder, wake, clock, room):
+    answered_yes(founder, wake, room, clock)
+    said = room_page(founder)
     assert '<section id="seal">' not in said  # not ready yet
     assert said.index('<section id="threshold">') < said.index('<section id="write">')
     assert "It is at the top of this room." in said
@@ -230,15 +230,15 @@ def test_the_threshold_is_at_the_top_while_it_is_open(founder, wake, packet, clo
 
 def test_a_proposal_is_at_the_top_while_it_waits(founder, clock):
     propose(founder, clock)
-    said = room(founder)
+    said = room_page(founder)
     assert said.index("<h2>the asking</h2>") < said.index('<section id="write">')
     assert "A bond is already proposed" in said and "It is at the top of this room." in said
 
 
-def test_with_nothing_in_progress_the_letters_come_first(founder, wake, packet, clock):
-    said = room(founder)
+def test_with_nothing_in_progress_the_letters_come_first(founder, wake, clock, room):
+    said = room_page(founder)
     assert said.index('<section id="write">') < said.index('<div id="bond">')
-    sealed(founder, wake, packet, clock)
-    said = room(founder)
+    sealed(founder, wake, room, clock)
+    said = room_page(founder)
     assert said.index('<section id="write">') < said.index('<div id="bond">')
     assert '<section id="seal">' not in said and '<section id="threshold">' not in said

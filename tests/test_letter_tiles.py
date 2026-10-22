@@ -96,13 +96,13 @@ def photo_bytes():
 
 
 @pytest.mark.parametrize("how", ["plain", "photo", "errand", "proposes"])
-def test_every_kind_of_letter_writes_the_line_and_nothing_of_itself(founder, commons, packet,
-                                                                   clock, how):
+def test_every_kind_of_letter_writes_the_line_and_nothing_of_itself(founder, commons,
+                                                                   clock, how, room):
     form = {}
     if how == "photo":
         form["photo"] = (io.BytesIO(photo_bytes()), "lake.jpg")
     if how == "errand":
-        write(packet / "errands" / "errand-2026-10-14T09-00-00Z.md", "Tell me about the heron.\n")
+        write(room / "errands" / "errand-2026-10-14T09-00-00Z.md", "Tell me about the heron.\n")
         form["errand"] = "errand-2026-10-14T09-00-00Z.md"
     if how == "proposes":
         form["proposes"] = "1"
@@ -188,31 +188,31 @@ EVENTS = ("2026-09-02 · word · the word was published\n"
           "2026-09-25 · event · the tide resumed\n")
 
 
-def letters_at(packet, folder, *stamps):
+def letters_at(room, folder, *stamps):
     for stamp in stamps:
-        write(packet / "letters" / folder / ("founder-%s.md" % stamp), "private words\n")
+        write(room / "letters" / folder / ("founder-%s.md" % stamp), "private words\n")
 
 
 @pytest.fixture
-def old_letters(packet):
+def old_letters(room):
     """Letters left before the hearth wrote lines for them, as the host holds them."""
     # 19 September there: 19:11 is evening, and the later ones that night do not change it
-    letters_at(packet, "read", "2026-09-19T23-11-43Z", "2026-09-20T02-47-15Z",
+    letters_at(room, "read", "2026-09-19T23-11-43Z", "2026-09-20T02-47-15Z",
                "2026-09-20T03-30-09Z")
     # 20 September there: 11:36 by day; one of them found in both folders
-    letters_at(packet, "read", "2026-09-20T15-36-32Z", "2026-09-20T20-34-37Z")
-    letters_at(packet, "incoming", "2026-09-20T20-34-37Z", "2026-09-21T00-22-30Z")
+    letters_at(room, "read", "2026-09-20T15-36-32Z", "2026-09-20T20-34-37Z")
+    letters_at(room, "incoming", "2026-09-20T20-34-37Z", "2026-09-21T00-22-30Z")
     # 21 September there: 15:19, by day; with a photograph beside it, which is not a letter
-    letters_at(packet, "incoming", "2026-09-21T19-19-54Z")
-    write(packet / "letters" / "incoming" / "founder-2026-09-21T19-19-54Z.jpg", "jpeg")
+    letters_at(room, "incoming", "2026-09-21T19-19-54Z")
+    write(room / "letters" / "incoming" / "founder-2026-09-21T19-19-54Z.jpg", "jpeg")
     # 23 September there: 05:00, dawn; one named -2, left in the same second as another
-    letters_at(packet, "incoming", "2026-09-23T09-00-00Z-2")
+    letters_at(room, "incoming", "2026-09-23T09-00-00Z-2")
     # 27 September there, past every line in the file: 22:00, night
-    letters_at(packet, "incoming", "2026-09-28T02-00-00Z")
+    letters_at(room, "incoming", "2026-09-28T02-00-00Z")
     # the first one's letters are not the founder's, and are passed over
-    letters_at(packet, "outgoing", "2026-09-22T12-00-00Z")
-    write(packet / "letters" / "outgoing" / "to-founder-2026-09-22T12-00-00Z.md", "hello\n")
-    return packet / "letters"
+    letters_at(room, "outgoing", "2026-09-22T12-00-00Z")
+    write(room / "letters" / "outgoing" / "to-founder-2026-09-22T12-00-00Z.md", "hello\n")
+    return room / "letters"
 
 
 def run(commons, letters, capsys):
@@ -287,8 +287,8 @@ def test_the_backfill_reads_nothing_of_a_letter_but_its_name(commons, old_letter
     assert "private words" not in (commons / "events.md").read_text(encoding="utf-8")
 
 
-def test_with_no_letters_the_backfill_adds_nothing(commons, packet, capsys):
+def test_with_no_letters_the_backfill_adds_nothing(commons, capsys, room):
     write(commons / "events.md", EVENTS)
-    added, said = run(commons, packet / "letters", capsys)
+    added, said = run(commons, room / "letters", capsys)
     assert added == 0 and said == "0\n"
     assert (commons / "events.md").read_text(encoding="utf-8") == EVENTS

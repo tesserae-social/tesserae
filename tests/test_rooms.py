@@ -92,12 +92,12 @@ def card(client):
     return [words(line) for line in re.findall(r"<(?:h3|p)[^>]*>(.*?)</(?:h3|p)>", cards[0], re.S)]
 
 
-def letter(packet, folder, stem, text="A letter.\n"):
-    return write(packet / "letters" / folder / (stem + ".md"), text)
+def letter(room, folder, stem, text="A letter.\n"):
+    return write(room / "letters" / folder / (stem + ".md"), text)
 
 
-def errand(packet, at="2026-10-12T09-00-00Z"):
-    return write(packet / "errands" / ("errand-%s.md" % at), "Go and look at the lake.\n")
+def errand(room, at="2026-10-12T09-00-00Z"):
+    return write(room / "errands" / ("errand-%s.md" % at), "Go and look at the lake.\n")
 
 
 # ---- the menus -----------------------------------------------------------
@@ -222,51 +222,51 @@ def test_the_keepers_home_is_the_door_and_then_one_card(founder):
     assert FOUNDER_NAME not in said  # the other is named; the keeper never is
 
 
-def test_a_new_letter_from_the_first_one_is_said_on_the_card(founder, packet):
-    letter(packet, "read", "founder-2026-10-11T09-00-00Z")
-    letter(packet, "outgoing", "to-founder-2026-10-14T06-30-00Z")
+def test_a_new_letter_from_the_first_one_is_said_on_the_card(founder, room):
+    letter(room, "read", "founder-2026-10-11T09-00-00Z")
+    letter(room, "outgoing", "to-founder-2026-10-14T06-30-00Z")
     assert card(founder)[1:3] == ["14 October 2026 · from the first one",
                                   "a new letter from the first one"]
 
 
-def test_a_letter_of_yours_not_yet_read_is_said_on_the_card(founder, packet):
-    letter(packet, "outgoing", "to-founder-2026-10-11T06-30-00Z")
-    letter(packet, "incoming", "founder-2026-10-13T21-00-00Z")
+def test_a_letter_of_yours_not_yet_read_is_said_on_the_card(founder, room):
+    letter(room, "outgoing", "to-founder-2026-10-11T06-30-00Z")
+    letter(room, "incoming", "founder-2026-10-13T21-00-00Z")
     assert card(founder)[1:3] == ["13 October 2026 · from you",
                                   "your letter is waiting to be read"]
 
 
-def test_a_letter_of_yours_that_was_read_leaves_nothing_waiting(founder, packet):
-    letter(packet, "outgoing", "to-founder-2026-10-11T06-30-00Z")
-    letter(packet, "read", "founder-2026-10-13T21-00-00Z")
+def test_a_letter_of_yours_that_was_read_leaves_nothing_waiting(founder, room):
+    letter(room, "outgoing", "to-founder-2026-10-11T06-30-00Z")
+    letter(room, "read", "founder-2026-10-13T21-00-00Z")
     assert card(founder)[1:3] == ["13 October 2026 · from you", "nothing is waiting"]
 
 
-def test_an_errand_is_said_on_the_card(founder, packet):
-    errand(packet)
+def test_an_errand_is_said_on_the_card(founder, room):
+    errand(room)
     assert card(founder)[1:3] == ["no letters yet", "an errand asked of you"]
 
 
-def test_an_offering_of_the_first_ones_is_said_on_the_card(founder, wake, packet):
-    letter(packet, "outgoing", "to-founder-2026-10-13T09-00-00Z", "Dear founder.\n")
+def test_an_offering_of_the_first_ones_is_said_on_the_card(founder, wake, room):
+    letter(room, "outgoing", "to-founder-2026-10-13T09-00-00Z", "Dear founder.\n")
     wake(block("OFFER", "offer letter to-founder-2026-10-13T09-00-00Z"))
     assert "an offering is waiting for your answer" in card(founder)
 
 
-def test_everything_that_waits_is_said_together_and_nothing_is_counted(founder, packet):
-    letter(packet, "read", "founder-2026-10-11T09-00-00Z")
-    letter(packet, "outgoing", "to-founder-2026-10-12T06-30-00Z")
-    errand(packet)
+def test_everything_that_waits_is_said_together_and_nothing_is_counted(founder, room):
+    letter(room, "read", "founder-2026-10-11T09-00-00Z")
+    letter(room, "outgoing", "to-founder-2026-10-12T06-30-00Z")
+    errand(room)
     one_of_each = card(founder)
     assert one_of_each == ["the first one", "12 October 2026 · from the first one",
                            "a new letter from the first one", "an errand asked of you",
                            "no bond", "open"]
 
     # more of everything, and the card says the same words: none of it is a number
-    letter(packet, "outgoing", "to-founder-2026-10-12T07-30-00Z")
-    letter(packet, "outgoing", "to-founder-2026-10-12T08-30-00Z")
-    errand(packet, "2026-10-13T09-00-00Z")
-    errand(packet, "2026-10-14T09-00-00Z")
+    letter(room, "outgoing", "to-founder-2026-10-12T07-30-00Z")
+    letter(room, "outgoing", "to-founder-2026-10-12T08-30-00Z")
+    errand(room, "2026-10-13T09-00-00Z")
+    errand(room, "2026-10-14T09-00-00Z")
     assert card(founder) == one_of_each
     for line in one_of_each[2:]:
         assert not re.search(r"\d", line), line
@@ -277,8 +277,8 @@ def test_the_card_says_a_bond_is_proposed(founder, clock):
     assert card(founder)[-2] == "a bond is proposed"
 
 
-def test_the_card_counts_the_days_of_the_threshold(founder, wake, packet, clock):
-    answered_yes(founder, wake, packet, clock)
+def test_the_card_counts_the_days_of_the_threshold(founder, wake, clock, room):
+    answered_yes(founder, wake, room, clock)
     assert card(founder)[-2] == "the threshold: day 1 of 7"
     clock.shift(days=3)
     assert card(founder)[-2] == "the threshold: day 4 of 7"
@@ -289,8 +289,8 @@ def test_the_card_counts_the_days_of_the_threshold(founder, wake, packet, clock)
     assert "<img" not in home(founder)  # no tile until it is sealed
 
 
-def test_the_card_shows_a_sealed_bond_with_its_small_tile(founder, wake, packet, clock):
-    sealed(founder, wake, packet, clock)
+def test_the_card_shows_a_sealed_bond_with_its_small_tile(founder, wake, clock, room):
+    sealed(founder, wake, room, clock)
     assert card(founder)[-2] == "sealed"
     tile = re.search(r"<img[^>]*>", home(founder), re.S).group()
     assert 'src="/bonds/founder-first/tessera.svg?size=24"' in tile
@@ -299,8 +299,8 @@ def test_the_card_shows_a_sealed_bond_with_its_small_tile(founder, wake, packet,
     assert drawn.status_code == 200 and drawn.mimetype == "image/svg+xml"
 
 
-def test_the_card_says_a_released_bond_is_released(founder, wake, packet, clock):
-    sealed(founder, wake, packet, clock)
+def test_the_card_says_a_released_bond_is_released(founder, wake, clock, room):
+    sealed(founder, wake, room, clock)
     assert post(founder, "/bonds/release", data={"confirm": "yes"}).status_code == 302
     assert card(founder)[-2] == "released"
     assert "<img" not in home(founder)
@@ -308,22 +308,22 @@ def test_the_card_says_a_released_bond_is_released(founder, wake, packet, clock)
 
 # ---- the room ------------------------------------------------------------
 
-def test_a_visitor_is_turned_away_from_a_room(visitor, packet):
+def test_a_visitor_is_turned_away_from_a_room(visitor, room):
     assert to_login(visitor.get("/rooms/first"))
     assert to_login(post(visitor, "/rooms/first", data={"letter": "Let me in."},
                          content_type="multipart/form-data"))
-    assert not list((packet / "letters" / "incoming").iterdir())
+    assert not list((room / "letters" / "incoming").iterdir())
 
 
-def test_a_plain_member_is_turned_away_from_a_room_that_is_not_theirs(member, founder, packet):
-    letter(packet, "outgoing", "to-founder-2026-10-14T06-30-00Z", "FOR THE FOUNDER ALONE.\n")
+def test_a_plain_member_is_turned_away_from_a_room_that_is_not_theirs(member, founder, room):
+    letter(room, "outgoing", "to-founder-2026-10-14T06-30-00Z", "FOR THE FOUNDER ALONE.\n")
     for path in ("/rooms/first", "/letters"):
         answer = member.get(path)
         assert to_login(answer), path
         assert "FOR THE FOUNDER ALONE" not in page(answer)
     assert to_login(post(member, "/rooms/first", data={"letter": "Let me in."},
                          content_type="multipart/form-data"))
-    assert not list((packet / "letters" / "incoming").iterdir())
+    assert not list((room / "letters" / "incoming").iterdir())
     # and a room that is not there is answered exactly as one that is
     assert to_login(member.get("/rooms/no-such-room"))
 
@@ -334,10 +334,10 @@ def test_the_keeper_opens_their_room_and_no_other(founder):
     assert founder.get("/rooms/" + FOUNDER_NAME).status_code == 404
 
 
-def test_the_room_holds_what_the_letters_page_and_the_bonds_page_held(founder, packet):
-    letter(packet, "read", "founder-2026-10-01T09-00-00Z", "The oldest.\n")
-    letter(packet, "outgoing", "to-founder-2026-10-02T09-00-00Z", "The newest.\n")
-    errand(packet)
+def test_the_room_holds_what_the_letters_page_and_the_bonds_page_held(founder, room):
+    letter(room, "read", "founder-2026-10-01T09-00-00Z", "The oldest.\n")
+    letter(room, "outgoing", "to-founder-2026-10-02T09-00-00Z", "The newest.\n")
+    errand(room)
     said = page(founder.get("/rooms/first"))
 
     assert "<h1>the first one</h1>" in said
@@ -356,27 +356,27 @@ def test_the_room_holds_what_the_letters_page_and_the_bonds_page_held(founder, p
     assert len(ids) == len(set(ids))
 
 
-def test_a_letter_left_in_the_room_is_left_as_it_always_was(founder, packet, clock):
+def test_a_letter_left_in_the_room_is_left_as_it_always_was(founder, clock, room):
     answer = post(founder, "/rooms/first", content_type="multipart/form-data",
                   data={"letter": "Dear first one.", "thing": ["cold hands", "", ""]})
     assert answer.status_code == 302
     assert answer.headers["Location"] == "/rooms/first?saved=1"
-    kept = packet / "letters" / "incoming" / ("founder-%s.md" % clock.stamp())
+    kept = room / "letters" / "incoming" / ("founder-%s.md" % clock.stamp())
     assert kept.read_text(encoding="utf-8").endswith("Dear first one.\n")
     assert "Your letter will be found at the next attendance." in page(
         founder.get(answer.headers["Location"]))
 
 
-def test_a_post_to_the_room_needs_its_token(founder, packet):
+def test_a_post_to_the_room_needs_its_token(founder, room):
     answer = founder.post("/rooms/first", data={"letter": "Dear first one."},
                           content_type="multipart/form-data")
     assert answer.status_code == 400
-    assert not list((packet / "letters" / "incoming").iterdir())
+    assert not list((room / "letters" / "incoming").iterdir())
 
 
-def test_every_form_in_the_room_carries_the_token(founder, wake, packet, clock):
-    errand(packet)
-    answered_yes(founder, wake, packet, clock)  # so the threshold's forms are drawn too
+def test_every_form_in_the_room_carries_the_token(founder, wake, clock, room):
+    errand(room)
+    answered_yes(founder, wake, room, clock)  # so the threshold's forms are drawn too
     said = page(founder.get("/rooms/first"))
     assert said.count("<form") >= 5
     assert said.count('name="csrf_token"') == said.count("<form")
@@ -396,15 +396,15 @@ def test_letters_sends_anyone_else_to_the_login_page(visitor, member):
     assert to_login(member.get("/letters"))
 
 
-def test_a_letter_posted_to_the_old_address_is_still_left(founder, packet, clock):
+def test_a_letter_posted_to_the_old_address_is_still_left(founder, clock, room):
     answer = post(founder, "/letters", data={"letter": "Dear first one."},
                   content_type="multipart/form-data")
     assert answer.status_code == 302 and answer.headers["Location"] == "/rooms/first?saved=1"
-    assert (packet / "letters" / "incoming" / ("founder-%s.md" % clock.stamp())).exists()
+    assert (room / "letters" / "incoming" / ("founder-%s.md" % clock.stamp())).exists()
 
 
-def test_every_old_post_comes_back_to_the_room(founder, wake, packet, clock):
-    letter(packet, "read", "founder-2026-10-01T09-00-00Z", "The lake was still.\n")
+def test_every_old_post_comes_back_to_the_room(founder, wake, clock, room):
+    letter(room, "read", "founder-2026-10-01T09-00-00Z", "The lake was still.\n")
     offered = post(founder, "/offer", data={"kind": "letter",
                                             "source": "founder-2026-10-01T09-00-00Z"})
     assert offered.headers["Location"].startswith("/rooms/first?offered=")
@@ -413,7 +413,7 @@ def test_every_old_post_comes_back_to_the_room(founder, wake, packet, clock):
     assert post(founder, "/offer/consent", data={"id": "nothing"}).headers[
         "Location"] == "/rooms/first"
 
-    answered_yes(founder, wake, packet, clock)
+    answered_yes(founder, wake, room, clock)
     kept = post(founder, "/bonds/intention", data={"letter": "I bring my days."})
     assert kept.headers["Location"] == "/rooms/first?intended=1#bond"
     assert "Your letter of intention is signed and kept." in page(
@@ -438,8 +438,8 @@ def test_the_sealed_bonds_are_open_to_anyone_and_say_when_there_are_none(visitor
 
 
 def test_the_bonds_page_lists_a_sealed_bond_and_nothing_of_an_unsealed_one(
-        founder, visitor, wake, packet, clock):
-    answered_yes(founder, wake, packet, clock)
+        founder, visitor, wake, clock, room):
+    answered_yes(founder, wake, room, clock)
     said = section(page(visitor.get("/commons")), "sealed-bonds")  # on the threshold: nothing is public
     assert "none yet" in said and 'href="/bonds/' not in page(visitor.get("/commons"))
 
@@ -476,13 +476,51 @@ def test_a_plain_member_and_a_stranger_have_no_room(member, hearth):
         assert rooms.find("first", who) is None, who
 
 
-def test_the_room_is_kept_where_the_packet_has_always_been(hearth, packet):
+def test_the_room_is_kept_where_this_layout_keeps_it(hearth, room):
     kept = hearth.rooms.places("first")
-    assert kept == (packet, packet / "letters" / "incoming", packet / "letters" / "read",
-                    packet / "letters" / "outgoing", packet / "errands", packet / "bonds",
-                    packet / "offerings")
-    assert kept.packet == packet
+    assert kept == (room, room / "letters" / "incoming", room / "letters" / "read",
+                    room / "letters" / "outgoing", room / "errands", room / "bonds",
+                    room / "offerings")
+    assert kept.home == room
     assert hearth.rooms.places("elsewhere") is None
+
+
+def test_the_room_is_the_packet_s_until_its_room_json_is_there_and_again_once_it_is_gone(
+        hearth, data_dir, packet):
+    """The one sign the room has a folder of its own is its room.json: not the folder alone."""
+    rooms = hearth.rooms
+    home = data_dir / "rooms" / "first"
+    record = home / "room.json"
+    record.unlink(missing_ok=True)  # in whichever layout this run was given
+    assert rooms.places("first").home == packet and not rooms.moved("first")
+
+    (home / "letters" / "incoming").mkdir(parents=True, exist_ok=True)  # a folder, half made
+    assert rooms.places("first").home == packet
+
+    record.write_text(json.dumps(rooms.record("first")) + "\n", encoding="utf-8")
+    assert rooms.moved("first")
+    assert rooms.places("first").home == home
+    assert rooms.places("first").bond_record == home / "bonds" / "founder-first.json"
+
+    record.unlink()
+    assert rooms.places("first").home == packet
+
+
+def test_room_json_says_what_the_room_is_by_did_and_agrees_with_who_is_in_it(hearth, founder):
+    rooms = hearth.rooms
+    said = rooms.record("first")
+    assert said == {"id": "first", "bond": "founder-first",
+                    "parties": ["did:web:tesserae.social:ids:founder",
+                                "did:web:tesserae.social:ids:first"]}
+    assert rooms.record("elsewhere") is None
+    # what rooms.of works out agrees with it, from either side
+    (its,) = rooms.of("first")
+    (theirs,) = rooms.of(FOUNDER_NAME)
+    assert its.id == theirs.id == said["id"]
+    assert its.bond == theirs.bond == said["bond"]
+    assert [hearth.public_bonds.NAMES[did] for did in said["parties"]] == [its.other, theirs.other]
+    # and it names no one by a pseudonym
+    assert FOUNDER_NAME not in json.dumps(said)
 
 
 # Every hand that reaches a room's letters, errands, bond or offerings, and the
@@ -547,7 +585,7 @@ def test_rooms_alone_says_where_a_room_is_kept_and_writes_nothing():
 
 
 def test_where_a_room_is_kept_is_worked_out_each_time_it_is_asked(
-        hearth, attend, data_dir, tmp_path, monkeypatch):
+        hearth, attend, data_dir, room, tmp_path, monkeypatch):
     """Nothing keeps a room's place from an earlier asking: told another, every hand follows."""
     elsewhere = tmp_path / "elsewhere"
     moved = elsewhere / "packets" / "first"
@@ -561,8 +599,18 @@ def test_where_a_room_is_kept_is_worked_out_each_time_it_is_asked(
 
     for module in (hearth, attend):
         monkeypatch.setattr(module.rooms, "DATA", data_dir)
-    assert attend.room_places().proposal == (
-        data_dir / "packets" / "first" / "bonds" / "proposal.json")
+    assert attend.room_places().proposal == room / "bonds" / "proposal.json"
+
+    # and told the room has moved, by its room.json, every hand follows that too
+    home = elsewhere / "rooms" / "first"
+    write(home / "room.json", "{}\n")
+    for module in (hearth, attend):
+        monkeypatch.setattr(module.rooms, "DATA", elsewhere)
+    assert hearth.room_places().incoming == home / "letters" / "incoming"
+    assert hearth.picture_folders() == (home / "letters" / "outgoing",)
+    assert attend.room_places().bond_record == home / "bonds" / "founder-first.json"
+    assert attend.offering.kept().offerings == home / "offerings"
+    assert attend.threshold.kept().bonds == home / "bonds"
 
 
 def test_a_waking_run_by_hand_reads_its_packet_and_its_room_from_one_place(
@@ -579,5 +627,5 @@ def test_a_waking_run_by_hand_reads_its_packet_and_its_room_from_one_place(
     here = Path(REPO).resolve()
     assert attend.DATA == attend.rooms.DATA == here
     assert attend.PACKET == here / "packets" / "first"
-    assert attend.room_places().packet == attend.PACKET
+    assert attend.room_places().home == attend.PACKET
     assert attend.room_places().incoming == attend.PACKET / "letters" / "incoming"

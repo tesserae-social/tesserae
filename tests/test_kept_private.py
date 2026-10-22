@@ -77,25 +77,26 @@ def test_the_sentence_never_says_a_word(attend):
 
 @pytest.mark.parametrize("kind, text", [("passage", PASSAGE), ("letter", "")])
 def test_the_founder_s_offering_with_a_protected_word_is_refused_unsigned(
-        founder, packet, lake, kind, text):
-    a_correspondence(packet)
+        founder, lake, kind, text, room):
+    a_correspondence(room)
     answer = offer(founder, kind, HIS, text)
     assert answer.status_code == 200
     assert KEPT_PRIVATE in page(answer)
-    assert not pending(packet) and not placed(packet)
+    assert not pending(room) and not placed(room)
 
 
-def test_an_offering_with_no_protected_word_is_offered_as_before(founder, packet, lake):
-    a_correspondence(packet)
+def test_an_offering_with_no_protected_word_is_offered_as_before(founder, lake, room):
+    a_correspondence(room)
     assert offer(founder, "letter", HERS).status_code == 302
     assert offer(founder, "photo", HIS).status_code == 302
-    assert len(pending(packet)) == 2
+    assert len(pending(room)) == 2
 
 
-def test_the_first_one_s_offering_is_refused_and_it_is_told_once(wake, packet, commons, lake):
-    a_correspondence(packet)
+def test_the_first_one_s_offering_is_refused_and_it_is_told_once(wake, packet, commons, lake,
+                                                                 room):
+    a_correspondence(room)
     wake(block("OFFER", "offer passage %s\n%s" % (HIS, PASSAGE)))
-    assert not pending(packet) and not placed(packet)
+    assert not pending(room) and not placed(room)
     assert not (commons / "offerings.md").exists()
     record = last_record(packet)
     assert record["acted"] == [] and record["kept_private"] == [OFFER_TOLD]
@@ -104,34 +105,34 @@ def test_the_first_one_s_offering_is_refused_and_it_is_told_once(wake, packet, c
 
 
 def test_a_consent_to_an_offering_that_carries_a_word_now_listed_places_nothing(
-        founder, wake, packet, commons, data_dir):
-    a_correspondence(packet)
+        founder, wake, packet, commons, data_dir, room):
+    a_correspondence(room)
     offer(founder, "passage", HIS, PASSAGE)  # offered before the word was on the list
-    waiting = only_pending(packet)
+    waiting = only_pending(room)
     write(data_dir / "private-words.txt", LAKE)
     wake(block("OFFER", "consent %s" % waiting["id"]))
-    assert only_pending(packet) == waiting  # still waiting, with his signature alone
-    assert not placed(packet) and not (commons / "offerings.md").exists()
+    assert only_pending(room) == waiting  # still waiting, with his signature alone
+    assert not placed(room) and not (commons / "offerings.md").exists()
     assert last_record(packet)["kept_private"] == [CONSENT_TOLD]
     assert CONSENT_TOLD in wake().shown
 
 
-def test_the_founder_s_consent_is_refused_the_same_way(founder, wake, packet, data_dir):
-    a_correspondence(packet)
+def test_the_founder_s_consent_is_refused_the_same_way(founder, wake, data_dir, room):
+    a_correspondence(room)
     wake(block("OFFER", "offer passage %s\n%s" % (HIS, PASSAGE)))
-    waiting = only_pending(packet)
+    waiting = only_pending(room)
     write(data_dir / "private-words.txt", LAKE)
     answer = post(founder, "/offer/consent", data={"id": waiting["id"]})
     assert KEPT_PRIVATE in page(answer)
-    assert only_pending(packet) == waiting and not placed(packet)
+    assert only_pending(room) == waiting and not placed(room)
 
 
-def test_the_module_signs_nothing_it_refuses(attend, packet, lake):
-    a_correspondence(packet)
+def test_the_module_signs_nothing_it_refuses(attend, lake, room):
+    a_correspondence(room)
     with pytest.raises(attend.private_words.Protected):
         attend.offering.offer("founder", "passage", HIS, PASSAGE, "2026-10-20T09-00-00Z",
                               lambda payload: pytest.fail("it was signed"))
-    assert not pending(packet)
+    assert not pending(room)
 
 
 # ---- a witness's line, and its correction -------------------------------------
@@ -170,10 +171,10 @@ def test_the_witness_module_refuses_it_unsigned(people, bond, data_dir, lake):
 # ---- a promise ------------------------------------------------------------------
 
 def test_a_public_promise_with_a_protected_word_is_not_kept_and_it_is_told_once(
-        founder, wake, packet, clock, lake):
-    it_says_yes(founder, wake, packet, clock)
+        founder, wake, packet, clock, lake, room):
+    it_says_yes(founder, wake, room, clock)
     wake(block("PROMISE", "public\nI will walk with Quillon."))
-    assert not writings(packet, "promise", "first")
+    assert not writings(room, "promise", "first")
     record = last_record(packet)
     assert "made a promise" not in record["acted"]
     assert record["kept_private"] == [PROMISE_TOLD]
@@ -181,31 +182,31 @@ def test_a_public_promise_with_a_protected_word_is_not_kept_and_it_is_told_once(
     assert PROMISE_TOLD not in wake().shown
 
 
-def test_a_private_promise_is_never_checked(founder, wake, packet, clock, lake):
-    it_says_yes(founder, wake, packet, clock)
+def test_a_private_promise_is_never_checked(founder, wake, packet, clock, lake, room):
+    it_says_yes(founder, wake, room, clock)
     wake(block("PROMISE", "private\nI will walk with Quillon to the lake."))
-    (promise,) = writings(packet, "promise", "first")
+    (promise,) = writings(room, "promise", "first")
     assert promise["visibility"] == "private"
     assert promise["text"] == "I will walk with Quillon to the lake."
     assert "kept_private" not in last_record(packet)
 
 
-def test_a_public_promise_without_one_is_kept_as_before(founder, wake, packet, clock, lake):
-    it_says_yes(founder, wake, packet, clock)
+def test_a_public_promise_without_one_is_kept_as_before(founder, wake, clock, lake, room):
+    it_says_yes(founder, wake, room, clock)
     wake(block("PROMISE", "public\nI will tell you when I do not know."))
-    (promise,) = writings(packet, "promise", "first")
+    (promise,) = writings(room, "promise", "first")
     assert promise["visibility"] == "public"
 
 
-def test_the_threshold_signs_no_public_promise_it_refuses(attend, packet, lake):
+def test_the_threshold_signs_no_public_promise_it_refuses(attend, lake, room):
     bond = {"opened_at": "2026-10-01T09-00-00Z"}
     with pytest.raises(attend.private_words.Protected):
         attend.threshold.write("promise", "first", "Quillon", "2026-10-20T09-00-00Z",
                                lambda payload: pytest.fail("it was signed"), bond,
                                visibility="public")
-    assert not list(packet.glob("bonds/promise-*.json"))
+    assert not list(room.glob("bonds/promise-*.json"))
     kept_private = attend.threshold.write("promise", "first", "Quillon", "2026-10-20T09-00-00Z",
                                           lambda payload: "signed", bond, visibility="private")
     assert kept_private["text"] == "Quillon"
-    assert json.loads((packet / "bonds" / "promise-first-2026-10-20T09-00-00Z.json")
+    assert json.loads((room / "bonds" / "promise-first-2026-10-20T09-00-00Z.json")
                       .read_text(encoding="utf-8"))["visibility"] == "private"

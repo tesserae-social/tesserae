@@ -213,13 +213,22 @@ def test_a_first_rhythm_ever_wakes_no_one_until_its_day(hearth, packet, monkeypa
 # ---- a pause wins --------------------------------------------------------
 
 @pytest.mark.parametrize("at", ["dawn", "sunset", "09:30"])
-def test_the_founder_s_pause_holds_every_kind_of_tide(hearth, packet, monkeypatch, clock, at):
+def test_the_keeper_s_stop_holds_every_kind_of_tide(hearth, packet, monkeypatch, clock, at):
     set_rhythm(packet, at)
     clock.set("2026-10-15T04-00-00Z")
-    hearth.begin_pause("founder")
+    hearth.begin_stop("A fault.")
     turns = live(hearth, monkeypatch, clock, packet, turns=3)
     assert len(turns) == 3
-    assert all(notes == ["paused by founder"] and not held for _, notes, held in turns)
+    assert all(notes == ["stopped by the keeper"] and not held for _, notes, held in turns)
+
+
+@pytest.mark.parametrize("at", ["dawn", "sunset", "09:30"])
+def test_the_founder_s_rest_holds_no_kind_of_tide(hearth, packet, monkeypatch, clock, at):
+    set_rhythm(packet, at)
+    clock.set("2026-10-15T04-00-00Z")
+    hearth.begin_rest()
+    turns = live(hearth, monkeypatch, clock, packet, turns=3)
+    assert all(notes[-1] == "ran" and held for _, notes, held in turns)
 
 
 @pytest.mark.parametrize("at", ["sunset", "09:30"])
@@ -235,12 +244,12 @@ def test_a_rest_of_its_own_holds_every_kind_of_tide(hearth, packet, monkeypatch,
     assert local(turns[2][0]).date() == date(2026, 10, 17)
 
 
-def test_a_pause_holds_the_day_a_change_takes_effect_too(hearth, packet, monkeypatch, clock):
+def test_a_stop_holds_the_day_a_change_takes_effect_too(hearth, packet, monkeypatch, clock):
     changed(packet, "09:30", on="2026-10-15", until_then="dawn")
-    hearth.begin_pause("founder")
+    hearth.begin_stop("A fault.")
     (when, notes, held), = live(hearth, monkeypatch, clock, packet)
     assert local(when).strftime("%m-%d %H:%M") == "10-16 09:30"
-    assert notes == ["paused by founder"] and not held
+    assert notes == ["stopped by the keeper"] and not held
 
 
 # ---- the clocks go back: 1 November 2026 ---------------------------------

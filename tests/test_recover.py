@@ -220,9 +220,10 @@ def test_a_stale_session_s_form_is_refused_before_it_reaches_a_page(people, hear
     sign_in(left_open, KEEPER, KEEPER_PASSWORD)
     old_token = token(left_open)
     recover(hearth.app.test_client(), KEEPER, people.phrases[KEEPER])
-    answer = left_open.post("/pause", data={"confirm": "yes", "csrf_token": old_token})
+    answer = left_open.post("/stop-tide", data={"confirm": "yes", "reason": "a reason",
+                                                "csrf_token": old_token})
     assert answer.status_code == 400 and CSRF_REFUSAL in page(answer)
-    assert not (packet / "pause.json").exists()
+    assert not (packet / "tide-stop.json").exists()
 
 
 def test_the_recovering_session_keeps_the_gate(people, visitor):

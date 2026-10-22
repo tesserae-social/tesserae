@@ -137,8 +137,9 @@ def test_signing_in_without_a_token_is_refused(hearth, visitor):
 
 
 def test_the_token_may_come_as_a_header(founder, hearth):
-    answer = founder.post("/pause", headers={"X-CSRF-Token": token(founder)})
-    assert answer.status_code == 200 and "Pause the tide?" in page(answer)
+    answer = founder.post("/stop-tide", data={"reason": "a reason"},
+                          headers={"X-CSRF-Token": token(founder)})
+    assert answer.status_code == 200 and "Stop the tide?" in page(answer)
 
 
 def test_every_form_on_the_founders_pages_carries_the_token(founder, hearth, commons):
@@ -169,16 +170,18 @@ def test_a_wrong_token_is_refused(founder, packet):
 
 
 def test_an_empty_token_is_refused(founder):
-    assert refused(founder.post("/pause", data={"confirm": "yes", "csrf_token": ""}))
+    assert refused(founder.post("/stop-tide", data={"confirm": "yes", "reason": "a reason",
+                                                   "csrf_token": ""}))
 
 
 def test_a_token_from_another_session_is_refused(hearth, founder, packet):
     other = hearth.app.test_client()
     theirs = token(other)
     assert theirs != token(founder)
-    answer = founder.post("/pause", data={"confirm": "yes", "csrf_token": theirs})
+    answer = founder.post("/stop-tide", data={"confirm": "yes", "reason": "a reason",
+                                              "csrf_token": theirs})
     assert refused(answer)
-    assert not (packet / "pause.json").exists()
+    assert not (packet / "tide-stop.json").exists()
 
 
 def test_a_token_with_no_session_behind_it_is_refused(hearth, founder):
@@ -188,21 +191,22 @@ def test_a_token_with_no_session_behind_it_is_refused(hearth, founder):
 
 
 def test_a_foreign_origin_is_refused_even_with_the_token(founder, packet):
-    answer = post(founder, "/pause", data={"confirm": "yes"},
+    answer = post(founder, "/stop-tide", data={"confirm": "yes", "reason": "a reason"},
                   headers={"Origin": "https://somewhere-else.example"})
     assert refused(answer)
-    assert not (packet / "pause.json").exists()
+    assert not (packet / "tide-stop.json").exists()
 
 
 def test_an_origin_of_null_is_refused(founder):
-    assert refused(post(founder, "/pause", data={"confirm": "yes"}, headers={"Origin": "null"}))
+    assert refused(post(founder, "/stop-tide", data={"confirm": "yes", "reason": "a reason"},
+                        headers={"Origin": "null"}))
 
 
 def test_the_hearths_own_origin_is_taken(founder, packet):
-    answer = post(founder, "/pause", data={"confirm": "yes"},
+    answer = post(founder, "/stop-tide", data={"confirm": "yes", "reason": "a reason"},
                   headers={"Origin": "http://localhost"})
     assert answer.status_code == 302
-    assert (packet / "pause.json").exists()
+    assert (packet / "tide-stop.json").exists()
 
 
 def test_a_foreign_origin_is_refused_at_the_bench_too(visitor, hearth, commons, monkeypatch):
@@ -229,7 +233,8 @@ def test_the_token_rotates_on_a_keepers_sign_in(hearth, visitor):
     before = token(visitor)
     post(visitor, "/login", data=signing_in)
     assert token(visitor) != before
-    assert refused(visitor.post("/pause", data={"confirm": "yes", "csrf_token": before}))
+    assert refused(visitor.post("/stop-tide", data={"confirm": "yes", "reason": "a reason",
+                                                    "csrf_token": before}))
 
 
 def test_signing_out_forgets_the_token(founder):

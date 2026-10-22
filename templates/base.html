@@ -116,6 +116,9 @@
   /* one rhythm between everything at the top level, as the atrium keeps */
   section { margin-top: 64px; }
 
+  /* the keeper's emergency stop, set apart from everything beside it */
+  section.emergency { border-top: 2px solid var(--rule); padding-top: 24px; }
+
   hr {
     margin: 22px 0;
     border: 0;
@@ -262,7 +265,7 @@
     resize: vertical;
   }
 
-  input[type="text"], input[type="password"] {
+  input[type="text"], input[type="password"], input[type="date"] {
     display: block;
     width: 100%;
     max-width: 280px;

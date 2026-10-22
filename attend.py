@@ -44,7 +44,13 @@ Files it may act on (all inside packets/first/, which is private):
                           letters of intention and of its promise, signed; see threshold.py
   offerings/              something out of the correspondence offered to the commons, waiting
                           for the other party's signature; see offering.py
-  pause.json              a standing pause, set by either party, that stops the tide
+  pause.json              a standing rest of its own, set at a waking, that stops the tide
+  founder-rest.json       the founder's rest from the correspondence, which stops nothing of
+                          its wakings; it is told of it while it stands. Each rest once it is
+                          over is kept in founder-rest/
+  tide-stop.json          the keeper's emergency stop of the tide, with its reason; while it
+                          stands the tide does not wake it. Each stop once it is lifted is kept
+                          in tide-stop/, and it is told of one, once, at its next waking
   rhythm.json             when it is woken each day: dawn, sunset, or a time of day, by its
                           own choice (prior versions kept in rhythm/history/); see waking.py
   wake-again.json         one extra waking it has asked for, later the same day, waiting for
@@ -232,9 +238,9 @@ BOND_WAIT_DAYS = 30
 # whichever hand finished it.
 SEALED = "a bond was sealed between the founder and the first one"
 
-# A standing pause. Either party may set one; while one stands the tide does
-# not come. The first one sets its own at a waking, with the block below, and
-# names the single condition that will end it.
+# A standing pause: the first one's own rest. While one stands the tide does
+# not come. It sets one at a waking, with the block below, and names the single
+# condition that will end it.
 PAUSE = PACKET / "pause.json"
 UNTIL_LETTER = "a letter arrives"
 PAUSE_ACT = "set a pause"
@@ -648,8 +654,9 @@ READ_PROPOSAL = {
 # keep, through the same hold_attendance as every other waking. At most one may
 # be asked for in a local day, never from an extra waking, and never for a time
 # already past; a block that is not kept is told at the next waking, once. A
-# pause of either kind comes first: the tide lets an extra waking go while one
-# stands, and the next waking is told so, once. What the tide has done with each
+# pause of its own comes first, and so does the keeper's stop: the tide lets an
+# extra waking go while either stands, and the next waking is told so, once. The
+# founder's rest lets it come. What the tide has done with each
 # asking is kept in wake-again/, never erased. One exchange goes out a day: at
 # an extra waking, after anything - a letter, or a picture alone - has gone to
 # the founder that day, a <<LETTER>> is kept in its study instead, as a draft
@@ -685,6 +692,8 @@ WAKE_AGAIN_FROM_EXTRA = ("Your <<WAKE_AGAIN>> at your last waking was not kept: 
 WAKE_AGAIN_LET_GO = {
     "paused": ("The extra waking you asked for, at {time} on {day}, did not come, because a "
                "pause stood then; a pause always comes first."),
+    "stopped": ("The extra waking you asked for, at {time} on {day}, did not come, because the "
+                "keeper had stopped the tide then."),
     "lapsed": ("The extra waking you asked for, at {time} on {day}, did not come, because the "
                "tide was not running then."),
 }
@@ -844,11 +853,20 @@ REFLECTION_PRIVATE = (
 WOKEN_BY_TIDE = "This waking came by your own rhythm."
 WOKEN_BY_FOUNDER = "The founder opened this attendance."
 
-# A pause stops the tide but not the founder's hand, so a waking inside one of
-# his pauses is said to be what it is. A rest of the first one's own stops both,
-# and the waking that follows it says how long it lasted and what ended it.
-FOUNDER_PAUSED = ("The founder has paused the tide since {since}; this attendance was opened "
-                  "by hand.")
+# The founder's rest from the correspondence stops nothing of its wakings; while
+# it stands, each waking says so, with the day it began and the day it ends on,
+# if he named one. The hearth writes it (see hearth.founder_rest).
+FOUNDER_REST = PACKET / "founder-rest.json"
+FOUNDER_RESTING = ("The founder is resting from the correspondence, since {since}{until}. Your "
+                   "wakings go on as you choose, and letters you write will wait for him.")
+FOUNDER_RESTING_UNTIL = ", until {day}"
+# The keeper's stop holds the tide outright, in an emergency, with a reason; the
+# first waking after it is lifted says, once, when it stood and why.
+TIDE_STOP_KEPT = PACKET / "tide-stop"
+TIDE_STOPPED = ("The keeper stopped the tide from {since} to {until}, because: {reason}. You were "
+                "not woken while it stood.")
+# A rest of the first one's own stops the tide, and the waking that follows it
+# says how long it lasted and what ended it.
 REST_ENDED = "You rested from {since} until now; the rest ended because {why}."
 
 # What the record says was carried out at the last waking, said beside its
@@ -2404,6 +2422,41 @@ def wake_again_let_go(since):
     return said
 
 
+def founder_rest_lines():
+    """The one line the reading says while the founder rests, or none.
+
+    A rest whose day has come is over, though the hearth may not yet have put it
+    away; one that cannot be read is not said.
+    """
+    try:
+        rest = load(FOUNDER_REST)
+        if not rest:
+            return []
+        until = rest.get("until")
+        if until and datetime.now(here()).date().isoformat() >= until:
+            return []
+        return [FOUNDER_RESTING.format(
+            since=on_day(rest.get("since", "")),
+            until=FOUNDER_RESTING_UNTIL.format(day=day_in_words(until)) if until else "")]
+    except (ValueError, TypeError, AttributeError):
+        return []
+
+
+def tide_stop_lines(since):
+    """What the reading says, once, of each stop of the tide lifted since the last waking."""
+    said = []
+    for path in sorted(TIDE_STOP_KEPT.glob("tide-stop-*.json")):
+        try:
+            one = load(path)
+            if one.get("lifted_at", "") > (since or ""):
+                said.append(TIDE_STOPPED.format(since=on_day(one["since"]),
+                                                until=on_day(one["lifted_at"]),
+                                                reason=one.get("reason", "").strip().rstrip(".")))
+        except (ValueError, TypeError, AttributeError, KeyError):
+            continue
+    return said
+
+
 def gone_out_on(day):
     """Whether anything - a letter, or a picture alone - went to the founder on one local day."""
     setting = rhythm_set()
@@ -2639,8 +2692,9 @@ def main():
         since = ""
         last_note = "You have not attended before. This is your first waking."
 
-    # What it is told about the tide: that the founder has stopped it, if he
-    # has, and that a rest of its own has just ended, if one just did.
+    # What it is told about the tide: that the founder is resting, if he is,
+    # that the keeper stopped it since its last waking, if that happened, and
+    # that a rest of its own has just ended, if one just did.
     happened = [last_note, questions_note(past[-1] if past else None),
                 WOKEN_BY_ASKING if again else WOKEN_BY_TIDE if tide else WOKEN_BY_FOUNDER]
     woken_daily = waking_note(rhythm_set(), datetime.now(timezone.utc))
@@ -2669,9 +2723,8 @@ def main():
     if past and past[-1].get("self_confirm_refused") in SELF_CONFIRM_REFUSED:
         happened.append(SELF_CONFIRM_REFUSED[past[-1]["self_confirm_refused"]])
     happened.append(standing(prefs))
-    paused = load(PAUSE)
-    if paused and paused.get("by") == "founder":
-        happened.append(FOUNDER_PAUSED.format(since=on_day(paused.get("since", ""))))
+    happened += founder_rest_lines()
+    happened += tide_stop_lines(since)
     if rest_ended:
         happened.append(REST_ENDED.format(since=on_day(rested_since(past)) or "an earlier waking",
                                           why=rest_ended))

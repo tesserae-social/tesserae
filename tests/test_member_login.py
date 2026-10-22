@@ -138,8 +138,11 @@ def test_a_member_signs_in_but_cannot_reach_the_founder_s_pages(people, visitor,
     for path in ("/letters", "/rooms/first", "/chronicle", "/attendances", "/export",
                  "/backups"):
         assert shut_out(visitor, path), path
-    assert post(visitor, "/pause", data={"confirm": "yes"}).status_code == 302
-    assert not (hearth.PAUSE).exists()
+    assert post(visitor, "/stop-tide",
+                data={"confirm": "yes", "reason": "a reason"}).status_code == 302
+    assert not (hearth.TIDE_STOP).exists()
+    assert post(visitor, "/rest").status_code == 302
+    assert not (hearth.FOUNDER_REST).exists()
 
 
 def test_a_member_session_claiming_to_be_keeper_is_checked_against_the_record(people,

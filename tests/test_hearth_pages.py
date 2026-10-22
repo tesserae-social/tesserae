@@ -6,8 +6,8 @@ import re
 
 import pytest
 
-from conftest import (FOUNDER_NAME, PASSWORD, REPO, lines_of, load, page, post, token, write,
-                      write_json)
+from conftest import (FOUNDER_NAME, PASSWORD, REPO, lines_of, load, page, post, read_json, token,
+                      write, write_json)
 from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS, a_private_notebook
 
 REFLECTION = "What I thought about at this waking."
@@ -237,42 +237,157 @@ def test_with_a_rhythm_the_page_names_the_next_dawn(founder, packet):
     assert "Rhythm: daily at dawn, Indianapolis · next: 16 October 2026, 0" in said
 
 
-def test_with_no_pause_the_tide_may_be_paused(founder):
+def no_events(commons):
+    """Whether the commons has said nothing of the tide, or of anyone resting."""
+    return not any(line.endswith(("the tide paused", "the tide resumed")) or "rest" in line
+                   for line in lines_of(commons / "events.md"))
+
+
+def test_with_nothing_standing_the_founder_may_rest_and_the_keeper_may_stop(founder):
     said = page(founder.get("/attendances"))
-    assert "Pause the tide</button>" in said
+    assert "Rest from the correspondence</button>" in said
+    assert "Stop the tide (emergency)</button>" in said
+    assert "Pause the tide" not in said  # there is no pause of the founder's any more
     assert "Hold an attendance" not in said  # there is no button that wakes it
     assert "Wake the first one" not in said
 
 
-def test_pausing_takes_one_plain_question_first(founder, packet, commons):
-    asked = post(founder, "/pause")
-    assert asked.status_code == 200
-    assert "Pause the tide? The rhythm will not wake the first one until you resume it." \
-        in page(asked)
-    assert not (packet / "pause.json").exists()
+def test_the_rest_and_the_stop_are_apart(founder):
+    said = page(founder.get("/attendances"))
+    rest = said.index("<h2>your rest</h2>")
+    stop = said.index('<section class="emergency">')
+    assert rest < stop
+    assert "Stop the tide" not in said[rest:stop]
+    assert "Rest from the correspondence" not in said[stop:]
 
-    done = post(founder, "/pause", data={"confirm": "yes"})
+
+def test_resting_takes_no_question_stops_nothing_and_tells_the_commons_nothing(founder, packet,
+                                                                              commons):
+    done = post(founder, "/rest")
     assert done.status_code == 302
-    assert (packet / "pause.json").exists()
+    assert read_json(packet / "founder-rest.json") == {"since": "2026-10-15T12-00-00Z", "until": None}
+    assert not (packet / "pause.json").exists()
+    assert not (packet / "tide-stop.json").exists()
+    assert no_events(commons)
+    said = page(founder.get("/attendances"))
+    assert "You are resting from the correspondence, since 15 October 2026, 08:00." in said
+    assert "Return</button>" in said
+    assert "Rest from the correspondence</button>" not in said
+    assert "Stop the tide (emergency)</button>" in said  # the stop is still there, apart
+
+
+def test_a_rest_may_name_its_day(founder, packet):
+    assert post(founder, "/rest", data={"until": "2026-10-20"}).status_code == 302
+    assert read_json(packet / "founder-rest.json")["until"] == "2026-10-20"
+    said = " ".join(page(founder.get("/attendances")).split())
+    assert ("You are resting from the correspondence, since 15 October 2026, 08:00, until "
+            "20 October 2026." in said)
+
+
+@pytest.mark.parametrize("until", ["2026-10-15", "2026-10-01", "soon", "2026-13-40"])
+def test_a_rest_s_day_must_be_a_day_still_ahead(founder, packet, until):
+    said = page(post(founder, "/rest", data={"until": until}))
+    assert "The day a rest ends on must be a day still ahead, or none at all." in said
+    assert not (packet / "founder-rest.json").exists()
+
+
+def test_returning_keeps_the_rest_and_tells_the_commons_nothing(founder, packet, commons):
+    post(founder, "/rest", data={"until": "2026-10-20"})
+    assert post(founder, "/return").status_code == 302
+    assert not (packet / "founder-rest.json").exists()
+    kept, = (packet / "founder-rest").glob("founder-rest-*.json")
+    assert read_json(kept) == {"since": "2026-10-15T12-00-00Z", "until": "2026-10-20",
+                          "ended_at": "2026-10-15T12-00-00Z", "ended": "he returned"}
+    assert no_events(commons)
+    assert "Rest from the correspondence</button>" in page(founder.get("/attendances"))
+
+
+def test_a_rest_whose_day_has_come_is_over_and_kept(founder, packet, clock):
+    post(founder, "/rest", data={"until": "2026-10-17"})
+    clock.set("2026-10-17T05-00-00Z")  # 01:00 on the 17th, Eastern
+    said = page(founder.get("/attendances"))
+    assert "You are resting" not in said
+    assert not (packet / "founder-rest.json").exists()
+    kept, = (packet / "founder-rest").glob("founder-rest-*.json")
+    assert read_json(kept)["ended"] == "the day came"
+
+
+def test_one_rest_at_a_time(founder, packet):
+    post(founder, "/rest")
+    post(founder, "/rest", data={"until": "2026-10-20"})
+    assert read_json(packet / "founder-rest.json")["until"] is None
+
+
+def test_stopping_needs_a_reason_then_one_plain_question(founder, packet, commons):
+    for reason in ("", "   ", "x" * 301):
+        refused = post(founder, "/stop-tide", data={"reason": reason, "confirm": "yes"})
+        assert refused.status_code == 200
+        assert "A stop needs a reason: a short one, of at most 300" in page(refused)
+        assert not (packet / "tide-stop.json").exists()
+
+    asked = post(founder, "/stop-tide", data={"reason": "The hearth is  misbehaving."})
+    assert asked.status_code == 200
+    said = " ".join(page(asked).split())
+    assert "Stop the tide? The first one will not be woken at all" in said
+    assert "Your reason: The hearth is misbehaving." in said
+    assert 'name="reason" value="The hearth is misbehaving."' in said
+    assert not (packet / "tide-stop.json").exists()
+    assert no_events(commons)
+
+    done = post(founder, "/stop-tide", data={"reason": "The hearth is misbehaving.",
+                                             "confirm": "yes"})
+    assert done.status_code == 302
+    assert read_json(packet / "tide-stop.json") == {"since": "2026-10-15T12-00-00Z",
+                                               "reason": "The hearth is misbehaving."}
     assert lines_of(commons / "events.md")[-1].endswith("event · the tide paused")
 
 
-def test_a_pause_of_the_founder_s_is_shown_and_may_be_lifted(founder, packet, commons):
-    a_pause(packet)
+def test_a_stop_is_shown_and_may_be_lifted(founder, packet, commons, clock):
+    post(founder, "/stop-tide", data={"reason": "A fault.", "confirm": "yes"})
     said = page(founder.get("/attendances"))
-    assert "The tide is paused, since 10 October 2026, 05:00." in said
-    assert "Resume the tide" in said
-    assert "by hand" not in said  # no attendance is offered inside the pause
+    assert "The tide is stopped, since 15 October 2026, 08:00, because: A fault." in said
+    assert "Lift the stop</button>" in said
+    assert "Stop the tide (emergency)</button>" not in said
 
-    assert post(founder, "/resume").status_code == 302
+    clock.set("2026-10-17T12-00-00Z")
+    assert post(founder, "/lift-stop").status_code == 302
+    assert not (packet / "tide-stop.json").exists()
+    kept, = (packet / "tide-stop").glob("tide-stop-*.json")
+    assert read_json(kept) == {"since": "2026-10-15T12-00-00Z", "reason": "A fault.",
+                          "lifted_at": "2026-10-17T12-00-00Z"}
+    events = lines_of(commons / "events.md")
+    assert events[-2:] == ["2026-10-15 · event · the tide paused",
+                           "2026-10-17 · event · the tide resumed"]  # no name, and no reason
+    assert not any("fault" in line.lower() for line in events)
+
+
+def test_one_stop_at_a_time(founder, packet, commons):
+    post(founder, "/stop-tide", data={"reason": "First.", "confirm": "yes"})
+    post(founder, "/stop-tide", data={"reason": "Second.", "confirm": "yes"})
+    assert read_json(packet / "tide-stop.json")["reason"] == "First."
+    assert [line for line in lines_of(commons / "events.md")
+            if "tide" in line] == ["2026-10-15 · event · the tide paused"]
+
+
+def test_a_stop_beside_a_rest_of_its_own_tells_the_commons_nothing_more(founder, packet,
+                                                                       commons):
+    a_pause(packet, by="first", until="2026-10-20")  # the commons was told when it began
+    post(founder, "/stop-tide", data={"reason": "A fault.", "confirm": "yes"})
+    post(founder, "/lift-stop")
+    assert no_events(commons)
+    assert (packet / "pause.json").exists()  # its rest is not lifted with the stop
+
+
+def test_a_founder_s_pause_left_from_before_is_his_rest_now(founder, packet, commons):
+    a_pause(packet)  # by the founder, since 10 October, as the old control left it
+    said = page(founder.get("/attendances"))
+    assert "You are resting from the correspondence, since 10 October 2026, 05:00." in said
     assert not (packet / "pause.json").exists()
+    assert read_json(packet / "founder-rest.json") == {"since": "2026-10-10T09-00-00Z", "until": None,
+                                                  "from": "pause.json"}
+    # the commons was told the tide paused when he paused it; now it has resumed
     assert lines_of(commons / "events.md")[-1].endswith("event · the tide resumed")
-
-
-def test_one_pause_at_a_time(founder, packet):
-    a_pause(packet, since="2026-10-10T09-00-00Z")
-    assert post(founder, "/pause", data={"confirm": "yes"}).status_code == 302
-    assert page(founder.get("/attendances")).count("The tide is paused, since") == 1
+    assert "The tide is stopped" not in said
 
 
 @pytest.mark.parametrize("until, said_as", [
@@ -287,12 +402,13 @@ def test_a_rest_of_the_first_one_s_own_is_shown_as_it_named_it(founder, packet, 
         in said
     assert "the tide will not wake it" in said
     assert "hold an attendance" not in said
-    assert "Pause the tide</button>" not in said
+    assert "Rest from the correspondence</button>" in said  # his rest is his own still
 
 
 def test_a_rest_of_the_first_one_s_own_is_not_the_founder_s_to_lift(founder, packet):
     a_pause(packet, by="first", until="2026-10-20")
-    assert post(founder, "/resume").status_code == 302
+    assert post(founder, "/return").status_code == 302
+    assert post(founder, "/lift-stop").status_code == 302
     assert (packet / "pause.json").exists()
 
 

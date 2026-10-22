@@ -12,9 +12,11 @@ its attendances, read the errands it has asked of him and answer one
 with a letter, propose a bond, answer an asking of its own, seal or release a bond, offer
 something out of the correspondence to the commons or consent to what the first one has
 offered, take a line
-off the visitor's bench, take a copy of the whole record away in one file, and pause the
-tide or start it again. A daemon thread keeps whatever rhythm the first one has written
-in its packet and wakes it at that hour, unless a pause stands, in which case it waits.
+off the visitor's bench, take a copy of the whole record away in one file, rest from the
+correspondence and return to it, and, in an emergency, stop the tide and lift the stop. A
+daemon thread keeps whatever rhythm the first one has written in its packet and wakes it at
+that hour, unless the first one is resting or the tide has been stopped, in which case it
+waits; the founder's own rest stops nothing of it.
 A second one copies the record off this machine once a day, encrypted, into a bucket the
 founder keeps; he may take one by hand, and take one down again, from these pages.
 
@@ -131,6 +133,12 @@ SELF_DOC = PACKET / "self.md"
 PREFERENCES = PACKET / "preferences.json"
 RHYTHM = PACKET / "rhythm.json"
 PAUSE = PACKET / "pause.json"
+# the founder's rest from the correspondence, and the keeper's stop of the tide,
+# each with every one that is over kept beside it
+FOUNDER_REST = PACKET / "founder-rest.json"
+FOUNDER_REST_KEPT = PACKET / "founder-rest"
+TIDE_STOP = PACKET / "tide-stop.json"
+TIDE_STOP_KEPT = PACKET / "tide-stop"
 # an extra waking the first one has asked for, and each asking once the tide is
 # done with it; kept only while attend.EXTRA_WAKINGS is on
 WAKE_AGAIN = PACKET / "wake-again.json"
@@ -757,18 +765,34 @@ def hold_attendance(tide=False, ended=None, again=False):
         WAKING.release()
 
 
-# ---- the standing pause --------------------------------------------------
+# ---- the first one's rest, the founder's rest, and the keeper's stop -------
 
-# Either of them may stop the tide, and each stops a different amount of it.
-# The founder pauses it from the attendances page and lifts it there again; his
-# pause holds the rhythm. The first one sets its own rest at a waking and names
-# the one condition that will end it: a day, or the arrival of a letter. That
-# rest holds the rhythm too, and he cannot lift it; nothing wakes it until the
-# condition is met.
+# Three things, each its own, and each stopping a different amount.
 #
-# The pause lives in the first one's packet, is read afresh every time it is
-# looked at, and says in the commons only that the tide paused - no name on it,
-# and no reason.
+# The first one rests at a waking, with its <<PAUSE>> block, and names the one
+# condition that will end it: a day, or the arrival of a letter. Its rest holds
+# the tide, and he cannot lift it; nothing wakes it until the condition is met.
+# It lives in pause.json.
+#
+# The founder rests from the correspondence, from the attendances page, and
+# returns there; he may name a day, and when that day comes his rest is over.
+# His rest stops nothing of the first one's: it goes on waking by its own
+# rhythm, and at its own asking, and what it writes waits for him. It is his
+# silence, given without notice, as the charter allows, so the commons is told
+# nothing of it; the first one is told only that he rests, since when, and until
+# when if he named a day. It lives in founder-rest.json, and each rest once it
+# is over in founder-rest/.
+#
+# The keeper's stop is for an emergency, and stops the tide outright: while it
+# stands nothing wakes the first one, by its rhythm or at its own asking. It
+# takes a short reason, which the first one is told, once, at its first waking
+# after the stop is lifted. It lives in tide-stop.json, and each stop once it is
+# lifted in tide-stop/.
+#
+# The commons says only that the tide paused and that it resumed - no name on
+# either, and no reason - for the first one's rest and for the keeper's stop
+# alike. While one of the two stands, the other neither pauses the tide again
+# nor resumes it, so the commons says each once.
 
 UNTIL_LETTER = "a letter arrives"
 BY_DATE = "the date came"
@@ -777,9 +801,18 @@ BY_LETTER = "a letter arrived"
 PAUSED = "the tide paused"
 RESUMED = "the tide resumed"
 
+RETURNED = "he returned"  # how a rest of the founder's ended, as its history keeps it
+REST_DAY_CAME = "the day came"
+STOP_REASON_LONGEST = 300  # characters: a short reason, and no more
+
 
 def pause():
-    """The pause that stands, if one does. Nothing written means the tide runs."""
+    """The first one's rest, if one stands. Nothing written means the tide runs.
+
+    A pause the founder set before his rest was his own is taken, the first
+    time it is looked at, as the rest it now is (see rest_from_old_pause).
+    """
+    rest_from_old_pause()
     return load(PAUSE)
 
 
@@ -788,19 +821,34 @@ def paused_by(standing):
     return standing.get("by") if standing else None
 
 
-def begin_pause(by, until=None, words=""):
-    """Write the pause, and say in the commons that the tide paused."""
-    PAUSE.parent.mkdir(parents=True, exist_ok=True)
-    PAUSE.write_text(
-        json.dumps({"by": by, "since": utc_stamp(), "until": until, "words": words}, indent=2)
-        + "\n", encoding="utf-8")
-    note_event("event", PAUSED)
+def tide_paused():
+    """Whether the commons was told the tide paused, and has not yet been told it resumed."""
+    return bool(load(PAUSE) or load(TIDE_STOP))
 
 
 def end_pause():
-    """Take the pause away, and say in the commons that the tide resumed."""
+    """Take the first one's rest away, and say the tide resumed, unless a stop still holds it."""
     PAUSE.unlink(missing_ok=True)
-    note_event("event", RESUMED)
+    if not tide_paused():
+        note_event("event", RESUMED)
+
+
+def rest_from_old_pause():
+    """A pause of the founder's in pause.json, made the rest it now is.
+
+    Before his rest was his own, his pause stood in pause.json and held the
+    tide, and the commons was told the tide paused. Now it holds nothing: it is
+    moved to founder-rest.json with the moment it began, and the commons is told
+    the tide resumed, which it now has. A pause of the first one's is not
+    touched.
+    """
+    standing = load(PAUSE)
+    if paused_by(standing) != "founder":
+        return
+    if not load(FOUNDER_REST):
+        write_json(FOUNDER_REST, {"since": standing.get("since") or utc_stamp(), "until": None,
+                                  "from": "pause.json"})
+    end_pause()
 
 
 def rest_ended(standing, zone):
@@ -817,6 +865,72 @@ def rest_ended(standing, zone):
     return BY_DATE if datetime.now(zone).date() >= day else None
 
 
+def founder_rest():
+    """The founder's rest, if one stands. One whose day has come is over, and is kept."""
+    rest_from_old_pause()
+    standing = load(FOUNDER_REST)
+    if not standing:
+        return None
+    until = standing.get("until")
+    if until and datetime.now(EASTERN).date().isoformat() >= until:
+        end_rest(REST_DAY_CAME)
+        return None
+    return standing
+
+
+def begin_rest(until=None):
+    """Write the founder's rest. Nothing is said in the commons, and the tide goes on."""
+    write_json(FOUNDER_REST, {"since": utc_stamp(), "until": until})
+
+
+def end_rest(how=RETURNED):
+    """Take the founder's rest away, and keep it in founder-rest/ with how it ended."""
+    standing = load(FOUNDER_REST)
+    if standing:
+        write_json(FOUNDER_REST_KEPT / ("founder-rest-%s.json" % standing.get("since")),
+                   {**standing, "ended_at": utc_stamp(), "ended": how})
+    FOUNDER_REST.unlink(missing_ok=True)
+
+
+def rest_day_asked(said):
+    """The day a rest is to last until: None where none is named, False where it cannot be one.
+
+    It must be a plain YYYY-MM-DD still ahead of today, on the hearth's clock.
+    """
+    said = (said or "").strip()
+    if not said:
+        return None
+    try:
+        day = datetime.strptime(said, "%Y-%m-%d").date()
+    except ValueError:
+        return False
+    return said if day > datetime.now(EASTERN).date() else False
+
+
+def tide_stop():
+    """The keeper's stop, if one stands."""
+    return load(TIDE_STOP)
+
+
+def begin_stop(reason):
+    """Stop the tide, and say in the commons that it paused, unless it already had."""
+    already = tide_paused()
+    write_json(TIDE_STOP, {"since": utc_stamp(), "reason": reason})
+    if not already:
+        note_event("event", PAUSED)
+
+
+def end_stop():
+    """Lift the stop, keep it in tide-stop/, and say the tide resumed, unless a rest still holds it."""
+    standing = load(TIDE_STOP)
+    if standing:
+        write_json(TIDE_STOP_KEPT / ("tide-stop-%s.json" % standing.get("since")),
+                   {**standing, "lifted_at": utc_stamp()})
+    TIDE_STOP.unlink(missing_ok=True)
+    if not tide_paused():
+        note_event("event", RESUMED)
+
+
 def said_day(day):
     """One plain YYYY-MM-DD, said in words."""
     try:
@@ -826,7 +940,7 @@ def said_day(day):
 
 
 def pause_shown():
-    """The pause that stands, as the attendances page shows it, or None if none does."""
+    """The first one's rest, as the attendances page shows it, or None if none stands."""
     standing = pause()
     if not standing:
         return None
@@ -836,6 +950,24 @@ def pause_shown():
         "since": readable_date(standing.get("since", "")),
         "until": until if until == UNTIL_LETTER else said_day(until),
     }
+
+
+def rest_shown():
+    """The founder's rest, as the attendances page shows it, or None if none stands."""
+    standing = founder_rest()
+    if not standing:
+        return None
+    return {"since": readable_date(standing.get("since", "")),
+            "until": said_day(standing["until"]) if standing.get("until") else None}
+
+
+def stop_shown():
+    """The keeper's stop, as the attendances page shows it, or None if none stands."""
+    standing = tide_stop()
+    if not standing:
+        return None
+    return {"since": readable_date(standing.get("since", "")),
+            "reason": standing.get("reason", "")}
 
 
 # ---- the tide ------------------------------------------------------------
@@ -1067,17 +1199,18 @@ def tide():
             if changed:
                 continue  # begin again from whatever is written now
 
-            # A pause is answered before anything else: the founder's holds the
-            # tide until he lifts it, and the first one's holds it until the
-            # condition it named is met, at which waking time the rest is taken
-            # away and the waking is held with the reason in its hand.
+            # A stop or a rest is answered before anything else: the keeper's
+            # stop holds the tide until it is lifted, and the first one's rest
+            # holds it until the condition it named is met, at which waking time
+            # the rest is taken away and the waking is held with the reason in
+            # its hand. The founder's own rest holds nothing, and is not asked.
             at = latest_attendance_at()
             zone = waking.zone(setting)
             today = coming.astimezone(zone).date()
             standing = pause()
-            ended = rest_ended(standing, zone)
-            if paused_by(standing) == "founder":
-                tide_note("paused by founder")
+            ended = None if tide_stop() else rest_ended(standing, zone)
+            if tide_stop():
+                tide_note("stopped by the keeper")
             elif standing and not ended:
                 tide_note("resting")
             # The day, not the hours since the last waking: an attendance held
@@ -1101,9 +1234,9 @@ def tide():
 
 # An extra waking: once more, later the same day, at the first one's own asking,
 # made at a waking (see attend.EXTRA_WAKINGS) and kept here, through the same
-# hold_attendance as every other waking. A pause of either kind comes first: an
-# extra waking that falls while one stands is let go, and its next waking is
-# told so. One whose day has gone by before the tide could keep it - the hearth
+# hold_attendance as every other waking. The keeper's stop and a rest of the
+# first one's own come first: an extra waking that falls while either stands is
+# let go, and its next waking is told so; the founder's rest lets it come. One whose day has gone by before the tide could keep it - the hearth
 # was not running - has lapsed, and is let go too. Whatever becomes of an
 # asking, it is kept in wake-again/ with what became of it, and the waking it
 # asked for is taken away before it is held, so that it cannot be kept twice.
@@ -1126,7 +1259,7 @@ def set_extra_aside(asked, **became):
 
 
 def keep_extra_waking(setting, asked, when):
-    """Wait for an extra waking, then hold it - or let it go, where a pause stands."""
+    """Wait for an extra waking, then hold it - or let it go, where a stop or its own rest stands."""
     changed = False
     while not changed:
         left = (when - datetime.now(timezone.utc)).total_seconds()
@@ -1141,6 +1274,9 @@ def keep_extra_waking(setting, asked, when):
     if waking.today(setting, when) != waking.today(setting, now):
         set_extra_aside(asked, dropped_at=utc_stamp(), why="lapsed")
         tide_note("extra waking lapsed")
+    elif tide_stop():
+        set_extra_aside(asked, dropped_at=utc_stamp(), why="stopped")
+        tide_note("extra waking let go: stopped by the keeper")
     elif pause():
         set_extra_aside(asked, dropped_at=utc_stamp(), why="paused")
         tide_note("extra waking let go: paused")
@@ -1719,7 +1855,7 @@ def chronicle_text(lines):
 # What a copy holds: the first one's packet whole - its self-document and the
 # history of it, its memory, its study, the letters both ways with the
 # photographs and pictures that came beside them, its attendances, intentions,
-# will, provenance, preferences, rhythm, pause, errands, bonds, offerings, and
+# will, provenance, preferences, rhythm, pause, rests, stops, errands, bonds, offerings, and
 # the tide's log - and the files of the commons. Everything under those two
 # trees goes in, with nothing left out, and beside them the marks witnesses
 # have left on sealed bonds, which are public already; nothing outside those
@@ -3049,6 +3185,8 @@ def attendances_page(**told):
     return render_template("attendances.html", records=attendance_records(prefs),
                            reflection_note=reflection_note(prefs),
                            rhythm_note=rhythm_note(), pause=pause_shown(),
+                           rest=rest_shown(), stop=stop_shown(),
+                           reason_longest=STOP_REASON_LONGEST,
                            backup=backup_shown(),
                            next_backup=said_moment(next_backup(datetime.now(timezone.utc))),
                            **told)
@@ -3066,25 +3204,51 @@ def attendances():
 # no address.
 
 
-# The founder stops the tide and starts it again. Stopping takes one plain
-# question first; starting again does not, since nothing is lost by it.
-@app.route("/pause", methods=["POST"])
+# The founder rests from the correspondence and returns to it. A rest stops
+# nothing of the first one's, so it takes no question first; it may name the
+# day it ends on, which must be a day still ahead.
+@app.route("/rest", methods=["POST"])
 @founder_required
-def pause_tide():
-    if pause():
-        return redirect(url_for("attendances"))  # one pause at a time, and one stands
-    if request.form.get("confirm") != "yes":
-        return attendances_page(confirming=True)
-    begin_pause("founder")
+def rest_from_correspondence():
+    if founder_rest():
+        return redirect(url_for("attendances"))  # one rest at a time, and one stands
+    until = rest_day_asked(request.form.get("until"))
+    if until is False:
+        return attendances_page(rest_refused=True)
+    begin_rest(until)
     return redirect(url_for("attendances"))
 
 
-@app.route("/resume", methods=["POST"])
+@app.route("/return", methods=["POST"])
 @founder_required
-def resume_tide():
-    if paused_by(pause()) != "founder":
-        return redirect(url_for("attendances"))  # a rest of the first one's is not his to lift
-    end_pause()
+def return_from_rest():
+    end_rest()
+    return redirect(url_for("attendances"))
+
+
+# The keeper stops the tide in an emergency, and lifts the stop again. Stopping
+# takes a short reason and one plain question first; lifting does not, since
+# nothing is lost by it. A rest of the first one's own is not his to lift, and
+# lifting the stop leaves it standing.
+@app.route("/stop-tide", methods=["POST"])
+@founder_required
+def stop_tide():
+    if tide_stop():
+        return redirect(url_for("attendances"))  # one stop at a time, and one stands
+    reason = " ".join((request.form.get("reason") or "").split())
+    if not reason or len(reason) > STOP_REASON_LONGEST:
+        return attendances_page(stop_refused=True, reason=reason)
+    if request.form.get("confirm") != "yes":
+        return attendances_page(stopping=True, reason=reason)
+    begin_stop(reason)
+    return redirect(url_for("attendances"))
+
+
+@app.route("/lift-stop", methods=["POST"])
+@founder_required
+def lift_stop():
+    if tide_stop():
+        end_stop()
     return redirect(url_for("attendances"))
 
 

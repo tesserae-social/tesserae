@@ -5,6 +5,7 @@ waits for is handed to it already past, and the second time it asks for one it
 is stopped. Nothing sleeps; the clock is pinned and moved by hand.
 """
 
+import json
 import subprocess
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -137,13 +138,63 @@ def test_a_waking_that_went_wrong_is_noted_and_the_tide_lives(hearth, packet, mo
 
 # ---- a pause that stands -------------------------------------------------
 
-def test_the_founder_s_pause_holds_the_tide(hearth, packet, monkeypatch, commons):
+def test_the_founder_s_rest_does_not_hold_the_tide(hearth, packet, monkeypatch, commons):
     set_rhythm(packet)
-    hearth.begin_pause("founder")
+    before = lines_of(commons / "events.md")
+    hearth.begin_rest(until="2026-10-20")
     notes, held = run_tide_once(hearth, monkeypatch, dawn(hearth, packet, date(2026, 10, 15)))
-    assert notes == ["paused by founder"]
+    assert notes == ["ran"]
+    assert held == [{"tide": True, "ended": None}]
+    assert (packet / "founder-rest.json").exists()
+    assert lines_of(commons / "events.md") == before  # his rest is his silence, not the commons'
+
+
+def test_the_keeper_s_stop_holds_the_tide(hearth, packet, monkeypatch, commons):
+    set_rhythm(packet)
+    hearth.begin_stop("The hearth is misbehaving.")
+    notes, held = run_tide_once(hearth, monkeypatch, dawn(hearth, packet, date(2026, 10, 15)))
+    assert notes == ["stopped by the keeper"]
     assert held == []
     assert lines_of(commons / "events.md")[-1].endswith("event · " + hearth.PAUSED)
+
+    hearth.end_stop()
+    notes, held = run_tide_once(hearth, monkeypatch, dawn(hearth, packet, date(2026, 10, 15)))
+    assert notes == ["ran"]
+    assert lines_of(commons / "events.md")[-1].endswith("event · " + hearth.RESUMED)
+
+
+def test_a_stop_holds_even_a_rest_whose_day_has_come(hearth, packet, monkeypatch, commons):
+    """The rest is not ended under the stop: it ends at the first waking time after it."""
+    set_rhythm(packet)
+    write_json(packet / "pause.json", {"by": "first", "since": "2026-10-10T09-00-00Z",
+                                       "until": "2026-10-14", "words": ""})
+    before = lines_of(commons / "events.md")
+    hearth.begin_stop("A fault.")
+    notes, held = run_tide_once(hearth, monkeypatch, dawn(hearth, packet, date(2026, 10, 15)))
+    assert notes == ["stopped by the keeper"] and held == []
+    assert (packet / "pause.json").exists()
+    assert lines_of(commons / "events.md") == before  # the tide was paused already, by its rest
+
+    hearth.end_stop()
+    assert lines_of(commons / "events.md") == before  # and is still, until its rest ends
+    notes, held = run_tide_once(hearth, monkeypatch, dawn(hearth, packet, date(2026, 10, 15)))
+    assert notes == ["rest ended: %s" % hearth.BY_DATE, "ran"]
+    assert lines_of(commons / "events.md") == before + ["2026-10-15 · event · " + hearth.RESUMED]
+
+
+def test_a_founder_s_pause_from_before_holds_the_tide_no_longer(hearth, packet, monkeypatch,
+                                                               commons):
+    set_rhythm(packet)
+    write_json(packet / "pause.json", {"by": "founder", "since": "2026-10-10T09-00-00Z",
+                                       "until": None, "words": ""})
+    before = lines_of(commons / "events.md")
+    notes, held = run_tide_once(hearth, monkeypatch, dawn(hearth, packet, date(2026, 10, 15)))
+    assert notes == ["ran"]
+    assert held == [{"tide": True, "ended": None}]
+    assert not (packet / "pause.json").exists()
+    assert json.loads((packet / "founder-rest.json").read_text(encoding="utf-8")) == {
+        "since": "2026-10-10T09-00-00Z", "until": None, "from": "pause.json"}
+    assert lines_of(commons / "events.md") == before + ["2026-10-15 · event · " + hearth.RESUMED]
 
 
 def test_a_rest_of_its_own_before_the_day_it_named(hearth, packet, monkeypatch):

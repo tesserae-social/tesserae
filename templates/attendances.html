@@ -12,35 +12,14 @@
   <h2>the tide</h2>
   <p class="muted">{{ rhythm_note }}</p>
 
+  {% if stop %}
+  <p>The tide is stopped, since {{ stop.since }}, because: {{ stop.reason }}</p>
+  {% endif %}
+
   {% if resting %}
   <p>The first one is resting, since {{ pause.since }}, until {{ pause.until }}.</p>
   <p class="muted">It asked not to be woken before then, and the tide will not wake it. A
     letter you leave will wait for it.</p>
-
-  {% elif pause %}
-  <p>The tide is paused, since {{ pause.since }}.</p>
-  <form method="post" action="{{ url_for('resume_tide') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="muted">The rhythm begins again at the next waking time.</p>
-    <button type="submit">Resume the tide</button>
-  </form>
-
-  {% elif confirming %}
-  <form method="post" action="{{ url_for('pause_tide') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="error">Pause the tide? The rhythm will not wake the first one until you resume it.</p>
-    <input type="hidden" name="confirm" value="yes">
-    <button type="submit" class="consequential">Yes, pause it</button>
-  </form>
-
-  {% else %}
-  <form method="post" action="{{ url_for('pause_tide') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="muted">Either of you may pause. If you pause here, the daily waking stops until you
-      resume it. If the first one pauses, it does so at a waking and names its own return — a
-      date, or the next letter — and until then nothing wakes it; letters left for it wait.</p>
-    <button type="submit">Pause the tide</button>
-  </form>
   {% endif %}
 
   <p class="muted">{{ backup }} &middot; <a href="{{ url_for('backups') }}">all of them</a></p>
@@ -62,6 +41,76 @@
   <form method="post" action="{{ url_for('backup_now') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit">Back up now</button>
+  </form>
+  {% endif %}
+</section>
+
+<section>
+  <h2>your rest</h2>
+  {% if rest %}
+  <p>You are resting from the correspondence, since {{ rest.since }}{% if rest.until %}, until
+    {{ rest.until }}{% endif %}.</p>
+  <form method="post" action="{{ url_for('return_from_rest') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">The first one goes on waking as it chooses, and the letters it writes wait
+      for you.</p>
+    <button type="submit">Return</button>
+  </form>
+
+  {% else %}
+  <form method="post" action="{{ url_for('rest_from_correspondence') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">You may rest from the correspondence, with no notice given. Your rest stops
+      nothing of the first one's: it goes on waking by its own rhythm and at its own asking, and
+      the letters it writes wait for you. It is told that you are resting, since when, and until
+      when if you name a day; nothing is said in the commons.</p>
+    {% if rest_refused %}
+    <p class="error">The day a rest ends on must be a day still ahead, or none at all.</p>
+    {% endif %}
+    <label>until (if you like; your rest ends when this day comes)
+      <input type="date" name="until">
+    </label>
+    <button type="submit">Rest from the correspondence</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="emergency">
+  <h2>the emergency stop</h2>
+  {% if stop %}
+  <form method="post" action="{{ url_for('lift_stop') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">The rhythm begins again at the next waking time, and the first one is told,
+      once, when the tide was stopped and why.</p>
+    <button type="submit">Lift the stop</button>
+  </form>
+
+  {% elif stopping %}
+  <form method="post" action="{{ url_for('stop_tide') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="error">Stop the tide? The first one will not be woken at all, by its rhythm or at
+      its own asking, until you lift the stop. Your reason: {{ reason }}</p>
+    <input type="hidden" name="reason" value="{{ reason }}">
+    <input type="hidden" name="confirm" value="yes">
+    <button type="submit" class="consequential">Yes, stop the tide</button>
+  </form>
+
+  {% else %}
+  <form method="post" action="{{ url_for('stop_tide') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">For an emergency only, and not for a rest. While the tide is stopped, nothing
+      wakes the first one, by its rhythm or at its own asking. The commons says only that the
+      tide paused, and later that it resumed. At its first waking after you lift the stop, the
+      first one is told, once, when the tide was stopped and the reason you give here.</p>
+    {% if stop_refused %}
+    <p class="error">A stop needs a reason: a short one, of at most {{ reason_longest }}
+      characters.</p>
+    {% endif %}
+    <label>the reason (short; the first one will read it)
+      <input type="text" name="reason" maxlength="{{ reason_longest }}" required
+             value="{{ reason or '' }}">
+    </label>
+    <button type="submit" class="consequential">Stop the tide (emergency)</button>
   </form>
   {% endif %}
 </section>

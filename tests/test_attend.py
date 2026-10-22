@@ -174,6 +174,72 @@ def test_a_rest_that_has_ended_is_said_to_have_ended(wake, packet):
             in wake("", "--rest-ended", "a letter arrived").opening)
 
 
+# ---- the founder's rest, and the keeper's stop, as they are read ---------
+
+FOUNDER_RESTING = ("The founder is resting from the correspondence, since 12 October 2026. Your "
+                   "wakings go on as you choose, and letters you write will wait for him.")
+
+
+def test_the_founder_s_rest_is_said_while_it_stands(wake, packet, commons):
+    write_json(packet / "founder-rest.json", {"since": "2026-10-12T14-00-00Z", "until": None})
+    turn = wake(block("LETTER", "Dear founder, I am here."))
+    assert turn.opening.count(FOUNDER_RESTING) == 1
+    assert FOUNDER_RESTING in wake().opening  # every waking, while it stands
+    # and its letter is saved as usual, to wait for him
+    assert len(list((packet / "letters" / "outgoing").glob("to-founder-*.md"))) == 1
+    assert not any("rest" in line for line in lines_of(commons / "events.md"))
+
+
+def test_the_founder_s_rest_names_its_day_if_he_named_one(wake, packet):
+    write_json(packet / "founder-rest.json",
+               {"since": "2026-10-12T14-00-00Z", "until": "2026-10-20"})
+    assert ("The founder is resting from the correspondence, since 12 October 2026, until "
+            "20 October 2026. Your wakings go on as you choose, and letters you write will wait "
+            "for him." in wake().opening)
+
+
+@pytest.mark.parametrize("record", [
+    None,                                                         # no rest
+    {"since": "2026-10-12T14-00-00Z", "until": "2026-10-15"},     # its day has come
+])
+def test_no_rest_of_the_founder_s_is_no_line(wake, packet, record):
+    if record:
+        write_json(packet / "founder-rest.json", record)
+    assert "The founder is resting" not in wake().opening
+
+
+def test_a_founder_s_pause_in_pause_json_is_no_line_of_a_paused_tide(wake, attend, packet):
+    """attend.py says nothing of the tide being paused by the founder: it no longer can be."""
+    write_json(packet / "pause.json", {"by": "founder", "since": "2026-10-12T14-00-00Z",
+                                       "until": None, "words": ""})
+    opening = wake().opening
+    assert "paused the tide" not in opening and "by hand" not in opening
+    assert not hasattr(attend, "FOUNDER_PAUSED")
+
+
+def test_a_lifted_stop_is_told_once_with_its_reason(wake, packet, clock):
+    an_earlier = "2026-10-11T12-00-00Z"
+    write_json(packet / "attendances" / ("attendance-%s.json" % an_earlier),
+               {"name": "first", "at": an_earlier, "heartbeat": "attended", "acted": []})
+    write_json(packet / "tide-stop" / "tide-stop-2026-10-12T14-00-00Z.json",
+               {"since": "2026-10-12T14-00-00Z", "reason": "The hearth was misbehaving.",
+                "lifted_at": "2026-10-14T14-00-00Z"})
+    told = ("The keeper stopped the tide from 12 October 2026 to 14 October 2026, because: The "
+            "hearth was misbehaving. You were not woken while it stood.")
+    assert wake().opening.count(told) == 1
+    assert told not in wake().opening  # once, and not again
+
+
+def test_a_stop_lifted_before_the_last_waking_is_not_told_again(wake, packet):
+    write_json(packet / "tide-stop" / "tide-stop-2026-10-01T14-00-00Z.json",
+               {"since": "2026-10-01T14-00-00Z", "reason": "A fault.",
+                "lifted_at": "2026-10-02T14-00-00Z"})
+    write_json(packet / "attendances" / "attendance-2026-10-03T12-00-00Z.json",
+               {"name": "first", "at": "2026-10-03T12-00-00Z", "heartbeat": "attended",
+                "acted": []})
+    assert "The keeper stopped the tide" not in wake().opening
+
+
 # ---- the bond, as it is read ---------------------------------------------
 
 def test_no_bond_is_mentioned_where_none_was_asked_for(wake):

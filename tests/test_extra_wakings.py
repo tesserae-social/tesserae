@@ -358,6 +358,17 @@ def test_a_pause_that_let_it_go_is_told_once(on, wake, packet):
     assert told not in wake().shown
 
 
+def test_a_stop_that_let_it_go_is_told_once(on, wake, packet):
+    write_json(packet / "wake-again" / "wake-again-2026-10-15T11-00-00Z.json",
+               {"at": "2026-10-15T11-30-00Z", "asked_at": "2026-10-15T11-00-00Z",
+                "dropped_at": "2026-10-15T11-30-00Z", "why": "stopped"})
+    an_attendance(packet, "2026-10-15T11-00-00Z")
+    told = ("The extra waking you asked for, at 07:30 on 15 October 2026, did not come, because the "
+            "keeper had stopped the tide then.")
+    assert wake().shown.count(told) == 1
+    assert told not in wake().shown
+
+
 def test_one_the_tide_could_not_keep_is_told_once(on, wake, packet):
     write_json(packet / "wake-again" / "wake-again-2026-10-14T20-00-00Z.json",
                {"at": "2026-10-14T23-30-00Z", "asked_at": "2026-10-14T20-00-00Z",
@@ -870,11 +881,9 @@ def test_it_is_held_through_hold_attendance_with_its_lock_and_timeout(hearth, mo
         assert hearth.hold_attendance(again=True)[2] == 409
 
 
-@pytest.mark.parametrize("by, until", [("founder", None), ("first", "a letter arrives"),
-                                       ("first", "2026-10-20")])
-def test_a_pause_of_either_kind_lets_it_go(hearth_on, packet, monkeypatch, clock, evening, by,
-                                           until):
-    write_json(packet / "pause.json", {"by": by, "since": "2026-10-15T14-00-00Z",
+@pytest.mark.parametrize("until", ["a letter arrives", "2026-10-20"])
+def test_a_rest_of_its_own_lets_it_go(hearth_on, packet, monkeypatch, clock, evening, until):
+    write_json(packet / "pause.json", {"by": "first", "since": "2026-10-15T14-00-00Z",
                                        "until": until, "words": ""})
     notes, held = run_tide(hearth_on, monkeypatch, clock, packet, turns=1)
     assert held == []
@@ -884,11 +893,34 @@ def test_a_pause_of_either_kind_lets_it_go(hearth_on, packet, monkeypatch, clock
                                 "dropped_at": AT_19_30, "why": "paused"}]
 
 
-def test_a_pause_lifted_before_the_time_lets_it_come(hearth_on, packet, monkeypatch, clock,
-                                                     evening):
-    write_json(packet / "pause.json", {"by": "founder", "since": "2026-10-15T14-00-00Z",
-                                       "until": None, "words": ""})
-    lifted = lambda: (packet / "pause.json").unlink(missing_ok=True)
+def test_the_keeper_s_stop_lets_it_go(hearth_on, packet, monkeypatch, clock, evening):
+    write_json(packet / "tide-stop.json", {"since": "2026-10-15T14-00-00Z", "reason": "A fault."})
+    notes, held = run_tide(hearth_on, monkeypatch, clock, packet, turns=1)
+    assert held == []
+    assert notes == [(AT_19_30, "extra waking let go: stopped by the keeper")]
+    assert waiting_in(packet) is None
+    assert kept_in(packet) == [{"at": AT_19_30, "asked_at": ASKED_AT,
+                                "dropped_at": AT_19_30, "why": "stopped"}]
+
+
+@pytest.mark.parametrize("rest", [
+    {"founder-rest.json": {"since": "2026-10-15T14-00-00Z", "until": None}},
+    # a pause of the founder's from before his rest was his own is his rest now
+    {"pause.json": {"by": "founder", "since": "2026-10-15T14-00-00Z", "until": None,
+                    "words": ""}},
+])
+def test_the_founder_s_rest_lets_it_come(hearth_on, packet, monkeypatch, clock, evening, rest):
+    for name, record in rest.items():
+        write_json(packet / name, record)
+    notes, held = run_tide(hearth_on, monkeypatch, clock, packet, turns=1)
+    assert held == [(AT_19_30, {"again": True})]
+    assert notes == [(AT_19_30, "ran, at its own asking")]
+
+
+def test_a_stop_lifted_before_the_time_lets_it_come(hearth_on, packet, monkeypatch, clock,
+                                                    evening):
+    write_json(packet / "tide-stop.json", {"since": "2026-10-15T14-00-00Z", "reason": "A fault."})
+    lifted = lambda: (packet / "tide-stop.json").unlink(missing_ok=True)
     notes, held = run_tide(hearth_on, monkeypatch, clock, packet, during_sleep=lifted)
     assert held == [(AT_19_30, {"again": True})]
 

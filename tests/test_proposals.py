@@ -24,6 +24,7 @@ import pytest
 
 from conftest import (FOUNDER_NAME, REPO, SWITCHED_ON_21_OCTOBER, Turn, block, blocks, page, post,
                       read_json, shut_away, write, write_json)
+from conftest import notebook_unexplained
 from test_longer_waking import Exchange, look
 
 # The last attend.py before there were any proposals, kept in the history.
@@ -124,6 +125,7 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
     """Two wakings each, in one world: the committed attend.py, and this one shut away."""
     # and its extra wakings, which came after the committed one, shut away with it
     shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
+    notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
     try:
         source = subprocess.run(["git", "show", BEFORE_PROPOSALS + ":attend.py"], cwd=REPO,
                                 capture_output=True, check=True).stdout

@@ -14,6 +14,7 @@ from nacl.pwhash import argon2id
 
 import vault
 from conftest import read_json, write
+from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS
 from vault import VaultError
 
 PASSWORD = "correct horse battery"
@@ -359,6 +360,7 @@ PROBES = [
     "/offerings/member.json",
     "/backups/..%2Fmembers%2Fada%2Fmember.json",
     "/bonds/..%2F..%2Fmembers%2Fada%2Fmember.json",
+    *NOTEBOOK_PATHS,  # and nothing of the first one's private notebook either
 ]
 
 
@@ -379,5 +381,6 @@ def test_no_hearth_route_serves_a_member(request, hearth, members, folder, who):
         answer = client.get(path)
         body = answer.get_data(as_text=True)
         assert answer.status_code != 200 or not any(t in body for t in telltales), path
+        assert not [words for words in NOTEBOOK_WORDS if words in body], path
         for telltale in telltales:
             assert telltale not in body, path

@@ -23,6 +23,7 @@ import pytest
 from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
                       page, read_json, shut_away, solstices_as_before, stamps_as_before, write, write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now
+from conftest import NOTEBOOK_PATHS, a_private_notebook, notebook_unexplained
 
 EARLIER = "=== YOUR EARLIER VERSIONS ==="
 ASKED = "=== AN EARLIER VERSION, AS YOU ASKED ==="
@@ -139,6 +140,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     """
     shut_away(attend, monkeypatch, "LOOKING_BACK", "CHOICES", "LONGER_WAKING",
               *SWITCHED_ON_21_OCTOBER)
+    notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     stamps_as_before(attend, monkeypatch)  # and said each moment as its raw stamp
     solstices_as_before(monkeypatch)  # and read the whole record back at the solstices
@@ -411,9 +413,11 @@ def test_nothing_of_it_is_on_the_hearth_or_in_the_commons(
     "/self/" + SELF_1,
     "/memory/history/" + NOTES_1 + ".md",
     "/packets/first/memory/history/" + NOTES_1 + ".md",
+    *NOTEBOOK_PATHS,
 ])
 def test_an_earlier_version_is_at_no_address(looking_back, hearth, founder, visitor, packet,
                                              monkeypatch, path):
+    a_private_notebook(packet)
     monkeypatch.setattr(hearth.the_waking, "LOOKING_BACK", True)
     versions_kept(packet)
     assert visitor.get(path).status_code in (302, 404)

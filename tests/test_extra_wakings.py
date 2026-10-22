@@ -31,6 +31,7 @@ import pytest
 import waking
 from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, blocks, page, read_json,
                       shut_away, write, write_json)
+from conftest import notebook_unexplained
 
 # The last attend.py before there were any extra wakings, kept in the history.
 BEFORE_EXTRA_WAKINGS = "64d97e2"
@@ -139,6 +140,7 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
     """Three wakings each, in one world: the committed attend.py, and this one shut away."""
     # and its proposals, which the committed one had only shut away, shut away with it
     shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
+    notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
     try:
         source = subprocess.run(["git", "show", BEFORE_EXTRA_WAKINGS + ":attend.py"], cwd=REPO,
                                 capture_output=True, check=True).stdout

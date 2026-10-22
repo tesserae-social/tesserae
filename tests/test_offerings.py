@@ -13,6 +13,7 @@ import pytest
 
 from conftest import (block, blocks, lines_of, page, post, read_json, verify,
                       write, write_json)
+from conftest import a_private_notebook
 
 HIS = "founder-2026-10-14T09-00-00Z"
 HERS = "to-founder-2026-10-13T09-00-00Z"
@@ -492,10 +493,15 @@ def test_the_signed_record_is_open_to_any_machine(visitor, founder, wake, packet
     "/commons/offerings/nothing-here.md",
     "/commons/offerings/..%2F..%2Fself.md",
     "/commons/offerings/private.key",
+    "/offerings/entry-2026-10-01T09-00-00Z.json",
+    "/commons/offerings/entry-2026-10-01T09-00-00Z.md",
+    "/commons/offerings/..%2F..%2Fpackets%2Ffirst%2Fprivate%2Fentry-2026-10-01T09-00-00Z.md",
 ])
 def test_what_was_never_placed_is_at_no_address(visitor, founder, wake, packet, asked):
     a_placed_offering(founder, wake, packet)
+    a_private_notebook(packet)
     assert visitor.get(asked).status_code == 404
+    assert founder.get(asked).status_code == 404
 
 
 def test_a_pending_offering_is_at_no_address(visitor, founder, packet):

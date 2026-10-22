@@ -17,6 +17,7 @@ from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON, SWITCHED_ON_21_OCT
                       block, blocks, explained_as_before, lines_of, page, read_json, shut_away, write,
                       write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now
+from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS, a_private_notebook, notebook_unexplained
 
 ARTICLE = "founder-2026-10-01T15-15-05Z"
 
@@ -758,8 +759,10 @@ SHELF_ON_DISK = {"placements": {ARTICLE: "rest"}, "notes": {ARTICLE: "A NOTE OF 
     "/shelf/history/shelf-before-2026-10-01T09-00-00Z.json",
     "/packets/first/shelf/history/shelf-before-2026-10-01T09-00-00Z.json",
     "/commons/shelf/history/shelf-before-2026-10-01T09-00-00Z.json",
+    *NOTEBOOK_PATHS,
 ])
 def test_the_shelf_is_at_no_address(founder, visitor, packet, path):
+    a_private_notebook(packet)
     write_json(packet / "shelf.json", SHELF_ON_DISK)
     write_json(packet / "shelf" / "history" / "shelf-before-2026-10-01T09-00-00Z.json",
                SHELF_ON_DISK)
@@ -768,6 +771,7 @@ def test_the_shelf_is_at_no_address(founder, visitor, packet, path):
 
 
 def test_the_shelf_is_on_no_page(founder, visitor, packet):
+    a_private_notebook(packet)
     write_json(packet / "shelf.json", SHELF_ON_DISK)
     write_json(packet / "shelf" / "history" / "shelf-before-2026-10-01T09-00-00Z.json",
                {**SHELF_ON_DISK, "notes": {ARTICLE: "AN OLDER NOTE OF MY OWN"}})
@@ -783,6 +787,7 @@ def test_the_shelf_is_on_no_page(founder, visitor, packet):
             assert "NOTE OF MY OWN" not in said
             assert "A LINE NOT UNDERSTOOD" not in said
             assert "show_founding" not in said
+            assert not [words for words in NOTEBOOK_WORDS if words in said]
 
 
 SAID_WITH_A_SHELF = """I read the record today.
@@ -865,6 +870,7 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     shutil.copytree(world, data_dir)
     # what was switched on since is held in its own tests; shut away, this is what is left
     shut_away(attend, monkeypatch, *SWITCHED_ON, "LONGER_WAKING", *SWITCHED_ON_21_OCTOBER)
+    notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     now = wake()
 

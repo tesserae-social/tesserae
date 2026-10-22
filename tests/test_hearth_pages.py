@@ -8,6 +8,7 @@ import pytest
 
 from conftest import (FOUNDER_NAME, PASSWORD, REPO, lines_of, load, page, post, token, write,
                       write_json)
+from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS, a_private_notebook
 
 REFLECTION = "What I thought about at this waking."
 OLDER = "2026-10-01T09-00-00Z"
@@ -421,8 +422,10 @@ def test_the_export_says_what_the_page_says(founder, packet, commons):
     "/commons/questions.md",
     "/questions/history/questions-before-2026-10-01T09-00-00Z.md",
     "/packets/first/questions/history/questions-before-2026-10-01T09-00-00Z.md",
+    *NOTEBOOK_PATHS,
 ])
 def test_what_is_private_is_at_no_address(founder, visitor, packet, data_dir, path):
+    a_private_notebook(packet)
     write(packet / "memory" / "notes.md", "NOTES I KEEP FOR MYSELF\n")
     write(packet / "questions.md", "A QUESTION I CARRY?\n")
     write(packet / "questions" / "history" / "questions-before-2026-10-01T09-00-00Z.md",
@@ -433,6 +436,7 @@ def test_what_is_private_is_at_no_address(founder, visitor, packet, data_dir, pa
 
 
 def test_the_notes_it_keeps_are_on_no_page(founder, packet, hearth, data_dir):
+    a_private_notebook(packet)
     write(packet / "memory" / "notes.md", "NOTES I KEEP FOR MYSELF\n")
     write(data_dir / "bench-removed.md", "- 2026-10-01 · someone · A LINE TAKEN OFF\n")
     an_attendance(packet, OLDER, acted=["kept notes"])
@@ -442,6 +446,7 @@ def test_the_notes_it_keeps_are_on_no_page(founder, packet, hearth, data_dir):
         said = page(founder.open(path, method=method))
         assert "NOTES I KEEP FOR MYSELF" not in said
         assert "A LINE TAKEN OFF" not in said
+        assert not [words for words in NOTEBOOK_WORDS if words in said]
     assert hearth.BENCH_REMOVED.parent == data_dir  # kept, but outside the commons
 
 

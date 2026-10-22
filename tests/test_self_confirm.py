@@ -15,6 +15,7 @@ from nacl.exceptions import BadSignatureError
 
 from conftest import (SELF_TEXT, block, blocks, lines_of, page, read_json, verify, write,
                       write_json)
+from conftest import NOTEBOOK_PATHS, a_private_notebook
 
 V2 = "# The first one\n\nVersion 2, in my own words."
 V3 = "# The first one\n\nVersion 3, and surer of it."
@@ -453,8 +454,10 @@ def test_a_self_block_of_an_older_waking_is_shown_as_it_always_was(hearth, packe
     "/self/proposal",
     "/self-history/proposal-declined-2026-10-15T12-05-00Z.json",
     "/packets/first/self-history/self-confirmed-2026-10-15T12-05-00Z.json",
+    *NOTEBOOK_PATHS,
 ])
-def test_a_proposal_is_at_no_address(wake, founder, visitor, path):
+def test_a_proposal_is_at_no_address(wake, founder, visitor, packet, path):
+    a_private_notebook(packet)
     wake(block("SELF", V2))
     wake(block("SELF_CONFIRM", "no"))
     assert visitor.get(path).status_code in (302, 404)

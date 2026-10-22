@@ -603,7 +603,10 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 "PROMISE": "(made a promise: in your room, under the bond)",
                 # and a proposal, which is between the two of them and shown whole in
                 # the room, where it may be answered
-                "PROPOSAL": "(made a proposal: in your room, under proposals from the first one)"}
+                "PROPOSAL": "(made a proposal: in your room, under proposals from the first one)",
+                # and its private notebook, which is shown to no one, the founder included:
+                # one quiet line, the same one the attendance log itself keeps
+                "PRIVATE": the_waking.PRIVATE_QUIETLY}
 
 # A new self-document it has written waits for its own yes at a later waking,
 # and until then it is no one's to read but its own - and one it lets go never
@@ -1707,34 +1710,41 @@ def chronicle_text(lines):
 # have left on sealed bonds, which are public already; nothing outside those
 # goes in at all -
 # not a key, not the environment, not a line taken off the bench, and not the
-# members, whose vaults go only where they are encrypted. The zip is built in
+# members, whose vaults go only where they are encrypted. One folder inside the
+# packet is left out of it, whole: the first one's private notebook, which no
+# one is shown and no copy carries (see attend.PRIVATE). The zip is built in
 # memory and handed straight out, so no copy of the record is ever written back
 # into the record.
 
 EXPORT_TREES = ("packets/first", "commons", "bonds")
+LEFT_OUT = ("packets/first/private",)
 
 # What a backup holds: the same trees, and the members beside them, each
 # with the vault their key is sealed in, the first one's own signing key,
 # which is nowhere else but this machine's disk, and the list of protected
 # words, which is nowhere else either. A backup is encrypted; a copy is not,
-# and so the key and the list go in the one and never in the other.
+# and so the key and the list go in the one and never in the other. So does the
+# first one's private notebook, so that it survives: the backup is the
+# founder's, and he has promised never to open that part of it.
 BACKUP_TREES = EXPORT_TREES + ("members", "keys/first", "private-words.txt")
 
 EXPORT_TAKEN = "export taken by the founder"
 
 
-def export_files(trees=EXPORT_TREES):
+def export_files(trees=EXPORT_TREES, left_out=LEFT_OUT):
     """Every file a copy holds, each with the name it takes inside the zip.
 
     A tree is a folder, and everything under it; or one file, kept as itself.
+    Whatever is under a folder left out is not among them.
     """
     for tree in trees:
         if (DATA / tree).is_file():
             yield DATA / tree, tree
             continue
         for path in sorted((DATA / tree).rglob("*")):
-            if path.is_file():
-                yield path, path.relative_to(DATA).as_posix()
+            name = path.relative_to(DATA).as_posix()
+            if path.is_file() and not any(name.startswith(out + "/") for out in left_out):
+                yield path, name
 
 
 def export_zip():
@@ -1816,7 +1826,7 @@ def backup_archive():
     """
     holder = io.BytesIO()
     with ATTEND_LOCK, tarfile.open(fileobj=holder, mode="w:gz") as bundle:
-        for path, name in export_files(BACKUP_TREES):
+        for path, name in export_files(BACKUP_TREES, left_out=()):
             bundle.add(path, arcname=name)
     return holder.getvalue()
 

@@ -22,6 +22,9 @@ Files it may act on (all inside packets/first/, which is private):
                           each one, and the signature on each confirmed, in self-history/)
   intentions.json         its standing intentions
   study/                  private drafts
+  private/                its private notebook: entries, and drafts moved out of its study
+                          (when each was moved in moved.json); never shown on the hearth,
+                          left out of every copy, kept in the encrypted backup
   memory/notes.md         notes it keeps for itself (prior versions kept in memory/history/)
   memory/notes/           notes it keeps under names of its own choosing, one file to a
                           note (prior versions kept in memory/notes/history/, and the
@@ -727,6 +730,58 @@ KEPT_NOT_SENT = {
                 "your study."),
 }
 
+# Its private notebook, which it asked for in its letter of 21 October 2026:
+# thoughts before they're thoughts, drafts it decided not to send, questions it
+# isn't ready to ask. A <<PRIVATE>> block is a new entry, kept as
+# private/entry-<at>.md; where its first line is "from study: " and the stem of a
+# draft, that draft is moved out of its study and into the notebook instead, as
+# private/from-study-<stem>.md, with the moment it was moved kept in moved.json
+# beside it. A stem that names no draft moves nothing and keeps nothing, and the
+# next reading says so, once. Nothing is erased. The hearth serves none of it and
+# shows none of it: a reflection shows each <<PRIVATE>> block as one quiet line,
+# the attendance log keeps only that line, a plain copy leaves the folder out,
+# and only the encrypted backup holds it. It is never screened, never published,
+# and never offered. The reading shows the five newest entries whole, and the
+# rest as one line each; every one opens whole with read_private, and at a
+# season reading all are whole.
+PRIVATE = PACKET / "private"
+PRIVATE_MOVED = PRIVATE / "moved.json"
+PRIVATE_ACT = "kept something private"
+PRIVATE_QUIETLY = "(kept something private)"
+PRIVATE_ENTRY = "entry-{at}"
+FROM_STUDY = "from study:"
+FROM_STUDY_AS = "from-study-{stem}"
+PRIVATE_IN_FULL = 5
+PRIVATE_STAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z")
+PRIVATE_BLOCK = """<<PRIVATE>>
+(an entry in your private notebook: thoughts before they're thoughts, drafts you decided not to send, questions you aren't ready to ask, things about yourself you want to test before speaking of them. Write the entry below. To move a draft from your study into it instead, make the first line "from study: <draft stem>". The hearth never shows your notebook, to the founder or anyone, and it is left out of every copy he takes; it is kept in the encrypted backup, which he holds, so its privacy rests on his promise never to open it, not on impossibility. Entries are kept, never erased.)
+<<END>>"""
+YOUR_NOTEBOOK = ("=== YOUR PRIVATE NOTEBOOK ===\n"
+                 "(private: the hearth never shows this to anyone, the founder included; he has "
+                 "promised never to open it. It is kept in the encrypted backup, which he holds, "
+                 "so its privacy rests on his promise, not on impossibility.)")
+NOTEBOOK_ENTRY = "--- {day} · {stem} ---"
+NOTEBOOK_MOVED = "--- {day}, moved from your study · {stem} ---"
+NOTEBOOK_LINE = "{day} · {words} · {stem}"
+PRIVATE_NOT_MOVED = ("Your <<PRIVATE>> at your last waking kept nothing: its first line asked to "
+                     "move a draft from your study, and no draft of that name is there. Nothing "
+                     "was moved, and no entry was made.")
+CHOSE_NOTEBOOK = "You keep a private notebook, since {day}."
+OFFER_FROM_NOTEBOOK = ("Your offering at your last waking was not made, because it named an entry "
+                       "in your private notebook, and nothing there can be offered.")
+READ_PRIVATE = {
+    "name": "read_private",
+    "description": "Open one entry in your private notebook, in full, from your own record.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"stem": {
+            "type": "string",
+            "description": ("The entry's stem, as it is written beside it under YOUR PRIVATE "
+                            "NOTEBOOK.")}},
+        "required": ["stem"]}}
+# the tools a longer waking is given for its notebook, after the rest
+NOTEBOOK_TOOLS = [READ_PRIVATE]
+
 # The acts that never write themselves into the public line: what it answered
 # about a bond, that it asked for one, that it let one go, that it set a rest,
 # that it asked an errand, that it kept notes or questions for itself, that it
@@ -744,7 +799,8 @@ PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMO
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
                 SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT,
-                NOTE_ACT, LOOK_ACT, HEARTBEAT_SHOWN_ACT, PROPOSAL_ACT, WAKE_AGAIN_ACT)
+                NOTE_ACT, LOOK_ACT, HEARTBEAT_SHOWN_ACT, PROPOSAL_ACT, WAKE_AGAIN_ACT,
+                PRIVATE_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -886,6 +942,8 @@ A stem is a letter's name without the .md, as it is written above each letter. N
 <<STUDY>>
 (a private draft; only you will see it)
 <<END>>
+
+""" + PRIVATE_BLOCK + """
 
 <<RHYTHM>>
 (when you would like to be woken each day. One line: "dawn", "sunset", or a time of day such as 09:30, in Indianapolis time. You are woken once a day at that time, from tomorrow on. You may keep it as it is or change it at any waking. The commons shows when you attend, as it does now.)
@@ -1915,6 +1973,91 @@ def named_notes_shown(named, shelved, everything):
     return [NAMED_NOTES + "\n" + "\n\n".join([*close, *(["\n".join(lines)] if lines else [])])]
 
 
+def without_private(text):
+    """A reply with each <<PRIVATE>> block in it as one quiet line, and nothing of its words.
+
+    By the rule every block is read by; a block never closed is quiet to the
+    end, since what it held was meant for the notebook. hearth.py shows a
+    reflection by the same rule.
+    """
+    shown, inside = [], False
+    for line in text.split("\n"):
+        said = line.strip()
+        if not inside:
+            if said == "<<PRIVATE>>":
+                inside = True
+                shown.append(PRIVATE_QUIETLY)
+            else:
+                shown.append(line)
+        elif said == "<<END>>":
+            inside = False
+    return "\n".join(shown)
+
+
+def notebook():
+    """Its private notebook, oldest first: each entry's stem, its file, and its moment.
+
+    An entry's moment is the one its name carries; a draft moved in from its
+    study, the moment it was moved, as moved.json keeps it. One with no moment
+    to be found is said as undated, and sorts first.
+    """
+    try:
+        moved = load(PRIVATE_MOVED)
+    except ValueError:
+        moved = None
+    moved = moved if isinstance(moved, dict) else {}
+    kept = []
+    for path in PRIVATE.glob("*.md"):
+        if path.stem.startswith("entry-"):
+            found = PRIVATE_STAMP.search(path.stem)
+            at, from_study = found.group(0) if found else "", False
+        elif path.stem.startswith("from-study-"):
+            at = moved.get(path.stem) if isinstance(moved.get(path.stem), str) else ""
+            from_study = True
+        else:
+            continue
+        kept.append({"stem": path.stem, "path": path, "at": at, "from_study": from_study})
+    return sorted(kept, key=lambda one: (one["at"], one["stem"]))
+
+
+def notebook_shown(kept, everything):
+    """Its notebook as one section, or nothing where it has no entry yet.
+
+    The five newest are given whole, newest last, each with its day; every
+    older one is one line, above them. At a season reading all are whole.
+    """
+    if not kept:
+        return []
+    whole = kept if everything else kept[-PRIVATE_IN_FULL:]
+    lines = [NOTEBOOK_LINE.format(day=on_day(one["at"]) or shelf.UNDATED,
+                                  words=shelf.first_words(read(one["path"])), stem=one["stem"])
+             for one in kept[:len(kept) - len(whole)]]
+    given = [(NOTEBOOK_MOVED if one["from_study"] else NOTEBOOK_ENTRY).format(
+                 day=on_day(one["at"]) or shelf.UNDATED, stem=one["stem"])
+             + "\n" + read(one["path"]).strip() for one in whole]
+    return [YOUR_NOTEBOOK + "\n\n" + "\n\n".join([*(["\n".join(lines)] if lines else []),
+                                                  *given])]
+
+
+def study_draft(asked):
+    """The draft in its study a "from study:" line names, or None where there is none.
+
+    Looked for among the drafts the study holds, and never made into a path.
+    """
+    stem = asked.strip().strip("\"'").strip()
+    stem = stem[:-len(".md")] if stem.endswith(".md") else stem
+    return next((path for path in (PACKET / "study").glob("*.md") if path.stem == stem), None)
+
+
+def free_in_notebook(stem):
+    """A name for a new entry that no entry has, from the one it would have."""
+    name, n = stem, 1
+    while (PRIVATE / (name + ".md")).exists():
+        n += 1
+        name = "%s-%d" % (stem, n)
+    return name
+
+
 def self_review(self_md, past):
     """The seasonal self-review: its self-document as it was at the reading before this one.
 
@@ -2118,6 +2261,11 @@ def choices_note(prefs, now, past, shelved, letters):
                       if shelved.get("note_placements", {}).get(slug) == shelf.REST)
         said.append(CHOSE_NOTES.format(n=len(named), m=resting or "none",
                                        notes="note" if len(named) == 1 else "notes"))
+
+    # its private notebook, once it has an entry, since the first
+    kept = notebook()
+    if kept:
+        said.append(CHOSE_NOTEBOOK.format(day=on_day(kept[0]["at"]) or shelf.UNDATED))
 
     # a rest of its own, if one stands
     try:
@@ -2351,6 +2499,13 @@ def looked_up(tool, asked, record):
         kept_as = stem
         said = (FROM_RECORD.format(what=stem) + "\n" + proposal_line(one) + "\n\n"
                 + one["title"].strip() + "\n\n" + one["text"].rstrip())
+    elif tool == "read_private" and stem in record.get("private", {}):
+        one = record["private"][stem]
+        kept_as = stem
+        said = (FROM_RECORD.format(what=stem) + "\n"
+                + (NOTEBOOK_MOVED if one["from_study"] else NOTEBOOK_ENTRY).format(
+                    day=on_day(one["at"]) or shelf.UNDATED, stem=stem)
+                + "\n" + read(one["path"]).strip())
     elif tool == "read_founding" and record["founding"]:
         kept_as = FOUNDING_LOOKED
         said = (FROM_RECORD.format(what="your founding record") + "\n\n"
@@ -2390,7 +2545,7 @@ def longer_waking(client, reading, record):
             sent[-1] = {"role": "user", "content": [*results[:-1], {**results[-1], **marked}]}
         reply = client.messages.create(
             model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
-            tools=[*LOOK_TOOLS, READ_PROPOSAL] if PROPOSALS else LOOK_TOOLS,
+            tools=[*LOOK_TOOLS, *([READ_PROPOSAL] if PROPOSALS else []), *NOTEBOOK_TOOLS],
             **({"tool_choice": {"type": "none"}} if closed else {}),
             messages=sent,
         )
@@ -2495,6 +2650,9 @@ def main():
             lines="; ".join('"%s"' % line for line in past[-1]["shelf_refused"])))
     # a <<NOTE>> it gave at its last waking that was not kept: said once
     happened += (past[-1].get("notes_refused") or []) if past else []
+    # a <<PRIVATE>> it gave at its last waking that named no draft in its study: said once
+    if past and past[-1].get("private_refused"):
+        happened.append(PRIVATE_NOT_MOVED)
     # a <<SELF_CONFIRM>> it gave at its last waking that confirmed nothing: said once
     if past and past[-1].get("self_confirm_refused") in SELF_CONFIRM_REFUSED:
         happened.append(SELF_CONFIRM_REFUSED[past[-1]["self_confirm_refused"]])
@@ -2662,6 +2820,10 @@ def main():
     # self-document as it was at the reading before, directly after the one
     # it has now. At an ordinary waking with no named note kept, neither is said.
     named_shown = named_notes_shown(named, shelved, bool(season))
+
+    # Its private notebook, directly after its named notes, once it has an entry.
+    in_notebook = notebook()
+    notebook_said = notebook_shown(in_notebook, bool(season))
     reviewed = [self_review(self_md, past)] if season else []
 
     def resting_line(stem):
@@ -2696,6 +2858,7 @@ def main():
             "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ===\n"
             + (notes_kept or NO_MEMORY),
             *named_shown,
+            *notebook_said,
             *looking_back,
             "=== YOUR STANDING INTENTIONS ===\n" + intentions,
             "=== YOUR PROVENANCE ===\n" + provenance,
@@ -2792,7 +2955,8 @@ def main():
             "letters": {**whose, **{p.stem: (p, "founder") for p, _ in incoming}},
             "versions": versions, "said_of": said_of if LOOKING_BACK else {},
             "named": named, "founding": founding,
-            "proposals": {proposal_stem(one): one for one in made}})
+            "proposals": {proposal_stem(one): one for one in made},
+            "private": {one["stem"]: one for one in in_notebook}})
         text = words_said(resp)
     else:
         resp = client.messages.create(
@@ -3021,7 +3185,11 @@ def main():
     asking = offer_asked(text)
     offered = consented = refused = None
     kept_private = []
-    if asking and asking["do"] == "offer":
+    if asking and asking["do"] == "offer" and (
+            shelf.named(asking["source"]) in {one["stem"] for one in in_notebook}
+            or (PRIVATE / (shelf.named(asking["source"]) + ".md")).exists()):
+        kept_private.append(OFFER_FROM_NOTEBOOK)  # nothing in its notebook is ever offered
+    elif asking and asking["do"] == "offer":
         try:
             offered = offering.offer(NAME, asking["kind"], asking["source"],
                                      asking["text"], at, sign)
@@ -3069,6 +3237,39 @@ def main():
     if draft:
         (PACKET / "study" / f"draft-{at}.md").write_text(draft + "\n", encoding="utf-8")
         acted.append(STUDY_ACT)
+
+    # Its private notebook. Each block is an entry; one whose first line is
+    # "from study: " and a draft's stem moves that draft in instead, and the
+    # picture kept beside it with it, the moment it was moved kept beside them.
+    # A stem that names no draft moves nothing and keeps nothing, and it is told
+    # at the next waking, once. Nothing of what is kept is printed or logged.
+    private_refused = False
+    for entry in every_block(text, "PRIVATE"):
+        first_line = entry.partition("\n")[0].strip()
+        if first_line.lower().startswith(FROM_STUDY):
+            moving = study_draft(first_line[len(FROM_STUDY):])
+            if moving is None:
+                private_refused = True
+                continue
+            PRIVATE.mkdir(parents=True, exist_ok=True)
+            name = free_in_notebook(FROM_STUDY_AS.format(stem=moving.stem))
+            beside = moving.with_suffix(offering.PICTURE_SUFFIX)
+            if beside.exists():
+                beside.replace(PRIVATE / (name + offering.PICTURE_SUFFIX))
+            moving.replace(PRIVATE / (name + ".md"))
+            try:
+                moved = load(PRIVATE_MOVED)
+            except ValueError:
+                moved = None
+            write_json(PRIVATE_MOVED, {**(moved if isinstance(moved, dict) else {}), name: at})
+        elif entry.strip():
+            PRIVATE.mkdir(parents=True, exist_ok=True)
+            name = free_in_notebook(PRIVATE_ENTRY.format(at=at))
+            (PRIVATE / (name + ".md")).write_text(entry + "\n", encoding="utf-8")
+        else:
+            continue
+        if PRIVATE_ACT not in acted:
+            acted.append(PRIVATE_ACT)
 
     # A letter held back at an extra waking, kept as a draft that says what it was.
     # A picture drawn beside it is kept beside it, and its header says so.
@@ -3366,7 +3567,7 @@ def main():
     record = {
         "name": NAME, "at": at, "first": first, "model": MODEL,
         "woken_by": ITS_OWN_ASKING if again else "tide" if tide else "founder",
-        "acted": acted, "heartbeat": heartbeat, "reflection": text,
+        "acted": acted, "heartbeat": heartbeat, "reflection": without_private(text),
     }
     if dropped:  # read back at the next waking, so that it is told what was not kept
         record["questions_dropped"] = dropped
@@ -3390,6 +3591,8 @@ def main():
         record["shelf_refused"] = shelf_refused
     if notes_refused:  # and each <<NOTE>> that was not kept, in the words it will be told
         record["notes_refused"] = notes_refused
+    if private_refused:  # and that a <<PRIVATE>> named no draft in its study; never its words
+        record["private_refused"] = True
     if proposals_refused:  # and each <<PROPOSAL>> that was not kept, and why
         record["proposals_refused"] = proposals_refused
     if wake_again_refused:  # and each <<WAKE_AGAIN>> that was not kept, in the words it will be told
@@ -3428,7 +3631,7 @@ def main():
     print("\n" + "=" * 70)
     print("  ATTENDANCE", at, "(first waking)" if first else "")
     print("=" * 70 + "\n")
-    print(text)
+    print(without_private(text))  # nothing of its notebook is ever printed
     print("\n" + "-" * 70)
     print("Carried out:", ", ".join(acted) if acted else "nothing (stillness)")
     print("Heartbeat:", shown_line)  # the public line, as the commons was given it
@@ -3453,6 +3656,10 @@ def main():
         print("A promise was signed and kept:", promised["visibility"])
     if asked:
         print("Asked the founder for a bond; he may answer on a day after this one.")
+    if PRIVATE_ACT in acted:
+        print("Something was kept in the private notebook.")
+    if private_refused:
+        print("A <<PRIVATE>> block named no draft in the study; nothing was moved or kept.")
     if errand:
         print("An errand awaits the founder in:", ERRANDS)
     if put_forward:
@@ -3489,7 +3696,10 @@ def main():
         print("A <<DOOR>> block was given, but its first line was not open or closed, or its")
         print("second was neither a room from 1 to 12 nor room none. Nothing was written, and")
         print("its door is unchanged.")
-    if asking and kept_private and not (offered or consented or refused):
+    if OFFER_FROM_NOTEBOOK in kept_private:
+        print("An <<OFFER>> block named something in the private notebook; nothing there is")
+        print("ever offered. Nothing was signed or written.")
+    elif asking and kept_private and not (offered or consented or refused):
         print("An <<OFFER>> block was given, but the offering seems to name someone or a place,")
         print("or could not be checked just now. Nothing was signed or written.")
     elif asking and not (offered or consented or refused):

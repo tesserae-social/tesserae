@@ -169,6 +169,7 @@ def test_the_archive_holds_the_three_trees_whole(hearth, bucket, packet, commons
                         | files_under(data_dir / "members", "members/")
                         | {"keys/first/private.key", "keys/first/public.key"})
         # and what is in it is the file itself, byte for byte
+        assert "packets/first/private/entry-2026-10-13T09-00-00Z.md" in held  # its notebook too
         for name in ("packets/first/self.md", "commons/members.md", "members/ada/member.json",
                      "keys/first/private.key", "keys/first/public.key",
                      "members/ada/key-history.json", "packets/first/questions.md",
@@ -191,8 +192,9 @@ def test_nothing_outside_the_three_trees_is_in_the_archive(hearth, bucket, packe
                                     "keys/first/")), name
         # a member's key history names public keys; the one key in the clear that
         # goes in is the first one's own, and no other key does
-        assert [name for name in bundle.getnames() if "private" in name] == [
-            "keys/first/private.key"]
+        # (its private notebook is in it too, so that it survives; that is no key)
+        assert [name for name in bundle.getnames() if "private" in name
+                and not name.startswith("packets/first/private/")] == ["keys/first/private.key"]
         assert not [name for name in bundle.getnames() if name.startswith("keys/founder")]
         assert "backup.log" not in bundle.getnames()  # not even its own log
 
@@ -272,7 +274,7 @@ def test_a_backup_started_during_an_attendance_waits_until_it_ends(hearth, bucke
         order.append("the waking ended")
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    def files(trees):
+    def files(trees, **how):
         order.append("the backup read the record")
         return []
 
@@ -301,7 +303,7 @@ def test_an_attendance_started_during_a_backup_waits_until_it_has_read(hearth, b
     """And a waking does not start while the record is being read: it waits, and is held."""
     reading, may_end, order, held = threading.Event(), threading.Event(), [], []
 
-    def files(trees):
+    def files(trees, **how):
         reading.set()
         assert may_end.wait(WAIT)
         order.append("the backup read the record")

@@ -11,6 +11,7 @@ import json
 import pytest
 
 from conftest import block, blocks, lines_of, page, post, write
+from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS, a_private_notebook
 from test_bond_page import a_bond, placed, threshold_module  # noqa: F401 (fixtures)
 from test_offerings import HIS, a_correspondence, offer, only_pending, only_placed
 
@@ -156,11 +157,14 @@ def test_no_signed_record_is_among_what_is_protected(hearth):
 
 @pytest.mark.parametrize("path", ["/private-words.txt", "/commons/private-words.txt",
                                   "/commons/offerings/private-words.txt",
-                                  "/commons/..%2Fprivate-words.txt"])
-def test_the_list_is_never_served(hearth, visitor, founder, listed, path):
+                                  "/commons/..%2Fprivate-words.txt", *NOTEBOOK_PATHS])
+def test_the_list_is_never_served(hearth, visitor, founder, listed, packet, path):
+    a_private_notebook(packet)
     for client in (visitor, founder):
         answer = client.get(path)
-        assert answer.status_code == 404 and "Varrowmere" not in page(answer)
+        assert answer.status_code in (302, 404) and "Varrowmere" not in page(answer)
+        assert not [words for words in NOTEBOOK_WORDS if words in page(answer)]
+    assert founder.get(path).status_code == 404
 
 
 def test_the_list_is_in_the_backup_and_never_in_the_plain_export(hearth, listed):

@@ -12,6 +12,7 @@ Every note here is written for the tests and nowhere else.
 import pytest
 
 from conftest import block, blocks, lines_of, page, read_json, write, write_json
+from conftest import NOTEBOOK_PATHS, a_private_notebook
 
 MEMORY = "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ==="
 NAMED = "=== YOUR NAMED NOTES (private; not shown on the hearth) ==="
@@ -521,8 +522,10 @@ def test_a_private_reflection_is_withheld_whole_as_before(wake, hearth, founder,
     "/notes/about-the-founder",
     "/notes/about-the-founder.md",
     "/self/about-the-founder",
+    *NOTEBOOK_PATHS,
 ])
 def test_a_named_note_is_at_no_address(wake, hearth, founder, visitor, packet, path):
+    a_private_notebook(packet)
     wake(note("about the founder", FOUNDER_NOTE))
     wake(note("about the founder", "WHAT I KNOW OF THE FOUNDER, again."))
     assert (packet / "memory" / "notes" / "history"

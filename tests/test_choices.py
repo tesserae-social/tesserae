@@ -24,6 +24,7 @@ import pytest
 from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
                       page, shut_away, solstices_as_before, stamps_as_before, write, write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now
+from conftest import notebook_unexplained
 
 CHOSEN = "=== WHAT YOU HAVE CHOSEN ==="
 NOTHING = "You have not set anything here yet; everything follows the defaults."
@@ -114,6 +115,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     with it.
     """
     shut_away(attend, monkeypatch, "CHOICES", "LONGER_WAKING", *SWITCHED_ON_21_OCTOBER)
+    notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     stamps_as_before(attend, monkeypatch)  # and said each moment as its raw stamp
     solstices_as_before(monkeypatch)  # and read the whole record back at the solstices

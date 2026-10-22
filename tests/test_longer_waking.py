@@ -26,6 +26,7 @@ import pytest
 from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON_21_OCTOBER, Turn, block, blocks,
                       lines_of, page, read_json, shut_away, write, write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now
+from conftest import notebook_unexplained
 
 # The last attend.py before there was any longer waking, kept in the history.
 BEFORE_LONGER_WAKING = "ad39e10"
@@ -184,6 +185,7 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
         attend, world, data_dir, clock, monkeypatch, tmp_path):
     """Two wakings each, in one world: the committed attend.py, and this one shut away."""
     shut_away(attend, monkeypatch, "LONGER_WAKING", *SWITCHED_ON_21_OCTOBER)  # they came after
+    notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
     try:
         source = subprocess.run(["git", "show", BEFORE_LONGER_WAKING + ":attend.py"], cwd=REPO,
                                 capture_output=True, check=True).stdout
@@ -244,8 +246,10 @@ def test_the_section_is_said_exactly_and_directly_before_how_to_act(longer, worl
 def test_with_no_lookup_it_is_one_request_and_the_reading_as_it_was_but_for_the_section(
         longer, wake, attend, world, data_dir, clock, monkeypatch, tmp_path):
     said = blocks("I am here.", block("LETTER", "Dear founder,"), block("HEARTBEAT", "attended"))
-    # its proposals add to the section and the tools, and are held in test_proposals.py
+    # its proposals add to the section and the tools, and are held in test_proposals.py,
+    # and its private notebook adds a tool, held in test_private_notebook.py
     shut_away(attend, monkeypatch, "PROPOSALS")
+    notebook_unexplained(attend, monkeypatch)
     before = tmp_path / "the-world-before"
     shutil.copytree(data_dir, before)
 

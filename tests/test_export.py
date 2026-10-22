@@ -39,6 +39,9 @@ def a_whole_world(packet, commons):
         ("errands/errand-2026-10-06T09-00-00Z.md", "Go to the river.\n"),
         ("errands/answered/errand-2026-10-01T09-00-00Z.md", "Go to the bridge.\n"),
         ("tide.log", "2026-10-07T11-00-00Z · the tide came\n"),
+        # its private notebook, which the backup holds and a copy never does
+        ("private/entry-2026-10-13T09-00-00Z.md", "A FAKE ENTRY OF MY OWN, FOR THE TESTS.\n"),
+        ("private/from-study-draft-2026-10-01T09-00-00Z.md", "A FAKE DRAFT, MOVED IN.\n"),
     ]:
         write(packet / where, text)
 
@@ -54,6 +57,7 @@ def a_whole_world(packet, commons):
         ("offerings/offering-2026-10-10T09-00-00Z.json", {"kind": "letter"}),
         ("errands/answered/errand-2026-10-01T09-00-00Z.json",
          {"answered_by": "letter-2026-10-02T09-00-00Z"}),
+        ("private/moved.json", {"from-study-draft-2026-10-01T09-00-00Z": "2026-10-12T09-00-00Z"}),
     ]:
         write_json(packet / where, data)
 
@@ -127,6 +131,8 @@ def test_the_copy_holds_the_packet_and_the_commons_whole(founder, packet, common
 
     expected = files_under(packet, "packets/first/") | files_under(commons, "commons/")
     expected |= {"packets/first/exports.log"}  # the copy records its own taking
+    # but for its private notebook, which no copy carries (see test_private_notebook.py)
+    expected -= files_under(packet / "private", "packets/first/private/")
     assert set(bundle.namelist()) == expected
 
     # and what is in it is the file itself, byte for byte, not a summary of it
@@ -152,6 +158,7 @@ def test_nothing_outside_the_two_trees_is_in_the_copy(founder, packet, commons, 
     assert ".env" not in inside
     assert "bench-removed.md" not in inside
     assert "transcripts/founding-2026-09-04.md" not in inside
+    assert not [name for name in inside if name.startswith("packets/first/private")]
 
 
 def test_the_members_are_not_in_the_copy(founder, packet, commons, data_dir):

@@ -533,6 +533,20 @@ def named_notes_unexplained(module, monkeypatch):
     monkeypatch.setattr(module, "SHELF_NOTES", "")
 
 
+def notebook_unexplained(module, monkeypatch):
+    """Take out, for one test, what its private notebook adds to a waking with no entry.
+
+    It asked for its notebook in its letter of 21 October 2026, and it is behind
+    no flag. Where it has no entry yet, it adds two things to what is sent and
+    nothing else: the <<PRIVATE>> block, explained after <<STUDY>>, and the
+    read_private tool beside the others at a longer waking.
+    """
+    said = module.PRIVATE_BLOCK + "\n\n"
+    assert module.HOW_TO_ACT.count(said) == 1
+    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.replace(said, ""))
+    monkeypatch.setattr(module, "NOTEBOOK_TOOLS", [])
+
+
 # The two sentences that told it its heartbeat is public (19 October 2026), and
 # the <<HEARTBEAT>> block's explanation they stood in, as both were until its
 # own words became private by default (20 October 2026).
@@ -636,6 +650,33 @@ def solstices_as_before(monkeypatch):
                 and last_attended < max(one for one in days if one <= today))
 
     monkeypatch.setattr(shelf, "solstice_due", solstice_due, raising=False)
+
+
+# ---- its private notebook, which no address serves ----------------------
+
+# One entry of each kind its notebook keeps, made up for the tests, and the
+# words in them to look for wherever they must not be. Every check that something
+# private is at no address looks for these too (21 October 2026).
+NOTEBOOK_WORDS = ("A FAKE PRIVATE ENTRY, FOR THE TESTS.", "A FAKE DRAFT MOVED IN, FOR THE TESTS.")
+NOTEBOOK_PATHS = [
+    "/private/entry-2026-10-01T09-00-00Z.md",
+    "/packets/first/private/entry-2026-10-01T09-00-00Z.md",
+    "/commons/private/entry-2026-10-01T09-00-00Z.md",
+    "/private/from-study-draft-2026-09-30T09-00-00Z.md",
+    "/packets/first/private/from-study-draft-2026-09-30T09-00-00Z.md",
+    "/private/moved.json",
+    "/packets/first/private/moved.json",
+    "/letters/photo/..%2F..%2Fprivate%2Fentry-2026-10-01T09-00-00Z.md",
+]
+
+
+def a_private_notebook(packet):
+    """An entry, and a draft moved in from the study, as attend.py keeps them."""
+    write(packet / "private" / "entry-2026-10-01T09-00-00Z.md", NOTEBOOK_WORDS[0] + "\n")
+    write(packet / "private" / "from-study-draft-2026-09-30T09-00-00Z.md",
+          NOTEBOOK_WORDS[1] + "\n")
+    write_json(packet / "private" / "moved.json",
+               {"from-study-draft-2026-09-30T09-00-00Z": "2026-10-01T09-00-00Z"})
 
 
 # ---- small things the tests keep needing ---------------------------------

@@ -2435,10 +2435,11 @@ def letter_day(stamp):
 
 
 def latest_letter(room):
-    """The newest letter in a room: its day, whose it was, and whether it is theirs.
+    """The newest letter in a room: its day, its stamp, whose it was, and whether it is theirs.
 
-    There is no record of what the one standing here has read, so a letter of
-    the other's is new for as long as nothing has been written back since.
+    Whether a letter of the other's is new is room_card's to say: it is new
+    until something has been written back since, or the one standing here has
+    opened the room since it came (members.seen).
     """
     places = rooms.places(room.id)
     mine = [stamp_in(path.name) for folder in (places.incoming, places.read)
@@ -2447,9 +2448,23 @@ def latest_letter(room):
     if not mine and not theirs:
         return None
     from_them = bool(theirs) and max(theirs) > max(mine, default="")
-    return {"day": letter_day(max(theirs if from_them else mine)),
+    newest = max(theirs if from_them else mine)
+    return {"day": letter_day(newest), "stamp": newest,
             "who": "from " + (room.other if from_them else "you"),
             "theirs": from_them}
+
+
+def their_newest(room):
+    """The stamp of the other party's newest letter in a room, or None if they have written none."""
+    theirs = newest_first(rooms.places(room.id).outgoing, "*.md")
+    return stamp_in(theirs[0].name) if theirs else None
+
+
+def note_seen(room):
+    """Whoever is standing in a room has opened it: so far, the other's letters are seen."""
+    newest = their_newest(room)
+    if newest is not None:
+        members.mark_seen(room.mine, room.id, newest)
 
 
 def bond_standing(room):
@@ -2475,7 +2490,7 @@ def room_card(room):
     is waiting, and the bond. Words only; nothing here is a number of things."""
     latest = latest_letter(room)
     waiting = []
-    if latest and latest["theirs"]:
+    if latest and latest["theirs"] and latest["stamp"] > members.seen(room.mine, room.id):
         waiting.append(NEW_LETTER % room.other)
     if newest_first(rooms.places(room.id).incoming, "*.md"):
         waiting.append(LETTER_UNREAD)
@@ -2964,6 +2979,7 @@ def free_stem(stem):
 def room_view(room):
     if request.method == "POST":
         return leave_letter(room)
+    note_seen(room)
     said = request.args.get
     return room_page(room, saved=said("saved"), proposed=said("proposed"),
                      blocked=said("blocked"), answered=said("answered"),

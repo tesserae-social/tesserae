@@ -13,6 +13,12 @@ and, once a member's key has ever been changed for another, a history of it:
     members/<pseudonym>/key-history.json
         [{"old_key": hex, "new_key": hex, "at": ISO UTC}, ...]
 
+and, once they have opened a room with a letter in it from the other party, how
+far they have read in each:
+
+    members/<pseudonym>/seen.json
+        {room id: the stamp of the newest letter of the other's they have opened}
+
 Storage only: no route, no page. A member's public identity document is shaped
 here from their record (did_document), and served by the hearth. The name is checked before it is ever made into
 a path, and that check is the whole of the path's safety. Nothing here logs or
@@ -24,6 +30,7 @@ import json
 import os
 import re
 import tempfile
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -41,6 +48,7 @@ MEMBERS = DATA / "members"
 
 RECORD = "member.json"
 KEY_HISTORY = "key-history.json"
+SEEN = "seen.json"
 
 ROLES = ("keeper", "member")
 
@@ -303,3 +311,45 @@ def replace_vault(pseudonym, new_vault, now=None):
     record = {**record, "verify_key": new_key, "vault": new_vault}
     _write_json(folder / RECORD, record)
     return record
+
+
+# ---------------------------------------------------------------- what is seen
+
+# How far a member has read in each of their rooms. It is theirs and not the
+# room's, so it is kept with them, beside their record and never in it, and goes
+# wherever members/ goes. A file that is not there, or cannot be read, or says
+# nothing of a room, is nothing seen there: what it is for is only to stop saying
+# a letter is new, and it never stands in the way of anything.
+SEEN_LOCK = threading.Lock()  # one reading and writing at a time, so it moves only forward
+
+
+def _seen(path):
+    try:
+        held = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(held, dict):
+        return {}
+    return {room: stamp for room, stamp in held.items() if isinstance(stamp, str)}
+
+
+def seen(pseudonym, room_id):
+    """The newest stamp this member has opened in a room, or "" for nothing seen."""
+    return _seen(_folder(pseudonym) / SEEN).get(room_id, "")
+
+
+def mark_seen(pseudonym, room_id, stamp):
+    """Record that a member has opened a room as far as stamp; never further back.
+
+    Only a member who is there is written for. Whatever cannot be read in the
+    file is let go of when it is written again.
+    """
+    folder = _folder(pseudonym)
+    if not (folder / RECORD).is_file():
+        return
+    with SEEN_LOCK:
+        held = _seen(folder / SEEN)
+        if stamp <= held.get(room_id, ""):
+            return
+        held[room_id] = stamp
+        _write_json(folder / SEEN, held)

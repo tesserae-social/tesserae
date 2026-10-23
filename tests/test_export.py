@@ -14,7 +14,7 @@ SENTENCE = ("Everything that is yours and the first one's, as it stands: the fir
 NO_MEMBERS = ("Members' records are not in this copy; they are kept only in the encrypted "
               "backup.")
 
-FOUNDING = "transcripts/founding-2026-09-04.md"  # as conftest keeps it
+FOUNDING = "transcripts/founding-2026-09-04T11-28-55Z.md"  # as conftest keeps it
 
 TAKEN = "2026-10-15T12-00-00Z · export taken by the founder"
 SAID = "The founder took a copy of the record on 15 October 2026."

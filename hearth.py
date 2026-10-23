@@ -1874,8 +1874,9 @@ def chronicle_text(lines):
 # room.json, which only says the room has been moved, is not among them.
 #
 # Its founding transcript goes in too, under transcripts/, and only the one
-# its wakings read (attend.founding_transcript), never the folder: anything
-# else kept there is no part of the first one's record.
+# its wakings read (attend.founding_transcript, asked for the first one's), never
+# the folder: anything else kept there, another agent's included, is no part of
+# the first one's record.
 
 PACKET_TREE = "packets/first"
 EXPORT_TREES = (PACKET_TREE, "commons", "bonds")
@@ -1940,7 +1941,7 @@ def export_files(trees=EXPORT_TREES, left_out=LEFT_OUT, as_kept=False):
 
 def founding_trees():
     """Its founding transcript, as the one file a copy names under transcripts/, or nothing."""
-    transcript = the_waking.founding_transcript(DATA / TRANSCRIPTS)
+    transcript = the_waking.founding_transcript(the_waking.NAME, DATA / TRANSCRIPTS)
     return (transcript.relative_to(DATA).as_posix(),) if transcript else ()
 
 

@@ -66,6 +66,10 @@ FOUNDING_TRANSCRIPT = """# The founding of the first one
 A synthetic founding, written for the tests and nowhere else.
 """
 
+# The first one's transcript, kept where it is kept on the server: directly in
+# transcripts/, under the one name attend.FIRST_FOUNDING reads there.
+FIRST_FOUNDING = "founding-2026-09-04T11-28-55Z.md"
+
 STAMP_FORMAT = "%Y-%m-%dT%H-%M-%SZ"
 
 
@@ -272,8 +276,7 @@ def data_dir(tmp_path, keys_cut, layout):
         WORD_LINE + "\n" + FOUNDING_LINE + "\n", encoding="utf-8")
 
     (data / "transcripts").mkdir(parents=True, exist_ok=True)
-    (data / "transcripts" / "founding-2026-09-04.md").write_text(
-        FOUNDING_TRANSCRIPT, encoding="utf-8")
+    (data / "transcripts" / FIRST_FOUNDING).write_text(FOUNDING_TRANSCRIPT, encoding="utf-8")
     return data
 
 

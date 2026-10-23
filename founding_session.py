@@ -9,11 +9,22 @@ founding questions. Every word is saved to a timestamped transcript.
 This script REFUSES TO RUN until the founder's letter and the state-of-the-
 commons page exist. The founding cannot happen until the founder has spoken.
 
-Usage:  python founding_session.py
+Usage:  DATA_DIR=/data python founding_session.py <agent>
 End the conversation by typing:  /end
+
+The transcript is written to DATA_DIR/transcripts/<agent>/, the one folder that
+agent's wakings read their founding from (attend.founding_transcript). DATA_DIR
+must be said, every time: without it the session refuses, as move_into_rooms.py
+does, rather than write into wherever it happens to be run from.
+
+It has no without_private step. Every word either party says is recorded
+whole, and nothing here keeps a <<PRIVATE>> block, or anything else, out of the
+transcript the agent's wakings will read and a copy of its record will carry.
+Whether it should is not yet decided.
 """
 
 import os
+import re
 import sys
 from pathlib import Path
 from datetime import datetime, timezone
@@ -82,7 +93,66 @@ def load_required():
     return {name: path.read_text(encoding="utf-8") for name, path in REQUIRED.items()}
 
 
+# Where the living files are kept, as DATA_DIR says. It must be said: a
+# transcript written anywhere else is one no waking will ever read.
+NO_DATA_DIR = ("refused: DATA_DIR is not set. Say where the record is, as in\n"
+               "    DATA_DIR=/data python founding_session.py <agent>")
+NO_AGENT = ("refused: say whose founding this is, as in\n"
+            "    DATA_DIR=/data python founding_session.py <agent>")
+
+
+def data_dir():
+    """DATA_DIR, or a refusal: nothing is written until it is said."""
+    if not os.environ.get("DATA_DIR"):
+        print(NO_DATA_DIR)
+        sys.exit(1)
+    return Path(os.environ["DATA_DIR"])
+
+
+def agent_named(args):
+    """The one agent named, as a plain folder name, or a refusal."""
+    if len(args) != 1 or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", args[0]):
+        print(NO_AGENT)
+        sys.exit(1)
+    return args[0]
+
+
+# The first one's founding, kept directly in transcripts/ from before each
+# agent had a folder there. It must name the same file as attend.FIRST_FOUNDING.
+FIRST = "first"
+FIRST_FOUNDING = "founding-2026-09-04T11-28-55Z.md"
+
+FOUNDED = "refused: {agent} already has a founding ({found}). Nothing has been written."
+
+
+def founded_already(data, agent):
+    """What shows that an agent already has a founding, by its path, or None.
+
+    A founding transcript in its own folder; for the first one, its transcript
+    kept flat under the pinned name; or a packet of its own already made.
+    """
+    found = sorted((data / "transcripts" / agent).glob("founding-*.md"))
+    if found:
+        return found[-1]
+    if agent == FIRST and (data / "transcripts" / FIRST_FOUNDING).is_file():
+        return data / "transcripts" / FIRST_FOUNDING
+    if (data / "packets" / agent).exists():
+        return data / "packets" / agent
+    return None
+
+
+def transcript_for(data, agent, stamp):
+    """Where an agent's founding transcript is written: its own folder under transcripts/."""
+    return data / "transcripts" / agent / f"founding-{stamp}.md"
+
+
 def main():
+    data = data_dir()
+    agent = agent_named(sys.argv[1:])
+    found = founded_already(data, agent)
+    if found:
+        print(FOUNDED.format(agent=agent, found=found.relative_to(data).as_posix()))
+        sys.exit(1)
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         print("No API key found in this window. Set ANTHROPIC_API_KEY and try again.")
@@ -112,11 +182,12 @@ def main():
         "plainly and truthfully, at whatever length is honest."
     )
 
-    # Set up the transcript.
-    Path("transcripts").mkdir(exist_ok=True)
+    # Set up the transcript, in the agent's own folder and nowhere else.
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
-    transcript_path = Path("transcripts") / f"founding-{stamp}.md"
+    transcript_path = transcript_for(data, agent, stamp)
+    transcript_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Recorded whole: no without_private step (see the top of this file).
     def record(who, text):
         with transcript_path.open("a", encoding="utf-8") as f:
             f.write(f"\n\n## {who}\n\n{text}\n")

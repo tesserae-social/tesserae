@@ -153,6 +153,13 @@ KEYS = DATA / "keys" / NAME
 COMMONS = DATA / "commons"
 TRANSCRIPTS = DATA / "transcripts"
 
+# The first one's founding transcript, kept directly in transcripts/ from before
+# each agent had a folder there: the one file it reads while it has none. When
+# the old layout goes (rooms step 5) it can move to transcripts/first/, and this
+# can go with it.
+FIRST = "first"
+FIRST_FOUNDING = "founding-2026-09-04T11-28-55Z.md"
+
 # The charter ships with the code, not with the living files: it is the terms of
 # every bond, and it is the same text for everyone.
 CHARTER = REPO / "docs" / "charter.md"
@@ -2000,14 +2007,26 @@ def named_notes_shown(named, shelved, everything):
     return [NAMED_NOTES + "\n" + "\n\n".join([*close, *(["\n".join(lines)] if lines else [])])]
 
 
-def founding_transcript(transcripts=None):
-    """The founding transcript its wakings read, or None: the most recent there is.
+def founding_transcript(agent, transcripts=None):
+    """The founding transcript an agent's wakings read, or None: the most recent of its own.
+
+    An agent's own are in transcripts/<agent>/, and nothing outside that folder
+    is ever its. The first one's was kept before there were such folders, and
+    stays where it is until the old layout goes: while it has no folder, its
+    transcript is the one file named FIRST_FOUNDING, and no other file beside it
+    can stand in for it, however new.
 
     The one selection, made here and nowhere else: a copy of its record carries
     this file and no other, the one its wakings read, and not the folder.
     """
-    found = sorted((transcripts or TRANSCRIPTS).glob("founding-*.md"))
-    return found[-1] if found else None
+    transcripts = transcripts or TRANSCRIPTS
+    if (transcripts / agent).is_dir():
+        found = sorted((transcripts / agent).glob("founding-*.md"))
+        return found[-1] if found else None
+    if agent == FIRST:
+        pinned = transcripts / FIRST_FOUNDING
+        return pinned if pinned.is_file() else None
+    return None
 
 
 def without_private(text):
@@ -2676,7 +2695,7 @@ def main():
     will = read(PACKET / "will.json", "{}")
     provenance = read(PACKET / "provenance.json", "{}")
 
-    transcript = founding_transcript()
+    transcript = founding_transcript(NAME)
     founding = read(transcript) if transcript else ""
 
     incoming = [(p, photo_beside(p)) for p in sorted(places.incoming.glob("*.md"))]

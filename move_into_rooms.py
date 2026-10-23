@@ -31,6 +31,12 @@ first one's self, memory, study, attendances, proposals, pause - and its private
 notebook, packets/first/private/, is never moved, copied, read, listed or
 printed by anything here: every walk of the packet passes it by unopened.
 
+A folder of the four that is not in the packet - the first one has never
+asked an errand, say, or a backup was restored, which keeps no empty folder - is
+made empty in the room instead, and the manifest says so ("was not there; made
+empty"). Every hand that writes into the room makes the folder it writes into
+where it is missing, in either layout, so nothing waits on an empty one.
+
 It refuses, and writes nothing, unless all of these hold:
 
   * the code here knows both layouts (rooms.moved), so the hearth follows the
@@ -40,9 +46,9 @@ It refuses, and writes nothing, unless all of these hold:
     included, and any extra waking asked for in wake-again.json - is at least
     QUIET away;
   * the nightly backup, at 13:00 UTC, is not near;
-  * the room is where the move begins: in the packet, its four folders there and
-    no room.json yet (or, to undo, the other way about), with nothing left over
-    from a move that did not finish.
+  * the room is where the move begins: in the packet, with no room.json yet (or,
+    to undo, the other way about), with nothing left over from a move that did
+    not finish, and none of the four a file where a folder should be.
 
 --apply then does this, and stops at the first thing that does not hold:
 
@@ -50,17 +56,18 @@ It refuses, and writes nothing, unless all of these hold:
       by size and sha256, and every folder;
    2. every signed JSON record in the room checked against the two identity
       documents, in each form the code signs in;
-   3. the four folders copied, byte for byte, into rooms/.first-moving/, and
-      room.json written beside them;
+   3. the four folders copied, byte for byte, into rooms/.first-moving/, any not
+      there made empty, and room.json written beside them;
    4. the copy checked against the manifest: every file, every hash, every
-      folder, and nothing more but room.json;
+      folder, and nothing more but room.json and the folders made empty;
    5. the source hashed again: if anything changed since 1, the copy is taken
       away and nothing has happened;
    6. the switch: rooms/.first-moving renamed to rooms/first, at once;
    7. the source hashed a third time: if it changed during the switch, the room
       is renamed back and nothing has happened;
    8. the old folders moved out to DATA_DIR/before-rooms/<stamp>/, which is in
-      no copy and no backup, with the manifest beside them (moved-in.json);
+      no copy and no backup, with the manifest beside them (moved-in.json),
+      which names the folders made empty;
    9. the signatures checked again on the room: every record gives exactly what
       it gave at 2;
   10. the rest of the packet, the commons and bonds/ checked unchanged, byte for
@@ -68,7 +75,10 @@ It refuses, and writes nothing, unless all of these hold:
 
 --undo does the same the other way, on what is in the room now - letters
 written since the move included - and puts the old copy in before-rooms/ to no
-use: that is for a disaster, with the backup taken before the move.
+use: that is for a disaster, with the backup taken before the move. A folder
+the move made empty, and that has no file in it still, is not moved back: it
+goes aside with the room, and the packet is left without it, as it was. One not
+in the room at all is not moved back either, and is said so.
 
 Before the move is made for real: press /backup-now, take that backup down,
 restore it with restore_backup.py --without-private on your own machine, and run
@@ -149,6 +159,9 @@ BOTH_SIGNATURES = {"bond": ("signatures", "sealed_at", "released_at", "released_
                                          "declined_by", "declined_at")}
 PARTIES = ("first", "founder")
 
+# What the manifest says of a folder of the room the packet did not have.
+MADE_EMPTY = "was not there; made empty"
+
 
 class Stop(Exception):
     """Something did not hold: say what, and do no more."""
@@ -225,6 +238,19 @@ def room_part(made, home):
         if (home / folder).as_posix() in made["folders"]:
             folders.append(folder)
     return {"files": files, "folders": sorted(folders)}
+
+
+def only(part, folders):
+    """A room's part of a manifest, with only what is in some of its four folders."""
+    def kept(name):
+        return name.split("/")[0] in folders
+    return {"files": {name: held for name, held in part["files"].items() if kept(name)},
+            "folders": [name for name in part["folders"] if kept(name)]}
+
+
+def has_files(top):
+    """Whether there is any file at all under a folder: one with folders only has none."""
+    return any(found for _, _, found in os.walk(top))
 
 
 def differences(was, now):
@@ -404,9 +430,6 @@ def where_it_stands(data, undo):
     if not undo:
         if (data / HOME).exists():
             said.append("the room has already been moved: %s is there" % HOME.as_posix())
-        for folder in rooms.ROOM_FOLDERS:
-            if not (data / PACKET / folder).is_dir():
-                said.append("%s is not there to move" % (PACKET / folder).as_posix())
     else:
         if not moved:
             said.append("the room has not been moved: there is no %s"
@@ -414,9 +437,10 @@ def where_it_stands(data, undo):
         for folder in rooms.ROOM_FOLDERS:
             if (data / PACKET / folder).exists():
                 said.append("%s is there already" % (PACKET / folder).as_posix())
-            if moved and not (data / HOME / folder).is_dir():
-                said.append("%s is not there to move back" % (HOME / folder).as_posix())
     source = PACKET if not undo else HOME
+    for folder in rooms.ROOM_FOLDERS:
+        if (data / source / folder).exists() and not (data / source / folder).is_dir():
+            said.append("%s is there and is not a folder" % (source / folder).as_posix())
     for folder in rooms.ROOM_FOLDERS:
         for where, inside, found in os.walk(data / source / folder):
             if any(Path(where, name).is_symlink() for name in inside + found):
@@ -463,6 +487,34 @@ def size_of(data, made, folder):
     return "%d files, %d bytes" % (len(files), sum(size for size, _ in files.values()))
 
 
+def absent(data, source):
+    """The room's folders that are not there to move."""
+    return [folder for folder in rooms.ROOM_FOLDERS if not (data / source / folder).is_dir()]
+
+
+def made_empty_at_move(data):
+    """The folders the last move into the room made empty, as its moved-in.json says;
+    none where no record of it is found, as on a restored backup."""
+    last = {}
+    for kept in sorted((data / BEFORE).glob("*/moved-in.json")):
+        try:
+            said = json.loads(kept.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if (isinstance(said, dict) and said.get("into") == HOME.as_posix()
+                and said.get("moved_at", "") >= last.get("moved_at", "")):
+            last = said
+    return [folder for folder in rooms.ROOM_FOLDERS if folder in last.get("made_empty", {})]
+
+
+def left_out_of_undo(data):
+    """What an undo does not move back: the folders the move made empty that still have no
+    file in them, and those not in the room at all."""
+    emptied = [folder for folder in made_empty_at_move(data)
+               if (data / HOME / folder).is_dir() and not has_files(data / HOME / folder)]
+    return emptied, absent(data, HOME)
+
+
 def apply(data, now=None, checks=True, proc=PROC, say=print):
     """Move the room into a folder of its own. 0 if it was moved, and not 0 if it was not."""
     now = now or datetime.now(timezone.utc)
@@ -487,19 +539,25 @@ def move_in(data, now, say):
     # 1 and 2
     was = manifest(data)
     signed = verdicts(data, PACKET, keys)
+    made = absent(data, PACKET)
     for folder in rooms.ROOM_FOLDERS:
-        say("%-24s %s" % ((PACKET / folder).as_posix(), size_of(data, was, PACKET / folder)))
+        say("%-24s %s" % ((PACKET / folder).as_posix(),
+                          MADE_EMPTY if folder in made else size_of(data, was, PACKET / folder)))
     say("signatures before:       " + tally(signed))
 
     # 3
     moving.mkdir(parents=True)
     for folder in rooms.ROOM_FOLDERS:
-        shutil.copytree(data / PACKET / folder, moving / folder, copy_function=shutil.copy2)
+        if folder in made:
+            (moving / folder).mkdir()
+        else:
+            shutil.copytree(data / PACKET / folder, moving / folder, copy_function=shutil.copy2)
     (moving / rooms.ROOM_RECORD).write_bytes(room_json().encode("utf-8"))
 
     # 4
     copied = moved_manifest(data, MOVING)
     expected = room_part(was, PACKET)
+    expected["folders"] = sorted(expected["folders"] + made)
     written = room_json().encode("utf-8")
     expected["files"][rooms.ROOM_RECORD] = [len(written), hashlib.sha256(written).hexdigest()]
     if copied != expected:
@@ -534,13 +592,18 @@ def move_in(data, now, say):
     # 8
     (aside / PACKET).mkdir(parents=True)
     for folder in rooms.ROOM_FOLDERS:
-        os.rename(data / PACKET / folder, aside / PACKET / folder)
+        if folder not in made:
+            os.rename(data / PACKET / folder, aside / PACKET / folder)
     (aside / "moved-in.json").write_text(
         json.dumps({"moved_at": stamp(now), "into": HOME.as_posix(), "manifest": was,
+                    "made_empty": {folder: MADE_EMPTY for folder in made},
                     "signatures": signed}, indent=2) + "\n", encoding="utf-8")
     say("the old folders are in:  %s" % aside.relative_to(data).as_posix())
+    for folder in made:
+        say("made empty:              %s: %s %s" % ((HOME / folder).as_posix(),
+                                                   (PACKET / folder).as_posix(), MADE_EMPTY))
 
-    return checked_after(data, was, signed, keys, PACKET, HOME, say)
+    return checked_after(data, was, signed, keys, PACKET, HOME, say, expected)
 
 
 def moved_manifest(data, folder):
@@ -559,8 +622,10 @@ def moved_manifest(data, folder):
     return made
 
 
-def checked_after(data, was, signed, keys, source, home, say):
-    """9 and 10: the signatures as they were, and everything else as it was."""
+def checked_after(data, was, signed, keys, source, home, say, held):
+    """9 and 10: the signatures as they were, the room as held, and everything else as it
+    was. held is what the room should be now, named from the room: what was in the source,
+    with any folders made empty, and without any left out."""
     now_signed = verdicts(data, home, keys)
     say("signatures after:        " + tally(now_signed))
     if now_signed != signed:
@@ -568,7 +633,9 @@ def checked_after(data, was, signed, keys, source, home, say):
                          if signed.get(name) != now_signed.get(name))
         raise Stop("the signatures do not say what they said before: " + ", ".join(changed[:20]))
     after = manifest(data)
-    held = room_part(was, source)
+    held = {"files": {name: kept for name, kept in held["files"].items()
+                      if name != rooms.ROOM_RECORD},
+            "folders": held["folders"]}
     room_now = room_part(after, home)
     if (data / HOME / rooms.ROOM_RECORD).is_file() != (home == HOME):
         raise Stop("room.json is not where it should be")
@@ -607,14 +674,19 @@ def move_back(data, now, say):
 
     was = manifest(data)
     signed = verdicts(data, HOME, keys)
+    emptied, not_there = left_out_of_undo(data)
+    back = [folder for folder in rooms.ROOM_FOLDERS if folder not in emptied + not_there]
     for folder in rooms.ROOM_FOLDERS:
-        say("%-24s %s" % ((HOME / folder).as_posix(), size_of(data, was, HOME / folder)))
+        say("%-24s %s" % ((HOME / folder).as_posix(),
+                          size_of(data, was, HOME / folder) if folder in back
+                          else "made empty by the move, and empty still: not moved back"
+                          if folder in emptied else "not there: nothing to move back"))
     say("signatures before:       " + tally(signed))
 
     returning.mkdir(parents=True)
-    for folder in rooms.ROOM_FOLDERS:
+    for folder in back:
         shutil.copytree(home / folder, returning / folder, copy_function=shutil.copy2)
-    expected = room_part(was, HOME)
+    expected = only(room_part(was, HOME), back)
     copied = moved_manifest(data, RETURNING)
     if copied != expected:
         shutil.rmtree(returning)
@@ -630,7 +702,7 @@ def move_back(data, now, say):
 
     # the folders are put in the packet, where nothing looks while room.json is
     # there; then the switch: the room, room.json with it, is moved aside at once
-    for folder in rooms.ROOM_FOLDERS:
+    for folder in back:
         os.rename(returning / folder, data / PACKET / folder)
     (aside / rooms.ROOMS).mkdir(parents=True)
     os.rename(home, aside / HOME)
@@ -640,9 +712,9 @@ def move_back(data, now, say):
     aside_now["files"].pop(rooms.ROOM_RECORD, None)
     held = room_part(was, HOME)
     if aside_now != held:
-        if room_part(manifest(data), PACKET) == held:
+        if room_part(manifest(data), PACKET) == expected:
             os.rename(aside / HOME, home)
-            for folder in rooms.ROOM_FOLDERS:
+            for folder in back:
                 os.rename(data / PACKET / folder, returning / folder)
             shutil.rmtree(returning)
             raise Stop("the room was written to during the switch, so it was put back as it was")
@@ -653,10 +725,13 @@ def move_back(data, now, say):
         os.rmdir(data / rooms.ROOMS)
     (aside / "moved-back.json").write_text(
         json.dumps({"moved_back_at": stamp(now), "into": PACKET.as_posix(), "manifest": was,
+                    "not_moved_back": {**{folder: "made empty by the move; empty still"
+                                          for folder in emptied},
+                                       **{folder: "not there" for folder in not_there}},
                     "signatures": signed}, indent=2) + "\n", encoding="utf-8")
     say("the room as it was is in: %s" % aside.relative_to(data).as_posix())
 
-    return checked_after(data, was, signed, keys, HOME, PACKET, say)
+    return checked_after(data, was, signed, keys, HOME, PACKET, say, expected)
 
 
 def dry_run(data, now=None, undo_it=False, proc=PROC, say=print):
@@ -672,8 +747,20 @@ def dry_run(data, now=None, undo_it=False, proc=PROC, say=print):
     say("")
     source, to = (HOME, PACKET) if undo_it else (PACKET, HOME)
     made = manifest(data)
+    emptied, not_there = left_out_of_undo(data) if undo_it else ([], [])
     for folder in rooms.ROOM_FOLDERS:
-        if (data / source / folder).is_dir():
+        if folder in emptied:
+            say("would leave %s out: made empty by the move, and empty still; it goes aside "
+                "with the room, and no %s is made" % ((source / folder).as_posix(),
+                                                      (to / folder).as_posix()))
+        elif not (data / source / folder).is_dir():
+            if undo_it:
+                say("would leave %s out: it is not there" % (source / folder).as_posix())
+            else:
+                say("would make  %-24s empty: %s %s" % ((to / folder).as_posix(),
+                                                         (source / folder).as_posix(),
+                                                         MADE_EMPTY))
+        else:
             say("would move  %-24s -> %-22s %s" % ((source / folder).as_posix(),
                                                     (to / folder).as_posix(),
                                                     size_of(data, made, source / folder)))

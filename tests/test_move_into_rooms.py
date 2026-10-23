@@ -16,7 +16,11 @@ and writes room.json beside them; or moves them back. Held here:
   * that, on a world with everything in it, the hearth shows the same pages and
     hands out the same copy before and after the move, and that what is written
     after the move lands in the room; and that a rehearsal on such a world finds
-    the first one shown the same thing, byte for byte, on both sides of it.
+    the first one shown the same thing, byte for byte, on both sides of it;
+  * that a room with no errands/ and no offerings/, or with them empty, is no
+    reason to refuse: what is missing is made empty in the room, said and
+    recorded, and an undo takes it away again; and that a rehearsal holds on a
+    restored backup, which keeps no empty folder.
 
 A move always begins from the packet, so every world here starts in the old
 layout, whichever layout the suite was run in.
@@ -272,9 +276,12 @@ def test_it_refuses_once_the_room_is_moved(world, proc):
                  proc=proc)
 
 
-def test_it_refuses_where_a_folder_is_not_there_or_a_move_was_left_unfinished(world, packet, proc):
+def test_it_refuses_where_a_move_was_left_unfinished_or_a_folder_is_a_file(world, packet, proc):
     shutil.rmtree(packet / "errands")
-    refused_with(world, "packets/first/errands is not there to move", now=QUIET, proc=proc)
+    write(packet / "errands", "not a folder")
+    refused_with(world, "packets/first/errands is there and is not a folder", now=QUIET,
+                 proc=proc)
+    (packet / "errands").unlink()
     (world / "rooms" / ".first-moving").mkdir(parents=True)
     refused_with(world, "rooms/.first-moving is there, left from a move that did not finish",
                  now=QUIET, proc=proc)
@@ -715,3 +722,237 @@ def test_the_identities_are_data_dir_s_where_it_has_them_and_the_repository_s_wh
     monkeypatch.setattr(mir, "IDS", tmp_path / "nowhere")
     with pytest.raises(mir.Stop, match="ids/first/did.json"):
         mir.party_keys(world)
+
+
+# ---- a world with folders missing, or empty ------------------------------
+#
+# The first one has never asked an errand nor offered anything, so there is no
+# errands/ and no offerings/ to move; and a backup keeps no empty folder, so a
+# restore lacks the ones the disk keeps empty (letters/incoming/, errands/answered/).
+# Neither is a reason to refuse: what is missing is made empty in the room, and
+# an undo takes it away again.
+
+SPARSE = ("missing", "empty")
+LEFT_EMPTY = ("letters/incoming", "errands/answered", "errands", "offerings")
+
+
+def without_empty_folders(top):
+    """Every folder under top with no file anywhere under it taken away, as a restore has it."""
+    for path in sorted(top.rglob("*"), key=lambda one: len(one.parts), reverse=True):
+        if path.is_dir() and not any(path.iterdir()):
+            path.rmdir()
+
+
+def a_sparse_world(founder, wake, packet, clock, kept_empty):
+    """A room with letters both ways and a bond, and never an errand or an offering.
+
+    Every waking makes the room's folders where they are missing, so they are taken
+    away after: all of them, where kept_empty is "missing"; or left there empty, as a
+    disk the first one has woken on has them, where it is "empty".
+    """
+    room = packet  # the old layout
+    write(room / "letters" / "read" / (PHOTO_JPG + ".md"), "The first letter, with the lake.\n")
+    (room / "letters" / "read" / (PHOTO_JPG + ".jpg")).write_bytes(photo_bytes())
+    write(room / "letters" / "outgoing" / (PICTURE + ".md"), "Here is the lake as I see it.\n")
+    write(room / "letters" / "outgoing" / (PICTURE + ".svg"), DRAWN)
+    write_json(packet / "rhythm.json", RHYTHM)
+    a_private_notebook(packet)
+    wake(block("NOTE", "name: kingfisher\nIt came back to the same branch."))
+    sealed(founder, wake, room, clock)
+
+    for folder in ("errands", "offerings"):
+        assert not [path for path in (room / folder).rglob("*") if path.is_file()], folder
+        shutil.rmtree(room / folder)
+    for folder in ROOM_FOLDERS:
+        if (room / folder).is_dir():
+            without_empty_folders(room / folder)
+    assert not (room / "letters" / "incoming").exists()
+    if kept_empty == "empty":
+        for folder in LEFT_EMPTY:
+            (room / folder).mkdir(parents=True, exist_ok=True)
+    return room
+
+
+@pytest.fixture(params=SPARSE)
+def kept_empty(request):
+    return request.param
+
+
+@pytest.fixture
+def sparse(founder, wake, packet, clock, data_dir, kept_empty):
+    a_sparse_world(founder, wake, packet, clock, kept_empty)
+    return data_dir
+
+
+def made_empty_by_the_move(kept_empty):
+    return ["errands", "offerings"] if kept_empty == "missing" else []
+
+
+def test_a_sparse_room_is_no_reason_to_refuse_and_a_dry_run_says_what_it_would_make(
+        sparse, proc, kept_empty):
+    before = everything(sparse)
+    done, said = said_by(mir.dry_run, sparse, QUIET, proc=proc)
+    assert everything(sparse) == before
+    assert done == 0, said
+    assert not [line for line in said if line.startswith("refused")]
+    text = "\n".join(said)
+    for folder in ("letters", "bonds"):
+        assert re.search(r"would move  packets/first/%s +-> rooms/first/%s +[1-9]\d* files"
+                         % (folder, folder), text), folder
+    for folder in ("errands", "offerings"):
+        if kept_empty == "missing":
+            assert ("would make  %-24s empty: packets/first/%s was not there; made empty"
+                    % ("rooms/first/" + folder, folder)) in said, text
+        else:
+            assert re.search(r"would move  packets/first/%s +-> rooms/first/%s +0 files, 0 bytes"
+                             % (folder, folder), text), folder
+    assert said[-1] == "Would move. Run again with --apply to do it."
+
+
+def test_a_sparse_room_moves_and_undoes_exactly(sparse, packet, proc, kept_empty, hearth):
+    was = tree_hash(sparse)
+    before = everything(sparse)
+    made = made_empty_by_the_move(kept_empty)
+
+    done, said = said_by(mir.apply, sparse, QUIET, proc=proc)
+    assert done == 0, said
+    assert said[-1] == "Done."
+    home = sparse / "rooms" / "first"
+    assert sorted(p.name for p in home.iterdir()) == sorted(ROOM_FOLDERS + ("room.json",))
+    for folder in ("errands", "offerings"):
+        assert (home / folder).is_dir()
+        assert not [path for path in (home / folder).rglob("*") if path.is_file()]
+    assert (home / "errands" / "answered").is_dir() == (kept_empty == "empty")
+    assert not [folder for folder in ROOM_FOLDERS if (packet / folder).exists()]
+    assert hearth.rooms.places("first").home == home
+    for folder in made:
+        assert ("made empty:              rooms/first/%s: packets/first/%s was not there; "
+                "made empty" % (folder, folder)) in said
+    kept = read_json(sparse / "before-rooms" / MOVED_AT / "moved-in.json")
+    assert kept["made_empty"] == {folder: "was not there; made empty" for folder in made}
+    assert sorted(p.name for p in (sparse / "before-rooms" / MOVED_AT / "packets" / "first")
+                  .iterdir()) == sorted(set(ROOM_FOLDERS) - set(made))
+
+    done, said = said_by(mir.dry_run, sparse, QUIET + timedelta(hours=1), proc=proc,
+                         undo_it=True)
+    assert done == 0, said
+    for folder in made:
+        assert ("would leave rooms/first/%s out: made empty by the move, and empty still; it "
+                "goes aside with the room, and no packets/first/%s is made"
+                % (folder, folder)) in said
+
+    done, said = said_by(mir.undo, sparse, QUIET + timedelta(hours=1), proc=proc)
+    assert done == 0, said
+    assert said[-1] == "Done."
+    assert tree_hash(sparse) == was
+    assert not (sparse / "rooms").exists()
+    files, folders = everything(sparse)
+    assert {name: kept for name, kept in files.items()
+            if not name.startswith("before-rooms/")} == before[0]
+    # no folder left behind in the packet, and none taken from it
+    assert [name for name in folders if not name.startswith("before-rooms")] == before[1]
+    back = read_json(next((sparse / "before-rooms").glob("*/moved-back.json")))
+    assert back["not_moved_back"] == {folder: "made empty by the move; empty still"
+                                      for folder in made}
+
+
+def test_what_a_made_empty_folder_holds_goes_back_and_its_bare_folders_do_not(
+        sparse, packet, proc, wake, kept_empty):
+    assert said_by(mir.apply, sparse, QUIET, proc=proc)[0] == 0
+    home = sparse / "rooms" / "first"
+    wake()  # a waking makes errands/answered/ in the room, and nothing in it
+    assert (home / "errands" / "answered").is_dir()
+    assert said_by(mir.undo, sparse, QUIET + timedelta(hours=1), proc=proc)[0] == 0
+    for folder in ("errands", "offerings"):
+        assert (packet / folder).is_dir() == (kept_empty == "empty"), folder
+
+    assert said_by(mir.apply, sparse, QUIET + timedelta(hours=2), proc=proc)[0] == 0
+    wake(block("ERRAND", "Go to the river and listen."))
+    asked = [path.name for path in (home / "errands").glob("errand-*.md")]
+    assert len(asked) == 1
+    done, said = said_by(mir.undo, sparse, QUIET + timedelta(hours=3), proc=proc)
+    assert done == 0, said
+    assert [path.name for path in (packet / "errands").glob("errand-*.md")] == asked
+    assert (packet / "offerings").is_dir() == (kept_empty == "empty")
+
+
+@pytest.fixture
+def moved_sparse(sparse, tmp_path, proc):
+    other = tmp_path / "moved-sparse"
+    shutil.copytree(sparse, other, copy_function=shutil.copy2)
+    assert said_by(mir.apply, other, QUIET, proc=proc)[0] == 0
+    return other
+
+
+def test_a_sparse_room_reads_the_same_after_the_move(sparse, moved_sparse, monkeypatch, clock):
+    clock.set(QUIET + timedelta(hours=1))
+    pages, zips = {}, {}
+    for name, data in (("before", sparse), ("after", moved_sparse)):
+        _, client = the_hearth_of(data, monkeypatch, clock)
+        pages[name], zips[name] = shown(client), copied(client)
+    for path in PAGES:
+        assert pages["after"][path] == pages["before"][path], path
+    assert pages["before"]["/rooms/first"][0] == 200
+    assert zips["after"] == zips["before"]
+
+    # and what is written after it lands in the room, the same either side
+    for name, data in (("before", sparse), ("after", moved_sparse)):
+        clock.set(QUIET + timedelta(hours=2))
+        hearth, client = the_hearth_of(data, monkeypatch, clock)
+        assert post(client, "/rooms/first", content_type="multipart/form-data",
+                    data={"letter": "Is the river loud?"}).status_code == 302
+        clock.shift(minutes=1)
+        assert offer(client, "letter", PHOTO_JPG).status_code == 302
+        clock.shift(minutes=1)
+        woken(data, monkeypatch, clock, block("ERRAND", "Go and listen to it."))
+        clock.shift(minutes=5)
+        hearth, client = the_hearth_of(data, monkeypatch, clock)
+        pages[name] = shown(client)
+        places = hearth.rooms.places("first")
+        assert len(list(places.errands.glob("errand-*.md"))) == 1
+        assert len(list(places.offerings.glob("pending-*.json"))) == 1
+    for path in PAGES:
+        assert pages["after"][path] == pages["before"][path], path
+    assert not [folder for folder in ROOM_FOLDERS
+                if (moved_sparse / "packets" / "first" / folder).exists()]
+
+
+def test_a_rehearsal_on_a_sparse_room_finds_the_reading_the_same(sparse, kept_empty):
+    before = everything(sparse)
+    done, said = said_by(mir.rehearse, sparse, QUIET)
+    assert done == 0, said
+    assert "what the first one was shown, whole:        the same, byte for byte" in "\n".join(
+        said)
+    assert said[-1] == "The rehearsal holds."
+    assert ("  made empty:              rooms/first/errands: packets/first/errands was not "
+            "there; made empty" in said) == (kept_empty == "missing")
+    assert everything(sparse) == before
+
+
+@pytest.mark.parametrize("kept_empty", ["empty"])
+def test_a_rehearsal_holds_on_a_restored_backup_with_the_empty_folders_gone(
+        sparse, packet, monkeypatch, clock, tmp_path, capsys):
+    """The disk keeps errands/, errands/answered/, offerings/ and letters/incoming/ empty;
+    the backup of it keeps none of them, and the rehearsal makes them empty in the room."""
+    assert all((packet / folder).is_dir() for folder in LEFT_EMPTY)
+    restored = restored_without_private(sparse, monkeypatch, clock, tmp_path)
+    room = restored / "packets" / "first"
+    for folder in LEFT_EMPTY:
+        assert not (room / folder).exists(), folder
+    monkeypatch.setattr(mir, "IDS", sparse / "ids")
+    before = everything(restored)
+
+    done, said = said_by(mir.rehearse, restored, QUIET)
+    assert done == 0, said
+    assert not [line for line in said if "refused" in line]
+    for folder in ("errands", "offerings"):
+        assert ("  made empty:              rooms/first/%s: packets/first/%s was not there; "
+                "made empty" % (folder, folder)) in said
+    assert "  Done." in said
+    assert "what the first one was shown, whole:        the same, byte for byte" in "\n".join(
+        said)
+    assert said[-1] == "The rehearsal holds."
+    assert everything(restored) == before
+    printed = "\n".join(said) + capsys.readouterr().out
+    for words in NOTEBOOK_WORDS:
+        assert words not in printed

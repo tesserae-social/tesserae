@@ -3,15 +3,18 @@ what is written down when one is taken.
 """
 
 import io
+import shutil
 import zipfile
 
 from conftest import ROOM_FOLDERS, lines_of, on_disk, page, post, room_beside, write, write_json
 
 SENTENCE = ("Everything that is yours and the first one's, as it stands: the first one's "
             "packet and the commons, with the founder's letters and the bond and offering "
-            "records. Nothing is changed by taking it.")
+            "records, and the transcript of its founding. Nothing is changed by taking it.")
 NO_MEMBERS = ("Members' records are not in this copy; they are kept only in the encrypted "
               "backup.")
+
+FOUNDING = "transcripts/founding-2026-09-04.md"  # as conftest keeps it
 
 TAKEN = "2026-10-15T12-00-00Z · export taken by the founder"
 SAID = "The founder took a copy of the record on 15 October 2026."
@@ -148,6 +151,7 @@ def test_the_copy_holds_the_packet_and_the_commons_whole(founder, packet, common
 
     expected = packet_as_copied(packet) | files_under(commons, "commons/")
     expected |= {"packets/first/exports.log"}  # the copy records its own taking
+    expected |= {FOUNDING}  # and its founding, as its wakings read it
     # but for its private notebook, which no copy carries (see test_private_notebook.py)
     expected -= files_under(packet / "private", "packets/first/private/")
     assert set(bundle.namelist()) == expected
@@ -160,7 +164,7 @@ def test_the_copy_holds_the_packet_and_the_commons_whole(founder, packet, common
         assert bundle.read(name) == on_disk(packet.parents[1], name).read_bytes(), name
 
 
-def test_nothing_outside_the_two_trees_is_in_the_copy(founder, packet, commons, data_dir):
+def test_nothing_outside_its_record_is_in_the_copy(founder, packet, commons, data_dir):
     a_whole_world(packet, commons)
     # the things that live beside the record and are no part of it
     write(data_dir / ".env", "HEARTH_SECRET=not the real one\n")
@@ -168,14 +172,44 @@ def test_nothing_outside_the_two_trees_is_in_the_copy(founder, packet, commons, 
 
     inside = set(taken(founder)[1].namelist())
     for name in inside:
-        assert name.startswith(("packets/first/", "commons/")), name
+        assert name.startswith(("packets/first/", "commons/")) or name == FOUNDING, name
     assert not [name for name in inside if "key" in name or name.endswith(".env")]
     assert "keys/first/private.key" not in inside
     assert "ids/first/did.json" not in inside
     assert ".env" not in inside
     assert "bench-removed.md" not in inside
-    assert "transcripts/founding-2026-09-04.md" not in inside
+    assert FOUNDING in inside  # its founding is its own record
     assert not [name for name in inside if name.startswith("packets/first/private")]
+
+
+# ---- its founding transcript ---------------------------------------------
+
+def test_the_copy_holds_its_founding_transcript_byte_for_byte(founder, data_dir):
+    _, bundle = taken(founder)
+    assert bundle.read(FOUNDING) == (data_dir / FOUNDING).read_bytes()
+
+
+def test_the_copy_holds_only_the_transcript_its_wakings_read(founder, hearth, data_dir):
+    """Not the folder: an older founding, and anything else kept there, stay out of it."""
+    transcripts = data_dir / "transcripts"
+    write(transcripts / "founding-2026-08-01.md", "AN OLDER FOUNDING\n")
+    write(transcripts / "notes.md", "NOT A FOUNDING AT ALL\n")
+    write(transcripts / "drafts" / "founding-2026-12-01.md", "IN A FOLDER BENEATH\n")
+
+    _, bundle = taken(founder)
+    held = [name for name in bundle.namelist() if name.startswith("transcripts/")]
+    read = hearth.the_waking.founding_transcript(transcripts)  # the one attend.py reads
+    assert held == [read.relative_to(data_dir).as_posix()] == [FOUNDING]
+    for name in bundle.namelist():
+        for words in (b"AN OLDER FOUNDING", b"NOT A FOUNDING AT ALL", b"IN A FOLDER BENEATH"):
+            assert words not in bundle.read(name), name
+
+
+def test_a_record_with_no_founding_transcript_is_copied_without_one(founder, packet, data_dir):
+    shutil.rmtree(data_dir / "transcripts")
+    _, bundle = taken(founder)
+    assert not [name for name in bundle.namelist() if name.startswith("transcripts")]
+    assert "packets/first/self.md" in bundle.namelist()
 
 
 def test_the_members_are_not_in_the_copy(founder, packet, commons, data_dir):

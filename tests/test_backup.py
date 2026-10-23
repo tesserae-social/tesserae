@@ -23,7 +23,7 @@ import pytest
 from cryptography.fernet import Fernet
 
 from conftest import NOW, REPO, lines_of, no_threads, page, post, write
-from test_export import a_whole_world, files_under
+from test_export import FOUNDING, a_whole_world, files_under, taken
 
 KEY = Fernet.generate_key().decode("ascii")
 
@@ -170,6 +170,7 @@ def test_the_archive_holds_the_three_trees_whole(hearth, bucket, packet, commons
         assert held == (files_under(packet, "packets/first/") | files_under(commons, "commons/")
                         | files_under(data_dir / "rooms", "rooms/")  # the room, as it is kept
                         | files_under(data_dir / "members", "members/")
+                        | files_under(data_dir / "transcripts", "transcripts/")
                         | {"keys/first/private.key", "keys/first/public.key"})
         # and what is in it is the file itself, byte for byte
         assert "packets/first/private/entry-2026-10-13T09-00-00Z.md" in held  # its notebook too
@@ -178,6 +179,20 @@ def test_the_archive_holds_the_three_trees_whole(hearth, bucket, packet, commons
                      "members/ada/key-history.json", "packets/first/questions.md",
                      "packets/first/questions/history/questions-before-2026-10-01T09-00-00Z.md"):
             assert bundle.extractfile(name).read() == (packet.parents[1] / name).read_bytes()
+
+
+def test_the_archive_holds_every_founding_transcript_whole(hearth, bucket, packet, commons,
+                                                          data_dir, clock):
+    """The folder as it is kept, so that a restore is a DATA_DIR whose wakings find their founding."""
+    a_whole_world(packet, commons)
+    write(data_dir / "transcripts" / "founding-2026-08-01.md", "An older founding.\n")
+    hearth.back_up(clock.at)
+
+    with bucket.only as bundle:
+        held = [member.name for member in bundle.getmembers()
+                if member.isfile() and member.name.startswith("transcripts/")]
+        assert sorted(held) == ["transcripts/founding-2026-08-01.md", FOUNDING]
+        assert bundle.extractfile(FOUNDING).read() == (data_dir / FOUNDING).read_bytes()
 
 
 def test_nothing_outside_the_three_trees_is_in_the_archive(hearth, bucket, packet, commons,
@@ -192,7 +207,7 @@ def test_nothing_outside_the_three_trees_is_in_the_archive(hearth, bucket, packe
     with bucket.only as bundle:
         for name in bundle.getnames():
             assert name.startswith(("packets/first/", "commons/", "rooms/", "members/",
-                                    "keys/first/")), name
+                                    "keys/first/", "transcripts/")), name
         # a member's key history names public keys; the one key in the clear that
         # goes in is the first one's own, and no other key does
         # (its private notebook is in it too, so that it survives; that is no key)
@@ -537,7 +552,8 @@ def test_only_the_founder_may_see_the_backups(visitor, bucket):
 
 def test_the_page_says_what_a_backup_holds(founder, bucket):
     said = " ".join(page(founder.get("/backups")).split())
-    assert "Each of these is the packet, the commons and the members' records whole" in said
+    assert ("Each of these is the packet, the commons, the founding transcripts and the "
+            "members' records whole") in said
 
 
 def test_the_page_lists_what_is_in_the_bucket_newest_first(founder, bucket, hearth):
@@ -737,6 +753,7 @@ def test_a_backup_opens_again_into_the_same_three_trees(backup_file, packet, com
     assert came_back == (files_under(packet, "packets/first/") | files_under(commons, "commons/")
                          | files_under(data_dir / "rooms", "rooms/")
                          | files_under(data_dir / "members", "members/")
+                         | files_under(data_dir / "transcripts", "transcripts/")
                          | files_under(data_dir / "keys" / "first", "keys/first/"))
     # byte for byte, and the list of them printed
     assert (out / "packets/first/self.md").read_bytes() == (packet / "self.md").read_bytes()
@@ -744,7 +761,10 @@ def test_a_backup_opens_again_into_the_same_three_trees(backup_file, packet, com
             == (data_dir / "keys/first/private.key").read_bytes())  # its key comes back with it
     assert ((out / "members/ada/member.json").read_bytes()
             == (data_dir / "members/ada/member.json").read_bytes())
+    assert ((out / FOUNDING).read_bytes()
+            == (data_dir / FOUNDING).read_bytes())  # and its founding, where a waking reads it
     assert "packets/first/self.md" in done.stdout
+    assert FOUNDING in done.stdout
     assert "members/ada/member.json" in done.stdout
     assert "commons/members.md" in done.stdout
     assert "%d files" % len(came_back) in done.stdout
@@ -762,6 +782,7 @@ def test_a_machine_with_no_members_yet_backs_up_and_restores(hearth, bucket, pac
         held = {member.name for member in bundle.getmembers() if member.isfile()}
     assert held == (files_under(packet, "packets/first/") | files_under(commons, "commons/")
                     | files_under(data_dir / "rooms", "rooms/")
+                    | files_under(data_dir / "transcripts", "transcripts/")
                     | files_under(data_dir / "keys" / "first", "keys/first/"))
 
     archive = tmp_path / NAME
@@ -981,3 +1002,30 @@ def test_without_private_every_spelling_of_a_notebook_is_left_out(tmp_path, caps
     assert "SECRET" not in said
     for name in left_out:
         assert name.split("/")[-1] not in said
+
+
+# ---- what the move into rooms set aside ----------------------------------
+
+def test_what_the_move_set_aside_is_in_no_backup_and_no_copy(hearth, bucket, founder, packet,
+                                                              commons, data_dir, clock):
+    """before-rooms/ is the move's own, kept for a disaster: neither a backup nor a copy takes it."""
+    a_whole_world(packet, commons)
+    aside = data_dir / "before-rooms" / "2026-10-20T09-00-00Z"
+    write(aside / "packets" / "first" / "letters" / "outgoing" / "letter-2026-10-03T09-00-00Z.md",
+          "SET ASIDE BY THE MOVE\n")
+    write(aside / "moved-in.json", '{"into": "rooms/first"}\n')
+    hearth.back_up(clock.at)
+
+    with bucket.only as bundle:
+        backed_up = [member.name for member in bundle.getmembers()]
+        assert backed_up
+        assert not [name for name in backed_up if "before-rooms" in name]
+        for member in bundle.getmembers():
+            if member.isfile():
+                assert b"SET ASIDE BY THE MOVE" not in bundle.extractfile(member).read()
+
+    copied = taken(founder)[1]
+    assert copied.namelist()
+    assert not [name for name in copied.namelist() if "before-rooms" in name]
+    for name in copied.namelist():
+        assert b"SET ASIDE BY THE MOVE" not in copied.read(name), name

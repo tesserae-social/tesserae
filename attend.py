@@ -2000,6 +2000,16 @@ def named_notes_shown(named, shelved, everything):
     return [NAMED_NOTES + "\n" + "\n\n".join([*close, *(["\n".join(lines)] if lines else [])])]
 
 
+def founding_transcript(transcripts=None):
+    """The founding transcript its wakings read, or None: the most recent there is.
+
+    The one selection, made here and nowhere else: a copy of its record carries
+    this file and no other, the one its wakings read, and not the folder.
+    """
+    found = sorted((transcripts or TRANSCRIPTS).glob("founding-*.md"))
+    return found[-1] if found else None
+
+
 def without_private(text):
     """A reply with each <<PRIVATE>> block in it as one quiet line, and nothing of its words.
 
@@ -2666,9 +2676,8 @@ def main():
     will = read(PACKET / "will.json", "{}")
     provenance = read(PACKET / "provenance.json", "{}")
 
-    founding = ""
-    for t in sorted(TRANSCRIPTS.glob("founding-*.md")):
-        founding = read(t)  # the most recent founding transcript wins
+    transcript = founding_transcript()
+    founding = read(transcript) if transcript else ""
 
     incoming = [(p, photo_beside(p)) for p in sorted(places.incoming.glob("*.md"))]
 

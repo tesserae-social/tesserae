@@ -3,10 +3,11 @@
 
 Usage:  python restore_backup.py <file.tar.gz.enc> <path to backup.key> <output dir>
 
-A backup is the packet, the commons and the members' records whole, as they
-stood at the hour it was taken - and rooms/, once a room has been moved into a
-folder of its own (move_into_rooms.py), its room.json with it, so that what
-comes out is a DATA_DIR that works: a tar.gz, encrypted with the backup key. This
+A backup is the packet, the commons, the founding transcripts and the members'
+records whole, as they stood at the hour it was taken - and rooms/, once a room
+has been moved into a folder of its own (move_into_rooms.py), its room.json with
+it, so that what comes out is a DATA_DIR that works: a tar.gz, encrypted with
+the backup key. This
 decrypts one, unpacks it into a directory of your choosing, and prints what came
 out. It refuses to unpack into a directory that already has anything in it, so
 that a restore can never write over a record you still want.

@@ -1872,10 +1872,15 @@ def chronicle_text(lines):
 # it is kept in the packet still or has been moved into a folder of its own
 # (rooms.py): a copy says the same names and the same bytes either way, and
 # room.json, which only says the room has been moved, is not among them.
+#
+# Its founding transcript goes in too, under transcripts/, and only the one
+# its wakings read (attend.founding_transcript), never the folder: anything
+# else kept there is no part of the first one's record.
 
 PACKET_TREE = "packets/first"
 EXPORT_TREES = (PACKET_TREE, "commons", "bonds")
 LEFT_OUT = ("packets/first/private",)
+TRANSCRIPTS = "transcripts"
 
 # What a backup holds: the same trees, and the members beside them, each
 # with the vault their key is sealed in, the first one's own signing key,
@@ -1885,8 +1890,11 @@ LEFT_OUT = ("packets/first/private",)
 # first one's private notebook, so that it survives: the backup is the
 # founder's, and he has promised never to open that part of it. A backup is the
 # disk as it is, every file under the name it has there, so that a restore is a
-# DATA_DIR that works: the rooms go in as they are kept, under rooms/.
-BACKUP_TREES = EXPORT_TREES + ("rooms", "members", "keys/first", "private-words.txt")
+# DATA_DIR that works: the rooms go in as they are kept, under rooms/, and the
+# founding transcripts whole, under transcripts/, since a waking reads its
+# founding from there.
+BACKUP_TREES = EXPORT_TREES + ("rooms", "members", "keys/first", "private-words.txt",
+                               TRANSCRIPTS)
 
 EXPORT_TAKEN = "export taken by the founder"
 
@@ -1930,11 +1938,17 @@ def export_files(trees=EXPORT_TREES, left_out=LEFT_OUT, as_kept=False):
                 yield path, name
 
 
+def founding_trees():
+    """Its founding transcript, as the one file a copy names under transcripts/, or nothing."""
+    transcript = the_waking.founding_transcript(DATA / TRANSCRIPTS)
+    return (transcript.relative_to(DATA).as_posix(),) if transcript else ()
+
+
 def export_zip():
     """The whole of it as a zip, held in memory and never written into DATA_DIR."""
     holder = io.BytesIO()
     with zipfile.ZipFile(holder, "w", zipfile.ZIP_DEFLATED) as bundle:
-        for path, name in export_files():
+        for path, name in export_files(EXPORT_TREES + founding_trees()):
             bundle.write(path, name)
     holder.seek(0)
     return holder
@@ -1950,8 +1964,8 @@ def note_export(at):
 # ---- the nightly backup --------------------------------------------------
 
 # Once a day the record is copied off this machine: the trees a copy holds, the
-# members and the first one's key, as a tar.gz built in memory, encrypted with a key this machine is
-# handed and never writes down, and given to a bucket the founder keeps. The
+# members, the first one's key and the founding transcripts, as a tar.gz built
+# in memory, encrypted with a key this machine is handed and never writes down, and given to a bucket the founder keeps. The
 # bucket holds the newest thirty and lets the older ones go.
 #
 # A backup changes nothing it is backing up. The archive is never written to
@@ -3157,8 +3171,8 @@ BACKUPS_PAGE = """{% extends "base.html" %}
 {% block heading %}backups{% endblock %}
 
 {% block content %}
-<p class="note">Each of these is the packet, the commons and the members' records whole,
-  as they stood at the hour it was taken: a tar.gz, encrypted with the backup key. The key is not here and is
+<p class="note">Each of these is the packet, the commons, the founding transcripts and the
+  members' records whole, as they stood at the hour it was taken: a tar.gz, encrypted with the backup key. The key is not here and is
   not on this page. Take one down and open it with restore_backup.py, on your own machine.</p>
 
 {% if not configured %}

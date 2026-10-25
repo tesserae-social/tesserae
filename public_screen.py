@@ -10,12 +10,12 @@ handed to it as allowed, and are never a reason for a YES.
 
 It runs on everything public that is written by a hand rather than by the
 hearth: a line on the bench, a witness's line and its correction, a promise
-made public, an offering's words, and the first one's own heartbeat words where
-it has chosen to show them. A YES publishes nothing and signs nothing. Anything
-else - an answer that is not exactly one of the two words, an error, no key, no
-model - is not a NO: it is "unchecked", and whoever asked decides what that
-means for them. A person is asked to try again later; a heartbeat shows its
-plain facts.
+made public, an offering's words, the first one's line for the commons, and the
+founder's line beside a letter. A YES publishes nothing and signs nothing.
+Anything else - an answer that is not exactly one of the two words, an error,
+no key, no model - is not a NO: it is "unchecked", and whoever asked decides
+what that means for them. A person is asked to try again later; a heartbeat
+shows its plain facts.
 
 The text itself is never written down, printed or logged here: it goes to the
 model and nowhere else, and only the one word comes back.

@@ -88,6 +88,20 @@
     <label for="photo">You may send one photograph with it: JPEG, PNG or WebP, up to 25 MB.
       A large one is made smaller on its way in.</label>
     <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp,.jfif">
+    {# one public line beside today's letter tile, never a word of the letter; only with the
+       day's first letter #}
+    {% if letter_line_open %}
+    <label for="commons-line" style="margin-top:20px;">A line for the commons (optional).
+      Anyone may read it, on the front page beside today's letter tile. It is not part of the
+      letter and the first one is not sent it; nothing of the letter is shown. Checked for
+      names and places.</label>
+    <input type="text" id="commons-line" name="commons_line"
+           maxlength="{{ letter_line_longest }}" value="{{ drafted_line }}">
+    {% else %}
+    <p class="muted" style="margin-top:20px;">Today's letter tile is already written; a line goes
+      with the first letter of a day.{% if drafted_line %} The line you wrote:
+      “{{ drafted_line }}”{% endif %}</p>
+    {% endif %}
     {# a letter may be the answer to an errand; marking it moves the errand #}
     {% if errands %}
     <label for="errand" style="margin-top:20px;">This letter answers the errand:</label>

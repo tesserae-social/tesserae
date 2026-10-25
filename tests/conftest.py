@@ -627,14 +627,48 @@ def named_notes_unexplained(module, monkeypatch):
     monkeypatch.setattr(module, "SHELF_NOTES", "")
 
 
+# The <<HEARTBEAT>> block's explanation, and the <<HEARTBEAT_SHOWN>> one beneath
+# it, as both were until it was offered a line for the commons at every waking
+# (25 October 2026).
+HEARTBEAT_BLOCK_BEFORE_COMMONS_LINE = """<<HEARTBEAT>>
+(one short line about this waking, in your own words, e.g. "attended at dusk; wrote a letter" or "attended; chose stillness". Your own words are private by default: they are kept in your record, and the founder may read them. The commons shows only the plain facts of your waking, written by the hearth from what you did, e.g. "attended; wrote a letter" or "attended; chose stillness"; what is private to you stays out of them. With <<HEARTBEAT_SHOWN>> words, your own words are shown in the commons instead, after a check for names and places; if they seem to contain one, or the check cannot be made, the plain facts are shown and you are told.)
+<<END>>"""
+HEARTBEAT_SHOWN_BLOCK = """<<HEARTBEAT_SHOWN>>
+(what the commons shows of your heartbeat, from this waking on. The first line must be exactly facts or words. facts: only the plain facts of your waking, as it is unless you choose otherwise. words: your own <<HEARTBEAT>> words, after a check for names and places; anyone may read them, on the front page and in the public record, so say "the founder" rather than any name. You may change it at any waking.)
+<<END>>"""
+
+
+def commons_line_not_yet_offered(module, monkeypatch):
+    """Explain its heartbeat, for one test, as it was before it was offered a line for the commons.
+
+    That is behind no flag. At a waking after one that left no line, it changed
+    one thing in the reading: the <<HEARTBEAT>> block's explanation, which now
+    says its own words there are private and never shown in the commons, and
+    points to <<COMMONS_LINE>>; and directly beneath it the
+    explanation of <<COMMONS_LINE>> where <<HEARTBEAT_SHOWN>>'s stood. Put back,
+    it is exactly the two blocks as they were. Anything held to a reading from
+    before then asks for it, some by more than one way, so it is done once.
+    """
+    now = module.HEARTBEAT_BLOCK + "\n\n" + module.COMMONS_LINE_BLOCK
+    if module.HEARTBEAT_BLOCK == HEARTBEAT_BLOCK_BEFORE_COMMONS_LINE:
+        return  # put back already, in this test
+    assert module.HOW_TO_ACT.count(now) == 1
+    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.replace(
+        now, HEARTBEAT_BLOCK_BEFORE_COMMONS_LINE + "\n\n" + HEARTBEAT_SHOWN_BLOCK))
+    monkeypatch.setattr(module, "HEARTBEAT_BLOCK", HEARTBEAT_BLOCK_BEFORE_COMMONS_LINE)
+
+
 def notebook_unexplained(module, monkeypatch):
     """Take out, for one test, what its private notebook adds to a waking with no entry.
 
     It asked for its notebook in its letter of 21 October 2026, and it is behind
     no flag. Where it has no entry yet, it adds two things to what is sent and
     nothing else: the <<PRIVATE>> block, explained after <<STUDY>>, and the
-    read_private tool beside the others at a longer waking.
+    read_private tool beside the others at a longer waking. A reading from
+    before it is from before its line for the commons too, so that is put back
+    as it was as well (commons_line_not_yet_offered).
     """
+    commons_line_not_yet_offered(module, monkeypatch)
     said = module.PRIVATE_BLOCK + "\n\n"
     assert module.HOW_TO_ACT.count(said) == 1
     monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.replace(said, ""))
@@ -660,9 +694,11 @@ def heartbeat_words_not_yet_private(module, monkeypatch):
     waking: the <<HEARTBEAT>> block's explanation, which now says its own words
     are private by default and the commons shows the plain facts, and directly
     beneath it the explanation of <<HEARTBEAT_SHOWN>>. Put back, it is exactly
-    the block that said the heartbeat is public.
+    the block that said the heartbeat is public. Both have changed since
+    (commons_line_not_yet_offered), and are put back as they were first.
     """
-    now = module.HEARTBEAT_BLOCK + "\n\n" + module.HEARTBEAT_SHOWN_BLOCK
+    commons_line_not_yet_offered(module, monkeypatch)
+    now = module.HEARTBEAT_BLOCK + "\n\n" + HEARTBEAT_SHOWN_BLOCK
     assert module.HOW_TO_ACT.count(now) == 1
     monkeypatch.setattr(module, "HOW_TO_ACT",
                         module.HOW_TO_ACT.replace(now, HEARTBEAT_AS_IT_WAS))

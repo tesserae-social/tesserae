@@ -900,12 +900,12 @@ def test_the_first_one_may_not_answer_an_asking_of_its_own(wake, room):
     assert not (room / "bonds" / "founder-first.json").exists()
 
 
-def test_heartbeat_block_is_the_line_that_goes_to_the_commons_where_it_shows_words(
+def test_a_line_for_the_commons_is_the_line_that_goes_to_the_commons_where_it_leaves_one(
         wake, commons, clock):
-    """Its own words go to the commons only by its choice (see test_heartbeat_shown.py)."""
+    """A line of its own goes to the commons only where it leaves one (see test_commons_line.py)."""
     at = clock.stamp()
-    wake(blocks(block("HEARTBEAT_SHOWN", "words"),
-                block("HEARTBEAT", "attended at dusk; chose stillness")))
+    wake(blocks(block("COMMONS_LINE", "attended at dusk; chose stillness"),
+                block("HEARTBEAT", "a private word about the dusk")))
     assert lines_of(commons / "heartbeats.md") == [
         "- %s · the first one · attended at dusk; chose stillness" % at]
 

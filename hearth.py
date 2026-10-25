@@ -60,7 +60,7 @@ from PIL import Image, ImageOps
 # keeps: a day turns here when it turns where the citizen lives. The words an
 # offering's kind is said in are the atrium's too, so that the hearth's page and
 # the atrium's section name the same thing the same way.
-from build_atrium import (CITIZEN_ZONE, KIND_WORDS, band, is_letter_line, letter_words,
+from build_atrium import (CITIZEN_ZONE, DOT, KIND_WORDS, band, is_letter_line, letter_words,
                           parse_events)
 
 # An offering is made by two hands, so both hands work through the one module:
@@ -1376,19 +1376,37 @@ def note_event(kind, words, day=None):
 # by the wakings' own bounds: nothing of what, to whom, at what hour, or with
 # what beside it. The lock is so that two letters left at once cannot both find
 # the day empty.
+#
+# He may leave one line of his own beside it, for the commons, after a middot:
+# only from the field that asks for it, never a word of the letter, and only
+# with the day's first letter, since the day has one tile.
 LETTER_LOCK = threading.Lock()
+LETTER_LINE_LONGEST = 240
+LETTER_LINE_TOO_LONG = "The line for the commons is longer than 240 characters; nothing was left."
+LETTER_LINE_NAMED = ("The line for the commons seemed to contain a name or a place; nothing was "
+                     "left.")
+LETTER_LINE_WRITTEN = ("Today's letter tile is already written; a line goes with the first letter "
+                       "of a day. Nothing was left.")
 
 
-def note_letter():
-    """The commons' line for today's letters, unless today already has one."""
+def letter_line_today(day=None):
+    """Whether today, or the day named, already has its line for the founder's letters."""
+    day = day or datetime.now(ZoneInfo(CITIZEN_ZONE)).date()
+    return EVENTS.exists() and any(
+        when == day and is_letter_line(kind, words)
+        for when, kind, words in parse_events(read_text(EVENTS)))
+
+
+def note_letter(line=""):
+    """The commons' line for today's letters, with his own line beside it if he left
+    one, unless today already has one."""
     now = datetime.now(ZoneInfo(CITIZEN_ZONE))
-    day = now.date()
     with LETTER_LOCK:
-        if EVENTS.exists() and any(
-                when == day and is_letter_line(kind, words)
-                for when, kind, words in parse_events(read_text(EVENTS))):
+        if letter_line_today(now.date()):
             return False
-        note_event("letter", letter_words(band(now.hour)), day.isoformat())
+        words = letter_words(band(now.hour))
+        note_event("letter", "%s %s %s" % (words, DOT, line) if line else words,
+                   now.date().isoformat())
         return True
 
 
@@ -2816,13 +2834,16 @@ def logout():
     return render_template("logout.html")
 
 
-def room_page(room=None, things=(), draft="", **told):
+def room_page(room=None, things=(), draft="", line="", **told):
     """A room's page - its letters, and its bond - with whatever has just been said."""
     proposal = proposal_shown()
     return render_template(
         "room.html",
         room=room or own_room(),
         draft=draft,
+        # his line for the commons, offered only while today has no letter tile
+        drafted_line=line, letter_line_open=not letter_line_today(),
+        letter_line_longest=LETTER_LINE_LONGEST,
         # the three plain things as they were written, if a letter came back unsent
         drafted_things=list(things) + [""] * (offering.THINGS_MOST - len(things)),
         thing_longest=offering.THING_LONGEST,
@@ -3050,6 +3071,24 @@ def leave_letter(room):
                                       "Please send a JPEG, PNG, or WebP.", draft=text,
                                 things=things)
 
+    # a line for the commons is optional, and is screened before anything is
+    # left: where it cannot go beside today's tile, nothing is, and all that was
+    # typed comes back to be sent again
+    line = one_line(request.form.get("commons_line", ""), LETTER_LINE_LONGEST)
+    if line:
+        kept = dict(draft=text, things=things, line=line)
+        if letter_line_today():
+            return room_page(room, error=LETTER_LINE_WRITTEN, **kept)
+        if len(line) > LETTER_LINE_LONGEST:
+            return room_page(room, error=LETTER_LINE_TOO_LONG, **kept)
+        if private_words.carries(line):
+            return room_page(room, error=LETTER_LINE_NAMED, **kept)
+        found = public_screen.verdict(line)
+        if found == public_screen.FLAGGED:
+            return room_page(room, error=LETTER_LINE_NAMED, **kept)
+        if found != public_screen.CLEAR:
+            return room_page(room, error=public_screen.COULD_NOT_CHECK, **kept)
+
     incoming = rooms.places(room.id).incoming
     incoming.mkdir(parents=True, exist_ok=True)
     stem = free_stem(f"founder-{utc_stamp()}")
@@ -3057,7 +3096,7 @@ def leave_letter(room):
                                          encoding="utf-8")
     if photo:
         (incoming / f"{stem}{suffix}").write_bytes(photo)
-    note_letter()
+    note_letter(line)
 
     # The letter is left either way. If it was to propose a bond, and nothing
     # stands in the way of one, the asking is written beside it.

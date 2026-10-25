@@ -612,6 +612,24 @@ def test_both_paths_draw_a_letter_toned_by_its_part_of_the_day(atrium, data_dir,
                 'tabindex="0"></li>') in said["mosaic"]
 
 
+def test_both_paths_tone_a_letter_with_the_founder_s_line_beside_it(atrium, data_dir,
+                                                                    monkeypatch, tmp_path):
+    a_record(data_dir)
+    with (data_dir / "commons" / "events.md").open("a", encoding="utf-8") as record:
+        record.write("2026-10-07 · letter · the founder wrote a letter in the evening · "
+                     "the first frost, and coffee on the step\n"
+                     "2026-10-08 · letter · the founder wrote a letter · and one naming no part\n")
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    for name in REGIONS:
+        assert here[name] == there[name], name
+    for said in (here, there):
+        assert ('<li class="tile-letter tile-letter-evening" title="7 October 2026 · the founder '
+                'wrote a letter in the evening · the first frost, and coffee on the step" '
+                'tabindex="0"></li>') in said["mosaic"]
+        assert ('<li class="tile-letter" title="8 October 2026 · the founder wrote a letter · '
+                'and one naming no part" tabindex="0"></li>') in said["mosaic"]
+
+
 def test_both_paths_read_out_a_letter_as_the_newest_tile(atrium, data_dir, monkeypatch,
                                                          tmp_path):
     for name in ("heartbeats.md", "bench.md", "members.md", "offerings.md"):

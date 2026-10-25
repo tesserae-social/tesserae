@@ -438,17 +438,25 @@ def letter_words(part):
     return "%s %s" % (LETTER_WORDS, LETTER_BANDS[part])
 
 
+def letter_said(words):
+    """What a letter line says of the letter: its words before any line the founder left
+    beside it, after the first middot."""
+    return words.split(" %s " % DOT, 1)[0]
+
+
 def letter_band(words):
     """The part of the day a letter line names, or None if it names none."""
+    said = letter_said(words)
     for part in LETTER_BANDS:
-        if words == letter_words(part):
+        if said == letter_words(part):
             return part
     return None
 
 
 def is_letter_line(kind, words):
     """Whether one line of events.md is the day's line for the founder's letters."""
-    return kind == "letter" and (words == LETTER_WORDS or letter_band(words) is not None)
+    return kind == "letter" and (letter_said(words) == LETTER_WORDS
+                                 or letter_band(words) is not None)
 
 
 def event_class(kind, words):

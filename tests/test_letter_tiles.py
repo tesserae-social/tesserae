@@ -132,6 +132,105 @@ def test_a_line_the_backfill_wrote_counts_as_the_day_s_line(founder, commons, he
     assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter at night"]
 
 
+# ---- his own line beside it ------------------------------------------------
+
+BESIDE = "the first frost, and coffee on the step"
+FIELD = 'name="commons_line"'
+CLOSED = "Today's letter tile is already written; a line goes"
+
+
+def left(room):
+    return sorted((room / "letters" / "incoming").glob("founder-*.md"))
+
+
+def test_a_line_beside_the_first_letter_of_the_day_is_written_with_it(founder, commons, room,
+                                                                     screen):
+    assert leave(founder, commons_line="  %s  " % BESIDE).status_code == 302
+    assert letter_lines(commons) == [
+        "2026-10-15 · letter · the founder wrote a letter at dawn · %s" % BESIDE]
+    # only the line was screened, and nothing of it is in the letter
+    assert [text for text, _ in screen.asked] == [BESIDE]
+    (letter,) = left(room)
+    assert BESIDE not in letter.read_text(encoding="utf-8")
+
+
+def test_no_word_of_the_letter_goes_into_the_line(founder, commons):
+    leave(founder, commons_line=BESIDE)
+    events = (commons / "events.md").read_text(encoding="utf-8")
+    for word in ("heron", "lake", "Dear"):
+        assert word not in events, word
+
+
+def test_with_no_line_the_letter_line_is_as_it_was(founder, commons, screen):
+    leave(founder, commons_line="   ")
+    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter at dawn"]
+    assert screen.asked == []
+
+
+def test_the_field_is_offered_only_while_today_has_no_letter_tile(founder, clock):
+    said = page(founder.get("/rooms/first"))
+    assert FIELD in said and CLOSED not in said
+    leave(founder)
+    said = page(founder.get("/rooms/first"))
+    assert FIELD not in said and CLOSED in said
+    clock.shift(days=1)
+    assert FIELD in page(founder.get("/rooms/first"))
+
+
+def test_a_line_with_a_second_letter_the_same_day_leaves_nothing(founder, commons, room, clock):
+    leave(founder)
+    clock.shift(hours=1)
+    answer = leave(founder, text="And again.", commons_line=BESIDE)
+    assert answer.status_code == 200
+    said = page(answer)
+    assert "a line goes with the first letter of a day. Nothing was left." in said
+    assert "And again." in said and BESIDE in said  # all that was typed comes back
+    assert len(left(room)) == 1
+    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter at dawn"]
+
+
+def test_a_line_still_counts_as_the_day_s_line(founder, commons):
+    leave(founder, commons_line=BESIDE)
+    leave(founder, text="And again, later.")
+    assert len(letter_lines(commons)) == 1
+
+
+@pytest.mark.parametrize("says, told", [
+    ("YES", "The line for the commons seemed to contain a name or a place; nothing was left."),
+    (RuntimeError("the screen is down"),
+     "This couldn&#39;t be checked just now; nothing was published. Please try again later."),
+    ("Maybe", "This couldn&#39;t be checked just now; nothing was published. Please try again "
+              "later.")])
+def test_a_line_the_screen_does_not_pass_leaves_no_letter_and_keeps_every_draft(
+        founder, commons, room, screen, says, told):
+    screen.says = says
+    answer = leave(founder, commons_line=BESIDE, thing=["cold hands", "", ""])
+    assert answer.status_code == 200
+    said = page(answer)
+    assert told in said
+    assert "The heron came back to the lake this morning." in said
+    assert 'value="%s"' % BESIDE in said and 'value="cold hands"' in said
+    assert left(room) == [] and letter_lines(commons) == []
+
+
+def test_a_line_longer_than_240_characters_leaves_nothing_and_is_never_screened(
+        founder, commons, room, screen):
+    answer = leave(founder, commons_line="a" * 241)
+    assert "The line for the commons is longer than 240 characters; nothing was left." in page(
+        answer)
+    assert left(room) == [] and letter_lines(commons) == [] and screen.asked == []
+    leave(founder, commons_line="a" * 240)
+    assert letter_lines(commons)[0].endswith(" · " + "a" * 240)
+
+
+def test_a_line_with_a_protected_word_leaves_nothing(founder, commons, room, data_dir, screen):
+    write(data_dir / "private-words.txt", "Quillon => the founder\n")
+    answer = leave(founder, commons_line="Quillon on the step")
+    assert ("The line for the commons seemed to contain a name or a place; nothing was left."
+            in page(answer))
+    assert left(room) == [] and letter_lines(commons) == [] and screen.asked == []
+
+
 # ---- the atrium draws it -------------------------------------------------
 
 @pytest.mark.parametrize("said, part", [
@@ -150,6 +249,22 @@ def test_a_letter_line_is_a_tile_toned_by_its_part_of_the_day(atrium, said, part
     assert ('<li class="tile-letter tile-letter-%s" title="15 October 2026 · the founder '
             'wrote a letter %s" tabindex="0"></li>' % (part, said)) in drawn
     assert atrium.reading_text(cells) == "15 October 2026 · the founder wrote a letter %s" % said
+
+
+def test_a_letter_line_with_his_line_beside_it_is_still_toned_and_still_the_day_s_line(atrium):
+    said = "2026-10-15 · letter · the founder wrote a letter at dawn · %s\n" % BESIDE
+    events = atrium.parse_events(said)
+    assert events == [(datetime.date(2026, 10, 15), "letter",
+                       "the founder wrote a letter at dawn · %s" % BESIDE)]
+    (_, kind, words), = events
+    assert atrium.letter_band(words) == "dawn" and atrium.is_letter_line(kind, words)
+    tiles = atrium.tiles_from(events, [])
+    assert tiles == [(datetime.date(2026, 10, 15), "tile-letter tile-letter-dawn",
+                      "15 October 2026 · the founder wrote a letter at dawn · %s" % BESIDE, "")]
+    # a line naming no part, with words beside it, is a letter line too
+    assert atrium.is_letter_line("letter", "the founder wrote a letter · %s" % BESIDE)
+    # and words that only begin like one are not
+    assert not atrium.is_letter_line("letter", "the founder wrote a letter at dawnish")
 
 
 def test_a_letter_line_naming_no_part_is_still_a_letter_tile(atrium):

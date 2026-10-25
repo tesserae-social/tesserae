@@ -380,10 +380,15 @@ def test_it_is_never_in_the_heartbeat_or_the_commons(wake, packet, commons):
 
 
 def test_it_is_never_screened(wake, packet, screen, monkeypatch, attend):
+    # the old choice of words for its heartbeat, kept here, changes nothing
     write_json(packet / "preferences.json", {"reflection": "open", "heartbeat": "words"})
-    wake(blocks(private(ENTRY), block("HEARTBEAT", "attended quietly")))
-    assert screen.asked  # the heartbeat's own words were screened, as ever
-    assert not [text for text, _ in screen.asked if ENTRY in text]
+    wake(blocks(private(ENTRY), block("COMMONS_LINE", "the light came late"),
+                block("HEARTBEAT", "attended quietly")))
+    # the line it left for the commons was screened, as ever, and nothing else was
+    assert [text for text, _ in screen.asked] == ["the light came late"]
+    for text, names in screen.asked:
+        assert ENTRY not in text and not any(ENTRY in name for name in names)
+        assert "attended quietly" not in text  # nor its heartbeat's own words
 
 
 @pytest.mark.parametrize("kind", ["letter", "passage", "photo", "picture"])

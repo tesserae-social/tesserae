@@ -82,8 +82,10 @@
   const LETTER_WORDS = "the founder wrote a letter";
   const LETTER_BANDS = { dawn: "at dawn", day: "during the day", evening: "in the evening",
                          night: "at night" };
+  // only what comes before the first middot: a line the founder left beside the
+  // day's first letter may follow it
   const letterBand = words => Object.keys(LETTER_BANDS)
-    .find(part => words === `${LETTER_WORDS} ${LETTER_BANDS[part]}`);
+    .find(part => words.split(` ${DOT} `)[0] === `${LETTER_WORDS} ${LETTER_BANDS[part]}`);
   // the front page shows the last year of the mosaic and no more, newest first, in
   // tiles of one fixed size -- build_atrium.py holds the same two numbers
   const FRONT_SPAN_DAYS = 365, FRONT_TILE = 24;

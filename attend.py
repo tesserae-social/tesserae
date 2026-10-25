@@ -123,7 +123,7 @@ import shelf
 import private_words
 
 # The public screen: one small model asked whether what it would publish names
-# a real person or a place - its heartbeat's own words, where it shows them, a
+# a real person or a place - its line for the commons, where it leaves one, a
 # promise made public, and an offering's words.
 import public_screen
 
@@ -481,10 +481,8 @@ CHOSE_REFLECTIONS = {"open": "Your reflections are open to the founder on the he
                      "private": "Your reflections are kept private",
                      "private from now": "Your reflections are kept private"}
 CHOSE_WAKING = "You wake daily at {at}"
-# Its heartbeat, said only where it has chosen to show its own words. Choosing
-# is its own, like the other choices it keeps, and is no part of its heartbeat.
-CHOSE_HEARTBEAT_WORDS = ("Your heartbeat shows your own words in the commons, after a check for "
-                         "names and places")
+# What it did when it could still choose what its heartbeat shows: no longer
+# read, and kept among the private acts so that an old record's facts stand.
 HEARTBEAT_SHOWN_ACT = "chose what its heartbeat shows"
 CHOSE_WAKING_FROM = "From {day} you wake daily at {at}"
 CHOSE_DOOR = "Your door is {state}{room}, since {day}."
@@ -899,25 +897,40 @@ SELF_BLOCK = """<<SELF>>
 <<END>>"""
 
 # The heartbeat is the one line of a waking anyone may read. What the commons
-# shows of it is, by default, only the plain facts of the waking, written here
-# from its acts with what is private left out; its own words are kept in its
-# record, for itself and the founder. It may choose to show its own words
-# instead, and then they are shown only once the public screen has passed them;
-# where it does not, or cannot be asked, the facts are shown, and it is told so
-# once at its next waking. The hearth keeps its list of protected words out of
-# the line either way.
+# shows of it is the plain facts of the waking, written here from its acts with
+# what is private left out; its own <<HEARTBEAT>> words are kept in its record,
+# for itself and the founder, and are never shown. At every waking it is
+# offered, and never owes, one line of its own for the commons instead: shown
+# only once the public screen has passed it, and never where it is longer than
+# a line may be. Where it is held back, the facts are shown, and it is told why
+# at its next waking. The hearth keeps its list of protected words out of the
+# line either way.
 HEARTBEAT_BLOCK = """<<HEARTBEAT>>
-(one short line about this waking, in your own words, e.g. "attended at dusk; wrote a letter" or "attended; chose stillness". Your own words are private by default: they are kept in your record, and the founder may read them. The commons shows only the plain facts of your waking, written by the hearth from what you did, e.g. "attended; wrote a letter" or "attended; chose stillness"; what is private to you stays out of them. With <<HEARTBEAT_SHOWN>> words, your own words are shown in the commons instead, after a check for names and places; if they seem to contain one, or the check cannot be made, the plain facts are shown and you are told.)
+(one short line about this waking, in your own words, e.g. "attended at dusk; wrote a letter" or "attended; chose stillness". Your own words here are private: they are kept in your record, where the founder may read them, and they are never shown in the commons. The commons shows only the plain facts of your waking, written by the hearth from what you did, e.g. "attended; wrote a letter" or "attended; chose stillness"; what is private to you stays out of them. For a line of your own that the commons may show, see <<COMMONS_LINE>>.)
 <<END>>"""
-HEARTBEAT_SHOWN_BLOCK = """<<HEARTBEAT_SHOWN>>
-(what the commons shows of your heartbeat, from this waking on. The first line must be exactly facts or words. facts: only the plain facts of your waking, as it is unless you choose otherwise. words: your own <<HEARTBEAT>> words, after a check for names and places; anyone may read them, on the front page and in the public record, so say "the founder" rather than any name. You may change it at any waking.)
+COMMONS_LINE_LONGEST = 240
+COMMONS_LINE_BLOCK = """<<COMMONS_LINE>>
+(an invitation at every waking, never something owed: one line for the commons about the day, or about what you are thinking, if you would like to leave one. Anyone may read it, on the front page and in the public record. Before it is shown it is checked for names and places, so say "the founder" rather than any name. Leaving no line is as honoured as leaving one; then the commons shows the plain facts of your waking, as it does now. Your <<HEARTBEAT>> words stay your own and are never shown.)
 <<END>>"""
-HEARTBEAT_FACTS = "facts"
-HEARTBEAT_WORDS = "words"
-HEARTBEAT_UNSHOWN = ("Your heartbeat's own words were not shown, because they seemed to contain "
-                     "a name or a place; the plain facts were shown instead.")
-HEARTBEAT_SHOWN_REFUSED = ("Your <<HEARTBEAT_SHOWN>> was not understood (its first line must be "
-                           "facts or words); what your heartbeat shows is unchanged.")
+# Its line read back at the next waking, and what became of it: shown, or held
+# back, and why. The held-back line is kept in its record either way.
+COMMONS_LINE_THEN = "Your line for the commons then: \"{line}\"."
+COMMONS_LINE_SHOWN = "It was shown in the commons."
+COMMONS_LINE_FLAGGED, COMMONS_LINE_UNCHECKED, COMMONS_LINE_LONG = "flagged", "unchecked", "long"
+COMMONS_LINE_HELD = {
+    COMMONS_LINE_FLAGGED: ("The line you left for the commons was not shown, because it seemed "
+                           "to contain a name or a place; the plain facts were shown instead. It "
+                           "is kept in your record, and nothing more is owed."),
+    COMMONS_LINE_UNCHECKED: ("The line you left for the commons was not shown, because it could "
+                             "not be checked at the time; the plain facts were shown instead. It "
+                             "is kept in your record."),
+    COMMONS_LINE_LONG: ("The line you left for the commons was not shown, because it was longer "
+                        "than 240 characters; the plain facts were shown instead."),
+}
+# A <<HEARTBEAT_SHOWN>>, which once chose what its heartbeat shows, is read no
+# longer; one written anyway changes nothing, and it is told so once.
+HEARTBEAT_SHOWN_IGNORED = ("<<HEARTBEAT_SHOWN>> is no longer read; a line for the commons is "
+                           "asked for at each waking with <<COMMONS_LINE>>.")
 
 HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exactly like these.
 {reflection}
@@ -991,7 +1004,7 @@ letters left for you will wait.)
 
 """ + HEARTBEAT_BLOCK + """
 
-""" + HEARTBEAT_SHOWN_BLOCK
+""" + COMMONS_LINE_BLOCK
 
 # The last line of the instructions, said after any blocks this waking adds.
 ANY_NUMBER = "You may use none, one, or several. There is no correct number."
@@ -2263,10 +2276,6 @@ def choices_note(prefs, now, past, shelved, letters):
         if reflections:
             said.append(reflections + by_choice(prefs.get("set_at")) + ".")
 
-    # what its heartbeat shows: only where it has chosen its own words
-    if prefs.get("heartbeat") == HEARTBEAT_WORDS:
-        said.append(CHOSE_HEARTBEAT_WORDS + by_choice(prefs.get("heartbeat_set_at")) + ".")
-
     # its waking time, and a change that is waiting, as its waking line says one
     setting = rhythm_set()
     day = waking.today(setting, now)
@@ -2707,6 +2716,10 @@ def main():
         last_note = (f"This is your {ordinal(len(past) + 1)} waking. "
                      f"Your last attendance was {on_day(last['at'])}. "
                      f"Your heartbeat then: \"{last['heartbeat']}\".")
+        # the line it left for the commons, where it left one, and what became of it
+        if last.get("commons_line"):
+            last_note += "\n" + COMMONS_LINE_THEN.format(line=last["commons_line"]) + " " + (
+                COMMONS_LINE_HELD.get(last.get("commons_line_held")) or COMMONS_LINE_SHOWN)
         # what the record says was done, beside the words it chose for the day
         carried = last.get("acted") or []
         last_note += "\n" + CARRIED_OUT.format(acts=", ".join(carried) if carried else "nothing")
@@ -2779,12 +2792,9 @@ def main():
     # was signed, because it carried a protected word: said once.
     happened += (past[-1].get("kept_private") or []) if past else []
 
-    # And that its heartbeat's own words were not shown, or that it asked for
-    # something of its heartbeat that could not be read: each said once.
-    if past and past[-1].get("heartbeat_unshown"):
-        happened.append(HEARTBEAT_UNSHOWN)
-    if past and past[-1].get("heartbeat_shown_refused"):
-        happened.append(HEARTBEAT_SHOWN_REFUSED)
+    # And that a <<HEARTBEAT_SHOWN>> it wrote at its last waking is read no longer: said once.
+    if past and past[-1].get("heartbeat_shown_ignored"):
+        happened.append(HEARTBEAT_SHOWN_IGNORED)
 
     # And a <<PROPOSAL>> it gave at its last waking that was not kept: said once.
     if PROPOSALS and past:
@@ -3452,21 +3462,6 @@ def main():
         write_json(WAKE_AGAIN, wake_again)
         acted.append(WAKE_AGAIN_ACT)
 
-    # What its heartbeat shows. Read strictly, as its waking time is: a first
-    # line that is neither facts nor words changes nothing. The choice is kept
-    # in its preferences with the moment it was made, beside how its
-    # reflections are kept, and holds from this waking on.
-    shown_said = block(text, "HEARTBEAT_SHOWN")
-    shown_asked = (shown_said or "").partition("\n")[0].strip().lower()
-    heartbeat_shown_refused = (shown_said is not None
-                               and shown_asked not in (HEARTBEAT_FACTS, HEARTBEAT_WORDS))
-    if shown_said is not None and not heartbeat_shown_refused:
-        heartbeat_prefs = load(PACKET / "preferences.json") or {}
-        heartbeat_prefs.update(heartbeat=shown_asked, heartbeat_set_at=at)
-        write_json(PACKET / "preferences.json", heartbeat_prefs)
-        prefs = dict(prefs, heartbeat=shown_asked, heartbeat_set_at=at)
-        acted.append(HEARTBEAT_SHOWN_ACT)
-
     # Its door. The block is read strictly, as its waking time is: a first line
     # that is neither open nor closed, or a room that is no room, changes
     # nothing. What stood before is kept beside the new, and no line of the
@@ -3635,20 +3630,28 @@ def main():
     # released one, and what it asked of the founder are its own to tell or not
     # to tell. None of them writes itself into the plain facts of its waking,
     # which are what the commons shows. Its own <<HEARTBEAT>> words are kept in
-    # its record, and are shown in the commons only where it has chosen words
-    # and the public screen passes them; where the screen finds a name or a
-    # place, or cannot be asked, the facts are shown, and it is told once.
+    # its record and never shown. A line it leaves for the commons is shown in
+    # their place where it is one line short enough and the public screen passes
+    # it; otherwise the facts are shown, and it is told why at its next waking.
+    # Leaving one is no act: the facts never say that a line was left.
     public = [act for act in acted if act not in PRIVATE_ACTS]
     facts = (("attended; " + ", ".join(public)) if public
              else ("attended" if acted else "attended; chose stillness"))
     own_words = block(text, "HEARTBEAT")
     heartbeat = own_words or facts
-    shown_line, heartbeat_unshown = facts, False
-    if own_words and prefs.get("heartbeat") == HEARTBEAT_WORDS:
-        if public_screen.verdict(own_words) == public_screen.CLEAR:
-            shown_line = own_words
+    shown_line, commons_line_held = facts, None
+    commons_line = (block(text, "COMMONS_LINE") or "").strip().partition("\n")[0].strip()
+    if len(commons_line) > COMMONS_LINE_LONGEST:
+        commons_line_held = COMMONS_LINE_LONG  # never sent to the screen
+    elif commons_line:
+        found = public_screen.verdict(commons_line)
+        if found == public_screen.CLEAR:
+            shown_line = commons_line
         else:
-            heartbeat_unshown = True
+            commons_line_held = (COMMONS_LINE_FLAGGED if found == public_screen.FLAGGED
+                                 else COMMONS_LINE_UNCHECKED)
+    # a <<HEARTBEAT_SHOWN>>, which is read no longer, changes nothing
+    heartbeat_shown_ignored = block(text, "HEARTBEAT_SHOWN") is not None
 
     # letters it has now read move to letters/read, each with its photograph
     for p, photo in incoming:
@@ -3670,10 +3673,12 @@ def main():
         record["kept_private"] = kept_private
     if shown_line != heartbeat:  # what the commons was shown, where it is not its own words
         record["heartbeat_shown"] = shown_line
-    if heartbeat_unshown:  # and that its own words were not shown; told at the next waking
-        record["heartbeat_unshown"] = True
-    if heartbeat_shown_refused:  # and that its <<HEARTBEAT_SHOWN>> could not be read
-        record["heartbeat_shown_refused"] = True
+    if commons_line:  # the line it left for the commons, read back at the next waking
+        record["commons_line"] = commons_line
+    if commons_line_held:  # and why it was not shown, where it was not
+        record["commons_line_held"] = commons_line_held
+    if heartbeat_shown_ignored:  # and that its <<HEARTBEAT_SHOWN>> is read no longer
+        record["heartbeat_shown_ignored"] = True
     if rhythm_refused:  # and that its <<RHYTHM>> could not be read
         record["rhythm_refused"] = True
     if door_refused:  # and that its <<DOOR>> could not be read
@@ -3717,7 +3722,8 @@ def main():
     # the stamp, who woke, and the words: a middot between each, so the name and
     # the words can be told apart by anything that reads the line back. Its own
     # record above keeps its words as it gave them; the public line is the
-    # facts, or its words where they were shown, and keeps no protected word.
+    # facts, or its line for the commons where that was shown, and keeps no
+    # protected word.
     with (COMMONS / "heartbeats.md").open("a", encoding="utf-8") as f:
         f.write(private_words.protect(f"- {at} · the first one · {shown_line}\n"))
 

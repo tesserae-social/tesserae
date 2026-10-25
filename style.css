@@ -287,26 +287,6 @@
     background: var(--paper);
   }
 
-  .caption {
-    margin: 18px 0 0;
-    font-size: 0.9rem;
-    color: var(--ink-soft);
-  }
-
-  .legend {
-    margin: 8px 0 0;
-    font-size: 0.9rem;
-    color: var(--ink-soft);
-  }
-
-  .legend .key {
-    display: inline-block;
-    width: 11px;
-    height: 11px;
-    margin-right: 5px;
-    border-radius: 2px;
-  }
-
   /* what the two of them have given the commons: the newest one, whole, and the
      way to the rest. It stands on the page's own paper, like the intro: what is
      quoted here was given on purpose, and is not a specimen in a box. The rule

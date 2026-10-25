@@ -89,16 +89,19 @@ addEventListener("load", () => setTimeout(() => {
     cells: ["--from", "--to", "--down"].map(name => root.style.getPropertyValue(name)),
     frame: box(one(".frame")), band: box(one(".band")), column: box(one(".column")),
     columns: document.querySelectorAll(".column").length,
-    words: ["header", ".menu", ".intro", ".reading", ".caption", ".legend", ".who",
+    words: ["header", ".menu", ".intro", ".reading", ".who",
             ".calendar", "footer", ".home"].map(s => box(one(s))),
     intro: box(one(".intro")), reading: box(line), caption: box(one(".caption")),
     legend: box(one(".legend")), rest: box(one(".rest")), home: box(one(".home")),
+    // the page's quiet ink, read off a probe: no line of the page is sure to wear it
+    quiet: (() => { const probe = document.createElement("span");
+      probe.style.color = "var(--ink-soft)"; document.body.appendChild(probe);
+      const ink = getComputedStyle(probe).color; probe.remove(); return ink; })(),
     restSays: one(".rest") ? one(".rest").innerHTML : "",
     tiles: tiles.map(el => Object.assign(box(el), { title: el.title, kind: el.className })),
     years: [...document.querySelectorAll(".mosaic .year")].map(el =>
       Object.assign(box(el), { year: el.textContent, size: getComputedStyle(el).fontSize,
                                ink: getComputedStyle(el).color })),
-    quiet: getComputedStyle(one(".caption")).color,
     list: one(".mosaic").getAttribute("style"),
     atRest: line.textContent,
     marked: [...document.querySelectorAll("main [style]")]
@@ -116,10 +119,13 @@ addEventListener("load", () => setTimeout(() => {
   move("mouseout", gap, document.body);
   said.away = line.textContent;
   said.newest = [worded[0].title, worded[worded.length - 1].title];
-  // and where the reading line is once the page has been scrolled under it
+  // and where the reading line is once the page has been scrolled under it: as
+  // far as the page goes, wherever that is past where the line stands
   const held = one(".said");
   said.tall = root.scrollHeight - innerHeight;
-  if (held && said.tall > 250) { scrollTo(0, 250); said.stuck = held.getBoundingClientRect().top; }
+  said.under = held ? held.getBoundingClientRect().top + scrollY + 20 : null;
+  if (held && said.tall > said.under) {
+    scrollTo(0, said.tall); said.stuck = held.getBoundingClientRect().top; }
   parent.postMessage(JSON.stringify([NAME + ":" + innerWidth, said]), "*");
 }, 300));
 </script>"""
@@ -169,7 +175,6 @@ def baked(tiles):
     whole = atrium.whole_page(page, "\n")
     whole = atrium.splice(whole, "whole", atrium.whole_block(atrium.days(tiles, TODAY)), "\n")
     whole = atrium.splice(whole, "reading", atrium.reading_block(atrium.slots(tiles, TODAY)), "\n")
-    whole = atrium.splice(whole, "caption", atrium.caption_block(tiles), "\n")
     return page, whole
 
 
@@ -429,12 +434,12 @@ def test_the_words_keep_their_column_and_it_stays_centred(measured, name, width)
 
 
 @pytest.mark.parametrize("name, width", FRONTS)
-def test_the_reading_line_is_under_the_sentence_and_the_legend_under_it(measured, name, width):
+def test_the_reading_line_is_under_the_sentence_and_no_key_under_it(measured, name, width):
     said = measured[name, width]
     assert said["intro"]["bottom"] <= said["reading"]["top"] < said["intro"]["bottom"] + 20
-    assert said["reading"]["bottom"] <= said["caption"]["top"] < said["legend"]["top"]
-    assert said["caption"]["top"] < said["reading"]["bottom"] + 24
     assert said["reading"]["left"] == said["intro"]["left"]
+    # the tiles say what they are in their own titles: the key is the whole mosaic's
+    assert said["caption"] is None and said["legend"] is None
 
 
 @pytest.mark.parametrize("width", WIDTHS)
@@ -541,8 +546,8 @@ def test_each_year_of_the_whole_mosaic_begins_with_its_quiet_label(measured, wid
 def test_the_whole_mosaic_has_its_menu_its_way_back_and_its_reading_line(measured, width):
     said = measured["whole", width]
     menu, home, reading = said["words"][1], said["home"], said["reading"]
-    assert menu["top"] < home["top"] < reading["top"] < said["caption"]["top"]
-    assert said["legend"]["bottom"] <= said["band"]["top"]
+    assert menu["top"] < home["top"] < reading["top"] < said["band"]["top"]
+    assert said["caption"] is None and said["legend"] is None
     assert said["rest"] is None and said["frame"] is None
     # the reading line follows the cursor here too, and returns to the newest
     title, read = said["onto"]
@@ -553,7 +558,8 @@ def test_the_whole_mosaic_has_its_menu_its_way_back_and_its_reading_line(measure
 
 def test_the_reading_line_stays_at_the_top_as_the_whole_mosaic_scrolls(measured):
     """Fixed at the top of the window, wherever the page is long enough to scroll."""
-    tall = [width for width in WIDTHS if measured["unforced", width]["tall"] > 250]
+    tall = [width for width in WIDTHS
+            if measured["unforced", width]["tall"] > measured["unforced", width]["under"]]
     assert 320 in tall
     for width in tall:
         assert measured["unforced", width]["stuck"] == 0

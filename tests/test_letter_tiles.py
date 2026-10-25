@@ -158,15 +158,6 @@ def test_a_letter_line_naming_no_part_is_still_a_letter_tile(atrium):
     assert tiles[0][1] == "tile-letter"
 
 
-def test_the_legend_names_a_person_s_letter_dawn_to_night(atrium):
-    legend = atrium.caption_block([])[1]
-    assert legend.endswith(
-        'waking, dawn to night · <span class="key tile-letter-dawn"></span>'
-        '<span class="key tile-letter-day"></span><span class="key tile-letter-evening">'
-        '</span><span class="key tile-letter-night"></span>a person\'s letter, '
-        'dawn to night</p>')
-
-
 def test_the_four_sands_are_in_the_stylesheet_pale_to_dark(atrium):
     from test_atrium import STYLE, stylesheet
     rules = stylesheet(STYLE)

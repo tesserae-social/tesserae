@@ -165,20 +165,23 @@ def test_the_word_is_hollow_and_the_founding_is_filled(atrium):
     assert '<li class="tile-word" title="2 September 2026 · the word was published"' in drawn
 
 
-def test_a_seal_has_its_own_tile_and_joins_the_legend(atrium):
+def test_a_seal_has_its_own_tile(atrium):
     tiles = a_whole_record(atrium)
     assert (datetime.date(2026, 10, 8), "tile-seal",
             "8 October 2026 · a bond was sealed", atrium.BOND_URL) in tiles
-    assert atrium.legend_marks(tiles)[-1] == (["tile-seal"], "seal")
-    assert len(atrium.legend_marks(tiles)) == 5
-    assert '<span class="key tile-seal"></span>seal' in "".join(atrium.caption_block(tiles))
 
 
-def test_with_no_seal_the_legend_says_four_things(atrium):
-    tiles = atrium.tiles_from(atrium.parse_events(
-        "2026-09-04 · founding · the first one was founded\n"), [])
-    assert [label for _, label in atrium.legend_marks(tiles)] == [
-        "founding", "word", "waking, dawn to night", "a person's letter, dawn to night"]
+def test_neither_page_carries_a_key_to_the_colours(atrium):
+    """Every tile says what it is in its own title; there is no legend to keep up."""
+    for gone in ("CAPTION", "LEGEND", "caption_block", "legend_marks"):
+        assert not hasattr(atrium, gone), gone
+    for page in (PAGE, WHOLE_PAGE):
+        said = page.read_text(encoding="utf-8")
+        for mark in ("caption:start", 'class="caption"', 'class="legend"', 'class="key ',
+                     "captionBlock", "LEGEND"):
+            assert mark not in said, (page.name, mark)
+    for rule in (".caption", ".legend", ".legend .key"):
+        assert rule not in stylesheet(STYLE), rule
 
 
 def test_a_tile_carries_the_day_it_fell_on_in_its_own_words(atrium):
@@ -350,13 +353,6 @@ def test_the_line_under_the_mosaic_passes_over_the_holes(atrium):
     assert atrium.reading_text(cells).startswith("10 October 2026 · waking by day")
 
 
-def test_the_caption_says_what_the_mosaic_is_and_counts_nothing(atrium):
-    caption = atrium.caption_block(a_whole_record(atrium))[0]
-    assert caption == ('<p class="caption">the mosaic: one tile for every event in our '
-                       'history</p>')
-    assert not re.search(r"\d", caption)       # no counters
-
-
 def test_a_tile_s_words_are_escaped_where_they_are_written(atrium):
     tiles = atrium.tiles_from(
         atrium.parse_events("2026-10-01 · event · a line with \"quotes\" & <marks>\n"), [])
@@ -371,9 +367,7 @@ def test_an_empty_record_draws_an_empty_mosaic(atrium):
     assert atrium.tiles_from([], []) == []
     assert atrium.reading_text([]) == ""
     assert atrium.reading_block([]) == ['<p class="reading"></p>']
-    assert atrium.caption_block([])[0] == '<p class="caption">%s</p>' % atrium.CAPTION
     assert atrium.frame_block([]) == ['<ul class="mosaic" aria-label="the mosaic">', "</ul>"]
-    assert len(atrium.legend_marks([])) == 4
 
 
 # ---- the bench, and the way to it ----------------------------------------
@@ -540,15 +534,6 @@ def test_one_offering_is_one_tile(atrium):
     assert tiles[0][1] == "tile-offering"
 
 
-def test_an_offering_joins_the_legend_once_one_exists(atrium):
-    tiles = atrium.tiles_from([], [], atrium.parse_offerings(OFFERING_LINE))
-    assert atrium.legend_marks(tiles)[-1] == (["tile-offering"], "offering")
-    assert ([label for _, label in atrium.legend_marks([])][-1]
-            == "a person's letter, dawn to night")
-    assert '<span class="key tile-offering"></span>offering' in "".join(
-        atrium.caption_block(tiles))
-
-
 def test_a_seal_leads_to_the_record_anyone_may_check(atrium):
     tiles = atrium.tiles_from(
         atrium.parse_events("2026-10-08 · seal · a bond was sealed\n"), [])
@@ -635,7 +620,6 @@ def test_the_offering_is_on_the_page_and_the_tile_with_it(atrium, data_dir, monk
     mosaic = page.split("<!-- mosaic:start -->")[1].split("<!-- mosaic:end -->")[0]
     assert 'class="tile-offering"' in mosaic
     assert "/offerings#2026-10-12T09-00-00Z" in mosaic
-    assert "offering" in page.split("<!-- caption:start -->")[1].split("<!-- caption:end -->")[0]
 
 
 def test_with_no_offerings_the_section_is_left_off(atrium, data_dir, monkeypatch):
@@ -748,7 +732,9 @@ def test_the_atrium_is_rebuilt_from_the_commons(atrium, data_dir, monkeypatch, c
     assert "the first one · attended; wrote a letter" in page
     assert '<section class="bench">' in page
     assert "the lake was still" in page
-    assert "the mosaic: one tile for every event in our history</p>" in page
+    # no key to the colours, on either page: the tiles say what they are themselves
+    for said in (page, atrium.whole_path.read_text(encoding="utf-8")):
+        assert '<p class="caption">' not in said and '<p class="legend">' not in said
     assert "so far" not in page and "as of" not in page
     said = capsys.readouterr().out
     assert ("3 tiles in 44 slots at 34px (2 events, 1 attendances, 0 offerings), "
@@ -931,7 +917,7 @@ def test_both_places_keep_the_one_type_scale(path):
 
 
 @pytest.mark.parametrize("path, muted", [
-    (STYLE, [".menu", ".reading", ".caption", ".legend", ".calendar", ".offered .when",
+    (STYLE, [".menu", ".reading", ".calendar", ".offered .when",
              "footer"]),
     (BASE, [".muted", ".tagline", "footer"]),
 ], ids=["atrium", "hearth"])
@@ -1119,15 +1105,16 @@ def test_the_frame_holds_one_column_of_words_then_the_tiles_then_the_way_on():
     assert tiles.count("<ul") == 1 and "<p" not in tiles
     assert 'class="mosaic"' not in words
     for stop in ("<header>", '<nav class="menu"', '<div class="intro">', "<details>",
-                 '<p class="reading">', '<p class="caption">', '<p class="legend">',
+                 '<p class="reading">',
                  "<!-- offering:start -->", '<section class="who">', '<p class="calendar">',
                  "<!-- bench:start -->", "<footer>"):
         assert words.count(stop) == 1, stop
-    # the reading line is directly under the sentence and its question, and the
-    # caption and the legend directly under the reading line
+    # the reading line is directly under the sentence and its question, and no
+    # key follows it: the tiles say what they are in their own titles
     assert re.search(r'</details>\s*</div>\s*<!-- reading:start -->\s*<p class="reading">.*?</p>'
-                     r'\s*<!-- reading:end -->\s*<!-- caption:start -->\s*<p class="caption">'
-                     r'.*?</p>\s*<p class="legend">.*?</p>\s*<!-- caption:end -->', words, re.S)
+                     r'\s*<!-- reading:end -->\s*<!-- offering:start -->', words, re.S)
+    for gone in ('<p class="caption">', '<p class="legend">', "<!-- caption:start -->"):
+        assert gone not in words, gone
     # one way to the whole mosaic, after the last tile, and nowhere else on the page
     assert said.count("mosaic.html") == 1
     assert said.index("</ul>") < said.index('<p class="rest">')
@@ -1338,10 +1325,6 @@ WHOLE_SKELETON = """<body class="atrium whole">
     <!-- reading:start --><!-- reading:end -->
   </div>
 
-  <div class="column">
-    <!-- caption:start --><!-- caption:end -->
-  </div>
-
   <div class="band">
     <!-- whole:start --><!-- whole:end -->
   </div>
@@ -1351,7 +1334,7 @@ WHOLE_SKELETON = """<body class="atrium whole">
 
 def whole_skeleton_of(text):
     said = "<body" + text.replace("\r\n", "\n").split("<body")[1].split("</main>")[0] + "</main>"
-    for name in ("whole", "reading", "caption"):
+    for name in ("whole", "reading"):
         said, cut = re.subn(r"(<!-- %s:start -->).*?(<!-- %s:end -->)" % (name, name),
                             r"\1\2", said, flags=re.S)
         assert cut == 1, name
@@ -1359,7 +1342,7 @@ def whole_skeleton_of(text):
 
 
 def test_the_whole_mosaic_s_page_is_read_in_this_order_and_holds_nothing_else():
-    """The menu, the way back, the reading line, the caption, and every tile: no more."""
+    """The menu, the way back, the reading line, and every tile: no more."""
     said = WHOLE_PAGE.read_text(encoding="utf-8")
     assert whole_skeleton_of(said) == WHOLE_SKELETON
     assert "<title>Tesserae: the whole mosaic</title>" in said
@@ -1412,7 +1395,7 @@ def test_the_whole_mosaic_s_page_is_built_from_the_commons(atrium, data_dir, mon
     assert tiles.index('<li class="year">2026</li>') < tiles.index("2 September 2026")
     reading = whole.split('<p class="reading">')[1].split("</p>")[0]
     assert reading == shown[-1]
-    assert "the mosaic: one tile for every event in our history</p>" in whole
+    assert '<p class="caption">' not in whole and '<p class="legend">' not in whole
     # the same tiles as the front page's, in the other order, and a size of their own
     front = atrium.page_path.read_text(encoding="utf-8")
     front = front.split("<!-- mosaic:start -->")[1].split("<!-- mosaic:end -->")[0]
@@ -1627,11 +1610,11 @@ def test_the_old_list_of_links_is_gone(atrium):
 
 
 # what the builder and the page's own script each write, in the order they stand
-REGIONS = ["mosaic", "reading", "caption", "offering", "who", "calendar", "bench"]
+REGIONS = ["mosaic", "reading", "offering", "who", "calendar", "bench"]
 
 # The page as it is read, top to bottom, with what lies between each pair of
 # markers left out: the name, the menu, the sentence, the question and what
-# waits behind it, the reading line and the caption, who is here, the season,
+# waits behind it, the reading line, who is here, the season,
 # and the foot, all in the one column; then the tiles that frame it, and the
 # way to the whole mosaic. Anything moved, added or dropped on the page shows here.
 SKELETON = """<main>
@@ -1668,7 +1651,6 @@ SKELETON = """<main>
       </div>
 
       <!-- reading:start --><!-- reading:end -->
-      <!-- caption:start --><!-- caption:end -->
 
       <!-- offering:start --><!-- offering:end -->
 
@@ -1728,8 +1710,7 @@ def test_the_sections_stand_in_the_order_they_are_read():
     said = PAGE.read_text(encoding="utf-8").split("<script>")[0]
     stops = ["<h1>Tesserae</h1>", '<nav class="menu"', "<p>" + OPENING_SENTENCE,
              "<details>", "<summary>What is Tesserae?</summary>", "</details>",
-             '<p class="reading">', '<p class="caption">',
-             '<p class="legend">', "<h2>who is here</h2>", '<p class="calendar">', "<footer>",
+             '<p class="reading">', "<h2>who is here</h2>", '<p class="calendar">', "<footer>",
              '<ul class="mosaic"', '<p class="rest">']
     at = [said.index(stop) for stop in stops]
     assert at == sorted(at)
@@ -1755,8 +1736,7 @@ ATRIUM_RULES = [
     ".menu a:hover, .menu a:focus", ".intro", ".intro p", ".intro p:last-child",
     ".intro summary", ".intro summary:focus-visible", ".mosaic", ".mosaic li", ".mosaic .empty",
     ".tile-founding", ".tile-word", ".tile-dawn", ".tile-day", ".tile-evening",
-    ".tile-night", ".tile-seal", ".tile-event", ".reading", ".caption", ".legend",
-    ".legend .key", ".who .members", ".who .fact", ".who .swatch", ".calendar",
+    ".tile-night", ".tile-seal", ".tile-event", ".reading", ".who .members", ".who .fact", ".who .swatch", ".calendar",
     "a, a:visited", ".bench p", ".bench .lines",
     ".bench .when", "footer", "footer p",
 ]

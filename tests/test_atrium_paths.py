@@ -40,11 +40,11 @@ from conftest import NOW, REPO, write
 
 NODE = shutil.which("node")
 
-REGIONS = ["mosaic", "reading", "caption", "offering", "who", "calendar",
+REGIONS = ["mosaic", "reading", "offering", "who", "calendar",
            "bench"]
 
 # and what the two of them write on the whole mosaic's own page
-WHOLE_REGIONS = ["whole", "reading", "caption"]
+WHOLE_REGIONS = ["whole", "reading"]
 
 # the one moment both paths are read at: conftest's NOW, in milliseconds. The
 # mosaic's run of days ends today and the calendar says what season today is, so
@@ -355,10 +355,12 @@ def test_an_empty_record_is_where_the_two_paths_part(atrium, data_dir, monkeypat
         write(data_dir / "commons" / name, "")
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
 
-    assert "one tile for every event in our history" in here["caption"]
     assert "<li" not in here["mosaic"]        # no days, so no slots and no holes
     assert here["who"] == "" and here["calendar"].startswith('<p class="calendar">')
-    assert there == regions_of((REPO / "index.html").read_text(encoding="utf-8"))
+    # what is baked into the repository's page, read back through the same
+    # serialiser: a title's quote is &#x27; in the file and ' once parsed
+    baked, _ = both_pages(tmp_path, data_dir, REPO / "index.html")
+    assert there == regions_of(baked)
 
 
 def test_the_browser_path_leaves_the_page_alone_when_the_hearth_is_quiet(tmp_path, data_dir):
@@ -525,7 +527,6 @@ def test_both_paths_draw_the_same_whole_mosaic(atrium, data_dir, monkeypatch, tm
         shown = titles_of(said["whole"])
         assert shown == titles_of(front["mosaic"])[::-1]
         assert said["reading"] == front["reading"] == '<p class="reading">%s</p>' % shown[-1]
-        assert said["caption"] == front["caption"]
         # the same titles, links and colours, at the whole mosaic's own size
         assert ('<li class="tile-seal" title="8 October 2026 · a bond was sealed">'
                 '<a href="https://hearth.tesserae.social/bonds/founder-first" '
@@ -544,6 +545,8 @@ def test_both_paths_draw_the_same_whole_page_entire(atrium, data_dir, monkeypatc
     built, drawn = both_pages(tmp_path, data_dir, atrium.whole_path, page="mosaic.html")
     assert main_of(drawn) == main_of(built)
     assert '<p class="home"><a href="/">back to the front page</a></p>' in main_of(drawn)
+    # and the script draws no key to the colours where the builder baked none
+    assert 'class="caption"' not in drawn and 'class="legend"' not in drawn
     assert "—" not in built and "—" not in drawn
 
 
@@ -603,9 +606,6 @@ def test_both_paths_draw_a_letter_toned_by_its_part_of_the_day(atrium, data_dir,
                     'wrote a letter %s" tabindex="0"></li>' % (part, day, words)) in said["mosaic"]
         assert ('<li class="tile-letter" title="6 October 2026 · the founder wrote a letter" '
                 'tabindex="0"></li>') in said["mosaic"]
-        # named always, after the wakings; the seal this record holds follows it
-        assert ('<span class="key tile-letter-night"></span>a person\'s letter, dawn to night · '
-                '<span class="key tile-seal"></span>seal</p>') in said["caption"]
 
 
 def test_both_paths_read_out_a_letter_as_the_newest_tile(atrium, data_dir, monkeypatch,
@@ -657,7 +657,6 @@ def test_both_paths_draw_an_offering_as_a_tile_that_leads_to_it(atrium, data_dir
                 in said["mosaic"])
         # the tiles with nowhere to lead are still hover-only
         assert said["mosaic"].count("<a href=") == 3
-        assert '<span class="key tile-offering"></span>offering' in said["caption"]
 
 
 def test_both_paths_show_a_picture_offering_from_the_hearth(atrium, data_dir, monkeypatch,
@@ -680,7 +679,6 @@ def test_both_paths_leave_the_section_off_where_nothing_was_offered(atrium, data
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     assert here["offering"] == there["offering"] == ""
     assert "tile-offering" not in here["mosaic"] + there["mosaic"]
-    assert "offering" not in here["caption"] and "offering" not in there["caption"]
 
 
 # ---- the bonds, on both paths --------------------------------------------
@@ -709,7 +707,6 @@ def test_both_paths_draw_a_bond_s_tile_and_its_halves(atrium, data_dir, monkeypa
                 '<img src="https://hearth.tesserae.social/bonds/founder-first/tessera.svg'
                 '?size=24" width="24" height="24" alt=""></a></li>') in said["mosaic"]
         assert "/bonds/founder-first.json" not in said["mosaic"]
-        assert '<span class="key tile-seal"></span>seal' in said["caption"]
         # a half beside each name, each the way to the bond's page
         assert said["who"].count('<img class="half"') == 2
         assert ('the first one, unnamed by its own choosing <a href="https://hearth.tesserae.'

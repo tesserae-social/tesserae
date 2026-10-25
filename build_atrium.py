@@ -5,7 +5,6 @@ Rewrites only the text between the marker comments in index.html:
 
     <!-- mosaic:start -->   ...  <!-- mosaic:end -->     the last year of tiles
     <!-- reading:start -->  ...  <!-- reading:end -->
-    <!-- caption:start -->  ...  <!-- caption:end -->
     <!-- offering:start --> ...  <!-- offering:end -->
     <!-- who:start -->      ...  <!-- who:end -->
     <!-- calendar:start --> ...  <!-- calendar:end -->
@@ -15,7 +14,8 @@ Everything outside those markers is left byte for byte as it was.
 
 It writes mosaic.html beside it as well, whole: every tile since the founding,
 under the atrium's own head, menu and script, which are copied from index.html
-so that the two pages cannot come to say two different things.
+so that the two pages cannot come to say two different things. Neither page
+carries a key to the colours: every tile says what it is in its own title.
 
 It reads:
     commons/heartbeats.md          the attendances
@@ -104,9 +104,6 @@ SEED_EVENTS = [
 
 DOT = "·"
 
-# the words under the mosaic: what it is, and no count of what is in it
-CAPTION = "the mosaic: one tile for every event in our history"
-
 # a line of the record: an optional bullet, a stamp, a middot, the words
 RECORD = re.compile(r"^-?\s*(\S+)\s*" + DOT + r"\s*(.+?)\s*$")
 
@@ -142,16 +139,6 @@ LETTER_BANDS = {"dawn": "at dawn", "day": "during the day",
 # page for them, out of this one dictionary, so that the two never part.
 KIND_WORDS = {"letter": "a letter", "passage": "a passage",
               "photo": "a photograph", "picture": "a picture"}
-
-# What the legend says, and in what order: the marks shown, then the words. A waking
-# is four marks, dawn to night. The seal is added only once one exists.
-LEGEND = [
-    (["tile-founding"], "founding"),
-    (["tile-word"], "word"),
-    (["tile-dawn", "tile-day", "tile-evening", "tile-night"], "waking, dawn to night"),
-    (["tile-letter-dawn", "tile-letter-day", "tile-letter-evening", "tile-letter-night"],
-     "a person's letter, dawn to night"),
-]
 
 # The citizen keeps one clock. The record is written in UTC; a waking is toned by
 # the hour it fell on where the citizen lives.
@@ -581,19 +568,6 @@ def tile_size(count):
     return MIN_TILE
 
 
-def legend_marks(tiles):
-    """The kinds named under the mosaic: four always, then the seal and the offering.
-
-    The last two are named only once one exists. A legend is a key to the
-    picture, and a key to a colour the picture does not use explains nothing.
-    """
-    marks = list(LEGEND)
-    for kind, label in (("seal", "seal"), ("offering", "offering")):
-        if any(css == KIND_CLASS[kind] for _, css, _, _ in tiles):
-            marks.append(([KIND_CLASS[kind]], label))
-    return marks
-
-
 def tessera_of(where, size):
     """The tessera a tile shows, if it leads to a bond's own page: its address at that size."""
     if not where.startswith(BOND_PAGE) or not BOND_ID.match(where[len(BOND_PAGE):]):
@@ -674,17 +648,6 @@ def reading_text(cells):
 
 def reading_block(cells):
     return ['<p class="reading">%s</p>' % html.escape(reading_text(cells))]
-
-
-def caption_block(tiles):
-    keys = (" %s " % DOT).join(
-        "".join('<span class="key %s"></span>' % css for css in marks) + label
-        for marks, label in legend_marks(tiles)
-    )
-    return [
-        '<p class="caption">%s</p>' % html.escape(CAPTION),
-        '<p class="legend">%s</p>' % keys,
-    ]
 
 
 def offering_paragraphs(text):
@@ -866,7 +829,7 @@ def splice(page, name, block, newline):
 
 
 # What the whole mosaic's page calls itself, and all of it that is its own: the
-# way back, the reading line, the caption and the mosaic. Its head, its menu
+# way back, the reading line and the mosaic. Its head, its menu
 # and its script are the atrium's, copied in where the %s stand.
 WHOLE_TITLE = "Tesserae: the whole mosaic"
 WHOLE_BACK = "back to the front page"
@@ -884,11 +847,6 @@ WHOLE_PAGE = """%s<body class="atrium whole">
   <div class="column said">
     <!-- reading:start -->
     <!-- reading:end -->
-  </div>
-
-  <div class="column">
-    <!-- caption:start -->
-    <!-- caption:end -->
   </div>
 
   <div class="band">
@@ -966,7 +924,6 @@ def main():
 
     page = splice(page, "mosaic", frame_block(front), newline)
     page = splice(page, "reading", reading_block(front), newline)
-    page = splice(page, "caption", caption_block(tiles), newline)
     page = splice(page, "offering", offering_block(latest, record), newline)
     page = splice(page, "who", who_block(members, sealed), newline)
     page = splice(page, "calendar", calendar_block(today), newline)
@@ -975,7 +932,6 @@ def main():
     whole = whole_page(page, newline)
     whole = splice(whole, "whole", whole_block(days(tiles, today)), newline)
     whole = splice(whole, "reading", reading_block(cells), newline)
-    whole = splice(whole, "caption", caption_block(tiles), newline)
 
     write_text(PAGE, page)
     write_text(WHOLE, whole)

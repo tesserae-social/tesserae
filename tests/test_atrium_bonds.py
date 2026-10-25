@@ -101,7 +101,6 @@ def test_only_a_bond_s_own_page_carries_a_tessera(atrium):
 def test_a_seal_tile_reads_out_like_any_other(atrium):
     tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], (), atrium.parse_bonds(SEALED))
     assert atrium.reading_text(atrium.slots(tiles, TODAY)) == "8 October 2026 · a bond was sealed"
-    assert atrium.legend_marks(tiles)[-1] == (["tile-seal"], "seal")
 
 
 # ---- who is here ---------------------------------------------------------

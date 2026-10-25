@@ -121,6 +121,10 @@ import proposals
 # are, and whether one is theirs, is asked of the one module and nowhere else.
 import rooms
 
+# The agents founded here: each one's record is backed up, and each has a copy of
+# its own, with nothing of another's in it.
+import agents
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept. Locally this is the repo itself; on a host
@@ -1906,10 +1910,34 @@ def chronicle_text(lines):
 # its wakings read (attend.founding_transcript, asked for the first one's), never
 # the folder: anything else kept there, another agent's included, is no part of
 # the first one's record.
+#
+# Every agent founded here (agents.py) has a copy of the same shape, its own:
+# its packet, its own private notebook left out, its room under the packet's
+# names, the commons, and its own founding transcript. Of bonds/, a copy leaves
+# out the witnesses' marks on any other agent's bond. What is shared by all is
+# the commons, which is public; nothing else of another agent's is in it.
 
-PACKET_TREE = "packets/first"
-EXPORT_TREES = (PACKET_TREE, "commons", "bonds")
-LEFT_OUT = ("packets/first/private",)
+
+def packet_tree(agent):
+    """Where an agent's packet is kept, under DATA_DIR."""
+    return "packets/" + agent["id"]
+
+
+def export_trees(agent):
+    """The trees an agent's copy holds."""
+    return (packet_tree(agent), "commons", "bonds")
+
+
+def left_out(agent):
+    """What an agent's copy leaves out of its trees: its private notebook, and others' marks."""
+    return (packet_tree(agent) + "/private",) + tuple(
+        "bonds/witnesses/" + other["bond"] + ".json"
+        for other in agents.registry() if other["id"] != agent["id"])
+
+
+PACKET_TREE = packet_tree(agents.first())
+EXPORT_TREES = export_trees(agents.first())
+LEFT_OUT = left_out(agents.first())
 TRANSCRIPTS = "transcripts"
 
 # What a backup holds: the same trees, and the members beside them, each
@@ -1924,27 +1952,47 @@ TRANSCRIPTS = "transcripts"
 # DATA_DIR that works: the rooms go in as they are kept, under rooms/, and the
 # founding transcripts whole, under transcripts/, since a waking reads its
 # founding from there.
-BACKUP_TREES = EXPORT_TREES + ("rooms", "members", "keys/first", "private-words.txt",
-                               TRANSCRIPTS)
+#
+# Every further agent's packet, signing key and transcripts go in after those,
+# in the order of founding, so that with the first one alone the backup is what
+# it always was: its key, like the first one's, is nowhere but this disk. A tree
+# that an earlier one already holds is not added again, so nothing is in the
+# archive twice; its transcripts are, today, under transcripts/ whole, and its
+# room under rooms/.
+
+
+def backup_trees():
+    """Today's trees, in today's order, and each further agent's appended after them."""
+    trees = list(EXPORT_TREES + ("rooms", "members", "keys/first", "private-words.txt",
+                                 TRANSCRIPTS))
+    for agent in agents.registry()[1:]:
+        for tree in (packet_tree(agent), "keys/" + agent["id"], TRANSCRIPTS + "/" + agent["id"]):
+            if not any(tree == held or tree.startswith(held + "/") for held in trees):
+                trees.append(tree)
+    return tuple(trees)
+
+
+BACKUP_TREES = backup_trees()
 
 EXPORT_TAKEN = "export taken by the founder"
 
 
-def as_before_rooms(found):
-    """The packet's files, with the room's put back among them under the names they had there.
+def as_before_rooms(found, agent=None):
+    """An agent's packet files, with its room's put back among them under the names they had there.
 
     Where the room is still kept in the packet, that is what was found. Where it
     has a folder of its own, the room's folders are read from there, and
     anything left under those names in the packet is not the room's and is
     passed over: what the room keeps is in one place at a time.
     """
-    if not rooms.moved(rooms.FIRST_ROOM):
+    agent = agent or agents.first()
+    if not rooms.moved(agent["room"]):
         return found
-    places = rooms.places(rooms.FIRST_ROOM)
+    home = DATA / rooms.ROOMS / agent["room"]
     kept = [(path, name) for path, name in found if name.split("/")[2] not in rooms.ROOM_FOLDERS]
     for folder in rooms.ROOM_FOLDERS:
-        for path in (places.home / folder).rglob("*"):
-            kept.append((path, PACKET_TREE + "/" + path.relative_to(places.home).as_posix()))
+        for path in (home / folder).rglob("*"):
+            kept.append((path, packet_tree(agent) + "/" + path.relative_to(home).as_posix()))
     return kept
 
 
@@ -1952,34 +2000,41 @@ def export_files(trees=EXPORT_TREES, left_out=LEFT_OUT, as_kept=False):
     """Every file a copy holds, each with the name it takes inside the zip.
 
     A tree is a folder, and everything under it; or one file, kept as itself.
-    Whatever is under a folder left out is not among them. The room is given
-    under the packet's names (as_before_rooms), unless what is asked for is the
-    disk as it is kept, as a backup asks.
+    Whatever is left out - a file, or a folder and everything under it - is not
+    among them. An agent's room is given under its packet's names
+    (as_before_rooms), unless what is asked for is the disk as it is kept, as a
+    backup asks.
     """
+    packets = {packet_tree(agent): agent for agent in agents.registry()}
     for tree in trees:
         if (DATA / tree).is_file():
             yield DATA / tree, tree
             continue
         found = [(path, path.relative_to(DATA).as_posix()) for path in (DATA / tree).rglob("*")]
-        if tree == PACKET_TREE and not as_kept:
-            found = as_before_rooms(found)
+        if tree in packets and not as_kept:
+            found = as_before_rooms(found, packets[tree])
         # in the order of the names, as they would sort on the disk
         for path, name in sorted(found, key=lambda one: DATA / one[1]):
-            if path.is_file() and not any(name.startswith(out + "/") for out in left_out):
+            if path.is_file() and not any(name == out or name.startswith(out + "/")
+                                          for out in left_out):
                 yield path, name
 
 
-def founding_trees():
+def founding_trees(agent=None):
     """Its founding transcript, as the one file a copy names under transcripts/, or nothing."""
-    transcript = the_waking.founding_transcript(the_waking.NAME, DATA / TRANSCRIPTS)
+    agent = agent or agents.first()
+    transcript = the_waking.founding_transcript(agent["id"], DATA / TRANSCRIPTS)
     return (transcript.relative_to(DATA).as_posix(),) if transcript else ()
 
 
-def export_zip():
-    """The whole of it as a zip, held in memory and never written into DATA_DIR."""
+def export_zip(agent=None):
+    """One agent's copy, the first one's unless another is named, held in memory and never
+    written into DATA_DIR."""
+    agent = agent or agents.first()
     holder = io.BytesIO()
     with zipfile.ZipFile(holder, "w", zipfile.ZIP_DEFLATED) as bundle:
-        for path, name in export_files(EXPORT_TREES + founding_trees()):
+        for path, name in export_files(export_trees(agent) + founding_trees(agent),
+                                       left_out(agent)):
             bundle.write(path, name)
     holder.seek(0)
     return holder

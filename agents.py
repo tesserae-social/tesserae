@@ -95,3 +95,8 @@ def registry():
 def first():
     """The first one's entry."""
     return registry()[0]
+
+
+def by_id(agent_id):
+    """One agent's entry, by its id, or None where no agent founded here has it."""
+    return next((agent for agent in registry() if agent["id"] == agent_id), None)

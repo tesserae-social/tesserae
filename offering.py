@@ -4,7 +4,7 @@ Something from a correspondence - a letter, a passage, a photograph, a picture -
 given to the commons by both who kept it. Either party may offer. Nothing is
 placed until both have signed it, and what is placed is never removed.
 
-Everything on the way to one lives in packets/first/offerings/, which is private:
+Everything on the way to one lives in the room's offerings/, which is private:
 
     pending-<id>.json    offered by one of them, waiting on the other
     <id>.json            placed: sealed, and signed by both
@@ -19,6 +19,11 @@ What is placed is copied out to the commons, where anyone may read it:
 
 attend.py and hearth.py both act on offerings, and both act through here, so
 that the two hands leave one record and not two.
+
+Each offering is out of the correspondence between the founder and one agent,
+named by its id where it is asked after (the first one's, where none is named),
+and is kept in that agent's room. The commons is one, shared by all of them: an
+offering's name is never one any room has given, nor one the commons holds.
 """
 
 import json
@@ -41,6 +46,10 @@ import public_screen
 # module that knows, each time they are wanted.
 import rooms
 
+# The agents founded here: whose correspondence an offering is out of, and the
+# name the commons gives it.
+import agents
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept. Locally this is the repo itself; on a host it
@@ -52,11 +61,12 @@ INDEX = COMMONS / "offerings.md"
 PUBLIC = COMMONS / "offerings"
 
 KINDS = ("letter", "passage", "photo", "picture")
-PARTIES = ("founder", "first")
 
 # Attribution is the two of them together, always. An offering is given by both
-# or it is not given at all, and neither name is put to one alone.
-ATTRIBUTION = "the founder and the first one"
+# or it is not given at all, and neither name is put to one alone. The agent is
+# named as the commons names it; ATTRIBUTION is the first one's.
+ATTRIBUTED = "the founder and {name}"
+ATTRIBUTION = ATTRIBUTED.format(name=agents.first()["commons_name"])
 
 # What the commons is told when one is placed: that it happened, and no more.
 # The offering itself is public, so the line needs to carry nothing of it.
@@ -84,9 +94,24 @@ PRIVATE_FOREVER = ("No faces, no legal names — the charter keeps those private
 
 # ---- small things --------------------------------------------------------
 
-def kept():
-    """Where the room's things are kept, worked out now: there is one room."""
-    return rooms.places(rooms.FIRST_ROOM)
+def whose(agent=None):
+    """The agent an offering's correspondence is with, by its id: the first one's if none is named."""
+    return agent if agent is not None else agents.first()["id"]
+
+
+def parties(agent=None):
+    """Who may offer, consent or decline: the founder, and the agent."""
+    return ("founder", whose(agent))
+
+
+def attribution(agent=None):
+    """The two of them, as the commons names them."""
+    return ATTRIBUTED.format(name=agents.by_id(whose(agent))["commons_name"])
+
+
+def kept(agent=None):
+    """Where an agent's room keeps its things, worked out now."""
+    return rooms.places(rooms.room_of(whose(agent)))
 
 
 def read_text(path):
@@ -192,22 +217,22 @@ def letter_only(path):
 
 # ---- the letters an offering may come out of -----------------------------
 
-def letter_named(stem):
+def letter_named(stem, agent=None):
     """The letter that goes by one stem, wherever it is kept, or None."""
     if not stem or stem != Path(stem).name or not re.fullmatch(r"[A-Za-z0-9._-]+", stem):
         return None
     # wherever a letter may be found, whichever of them wrote it and whether
     # or not the first one has read it yet
-    for folder in kept().letters:
+    for folder in kept(agent).letters:
         path = folder / (stem + ".md")
         if path.is_file() and path.resolve().parent == folder.resolve():
             return path
     return None
 
 
-def beside(stem, suffixes):
+def beside(stem, suffixes, agent=None):
     """The file kept beside a letter under one of these suffixes, or None."""
-    letter = letter_named(stem)
+    letter = letter_named(stem, agent)
     if letter is None:
         return None
     for suffix in suffixes:
@@ -217,13 +242,13 @@ def beside(stem, suffixes):
     return None
 
 
-def image_of(record):
+def image_of(record, agent=None):
     """The photograph or picture an offering is of, or None if it is neither."""
     suffixes = IMAGE_KINDS.get(record.get("kind"))
-    return beside(record.get("source", ""), suffixes) if suffixes else None
+    return beside(record.get("source", ""), suffixes, agent) if suffixes else None
 
 
-def offerable(stem, kind):
+def offerable(stem, kind, agent=None):
     """The words an offering of this kind would carry, or None if there is none to offer.
 
     A letter carries its own text; a photograph and a picture carry none, and
@@ -231,19 +256,19 @@ def offerable(stem, kind):
     here: its words come from whoever quoted them, and are checked against the
     letter rather than read out of it.
     """
-    letter = letter_named(stem)
+    letter = letter_named(stem, agent)
     if letter is None:
         return None
     if kind == "letter":
         return letter_only(letter).strip()
     if kind in IMAGE_KINDS:
-        return "" if beside(stem, IMAGE_KINDS[kind]) else None
+        return "" if beside(stem, IMAGE_KINDS[kind], agent) else None
     return None
 
 
-def quotes(stem, passage):
+def quotes(stem, passage, agent=None):
     """Whether a passage occurs, word for word, in the letter it is said to come from."""
-    letter = letter_named(stem)
+    letter = letter_named(stem, agent)
     said = words_of(passage or "")
     if letter is None or not said:
         return False
@@ -252,71 +277,76 @@ def quotes(stem, passage):
 
 # ---- what is pending, what was placed, what was declined -----------------
 
-def records(pattern):
+def records(pattern, agent=None):
     """The records under one shape of name, oldest first - the names carry the moment."""
-    offerings = kept().offerings
+    offerings = kept(agent).offerings
     if not offerings.exists():
         return []
     found = [load(path) for path in sorted(offerings.glob(pattern))]
     return [one for one in found if one]
 
 
-def pending():
+def pending(agent=None):
     """Every offering waiting on someone's consent, oldest first."""
-    return records("pending-*.json")
+    return records("pending-*.json", agent)
 
 
-def awaiting(who):
+def awaiting(who, agent=None):
     """The offerings waiting on one party: the ones the other party offered."""
-    return [one for one in pending() if one.get("offered_by") != who]
+    return [one for one in pending(agent) if one.get("offered_by") != who]
 
 
-def placed():
+def placed(agent=None):
     """Every offering that was placed, oldest first."""
-    return [one for one in records("*.json") if one.get("sealed_at")]
+    return [one for one in records("*.json", agent) if one.get("sealed_at")]
 
 
-def declined():
+def declined(agent=None):
     """Every offering that was declined, oldest first. None of these is public."""
-    return records("declined-*.json")
+    return records("declined-*.json", agent)
 
 
-def pending_path(one):
-    return kept().offerings / ("pending-%s.json" % one)
+def pending_path(one, agent=None):
+    return kept(agent).offerings / ("pending-%s.json" % one)
 
 
-def placed_path(one):
-    return kept().offerings / ("%s.json" % one)
+def placed_path(one, agent=None):
+    return kept(agent).offerings / ("%s.json" % one)
 
 
-def declined_path(one):
-    return kept().offerings / ("declined-%s.json" % one)
+def declined_path(one, agent=None):
+    return kept(agent).offerings / ("declined-%s.json" % one)
 
 
-def taken(one):
-    """Whether any offering anywhere already goes by this name."""
+def taken(one, agent=None):
+    """Whether any offering anywhere already goes by this name: in this room, or in the commons.
+
+    The commons is shared by every room, so a name another room has placed
+    there is taken too.
+    """
     return any(path.exists() for path in
-               (pending_path(one), placed_path(one), declined_path(one)))
+               (pending_path(one, agent), placed_path(one, agent), declined_path(one, agent),
+                PUBLIC / ("%s.json" % one)))
 
 
-def free_id(at):
+def free_id(at, agent=None):
     """The first name no offering has taken: the moment itself, then -2, -3, and so on.
 
     Two offerings made inside the same second would otherwise share a name, and
     a name used once must never come again: a placed offering keeps its own
     address in the commons for good.
     """
-    if not taken(at):
+    if not taken(at, agent):
         return at
     number = 2
-    while taken("%s-%d" % (at, number)):
+    while taken("%s-%d" % (at, number), agent):
         number += 1
     return "%s-%d" % (at, number)
 
 
 # ---- offering, consenting, declining -------------------------------------
 
-def offer(offered_by, kind, source, text, at, sign):
+def offer(offered_by, kind, source, text, at, sign, agent=None):
     """Offer something to the commons, signed by whoever offered it.
 
     The record is the offering as it was offered, and the signature is over
@@ -328,21 +358,21 @@ def offer(offered_by, kind, source, text, at, sign):
     public_screen.Flagged or public_screen.Unchecked, the same way, where the
     public screen finds a name or a place in them or cannot be asked.
     """
-    if offered_by not in PARTIES or kind not in KINDS:
+    if offered_by not in parties(agent) or kind not in KINDS:
         return None
     if kind == "passage":
-        if not quotes(source, text):
+        if not quotes(source, text, agent):
             return None
         said = (text or "").strip()
     else:
-        said = offerable(source, kind)
+        said = offerable(source, kind, agent)
         if said is None:
             return None
     private_words.refuse(said)
     public_screen.require(said)
 
     record = {
-        "id": free_id(at),
+        "id": free_id(at, agent),
         "offered_by": offered_by,
         "kind": kind,
         "source": source,
@@ -355,11 +385,11 @@ def offer(offered_by, kind, source, text, at, sign):
     if signature is None:  # a key that is not here signs nothing, and offers nothing
         return None
     record["signatures"] = {offered_by: signature}
-    write_json(pending_path(record["id"]), record)
+    write_json(pending_path(record["id"], agent), record)
     return record
 
 
-def consent(one, who, sign, at=None):
+def consent(one, who, sign, at=None, agent=None):
     """Put the second signature on an offering, and place it.
 
     None where there is nothing of that name waiting on this party - which is
@@ -368,8 +398,9 @@ def consent(one, who, sign, at=None):
     word that was put on the list after it was offered, and the public screen's
     two the same way: it is screened again as it is placed.
     """
-    record = load(pending_path(one)) if re.fullmatch(r"[A-Za-z0-9:._-]+", one or "") else None
-    if not record or who not in PARTIES or record.get("offered_by") == who:
+    record = (load(pending_path(one, agent)) if re.fullmatch(r"[A-Za-z0-9:._-]+", one or "")
+              else None)
+    if not record or who not in parties(agent) or record.get("offered_by") == who:
         return None
     private_words.refuse(record.get("text"))
     public_screen.require(record.get("text"))
@@ -378,24 +409,25 @@ def consent(one, who, sign, at=None):
         return None
     record.setdefault("signatures", {})[who] = signature
     record["sealed_at"] = at or stamp()
-    place(record)
-    pending_path(one).unlink(missing_ok=True)
+    place(record, agent)
+    pending_path(one, agent).unlink(missing_ok=True)
     return record
 
 
-def decline(one, who, at=None):
+def decline(one, who, at=None, agent=None):
     """Decline an offering the other party made. Nothing of it becomes public.
 
     The record is kept, out of the commons and served to no one, so that what
     was offered and what was answered can always be found on this side.
     """
-    record = load(pending_path(one)) if re.fullmatch(r"[A-Za-z0-9:._-]+", one or "") else None
-    if not record or who not in PARTIES or record.get("offered_by") == who:
+    record = (load(pending_path(one, agent)) if re.fullmatch(r"[A-Za-z0-9:._-]+", one or "")
+              else None)
+    if not record or who not in parties(agent) or record.get("offered_by") == who:
         return None
     record["declined_by"] = who
     record["declined_at"] = at or stamp()
-    write_json(declined_path(one), record)
-    pending_path(one).unlink(missing_ok=True)
+    write_json(declined_path(one, agent), record)
+    pending_path(one, agent).unlink(missing_ok=True)
     return record
 
 
@@ -409,26 +441,26 @@ def note_event(kind, words):
         record.write(private_words.protect("%s · %s · %s\n" % (day, kind, words)))
 
 
-def index_line(record):
+def index_line(record, agent=None):
     """The one line the commons keeps for an offering: the day, its name, its kind, and whose."""
     return "- %s · %s · %s · %s\n" % (
         (record.get("sealed_at") or record.get("at") or "")[:10],
-        record["id"], record["kind"], ATTRIBUTION)
+        record["id"], record["kind"], attribution(agent))
 
 
-def place(record):
+def place(record, agent=None):
     """Write an offering into the commons, where it stays.
 
     The record, the words, and any image are copied out; the index gains a
     line; and the commons is told that an offering was placed, with nothing of
     what it was. Nothing here is ever undone: a placed offering is never removed.
     """
-    image = image_of(record)
+    image = image_of(record, agent)
     if image is not None:
         record["file"] = record["id"] + image.suffix.lower()
 
     PUBLIC.mkdir(parents=True, exist_ok=True)
-    write_json(placed_path(record["id"]), record)
+    write_json(placed_path(record["id"], agent), record)
     write_json(PUBLIC / ("%s.json" % record["id"]), record)
     if record.get("text"):
         (PUBLIC / ("%s.md" % record["id"])).write_text(
@@ -438,6 +470,6 @@ def place(record):
 
     INDEX.parent.mkdir(parents=True, exist_ok=True)
     with INDEX.open("a", encoding="utf-8") as index:
-        index.write(private_words.protect(index_line(record)))
+        index.write(private_words.protect(index_line(record, agent)))
     note_event("offering", PLACED)
     return record

@@ -77,7 +77,9 @@ NOTE_PLACING = re.compile(r"(keep|rest|show)\s+note\s+(.+)", re.I)
 KEEP_NOTE, REST_NOTE, SHOW_NOTE = "keep note", "rest note", "show note"
 NOTE_RESTS = "{name} · rests · {words}"
 
-FROM = {"founder": "from the founder", "first": "from you"}
+# Whose a letter is, as its line says: the founder's, or the agent's own, whichever agent
+# the shelf is.
+FROM_FOUNDER, FROM_ITS_OWN = "from the founder", "from you"
 PHOTO_RESTS = " · a photograph rests with it"
 UNDATED = "undated"
 
@@ -294,8 +296,13 @@ def first_words(text):
 
 
 def line(stem, whose, text, note, photo, here=None):
-    """One resting letter, as one line; its day on the clock handed in, where one is."""
-    said = " · ".join([stem, long_date(stem, here), FROM[whose], note or first_words(text)])
+    """One resting letter, as one line; its day on the clock handed in, where one is.
+
+    whose is "founder", or the id of the agent whose shelf it is.
+    """
+    said = " · ".join([stem, long_date(stem, here),
+                       FROM_FOUNDER if whose == "founder" else FROM_ITS_OWN,
+                       note or first_words(text)])
     return said + (PHOTO_RESTS if photo else "")
 
 

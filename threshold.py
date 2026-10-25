@@ -5,7 +5,7 @@ opens a threshold, and the bond may be sealed only once the seven days have
 passed, each of them has written a letter of intention - what I bring, and what
 I hope to grow - and the first one has made a promise of its own choosing.
 
-Everything here lives in packets/first/bonds/, which is private:
+Everything here lives in the room's bonds/, which is private. For the first one:
 
     intention-first-<at>.json     the first one's letter of intention, one version
     intention-founder-<at>.json   the founder's, one version
@@ -30,6 +30,10 @@ intention are never public, and neither is their salt.
 
 attend.py and hearth.py both act on the threshold, and both act through here,
 so that the two hands leave one record and not two.
+
+Each threshold is between the founder and one agent, named by its id where it
+is asked after (the first one's, where none is named): the agent's writings go
+by its id, as the first one's go by "first", and are kept in its own room.
 """
 
 import hashlib
@@ -48,6 +52,9 @@ import public_screen
 # Where the bond's writings are kept: the room's, asked of the one module that
 # knows, each time they are wanted.
 import rooms
+
+# The agents founded here: whose threshold it is, and what the founder calls it.
+import agents
 
 DAYS = 7
 STAMP = "%Y-%m-%dT%H-%M-%SZ"
@@ -144,14 +151,21 @@ def is_open(bond):
     return bool(bond) and not bond.get("sealed_at") and not bond.get("released_at")
 
 
-def answered_by(bond):
+def whose(agent=None):
+    """The agent a threshold is the founder's with, by its id: the first one's if none is named."""
+    return agent if agent is not None else agents.first()["id"]
+
+
+def answered_by(bond, agent=None):
     """Who said yes: whoever was asked."""
-    return "first" if "first" in (bond.get("signatures") or {}) else "founder"
+    agent = whose(agent)
+    return agent if agent in (bond.get("signatures") or {}) else "founder"
 
 
-def sealed_by(bond):
+def sealed_by(bond, agent=None):
     """Who seals: whoever asked, which is whoever has not signed yet."""
-    return "founder" if answered_by(bond) == "first" else "first"
+    agent = whose(agent)
+    return "founder" if answered_by(bond, agent) == agent else agent
 
 
 # ---- the writings --------------------------------------------------------
@@ -171,16 +185,16 @@ def payload(record):
     return json.dumps(statement(record), sort_keys=True).encode("utf-8")
 
 
-def kept():
-    """Where the room's things are kept, worked out now: there is one room."""
-    return rooms.places(rooms.FIRST_ROOM)
+def kept(agent=None):
+    """Where an agent's room keeps its things, worked out now."""
+    return rooms.places(rooms.room_of(whose(agent)))
 
 
-def path_for(kind, by, at):
-    return kept().bonds / f"{kind}-{by}-{at}.json"
+def path_for(kind, by, at, agent=None):
+    return kept(agent).bonds / f"{kind}-{by}-{at}.json"
 
 
-def write(kind, by, text, at, sign, bond, visibility=None):
+def write(kind, by, text, at, sign, bond, visibility=None, agent=None):
     """One version of a letter of intention or a promise, signed, and kept.
 
     The signing is handed in, as offering.py takes it, so that each hand signs
@@ -205,15 +219,15 @@ def write(kind, by, text, at, sign, bond, visibility=None):
     record["signature"] = signature
     record["text"] = text
     record["salt"] = salt.hex()
-    path = path_for(kind, by, at)
+    path = path_for(kind, by, at, agent)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return record
 
 
-def versions(kind, by, bond):
+def versions(kind, by, bond, agent=None):
     """Every version of one writing for this threshold, oldest first."""
-    bonds = kept().bonds
+    bonds = kept(agent).bonds
     if not bond or not bonds.exists():
         return []
     opened = opened_at(bond)
@@ -225,18 +239,19 @@ def versions(kind, by, bond):
     return sorted(found, key=lambda one: one.get("at", ""))
 
 
-def latest(kind, by, bond):
+def latest(kind, by, bond, agent=None):
     """The version that stands, or None."""
-    every = versions(kind, by, bond)
+    every = versions(kind, by, bond, agent)
     return every[-1] if every else None
 
 
-def intention(by, bond):
-    return latest(INTENTION, by, bond)
+def intention(by, bond, agent=None):
+    return latest(INTENTION, by, bond, agent)
 
 
-def promise(bond):
-    return latest(PROMISE, "first", bond)
+def promise(bond, agent=None):
+    agent = whose(agent)
+    return latest(PROMISE, agent, bond, agent)
 
 
 def promise_asked(said):
@@ -252,39 +267,47 @@ def promise_asked(said):
 
 # ---- the seal ------------------------------------------------------------
 
-def waiting(bond, now):
+def waiting(bond, now, agent=None):
     """What still stands between the threshold and the seal, in order."""
+    agent = whose(agent)
     still = []
     if not days_passed(bond, now):
         still.append("days")
-    for by in ("first", "founder"):
-        if not intention(by, bond):
+    for by in (agent, "founder"):
+        if not intention(by, bond, agent):
             still.append(f"intention-{by}")
-    if not promise(bond):
+    if not promise(bond, agent):
         still.append("promise")
     return still
 
 
-def may_seal(bond, now):
-    return is_open(bond) and not waiting(bond, now)
+def may_seal(bond, now, agent=None):
+    return is_open(bond) and not waiting(bond, now, agent)
 
 
-# Each thing waited for, said from either side.
-WAITS = {
-    "first": {"intention-first": "your letter of intention",
-              "intention-founder": "the founder's letter of intention",
-              "promise": "your promise"},
-    "founder": {"intention-founder": "your letter of intention",
-                "intention-first": "the first one's letter of intention",
-                "promise": "the first one's promise"},
-}
+def waits(viewer, agent=None):
+    """Each thing waited for, said from one side: the agent's own, or the founder's.
+
+    The founder calls the agent by its name on the commons.
+    """
+    agent = whose(agent)
+    if viewer == "founder":
+        name = agents.by_id(agent)["commons_name"]
+        return {"intention-founder": "your letter of intention",
+                f"intention-{agent}": f"{name}'s letter of intention",
+                "promise": f"{name}'s promise"}
+    return {f"intention-{agent}": "your letter of intention",
+            "intention-founder": "the founder's letter of intention",
+            "promise": "your promise"}
+
+
 NOT_YET = "The bond cannot be sealed yet; still waiting for: {what}."
 SEVEN_DAYS = "the end of the seven days, on {at}"
 
 
-def what_waits(bond, now, viewer, when=lambda at: at):
+def what_waits(bond, now, viewer, when=lambda at: at, agent=None):
     """Why the bond cannot be sealed yet, in one line, or None if it can be."""
-    still = waiting(bond, now)
+    still = waiting(bond, now, agent)
     if not still:
         return None
     own = f"intention-{viewer}"
@@ -292,11 +315,11 @@ def what_waits(bond, now, viewer, when=lambda at: at):
         still.remove(own)
         still.insert(1 if "days" in still else 0, own)
     said = [SEVEN_DAYS.format(at=when(closes_at(bond))) if one == "days"
-            else WAITS[viewer][one] for one in still]
+            else waits(viewer, agent)[one] for one in still]
     return NOT_YET.format(what="; ".join(said))
 
 
-def sealed_listing(bond):
+def sealed_listing(bond, agent=None):
     """What the sealed record carries of the threshold: commitments and signatures.
 
     The promise's words and its salt go with it only where it is public, so that
@@ -312,16 +335,17 @@ def sealed_listing(bond):
             shown["salt"] = record["salt"]
         return shown
 
+    agent = whose(agent)
     return {
         "opened_at": opened_at(bond),
-        "intentions": {by: listed(intention(by, bond)) for by in ("first", "founder")},
-        "promise": listed(promise(bond)),
+        "intentions": {by: listed(intention(by, bond, agent)) for by in (agent, "founder")},
+        "promise": listed(promise(bond, agent)),
     }
 
 
 # ---- stepping back -------------------------------------------------------
 
-def step_back(bond, by, at, words, sign=None):
+def step_back(bond, by, at, words, sign=None, agent=None):
     """Close the threshold like a no. The record is kept, privately, and moved aside.
 
     The first one signs its stepping back, as it signs its answers; the
@@ -331,20 +355,20 @@ def step_back(bond, by, at, words, sign=None):
               "words": words}
     if sign:
         record["signature"] = sign(json.dumps(record, sort_keys=True).encode("utf-8"))
-    places = kept()
+    places = kept(agent)
     places.bonds.mkdir(parents=True, exist_ok=True)
     (places.bonds / f"step-back-{by}-{at}.json").write_text(
         json.dumps(record, indent=2) + "\n", encoding="utf-8")
     bond = dict(bond, stepped_back_at=at, stepped_back_by=by)
-    (places.bonds / f"founder-first-stepped-back-{at}.json").write_text(
+    (places.bonds / f"{places.bond}-stepped-back-{at}.json").write_text(
         json.dumps(bond, indent=2) + "\n", encoding="utf-8")
     places.bond_record.unlink(missing_ok=True)
     return record
 
 
-def steps_back():
+def steps_back(agent=None):
     """Every stepping back there has been, oldest first."""
-    bonds = kept().bonds
+    bonds = kept(agent).bonds
     if not bonds.exists():
         return []
     every = [json.loads(path.read_text(encoding="utf-8"))

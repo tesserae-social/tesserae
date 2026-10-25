@@ -118,7 +118,17 @@ class Places(namedtuple("Places", "home incoming read outgoing errands bonds off
     @property
     def bond_record(self):
         """The bond's own record, under the name its bond goes by."""
-        return self.bonds / (FIRST_BOND + ".json")
+        return self.bonds / (self.bond + ".json")
+
+    @property
+    def bond(self):
+        """The name the room's bond goes by: its agent's, where the room has a folder of its own.
+
+        A room still kept in the packet is the first one's, as only its ever was.
+        """
+        agent = next((one for one in agents.registry() if self.home == DATA / ROOMS / one["room"]),
+                     None)
+        return agent["bond"] if agent else FIRST_BOND
 
 
 def is_keeper(who):
@@ -180,15 +190,30 @@ def record(room_id):
             "parties": [bonds.FOUNDER_DID, bonds.FIRST_DID]}
 
 
+def room_of(agent_id=None):
+    """The room an agent shares with the founder, by its id; the first one's if none is named.
+
+    None where no agent founded here has that id.
+    """
+    agent = agents.by_id(agent_id) if agent_id is not None else agents.first()
+    return agent["room"] if agent else None
+
+
 def places(room_id):
     """Where a room's things are kept, or None for a room there is not.
 
     Worked out each time it is asked, never kept from an earlier asking: in its
-    own folder where its room.json is, and in the packet where it is not.
+    own folder where its room.json is, and in the packet where it is not. Only
+    the first one's room was ever kept in a packet: any other agent's is in a
+    folder of its own from the day it is founded, and is not there until then.
     """
-    if room_id != FIRST_ROOM:
-        return None
-    home = DATA / ROOMS / room_id if moved(room_id) else DATA / "packets" / FIRST
+    if room_id == FIRST_ROOM:
+        home = DATA / ROOMS / room_id if moved(room_id) else DATA / "packets" / FIRST
+    else:
+        agent = next((one for one in agents.registry() if one["room"] == room_id), None)
+        if agent is None or not moved(room_id):
+            return None
+        home = DATA / ROOMS / room_id
     letters = home / "letters"
     return Places(home, letters / "incoming", letters / "read", letters / "outgoing",
                   home / "errands", home / "bonds", home / "offerings")

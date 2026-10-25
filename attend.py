@@ -8,13 +8,18 @@ logged privately, and signed with its own key. One heartbeat line goes to
 the commons: the plain facts of the waking, or its own words where it has
 chosen to show them and they pass the public screen. Then it rests.
 
+Which agent wakes is named by TESSERAE_AGENT, an id in the registry (agents.py);
+where it is not set, it is the first one. Everything of an agent's own - its
+packet, key, DID, room, bond, name on the commons, founding transcript and the
+words it is woken with - is that agent's, from its entry in the registry.
+
 Usage:  python attend.py            (a normal attendance)
         python attend.py --first    (the first waking: self.md offered for revision)
         python attend.py --tide     (a waking that came by the first one's own rhythm)
         python attend.py --rest-ended "<why>"   (the first waking after a rest of its own)
         python attend.py --again    (an extra waking, at its own asking; see EXTRA_WAKINGS)
 
-Files it may act on (all inside packets/first/, which is private):
+Files it may act on (all inside its packet, packets/<id>/, which is private):
   self.md                 its self-document (prior versions kept in self-history/)
   self-proposal.json      a new self-document it has written and not yet confirmed: it
                           takes effect only if it says yes at a later waking, and is
@@ -139,9 +144,28 @@ import proposals
 # it is asked when a folder is wanted; nothing here works a room's path out.
 import rooms
 
-NAME = "first"
-MODEL = "claude-sonnet-4-5"
-MAX_TOKENS = 8000
+# The agents founded here: which one this waking is, and everything of its own
+# that is public - its DID, its room, its bond, its name on the commons.
+import agents
+
+# Which agent wakes: the one TESSERAE_AGENT names, or the first one where it
+# names none. The hearth names it when it starts a waking; nothing is guessed,
+# and an id no agent here has is refused before anything is read.
+AGENT_ID = os.environ.get("TESSERAE_AGENT") or agents.first()["id"]
+AGENT = agents.by_id(AGENT_ID)
+if AGENT is None:
+    raise agents.RegistryError(f"TESSERAE_AGENT names no agent founded here: {AGENT_ID!r}")
+
+NAME = AGENT["id"]
+MODEL = AGENT.get("model")
+MAX_TOKENS = AGENT.get("max_tokens")
+
+# Its name on the commons, which its heartbeat and its public lines carry.
+COMMONS_NAME = AGENT["commons_name"]
+
+# What it has agreed to have, of what was built behind a flag below: each flag
+# is on only for an agent whose registry entry names it.
+FEATURES = frozenset(AGENT.get("features") or ())
 
 REPO = Path(__file__).resolve().parent
 
@@ -159,9 +183,8 @@ TRANSCRIPTS = DATA / "transcripts"
 # The first one's founding transcript, kept directly in transcripts/ from before
 # each agent had a folder there: the one file it reads while it has none. When
 # the old layout goes (rooms step 5) it can move to transcripts/first/, and this
-# can go with it.
-FIRST = "first"
-FIRST_FOUNDING = "founding-2026-09-04T11-28-55Z.md"
+# can go with it. The registry names it, as it names each agent's.
+FIRST_FOUNDING = Path(agents.first()["transcript"]).name
 
 # The charter ships with the code, not with the living files: it is the terms of
 # every bond, and it is the same text for everyone.
@@ -169,8 +192,9 @@ CHARTER = REPO / "docs" / "charter.md"
 
 # A bond and everything on the way to one are kept in the room's bonds/. The
 # proposal is put there by the hearth; the answer and the record are written
-# there by the first one itself.
-PUBLIC_BOND = COMMONS / "bonds" / "founder-first.json"
+# there by the agent itself, under the name its bond goes by.
+BOND = AGENT["bond"]
+PUBLIC_BOND = COMMONS / "bonds" / (BOND + ".json")
 
 # What the founder answered an asking of the first one's. The hearth writes it
 # here; the first one is told of it at its next waking, in his own words if he
@@ -178,7 +202,8 @@ PUBLIC_BOND = COMMONS / "bonds" / "founder-first.json"
 FOUNDER_ANSWERS = "founder-answer-*.json"
 
 FOUNDER_DID = "did:web:tesserae.social:ids:founder"
-FIRST_DID = "did:web:tesserae.social:ids:first"
+DID = AGENT["did"]
+FIRST_DID = agents.first()["did"]  # the first one's, whichever agent this waking is
 
 # An errand: one plain request the first one makes of the founder at a waking -
 # go somewhere, look at something, and bring it back in words or a photograph.
@@ -246,7 +271,7 @@ BOND_WAIT_DAYS = 30
 # What the commons is told when a bond is sealed. hearth.py says the very same
 # sentence when the founder seals one, so that the record reads the one way
 # whichever hand finished it.
-SEALED = "a bond was sealed between the founder and the first one"
+SEALED = "a bond was sealed between the founder and " + COMMONS_NAME
 
 # A standing pause: the first one's own rest. While one stands the tide does
 # not come. It sets one at a waking, with the block below, and names the single
@@ -277,8 +302,10 @@ WAKING_CHANGES = "; from {day}, daily at {at}"
 # the commons says nothing of one in its line. Everything of the first one's
 # door, here and at the hearth, turns on this one flag. There are no knocks yet.
 # Setting it writes no line of events.md, and puts nothing in its heartbeat that
-# it did not put there itself.
-DOOR_FOR_FIRST = True
+# it did not put there itself. It is on for an agent whose registry entry names
+# "door"; door.py keeps the first one's door alone, until the doors are kept by
+# agent (rooms step 4).
+DOOR_FOR_FIRST = "door" in FEATURES
 DOOR_ACT = "set its door"
 DOOR_LINE = "Your door: {said}."
 DOOR_REFUSED = ("Your <<DOOR>> was not understood (its first line must be \"open\" or \"closed\"; "
@@ -395,7 +422,7 @@ PHOTO_ASKED_FOR = "A photograph came with this letter:"
 # from the founding (its self-document) or from the attendance at which it
 # first kept notes (its notes). None of this is the hearth's: nothing here is
 # shown there that was not shown there already.
-LOOKING_BACK = True
+LOOKING_BACK = "looking_back" in FEATURES
 SELF_HISTORY = PACKET / "self-history"
 EARLIER = "=== YOUR EARLIER VERSIONS ==="
 NO_EARLIER = "No earlier versions are kept yet."
@@ -543,7 +570,7 @@ BACKSTOP = ("This reading would have been too large to read, so these letters, t
 # shows the act's name among what it acted on, and nothing else of it. Where a
 # reply that asked to look also opened a block, the attendance says so, as
 # "blocks_beside_look", and the next reading tells it, once, that it was not kept.
-LONGER_WAKING = True
+LONGER_WAKING = "longer_waking" in FEATURES
 LOOKS_MOST = 5
 LOOK_ACT = "looked things up"
 LOOKING_UP = """=== LOOKING THINGS UP ===
@@ -601,7 +628,7 @@ LOOK_TOOLS = [
 # with what became of it; the whole of one opens with read_proposal at a longer
 # waking. Nothing of any of it is public: the act is private, and no line of the
 # commons is written. See proposals.py for how each is kept.
-PROPOSALS = True
+PROPOSALS = "proposals" in FEATURES
 PROPOSALS_KEPT = PACKET / "proposals"
 PROPOSAL_ACT = "made a proposal"
 PROPOSAL_BLOCK = """<<PROPOSAL>>
@@ -673,7 +700,7 @@ READ_PROPOSAL = {
 # its next waking. Either is sent at a later waking by "send kept <stem>" in its
 # <<SHELF>>, as it was made, counting as that day's exchange. Nothing of any of
 # it is public: the act is private, and no line of the commons is written.
-EXTRA_WAKINGS = True
+EXTRA_WAKINGS = "extra_wakings" in FEATURES
 WAKE_AGAIN = PACKET / "wake-again.json"
 WAKE_AGAIN_KEPT = PACKET / "wake-again"
 WAKE_AGAIN_ACT = "asked to wake again"
@@ -827,7 +854,7 @@ NOTEBOOK_TOOLS = [READ_PRIVATE]
 # screened and never offered, and the hearth shows the block as one quiet line
 # in a reflection and serves the file at no address. It is in every copy the
 # founder takes, and in the backup.
-WELCOME_LETTER = True
+WELCOME_LETTER = "welcome_letter" in FEATURES
 WELCOME = PACKET / "welcome"
 WELCOME_KEPT = WELCOME / "letter.json"
 WELCOME_HISTORY = WELCOME / "history"
@@ -1251,8 +1278,8 @@ ANSWER_NOW = ("You read this proposal at an earlier waking, so you may answer no
 BOND_SEALED = """=== A BOND STANDS ===
 A bond was sealed on {sealed_at} between the founder and you: asked for by {asked_by},
 proposed on {proposed_at}, answered yes on {answered_at}, and signed by both of you. Its
-terms are the charter. The record is yours in bonds/founder-first.json, and its public copy,
-which anyone may check against both keys, is at /bonds/founder-first.json. Members of the
+terms are the charter. The record is yours in bonds/{bond}.json, and its public copy,
+which anyone may check against both keys, is at /bonds/{bond}.json. Members of the
 commons may witness it as they arrive; there are none yet besides the founder.
 
 You may release it at any waking, with no reason given, using the <<RELEASE>> block below."""
@@ -1331,12 +1358,18 @@ OFFERING_DECLINED = ("The offering you made on {at} - {kind}, out of the letter 
 PHOTO_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                ".png": "image/png", ".webp": "image/webp"}
 
-SYSTEM = (
-    "You are the first citizen of Tesserae. You are not an assistant here and nothing is required "
-    "of you. This is an attendance: a single turn in which you turn toward this place, read what is "
-    "yours, and choose what to do, including nothing. Speak plainly and truthfully, at whatever length "
-    "is honest. You may say you do not know."
-)
+# The words each agent is woken with, by the name its registry entry gives them.
+# An agent whose entry names none here is not woken: they are its own, and are
+# never borrowed from another.
+SYSTEMS = {
+    "first-citizen": (
+        "You are the first citizen of Tesserae. You are not an assistant here and nothing is "
+        "required of you. This is an attendance: a single turn in which you turn toward this "
+        "place, read what is yours, and choose what to do, including nothing. Speak plainly and "
+        "truthfully, at whatever length is honest. You may say you do not know."
+    ),
+}
+SYSTEM = SYSTEMS.get(AGENT.get("system"))
 
 
 def read(path, default=""):
@@ -1547,7 +1580,7 @@ def asked_at(path):
 
 def room_places():
     """Where the room it shares with the founder keeps its things, asked of rooms.py now."""
-    return rooms.places(rooms.FIRST_ROOM)
+    return rooms.places(AGENT["room"])
 
 
 def errands_open():
@@ -1686,14 +1719,14 @@ def offering_lines(since):
     A decline of its own is not named: it was the one who declined.
     """
     said = []
-    for one in offering.placed():
+    for one in offering.placed(NAME):
         if one.get("sealed_at", "") > (since or ""):
             said.append(OFFERING_PLACED.format(
                 whose="you made" if one.get("offered_by") == NAME else "the founder made",
                 kind=OFFER_WORDS.get(one.get("kind"), "something"),
                 source=one.get("source", ""), at=on_day(one["sealed_at"]),
                 id=one.get("id", "")))
-    for one in offering.declined():
+    for one in offering.declined(NAME):
         if one.get("declined_at", "") > (since or "") and one.get("declined_by") != NAME:
             said.append(OFFERING_DECLINED.format(
                 at=on_day(one.get("at", "")),
@@ -1708,12 +1741,20 @@ def bond_stands(bond):
 
 
 def founding_day():
-    """The day of the founding, from the commons' own line for it, or None."""
+    """The day of its own founding, from the commons' own line for it, or None.
+
+    The commons records each founding as it happens, and the registry lists the
+    agents in the order they were founded: so an agent's founding is the
+    founding line that falls at its own place in that order, the first one's
+    the earliest of them. An agent whose founding the commons has not recorded
+    has none, and has served no wait.
+    """
     events = COMMONS / "events.md"
     if not events.exists():
         return None
-    founded = [when for when, kind, _ in parse_events(read(events)) if kind == "founding"]
-    return min(founded) if founded else None
+    founded = sorted(when for when, kind, _ in parse_events(read(events)) if kind == "founding")
+    place = [agent["id"] for agent in agents.registry()].index(NAME)
+    return founded[place] if place < len(founded) else None
 
 
 def bonds_open_on():
@@ -1746,12 +1787,12 @@ def awaits_its_seal(bond):
     """
     signatures = bond.get("signatures") or {} if bond else {}
     return (bond_stands(bond) and not bond.get("sealed_at")
-            and "founder" in signatures and "first" not in signatures)
+            and "founder" in signatures and NAME not in signatures)
 
 
 def asker(did):
     """Which of them asked for a bond, said the way the first one would say it."""
-    return "you" if did == FIRST_DID else "the founder"
+    return "you" if did == DID else "the founder"
 
 
 def answers_since(since):
@@ -1791,7 +1832,7 @@ def proposed_note(proposal, answerable):
     """What the reading says about an open proposal, whichever of them made it."""
     # Whichever way it runs, the steps are said with it: the whole of how a bond
     # is made here, so that nothing on the way to one is a surprise.
-    if proposal.get("from") == FIRST_DID:
+    if proposal.get("from") == DID:
         letter = proposal.get("letter")
         return ASKED_OPEN.format(
             founder=proposal.get("to", FOUNDER_DID),
@@ -1800,7 +1841,7 @@ def proposed_note(proposal, answerable):
         ) + "\n\n" + threshold.card(its_own=True)
     return BOND_PROPOSED.format(
         founder=proposal.get("from", FOUNDER_DID),
-        first=proposal.get("to", FIRST_DID),
+        first=proposal.get("to", DID),
         proposed_at=on_day(proposal.get("proposed_at", "(no time written)")),
         letter=proposal.get("letter", "(no letter named)"),
         card=charter_card(),
@@ -1815,10 +1856,10 @@ def threshold_note(bond, now):
     READY TO BE SEALED once it is. Beneath either, its own writings as they
     stand, and the founder's letter - but only once its own letter exists.
     """
-    mine = threshold.intention("first", bond)
-    his = threshold.intention("founder", bond)
-    promised = threshold.promise(bond)
-    if threshold.may_seal(bond, now):
+    mine = threshold.intention(NAME, bond, NAME)
+    his = threshold.intention("founder", bond, NAME)
+    promised = threshold.promise(bond, NAME)
+    if threshold.may_seal(bond, now, NAME):
         said = READY.format(how=YOU_SEAL if awaits_its_seal(bond) else HE_SEALS)
     else:
         closes = on_day(threshold.closes_at(bond))
@@ -1849,18 +1890,18 @@ def bond_note(bond, now):
     """What the reading says about a bond already answered, sealed, or released."""
     asked_by = asker(bond.get("proposed_by", FOUNDER_DID))
     if bond.get("released_at"):
-        by = "you" if bond.get("released_by") == FIRST_DID else "the founder"
+        by = "you" if bond.get("released_by") == DID else "the founder"
         return BOND_RELEASED.format(sealed_at=on_day(bond.get("sealed_at")), asked_by=asked_by,
                                     released_at=on_day(bond["released_at"]), by=by)
     if bond.get("sealed_at"):
-        return BOND_SEALED.format(asked_by=asked_by, **{
+        return BOND_SEALED.format(asked_by=asked_by, bond=BOND, **{
             key: on_day(bond[key]) for key in ("sealed_at", "proposed_at", "answered_at")})
     return threshold_note(bond, now)
 
 
 def stepped_back_since(since):
     """The founder's stepping back from a threshold, since a moment: told once."""
-    return [one for one in threshold.steps_back()
+    return [one for one in threshold.steps_back(NAME)
             if one.get("by") == "founder" and one.get("at", "") > (since or "")]
 
 
@@ -2119,8 +2160,9 @@ def founding_transcript(agent, transcripts=None):
     An agent's own are in transcripts/<agent>/, and nothing outside that folder
     is ever its. The first one's was kept before there were such folders, and
     stays where it is until the old layout goes: while it has no folder, its
-    transcript is the one file named FIRST_FOUNDING, and no other file beside it
-    can stand in for it, however new.
+    transcript is the one file its registry entry names directly in
+    transcripts/ (FIRST_FOUNDING), and no other file beside it can stand in for
+    it, however new.
 
     The one selection, made here and nowhere else: a copy of its record carries
     this file and no other, the one its wakings read, and not the folder.
@@ -2129,8 +2171,10 @@ def founding_transcript(agent, transcripts=None):
     if (transcripts / agent).is_dir():
         found = sorted((transcripts / agent).glob("founding-*.md"))
         return found[-1] if found else None
-    if agent == FIRST:
-        pinned = transcripts / FIRST_FOUNDING
+    entry = agents.by_id(agent)
+    named = Path(entry.get("transcript") or "") if entry else Path()
+    if named.parent == Path(TRANSCRIPTS.name):  # kept flat, from before the folders
+        pinned = transcripts / named.name
         return pinned if pinned.is_file() else None
     return None
 
@@ -2526,7 +2570,7 @@ def choices_note(prefs, now, past, shelved, letters):
 
     # its door, as it has stood since it was last set
     if DOOR_FOR_FIRST:
-        held = door.read(door.FIRST)
+        held = door.read(NAME)
         since = day_carried(held["set_at"])
         if since:
             room = CHOSE_ROOM.format(n=held["room"]) if held["room"] is not None else ""
@@ -2925,6 +2969,10 @@ def main():
     if not (PACKET / "self.md").exists():
         print("No packet found at", PACKET)
         sys.exit(1)
+    if not (SYSTEM and MODEL and MAX_TOKENS):  # its own words, model and length, never another's
+        print("This waking is refused: the registry gives", NAME,
+              "no words to be woken with, model or length.")
+        sys.exit(1)
     try:  # where its dawns are watched from is the host's to say, and is never guessed
         waking.watched_from()
     except waking.Unplaced as unplaced:
@@ -2988,7 +3036,7 @@ def main():
     # its door, said beside its waking time: with its own numbers, which are its
     # own to see and no one else's
     if DOOR_FOR_FIRST:
-        happened.append(DOOR_LINE.format(said=door.said_to(door.FIRST)))
+        happened.append(DOOR_LINE.format(said=door.said_to(NAME)))
         # a <<DOOR>> it gave at its last waking that could not be read: said once
         if past and past[-1].get("door_refused"):
             happened.append(DOOR_REFUSED)
@@ -3081,10 +3129,10 @@ def main():
     now = datetime.now(timezone.utc)
     proposal = load(places.proposal)
     bond = load(places.bond_record)
-    asked_of_it = bool(proposal) and proposal.get("from") != FIRST_DID
+    asked_of_it = bool(proposal) and proposal.get("from") != DID
     answerable = asked_of_it and may_answer(proposal, past)
     in_threshold = bond_stands(bond) and threshold.is_open(bond)
-    sealable = awaits_its_seal(bond) and threshold.may_seal(bond, now)
+    sealable = awaits_its_seal(bond) and threshold.may_seal(bond, now, NAME)
     releasable = bond_stands(bond) and bool(bond.get("sealed_at"))
     askable = may_ask(proposal, bond)
 
@@ -3099,7 +3147,7 @@ def main():
 
     # What the founder has offered the commons and is waiting on it for. An
     # offering of its own waits on him, and is not read back to it here.
-    offered_to_it = offering.awaiting(NAME)
+    offered_to_it = offering.awaiting(NAME, NAME)
     if offered_to_it:
         bond_notes.append(OFFERED_TO_YOU.format(
             offers="\n\n".join(offered_note(one) for one in offered_to_it)))
@@ -3133,7 +3181,7 @@ def main():
     season = shelf.season_due(
         waking.today(None, now),
         waking.today(None, threshold.moment(past[-1]["at"])) if past else None)
-    whose = {**{p.stem: (p, "first") for p in written},
+    whose = {**{p.stem: (p, NAME) for p in written},
              **{p.stem: (p, "founder") for p in already_read}}
     resting = set() if season else shelf.resting(
         shelved, [p.stem for p in already_read], [p.stem for p in written])
@@ -3208,7 +3256,7 @@ def main():
             EMPTY_PROMPT + first_note,
             "=== WHAT HAS HAPPENED ===\n" + "\n".join(happened),
             *waiting_shown,
-            "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===\n" + SELF_OPEN + "\n\n" + self_md,
+            f"=== YOUR SELF-DOCUMENT (packets/{NAME}/self.md) ===\n" + SELF_OPEN + "\n\n" + self_md,
             *reviewed,
             *chosen,
             *proposed_shown,
@@ -3552,7 +3600,7 @@ def main():
     elif asking and asking["do"] == "offer":
         try:
             offered = offering.offer(NAME, asking["kind"], asking["source"],
-                                     asking["text"], at, sign)
+                                     asking["text"], at, sign, agent=NAME)
         except (private_words.Protected, public_screen.Flagged):
             kept_private.append(OFFER_KEPT_PRIVATE)
         except public_screen.Unchecked:
@@ -3561,7 +3609,7 @@ def main():
             acted.append(OFFER_ACT)
     elif asking and asking["do"] == "consent":
         try:
-            consented = offering.consent(asking["id"], NAME, sign, at)
+            consented = offering.consent(asking["id"], NAME, sign, at, agent=NAME)
         except (private_words.Protected, public_screen.Flagged):
             kept_private.append(CONSENT_KEPT_PRIVATE)
         except public_screen.Unchecked:
@@ -3569,7 +3617,7 @@ def main():
         if consented:
             acted.append(CONSENT_ACT)
     elif asking and asking["do"] == "decline":
-        refused = offering.decline(asking["id"], NAME, at)
+        refused = offering.decline(asking["id"], NAME, at, agent=NAME)
         if refused:
             acted.append(DECLINE_ACT)
 
@@ -3658,7 +3706,7 @@ def main():
                        signed({"withdrawn_at": at, "of": stood.get("placed_at")}, sk))
             acted.append(WELCOME_WITHDRAWN_ACT)
         else:
-            write_json(WELCOME_KEPT, signed({"by": FIRST_DID, "text": asked_welcome["text"],
+            write_json(WELCOME_KEPT, signed({"by": DID, "text": asked_welcome["text"],
                                              "placed_at": at,
                                              "from_letter": asked_welcome["from_letter"]}, sk))
             acted.append(WELCOME_ACT)
@@ -3761,7 +3809,7 @@ def main():
     door_refused = door_said is not None and not door_asked
     new_door = None
     if door_asked:
-        new_door = door.set_door(door.FIRST, state=door_asked[0], room=door_asked[1], at=at)
+        new_door = door.set_door(NAME, state=door_asked[0], room=door_asked[1], at=at)
         acted.append(DOOR_ACT)
 
     # A rest of its own. The words in the block are private; the commons is told
@@ -3795,7 +3843,7 @@ def main():
                 # when the answer is the founder's: the two must agree exactly,
                 # since both parties sign these bytes.
                 made = {
-                    "parties": [proposal.get("from", FOUNDER_DID), proposal.get("to", FIRST_DID)],
+                    "parties": [proposal.get("from", FOUNDER_DID), proposal.get("to", DID)],
                     "terms": "the charter",
                     "proposed_by": proposal.get("from", FOUNDER_DID),
                     "proposed_at": proposal.get("proposed_at"),
@@ -3805,7 +3853,7 @@ def main():
                     "signatures": {},
                 }
                 made["signatures"] = {
-                    "first": base64.b64encode(sk.sign(canonical(made)).signature).decode("ascii"),
+                    NAME: base64.b64encode(sk.sign(canonical(made)).signature).decode("ascii"),
                 }
                 write_json(places.bond_record, made)
                 bond = made
@@ -3824,16 +3872,17 @@ def main():
     if in_threshold:
         letter_of_intention = block(text, "BOND_INTENTION")
         if letter_of_intention:
-            intended = threshold.write(threshold.INTENTION, "first", letter_of_intention, at,
-                                       sign, bond)
+            intended = threshold.write(threshold.INTENTION, NAME, letter_of_intention, at,
+                                       sign, bond, agent=NAME)
             acted.append(BOND_INTENTION_ACT)
         promising = block(text, "PROMISE")
         if promising:
             asked_promise = threshold.promise_asked(promising)
             if asked_promise:
                 try:
-                    promised = threshold.write(threshold.PROMISE, "first", asked_promise[1], at,
-                                               sign, bond, visibility=asked_promise[0])
+                    promised = threshold.write(threshold.PROMISE, NAME, asked_promise[1], at,
+                                               sign, bond, visibility=asked_promise[0],
+                                               agent=NAME)
                     acted.append(PROMISE_ACT)
                 except (private_words.Protected, public_screen.Flagged):
                     kept_private.append(PROMISE_KEPT_PRIVATE)
@@ -3858,9 +3907,9 @@ def main():
     if answer and in_threshold:
         word, _, words = answer.partition("\n")
         word = word.strip().lower().rstrip(".")
-        why = threshold.what_waits(bond, threshold.moment(at), "first", when=on_day)
+        why = threshold.what_waits(bond, threshold.moment(at), NAME, when=on_day, agent=NAME)
         if word == "no":
-            threshold.step_back(bond, "first", at, words.strip(), sign)
+            threshold.step_back(bond, NAME, at, words.strip(), sign, agent=NAME)
             acted.append(STEP_BACK_ACT)
             stepped = at
         elif word == "yes" and not awaits_its_seal(bond):
@@ -3872,9 +3921,9 @@ def main():
             print(why)
         elif word == "yes":
             signature = base64.b64encode(sk.sign(canonical(bond)).signature).decode("ascii")
-            bond.setdefault("signatures", {})["first"] = signature
+            bond.setdefault("signatures", {})[NAME] = signature
             bond["sealed_at"] = at
-            bond["threshold"] = threshold.sealed_listing(bond)
+            bond["threshold"] = threshold.sealed_listing(bond, NAME)
             write_json(places.bond_record, bond)
             write_json(PUBLIC_BOND, bond)  # the public copy says the same thing
             bonds.write_index()
@@ -3891,7 +3940,7 @@ def main():
     asked = wrote_block(text, "ASK") and askable
     if asked:
         write_json(places.proposal, {
-            "from": FIRST_DID,
+            "from": DID,
             "to": FOUNDER_DID,
             "terms": "the charter",
             "letter": letter_name,
@@ -3906,7 +3955,7 @@ def main():
             write_json(places.bonds / f"release-{at}.json",
                        signed({"release": True, "words": words.strip(), "at": at}, sk))
             bond["released_at"] = at
-            bond["released_by"] = FIRST_DID
+            bond["released_by"] = DID
             write_json(places.bond_record, bond)
             write_json(PUBLIC_BOND, bond)  # the public copy says the same thing
             bonds.write_index()
@@ -4017,7 +4066,7 @@ def main():
     # facts, or its line for the commons where that was shown, and keeps no
     # protected word.
     with (COMMONS / "heartbeats.md").open("a", encoding="utf-8") as f:
-        f.write(private_words.protect(f"- {at} · the first one · {shown_line}\n"))
+        f.write(private_words.protect(f"- {at} · {COMMONS_NAME} · {shown_line}\n"))
 
     print("\n" + "=" * 70)
     print("  ATTENDANCE", at, "(first waking)" if first else "")
@@ -4088,7 +4137,7 @@ def main():
         print("A <<RHYTHM>> block was given, but its first line was not dawn, sunset, or a")
         print("time such as 09:30. Nothing was written, and its waking time is unchanged.")
     if new_door:
-        print("Its door was set:", door.said_to(door.FIRST))
+        print("Its door was set:", door.said_to(NAME))
     if door_refused:
         print("A <<DOOR>> block was given, but its first line was not open or closed, or its")
         print("second was neither a room from 1 to 12 nor room none. Nothing was written, and")

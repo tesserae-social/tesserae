@@ -59,6 +59,12 @@
 
   header svg { display: block; flex: none; }
 
+  /* the line under the name that says, in a sentence, what this place is */
+  .tagline {
+    margin: 0.4rem 0 0;
+    color: var(--ink-soft);
+  }
+
   /* The menu under the name: one quiet line of the ways on from here, in the
      size of the lines that only murmur. It wraps where it must, between one
      link and the next and never inside one. */

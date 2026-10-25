@@ -77,6 +77,13 @@ SHARED_HEAD = [
 # the document's own title: the first heading in it
 TITLE = re.compile(r"^#\s+(.+?)\s*$", re.M)
 
+# what a page is called where its first heading would not name it: the white
+# paper opens with the name of the place, and "Tesserae — Tesserae" names nothing
+PAGE_TITLE = {
+    "charter.md": "The charter",
+    "white-paper.md": "The white paper",
+}
+
 
 def read_text(path):
     """Read a file as UTF-8, dropping a byte order mark if one is there."""
@@ -145,7 +152,7 @@ def page_for(name, head):
         "<head>",
         '<meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
-        "<title>%s — Tesserae</title>" % escape(title),
+        "<title>%s — Tesserae</title>" % escape(PAGE_TITLE.get(name, title)),
         *head,
         '<link rel="stylesheet" href="%s">' % STYLESHEET,
         "</head>",

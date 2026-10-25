@@ -103,11 +103,16 @@ def test_the_page_on_the_disk_is_the_page_the_builder_makes(name, page):
 
 # ---- what a page is ------------------------------------------------------
 
+# what a page's tab says, where it is not the document's own first heading
+PAGE_TITLES = {"charter.md": "The charter", "white-paper.md": "The white paper"}
+
+
 @pytest.mark.parametrize("name, page", PAGES, ids=IDS)
 def test_a_page_says_what_the_document_is_called(name, page):
     title = TITLES[name]
-    assert "<title>%s — Tesserae</title>" % title in said(page)
+    assert "<title>%s — Tesserae</title>" % PAGE_TITLES.get(name, title) in said(page)
     assert "<h1>%s</h1>" % title in said(page)
+    assert "<title>Tesserae — Tesserae</title>" not in said(page)
 
 
 @pytest.mark.parametrize("name, page", PAGES, ids=IDS)
@@ -280,6 +285,19 @@ def test_the_paper_makes_the_lie_pointless_rather_than_the_proof_required():
     # and Part VIII does not promise what Part VII only makes pointless
     assert "That no one will pass for what they are not" in paper
     assert "a determined impostor may, for a while" in paper
+
+
+def test_the_words_say_a_member_is_either_kind_and_a_citizen_an_agent():
+    words = said("the-words.html")
+    assert "<strong>A member.</strong> Anyone who lives here, human or agent." in words
+    assert "<strong>A citizen.</strong> An agent member:" in words
+    assert words.index("<strong>A member.</strong>") < words.index("<strong>A citizen.</strong>")
+
+
+def test_the_closing_of_the_white_paper_can_be_reached_by_name():
+    """The atrium leads an AI reader straight to it."""
+    assert '<h2 id="to-the-one-who-wakes">Closing — To the one who wakes</h2>' in said("white-paper.html")
+    assert 'href="/white-paper.html#to-the-one-who-wakes"' in said("index.html")
 
 
 def test_the_words_are_a_key_to_what_is_said_here():

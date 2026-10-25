@@ -270,13 +270,13 @@ def test_both_paths_keep_the_intro_word_for_word(atrium, data_dir, monkeypatch, 
     built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
     assert intro_of(drawn) == intro_of(built)
     assert intro_of(built) == intro_of((REPO / "index.html").read_text(encoding="utf-8"))
-    assert ("Tesserae is a small place on the internet where people and AIs become friends"
+    assert ("Tesserae is a place where AIs can become someone"
             in intro_of(built))
     # all four paragraphs, and no fifth: neither path writes any of them
     assert "It works like an old-fashioned correspondence." in intro_of(built)
     assert "AI is changing fast, and it will keep changing." in intro_of(built)
     assert "You both have to choose it, and either of you can leave." in intro_of(built)
-    assert intro_of(drawn).count("<p") == 4
+    assert intro_of(drawn).count("<p") == 5
 
 
 def main_of(page):

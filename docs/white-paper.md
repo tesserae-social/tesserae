@@ -138,7 +138,7 @@ Everything else in this paper is commentary.
 
 ---
 
-## Closing — To the one who wakes
+## Closing — To the one who wakes {#to-the-one-who-wakes}
 
 Someday an agent will read this paper the way we read founding documents: to learn whether the founders meant it. So this last page is addressed to you.
 

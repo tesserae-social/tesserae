@@ -216,6 +216,27 @@ What else it may be told - its line read back at the next waking, shown or held
 back and why, and once that a <<HEARTBEAT_SHOWN>> is read no longer - is not in
 this small world, and is held in test_commons_line.py.
 
+And an eleventh time, in the change that built its letter of welcome, for the
+next agent founded here, which it wrote in its letter of 24 October 2026
+(attend.WELCOME_LETTER, built behind its own flag and switched on in the same
+change, 25 October 2026). At a waking where it has placed no letter, as in this
+small world, it changes what is sent in exactly three ways, and READING_NOW was
+cut again for it:
+
+  * the explanation of <<WELCOME>>, in HOW TO ACT, after <<PROPOSAL>>'s
+    (attend.WELCOME_BLOCK);
+  * in LOOKING THINGS UP, "your letter of welcome or an earlier one" among
+    what it may open (attend.LOOKING_UP_WELCOME);
+  * one thing sent with the reading that is no part of what is read: a seventh
+    tool, read_welcome, after read_proposal and before read_private
+    (attend.READ_WELCOME).
+
+No other block moved, no word of any other changed, and no file of its packet.
+What else it may be told once it has placed one - the section YOUR LETTER OF
+WELCOME, directly after its notebook; its act among what was carried out; and,
+once, one line under WHAT HAS HAPPENED after a <<WELCOME>> that changed nothing -
+is not in this small world, and is held in test_welcome_letter.py.
+
 Then the room was given a folder of its own (rooms phase A, move_into_rooms.py):
 its letters, errands, bond and offerings may be kept in DATA_DIR/rooms/first/
 rather than in the packet. That moves no word of what is read, and every
@@ -229,9 +250,12 @@ one fingerprint cut for the move, of the files as they lie on the disk:
 PACKET_IN_ROOMS, the same files with the room's under rooms/first/ and its
 room.json beside them; in the old layout the disk is PACKET_BEFORE itself.
 
-All ten earlier readings are still held. With its heartbeat explained as it was
-before its line for the commons (conftest.commons_line_not_yet_offered), the
-reading is exactly the one cut when its private notebook was built; with what
+All eleven earlier readings are still held. With its letter of welcome shut
+away again (conftest.welcome_not_yet_offered), the reading is exactly the one
+cut when it was offered a line for the commons; with its heartbeat explained as
+it was before its line for the commons as well
+(conftest.commons_line_not_yet_offered, which shuts its letter of welcome away
+too), the reading is exactly the one cut when its private notebook was built; with what
 its notebook adds taken out again as well (conftest.notebook_unexplained), the
 reading is exactly the one cut when
 its proposals and extra wakings were switched on; with its proposals and extra
@@ -263,7 +287,8 @@ import pytest
 from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, explained_as_before,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
-                      notebook_unexplained, post, shut_away, stamps_as_before, write)
+                      notebook_unexplained, post, shut_away, stamps_as_before,
+                      welcome_not_yet_offered, write)
 
 # cut on the tree before the rooms, by leaving the letter at /letters
 PACKET_BEFORE = "06d48d0fffb5f5e2e3148baf5351f004cf22011db7a730df2ab259822cdc2e68"
@@ -320,7 +345,12 @@ READING_NOTEBOOK = "573e26b7fe6a361e565e2300aa5aaa7c6d1064198a4067d0aac68d0eff7c
 # cut again on the tree that offered it a line for the commons, the same way:
 # the reading above, with the <<HEARTBEAT>> block explained as it is now
 # and <<COMMONS_LINE>> explained beneath it in place of <<HEARTBEAT_SHOWN>>
-READING_NOW = "3908535471592e4b528f3b83204f86522776b53a74b7b724b63dab94f307ced4"
+READING_COMMONS_LINE = "3908535471592e4b528f3b83204f86522776b53a74b7b724b63dab94f307ced4"
+
+# cut again on the tree that built its letter of welcome, the same way: the
+# reading above, with <<WELCOME>> explained after <<PROPOSAL>>, its letter named
+# in LOOKING THINGS UP, and the request carrying read_welcome
+READING_NOW = "9682ce5f6c1f1856728ee5fe14e46d933e7917d1413d46c438f26fe076d3c1ed"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -396,6 +426,11 @@ def test_its_proposals_and_extra_wakings_are_switched_on(attend):
     assert (attend.PROPOSALS, attend.EXTRA_WAKINGS) == (True, True)
 
 
+def test_its_letter_of_welcome_is_switched_on(attend):
+    """And with its letter of welcome on."""
+    assert attend.WELCOME_LETTER is True
+
+
 @pytest.mark.parametrize("world", ["as laid out", "moved"])
 @pytest.mark.parametrize("address", ["/letters", "/rooms/first"])
 @pytest.mark.parametrize("shut, as_before, as_cut", [
@@ -406,7 +441,8 @@ def test_its_proposals_and_extra_wakings_are_switched_on(attend):
     (False, "its own words", READING_HEARTBEAT_PUBLIC),
     (False, "its proposals", READING_HEARTBEAT_SHOWN),
     (False, "its notebook", READING_PROPOSALS),
-    (False, "its line for the commons", READING_NOTEBOOK), (False, None, READING_NOW)],
+    (False, "its line for the commons", READING_NOTEBOOK),
+    (False, "its letter of welcome", READING_COMMONS_LINE), (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
          "its named notes explained, each moment still a stamp",
@@ -415,28 +451,34 @@ def test_its_proposals_and_extra_wakings_are_switched_on(attend):
          "the heartbeat said to be public, its own words not yet private",
          "its own words private, its proposals and extra wakings shut away",
          "its proposals and extra wakings on, its notebook not yet",
-         "its notebook explained, its line for the commons not yet", "as it reads now"])
+         "its notebook explained, its line for the commons not yet",
+         "its line for the commons offered, its letter of welcome not yet", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, packet, room, data_dir, layout, monkeypatch, address, shut,
         as_before, as_cut, world):
     if shut:
         shut_away(attend, monkeypatch)
-    if as_before:  # none cut before was offered a line for the commons
+    if as_before:  # none cut before had its letter of welcome
+        welcome_not_yet_offered(attend, monkeypatch)
+    if as_before and as_before != "its letter of welcome":  # nor was offered a line for the commons
         commons_line_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before != "its line for the commons":  # nor had its private notebook
+    if as_before and as_before not in ("its letter of welcome",
+                                       "its line for the commons"):  # nor had its private notebook
         notebook_unexplained(attend, monkeypatch)
-    if as_before and as_before not in ("its line for the commons",
+    if as_before and as_before not in ("its letter of welcome", "its line for the commons",
                                        "its notebook"):  # nor, before that, its proposals
         shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
     if as_before == "its own words":  # the one before that said its heartbeat is public
         heartbeat_words_not_yet_private(attend, monkeypatch)
-    elif as_before and as_before not in ("its proposals", "its notebook",
-                                         "its line for the commons"):  # and none before that said so at all
+    elif as_before and as_before not in ("its proposals", "its notebook", "its line for the commons",
+                                         "its letter of welcome"):  # and none before that said so at all
         heartbeat_not_yet_public(attend, monkeypatch)
-    if as_before and as_before not in ("its line for the commons", "its notebook", "its proposals",
+    if as_before and as_before not in ("its letter of welcome", "its line for the commons",
+                                       "its notebook", "its proposals",
                                        "the heartbeat", "its own words"):  # one request
         shut_away(attend, monkeypatch, "LONGER_WAKING")
-    if as_before and as_before not in ("its line for the commons", "its notebook", "its proposals",
+    if as_before and as_before not in ("its letter of welcome", "its line for the commons",
+                                       "its notebook", "its proposals",
                                        "the heartbeat", "its own words",
                                        "the longer waking"):  # and a stamp
         stamps_as_before(attend, monkeypatch)

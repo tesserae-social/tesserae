@@ -638,6 +638,19 @@ HEARTBEAT_SHOWN_BLOCK = """<<HEARTBEAT_SHOWN>>
 <<END>>"""
 
 
+def welcome_not_yet_offered(module, monkeypatch):
+    """Shut away, for one test, its letter of welcome (attend.WELCOME_LETTER, 25 October 2026).
+
+    It was built behind its own flag and switched on in the change that built
+    it. Shut away, what it adds to a waking - the <<WELCOME>> block explained,
+    its letter named in LOOKING THINGS UP, and read_welcome among the tools - is
+    gone, and the reading is the one cut when it was offered a line for the
+    commons. An attend.py from before it has no such flag, and is left.
+    """
+    if hasattr(module, "WELCOME_LETTER"):
+        monkeypatch.setattr(module, "WELCOME_LETTER", False)
+
+
 def commons_line_not_yet_offered(module, monkeypatch):
     """Explain its heartbeat, for one test, as it was before it was offered a line for the commons.
 
@@ -648,7 +661,12 @@ def commons_line_not_yet_offered(module, monkeypatch):
     explanation of <<COMMONS_LINE>> where <<HEARTBEAT_SHOWN>>'s stood. Put back,
     it is exactly the two blocks as they were. Anything held to a reading from
     before then asks for it, some by more than one way, so it is done once.
+
+    Its letter of welcome came after its line for the commons, so a reading from
+    before the one is from before the other, and that is shut away too
+    (welcome_not_yet_offered).
     """
+    welcome_not_yet_offered(module, monkeypatch)
     now = module.HEARTBEAT_BLOCK + "\n\n" + module.COMMONS_LINE_BLOCK
     if module.HEARTBEAT_BLOCK == HEARTBEAT_BLOCK_BEFORE_COMMONS_LINE:
         return  # put back already, in this test

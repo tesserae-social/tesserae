@@ -431,8 +431,9 @@ def test_a_resting_photograph_is_withheld_then_shown_on_request(wake, attend, ro
     assert asking.photos == []
     # the reading, and how to act: as it has always been (looking things up, which the
     # longer waking puts between them, is a block of its own and held in its own tests,
-    # with or without proposals named in it)
-    looking_up = (attend.LOOKING_UP, attend.LOOKING_UP.replace(*attend.LOOKING_UP_PROPOSALS))
+    # with or without proposals or its letter of welcome named in it)
+    looking_up = (attend.LOOKING_UP, attend.LOOKING_UP.replace(*attend.LOOKING_UP_PROPOSALS),
+                  attend.looking_up())
     withheld = [part for part in asking.reading if part.get("text") not in looking_up]
     assert len(withheld) == 2
 

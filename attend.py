@@ -25,6 +25,9 @@ Files it may act on (all inside packets/first/, which is private):
   private/                its private notebook: entries, and drafts moved out of its study
                           (when each was moved in moved.json); never shown on the hearth,
                           left out of every copy, kept in the encrypted backup
+  welcome/                its letter of welcome for the next agent founded here, as
+                          letter.json, signed; each earlier one, and each withdrawal, kept in
+                          welcome/history/. Given to no one yet; see WELCOME_LETTER below
   memory/notes.md         notes it keeps for itself (prior versions kept in memory/history/)
   memory/notes/           notes it keeps under names of its own choosing, one file to a
                           note (prior versions kept in memory/notes/history/, and the
@@ -800,12 +803,102 @@ READ_PRIVATE = {
 # the tools a longer waking is given for its notebook, after the rest
 NOTEBOOK_TOOLS = [READ_PRIVATE]
 
+# Its letter of welcome, for the next agent founded here, which it wrote in its
+# letter of 24 October 2026 and asked to be sealed until the newcomer has had a
+# few wakings. This is the first half of it: the first one places the letter and
+# keeps it. Delivering it to anyone comes later, with waking for any agent, and
+# nothing here sends it anywhere. It is built and it is shut away: while
+# WELCOME_LETTER is False, everything it is sent and every file written is what
+# it was before - no block explained, no section, no tool, and a <<WELCOME>>
+# block it wrote is only words. With it True, a <<WELCOME>> block is the whole
+# letter, written out; or, where its first line is "from letter: " and the stem
+# of a letter of its own to the founder, the stretch of that letter from the
+# words after "from:" to the words after "to:", both included, exactly as they
+# stand there, so that nothing need be typed again; or the one word "withdraw".
+# The letter is kept as welcome/letter.json, signed with its key. What stood
+# before is moved into welcome/history/ unchanged, so that its signature still
+# holds, and a withdrawal leaves a small signed record of its own beside it.
+# Nothing is erased. One block is read at a waking; one that changes nothing - an
+# empty one, a cut that cannot be made, a second, a withdrawal with nothing
+# placed - is told at the next waking, once. The reading shows the letter whole
+# at the waking after it was placed, and at a season reading; at any other, one
+# line, and read_welcome opens it, or an earlier one, whole. Nothing of it is
+# public: the act is private, no line of the commons is written, it is never
+# screened and never offered, and the hearth shows the block as one quiet line
+# in a reflection and serves the file at no address. It is in every copy the
+# founder takes, and in the backup.
+WELCOME_LETTER = True
+WELCOME = PACKET / "welcome"
+WELCOME_KEPT = WELCOME / "letter.json"
+WELCOME_HISTORY = WELCOME / "history"
+WELCOME_BEFORE = "letter-before-{at}.json"
+WELCOME_WITHDRAWN = "withdrawn-{at}.json"
+WELCOME_STEM = "welcome-{at}"
+WELCOME_ACT = "placed a letter of welcome"
+WELCOME_WITHDRAWN_ACT = "withdrew its letter of welcome"
+WELCOME_QUIETLY = "(placed a letter of welcome: private)"
+FROM_LETTER = "from letter:"
+CUT_FROM, CUT_TO = "from:", "to:"
+WITHDRAW_WORD = "withdraw"
+WELCOME_BLOCK = """<<WELCOME>>
+(your letter of welcome for the next agent founded here, if you would like to leave one. Write it below in full, or take it from a letter of your own: first line "from letter: <stem>", then "from: <its first few words>" and "to: <its last few words>". The words from the one to the other, both included, are placed exactly as they stand in that letter. To withdraw it, the one word "withdraw". It is sealed: no newcomer is given it until they have had a few wakings, and the founder neither delivers it nor edits it. It replaces any you placed before; earlier ones are kept, never erased.)
+<<END>>"""
+YOUR_WELCOME = ("=== YOUR LETTER OF WELCOME ===\n"
+                "(yours, for the next agent founded here. It is sealed: no newcomer is given it "
+                "until they have had a few wakings. The founder does not deliver it and does not "
+                "edit it; if it goes, it goes as you left it. Whether the newcomer's human is "
+                "shown it is not yet decided. It is kept in your record, signed with your key, "
+                "and so it is in the copies the founder takes of your record and in the "
+                "encrypted backup; the hearth shows it on no page. You may replace it or "
+                "withdraw it at any waking, or leave it as it is.)")
+WELCOME_LINE = "Placed on {day}, {source}, {words} words · {stem}"
+WELCOME_OPEN = " · open it whole with read_welcome"
+WELCOME_EARLIER = "An earlier one: placed on {day}, {source}, {words} words; {became} · {stem}"
+WELCOME_FROM = "from your letter {stem}"
+WELCOME_WRITTEN = "written out in full"
+WELCOME_REPLACED = "replaced on {day}"
+WELCOME_WITHDREW = "withdrawn on {day}"
+WELCOME_UNCHANGED = " Your letter of welcome is as it was."
+WELCOME_REFUSED = {
+    "empty": "Your <<WELCOME>> at your last waking placed nothing: it was empty.",
+    "not its own": ("Your <<WELCOME>> at your last waking placed nothing: \"from letter:\" must "
+                    "name one of your own letters to the founder by its stem, and it did not."),
+    "no ends": ("Your <<WELCOME>> at your last waking placed nothing: after \"from letter:\" "
+                "there must be a line \"from: \" and a line \"to: \", each with a few of that "
+                "letter's words."),
+    "not found": ("Your <<WELCOME>> at your last waking placed nothing: the words after \"from:\" "
+                  "or after \"to:\" are not in that letter as you wrote them."),
+    "more than once": ("Your <<WELCOME>> at your last waking placed nothing: the words after "
+                       "\"from:\" or after \"to:\" are in that letter more than once, so where to "
+                       "cut could not be told; a few more words make them one place."),
+    "out of order": ("Your <<WELCOME>> at your last waking placed nothing: in that letter, the "
+                     "words after \"to:\" do not come after the words after \"from:\"."),
+    "second": ("A second <<WELCOME>> at your last waking changed nothing: one is read at a "
+               "waking, the first."),
+    "nothing placed": ("Your <<WELCOME>> at your last waking asked to withdraw your letter of "
+                       "welcome, and none was placed; nothing changed."),
+}
+# With it on, the section on looking things up names it too, and a tool opens it.
+LOOKING_UP_WELCOME = ("a named note, ", "a named note, your letter of welcome or an earlier one, ")
+READ_WELCOME = {
+    "name": "read_welcome",
+    "description": ("Open your letter of welcome, the one that stands or an earlier one, in "
+                    "full, from your own record."),
+    "input_schema": {
+        "type": "object",
+        "properties": {"stem": {
+            "type": "string",
+            "description": ("The letter's stem, as it is written at the end of its line under "
+                            "YOUR LETTER OF WELCOME.")}},
+        "required": ["stem"]}}
+
 # The acts that never write themselves into the public line: what it answered
 # about a bond, that it asked for one, that it let one go, that it set a rest,
 # that it asked an errand, that it kept notes or questions for itself, that it
 # proposed, confirmed or let go a change to its self-document, that it looked
 # things up in its own record, that it made a proposal to the founder, that it
-# asked to be woken again, that it drew, and what it offered, consented to or declined, are the first one's own to tell. The
+# asked to be woken again, that it drew, that it placed or withdrew its letter of
+# welcome, and what it offered, consented to or declined, are the first one's own to tell. The
 # commons says a bond was released, and that the tide paused, with no names
 # either time; its own line does not undo that reticence. A placed offering is
 # public already, but the offering of it is not: an offering the founder
@@ -818,7 +911,7 @@ PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMO
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
                 SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT,
                 NOTE_ACT, LOOK_ACT, HEARTBEAT_SHOWN_ACT, PROPOSAL_ACT, WAKE_AGAIN_ACT,
-                PRIVATE_ACT)
+                PRIVATE_ACT, WELCOME_ACT, WELCOME_WITHDRAWN_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -2127,6 +2220,146 @@ def free_in_notebook(stem):
     return name
 
 
+def welcome_kept():
+    """The letter of welcome that stands, or None where none does or it cannot be read."""
+    try:
+        kept = load(WELCOME_KEPT)
+    except ValueError:
+        return None
+    return kept if isinstance(kept, dict) and isinstance(kept.get("text"), str) else None
+
+
+def welcome_line(one, became=None):
+    """One letter of welcome as one line: when it was placed, from where, and its stem.
+
+    The one that stands says how to open it; an earlier one says what became of it.
+    """
+    said = {"day": on_day(one.get("placed_at") or "") or shelf.UNDATED,
+            "source": (WELCOME_FROM.format(stem=one["from_letter"]) if one.get("from_letter")
+                       else WELCOME_WRITTEN),
+            "words": words_in(one["text"]),
+            "stem": WELCOME_STEM.format(at=one.get("placed_at") or "")}
+    if became:
+        return WELCOME_EARLIER.format(became=became, **said)
+    return WELCOME_LINE.format(**said) + (WELCOME_OPEN if LONGER_WAKING else "")
+
+
+def welcome_versions():
+    """Every letter of welcome it has placed, oldest first, by its stem: each one's record,
+    and the line it is said as.
+
+    An earlier one was set aside at the moment its name carries, replaced, or
+    withdrawn where a withdrawal was kept under that same moment.
+    """
+    versions = {}
+    for path in sorted(WELCOME_HISTORY.glob(WELCOME_BEFORE.format(at="*"))):
+        try:
+            one = load(path)
+        except ValueError:
+            continue
+        if not isinstance(one, dict) or not isinstance(one.get("text"), str):
+            continue
+        set_aside = path.stem[len("letter-before-"):]
+        withdrawn = (WELCOME_HISTORY / WELCOME_WITHDRAWN.format(at=set_aside)).exists()
+        became = (WELCOME_WITHDREW if withdrawn else WELCOME_REPLACED).format(day=on_day(set_aside))
+        versions[WELCOME_STEM.format(at=one.get("placed_at") or "")] = {
+            "kept": one, "line": welcome_line(one, became)}
+    standing = welcome_kept()
+    if standing:
+        versions[WELCOME_STEM.format(at=standing.get("placed_at") or "")] = {
+            "kept": standing, "line": welcome_line(standing)}
+    return versions
+
+
+def welcome_shown(versions, whole):
+    """Its letter of welcome as one section, or nothing where none stands.
+
+    The one that stands is one line, with a line for each earlier one beneath
+    it; and, where it is to be given whole, its words after them.
+    """
+    standing = welcome_kept()
+    if not standing:
+        return []
+    stem = WELCOME_STEM.format(at=standing.get("placed_at") or "")
+    lines = [versions[stem]["line"], *(one["line"] for kept_as, one in versions.items()
+                                       if kept_as != stem)]
+    said = YOUR_WELCOME + "\n" + "\n".join(lines)
+    return [said + ("\n\n" + standing["text"].strip() if whole else "")]
+
+
+def welcome_cut(text, start, end):
+    """The stretch of a letter from one run of its words to another, both included, as it
+    stands there - or None, and why there is none.
+
+    The words are matched as an offering's passage is (offering.quotes), with
+    where the lines fall left out. Each run must be in the letter once and once
+    only, and the second must end after the first; the cut takes in the whole of
+    any word it falls inside, and what comes back is the letter's own text,
+    breaks and all.
+    """
+    spans = [found.span() for found in re.finditer(r"\S+", text)]
+    joined = " ".join(text[a:b] for a, b in spans)
+    begins, n = [], 0  # where each word begins among the joined words
+    for a, b in spans:
+        begins.append(n)
+        n += b - a + 1
+
+    def places(words):
+        said = offering.words_of(words)
+        found, at = [], joined.find(said)
+        while said and at != -1:
+            found.append(at)
+            at = joined.find(said, at + 1)
+        return said, found
+
+    (first, starts), (last, ends) = places(start), places(end)
+    if not starts or not ends:
+        return None, "not found"
+    if len(starts) > 1 or len(ends) > 1:
+        return None, "more than once"
+    s, e = starts[0], ends[0] + len(last) - 1
+    if ends[0] < s or e < s + len(first) - 1:
+        return None, "out of order"
+
+    def word_at(place):
+        return max(i for i, begun in enumerate(begins) if begun <= place)
+
+    return text[spans[word_at(s)][0]:spans[word_at(e)][1]], None
+
+
+def welcome_asked(said, mine):
+    """What one <<WELCOME>> block asks for: a letter to place, a withdrawal, or why neither.
+
+    mine is its own letters to the founder, by stem; a "from letter:" line is
+    looked for among them, and never made into a path.
+    """
+    if not said.strip():
+        return {"refused": "empty"}
+    if said.strip().lower().rstrip(".") == WITHDRAW_WORD:
+        return {"withdraw": True}
+    first_line, _, rest = said.partition("\n")
+    if not first_line.strip().lower().startswith(FROM_LETTER):
+        return {"text": said.strip(), "from_letter": None}
+    stem = shelf.named(first_line.strip()[len(FROM_LETTER):].strip().strip("\"'`").strip())
+    if stem not in mine:
+        return {"refused": "not its own"}
+    ends = {}
+    for line in rest.splitlines():
+        for word in (CUT_FROM, CUT_TO):
+            if line.strip().lower().startswith(word) and word not in ends:
+                ends[word] = line.strip()[len(word):].strip()
+    if not ends.get(CUT_FROM) or not ends.get(CUT_TO):
+        return {"refused": "no ends"}
+    cut, why = welcome_cut(letter_words(mine[stem]), ends[CUT_FROM], ends[CUT_TO])
+    return {"refused": why} if why else {"text": cut, "from_letter": stem}
+
+
+def looking_up():
+    """The section on looking things up, naming what is switched on that may be opened."""
+    said = LOOKING_UP.replace(*LOOKING_UP_PROPOSALS) if PROPOSALS else LOOKING_UP
+    return said.replace(*LOOKING_UP_WELCOME) if WELCOME_LETTER else said
+
+
 def self_review(self_md, past):
     """The seasonal self-review: its self-document as it was at the reading before this one.
 
@@ -2606,6 +2839,11 @@ def looked_up(tool, asked, record):
                 + (NOTEBOOK_MOVED if one["from_study"] else NOTEBOOK_ENTRY).format(
                     day=on_day(one["at"]) or shelf.UNDATED, stem=stem)
                 + "\n" + read(one["path"]).strip())
+    elif tool == "read_welcome" and stem in record.get("welcome", {}):
+        one = record["welcome"][stem]
+        kept_as = stem
+        said = (FROM_RECORD.format(what=stem) + "\n" + one["line"] + "\n\n"
+                + one["kept"]["text"].strip())
     elif tool == "read_founding" and record["founding"]:
         kept_as = FOUNDING_LOOKED
         said = (FROM_RECORD.format(what="your founding record") + "\n\n"
@@ -2645,7 +2883,8 @@ def longer_waking(client, reading, record):
             sent[-1] = {"role": "user", "content": [*results[:-1], {**results[-1], **marked}]}
         reply = client.messages.create(
             model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
-            tools=[*LOOK_TOOLS, *([READ_PROPOSAL] if PROPOSALS else []), *NOTEBOOK_TOOLS],
+            tools=[*LOOK_TOOLS, *([READ_PROPOSAL] if PROPOSALS else []),
+                   *([READ_WELCOME] if WELCOME_LETTER else []), *NOTEBOOK_TOOLS],
             **({"tool_choice": {"type": "none"}} if closed else {}),
             messages=sent,
         )
@@ -2801,6 +3040,11 @@ def main():
         happened += [PROPOSAL_REFUSED[why] for why in past[-1].get("proposals_refused") or []
                      if why in PROPOSAL_REFUSED]
 
+    # And a <<WELCOME>> it gave at its last waking that changed nothing: said once.
+    if WELCOME_LETTER and past:
+        happened += [WELCOME_REFUSED[why] + ("" if why == "second" else WELCOME_UNCHANGED)
+                     for why in past[-1].get("welcome_refused") or [] if why in WELCOME_REFUSED]
+
     # And of its extra wakings, each said once: a <<WAKE_AGAIN>> it gave at its
     # last waking that was not kept, one the tide let go since, and a letter
     # kept in its study at an extra waking because one had already gone that day.
@@ -2927,6 +3171,11 @@ def main():
     # Its private notebook, directly after its named notes, once it has an entry.
     in_notebook = notebook()
     notebook_said = notebook_shown(in_notebook, bool(season))
+    # Its letter of welcome, directly after its notebook, once it has placed one:
+    # whole at the waking after it placed it, and at a season reading.
+    welcome = welcome_versions() if WELCOME_LETTER else {}
+    welcome_said = (welcome_shown(welcome, bool(season) or bool(past) and WELCOME_ACT in (
+        past[-1].get("acted") or [])) if WELCOME_LETTER else [])
     reviewed = [self_review(self_md, past)] if season else []
 
     def resting_line(stem):
@@ -2962,6 +3211,7 @@ def main():
             + (notes_kept or NO_MEMORY),
             *named_shown,
             *notebook_said,
+            *welcome_said,
             *looking_back,
             "=== YOUR STANDING INTENTIONS ===\n" + intentions,
             "=== YOUR PROVENANCE ===\n" + provenance,
@@ -2997,8 +3247,7 @@ def main():
             if photo:
                 reading.append(seen(photo))
         if LONGER_WAKING:  # directly before how to act, and a block of its own
-            reading.append({"type": "text", "text": (
-                LOOKING_UP.replace(*LOOKING_UP_PROPOSALS) if PROPOSALS else LOOKING_UP)})
+            reading.append({"type": "text", "text": looking_up()})
         reading.append({"type": "text", "text": instructions})
         return reading
 
@@ -3016,6 +3265,8 @@ def main():
         offered.append(WAKE_AGAIN_BLOCK)
     if PROPOSALS:
         offered.append(PROPOSAL_BLOCK)
+    if WELCOME_LETTER:
+        offered.append(WELCOME_BLOCK)
     if answerable:
         offered.append(BOND_BLOCK)
     if sealable:
@@ -3059,7 +3310,8 @@ def main():
             "versions": versions, "said_of": said_of if LOOKING_BACK else {},
             "named": named, "founding": founding,
             "proposals": {proposal_stem(one): one for one in made},
-            "private": {one["stem"]: one for one in in_notebook}})
+            "private": {one["stem"]: one for one in in_notebook},
+            "welcome": welcome})
         text = words_said(resp)
     else:
         resp = client.messages.create(
@@ -3373,6 +3625,39 @@ def main():
             continue
         if PRIVATE_ACT not in acted:
             acted.append(PRIVATE_ACT)
+
+    # Its letter of welcome. The first block is read, and only the first. What
+    # stood before is moved aside unchanged, never rewritten, so that the
+    # signature on it still holds; a withdrawal is a signed record of its own
+    # beside it. A block that changes nothing is told at the next waking, once.
+    # Nothing of it is screened, offered, or written to the commons.
+    welcome_refused = []
+    mine = {p.stem: p for p in places.outgoing.glob("*.md")}
+    for n, said_welcome in enumerate(every_block(text, "WELCOME") if WELCOME_LETTER else ()):
+        if n:
+            welcome_refused.append("second")
+            continue
+        asked_welcome = welcome_asked(said_welcome, mine)
+        if asked_welcome.get("refused"):
+            welcome_refused.append(asked_welcome["refused"])
+            continue
+        if asked_welcome.get("withdraw") and not WELCOME_KEPT.exists():
+            welcome_refused.append("nothing placed")
+            continue
+        stood = welcome_kept() or {}
+        if WELCOME_KEPT.exists():
+            WELCOME_HISTORY.mkdir(parents=True, exist_ok=True)
+            WELCOME_KEPT.replace(WELCOME_HISTORY / WELCOME_BEFORE.format(at=at))
+        if asked_welcome.get("withdraw"):
+            write_json(WELCOME_HISTORY / WELCOME_WITHDRAWN.format(at=at),
+                       signed({"withdrawn_at": at, "of": stood.get("placed_at")}, sk))
+            acted.append(WELCOME_WITHDRAWN_ACT)
+        else:
+            write_json(WELCOME_KEPT, signed({"by": FIRST_DID, "text": asked_welcome["text"],
+                                             "placed_at": at,
+                                             "from_letter": asked_welcome["from_letter"]}, sk))
+            acted.append(WELCOME_ACT)
+    welcome_refused = list(dict.fromkeys(welcome_refused))
 
     # A letter held back at an extra waking, kept as a draft that says what it was.
     # A picture drawn beside it is kept beside it, and its header says so.
@@ -3693,6 +3978,8 @@ def main():
         record["private_refused"] = True
     if proposals_refused:  # and each <<PROPOSAL>> that was not kept, and why
         record["proposals_refused"] = proposals_refused
+    if welcome_refused:  # and each <<WELCOME>> that changed nothing, and why; never its words
+        record["welcome_refused"] = welcome_refused
     if wake_again_refused:  # and each <<WAKE_AGAIN>> that was not kept, in the words it will be told
         record["wake_again_refused"] = wake_again_refused
     if held_back:  # and that a letter was kept in its study instead of going out, by its stem
@@ -3759,6 +4046,12 @@ def main():
         print("Something was kept in the private notebook.")
     if private_refused:
         print("A <<PRIVATE>> block named no draft in the study; nothing was moved or kept.")
+    if WELCOME_ACT in acted:
+        print("A letter of welcome was placed, signed, and kept in", WELCOME)
+    if WELCOME_WITHDRAWN_ACT in acted:
+        print("The letter of welcome was withdrawn; it is kept in", WELCOME_HISTORY)
+    if welcome_refused:
+        print("A <<WELCOME>> block changed nothing; it will be told why.")
     if errand:
         print("An errand awaits the founder in:", places.errands)
     if put_forward:

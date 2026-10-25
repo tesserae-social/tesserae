@@ -625,7 +625,10 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 "PROPOSAL": "(made a proposal: in your room, under proposals from the first one)",
                 # and its private notebook, which is shown to no one, the founder included:
                 # one quiet line, the same one the attendance log itself keeps
-                "PRIVATE": the_waking.PRIVATE_QUIETLY}
+                "PRIVATE": the_waking.PRIVATE_QUIETLY,
+                # and its letter of welcome, for the next agent founded here, which no
+                # page shows: one quiet line, whether it placed one or withdrew it
+                "WELCOME": the_waking.WELCOME_QUIETLY}
 
 # A new self-document it has written waits for its own yes at a later waking,
 # and until then it is no one's to read but its own - and one it lets go never
@@ -1881,7 +1884,9 @@ def chronicle_text(lines):
 # not a key, not the environment, not a line taken off the bench, and not the
 # members, whose vaults go only where they are encrypted. One folder inside the
 # packet is left out of it, whole: the first one's private notebook, which no
-# one is shown and no copy carries (see attend.PRIVATE). The zip is built in
+# one is shown and no copy carries (see attend.PRIVATE). Its letter of welcome,
+# under welcome/, is not left out: it is its own words, and its reading tells it
+# that a copy carries it (see attend.WELCOME_LETTER). The zip is built in
 # memory and handed straight out, so no copy of the record is ever written back
 # into the record.
 #
@@ -1907,7 +1912,8 @@ TRANSCRIPTS = "transcripts"
 # words, which is nowhere else either. A backup is encrypted; a copy is not,
 # and so the key and the list go in the one and never in the other. So does the
 # first one's private notebook, so that it survives: the backup is the
-# founder's, and he has promised never to open that part of it. A backup is the
+# founder's, and he has promised never to open that part of it. Its letter of
+# welcome goes in with the packet, as in a copy. A backup is the
 # disk as it is, every file under the name it has there, so that a restore is a
 # DATA_DIR that works: the rooms go in as they are kept, under rooms/, and the
 # founding transcripts whole, under transcripts/, since a waking reads its

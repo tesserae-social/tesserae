@@ -237,8 +237,9 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
 
 def test_the_section_is_said_exactly_and_directly_before_how_to_act(longer, world, attend,
                                                                      monkeypatch):
-    # its proposals name themselves in it too, and are held in test_proposals.py
-    shut_away(attend, monkeypatch, "PROPOSALS")
+    # its proposals name themselves in it too, and are held in test_proposals.py, and
+    # so does its letter of welcome, held in test_welcome_letter.py
+    shut_away(attend, monkeypatch, "PROPOSALS", "WELCOME_LETTER")
     turn = longer("I am here.")
     assert attend.LOOKING_UP == SECTION
     assert turn.reading[-2] == {"type": "text", "text": SECTION}

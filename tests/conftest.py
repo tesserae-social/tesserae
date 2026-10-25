@@ -23,6 +23,7 @@ Three rules hold across the whole suite, and this file is where they are kept:
 import base64
 import importlib
 import json
+import os
 import re
 import shutil
 import socket
@@ -252,6 +253,33 @@ def make_room(data):
               "parties": [bonds.FOUNDER_DID, bonds.FIRST_DID]}
     (home / "room.json").write_bytes((json.dumps(record, indent=2) + "\n").encode("utf-8"))
     return home
+
+
+# ---- jsdom, for the atrium's browser path --------------------------------
+
+# Where jsdom is kept for test_atrium_paths.py: a folder of the user's own,
+# outside this repository, so nothing extra is committed or served, and outside
+# the temporary folder, which Windows empties of old files and leaves the
+# folders standing, so that node finds a jsdom/ with nothing in it.
+JSDOM_HOME = (Path(os.environ["LOCALAPPDATA"]) if os.name == "nt" and os.environ.get("LOCALAPPDATA")
+              else Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")) / "tesserae" / "jsdom"
+
+# node is run with that folder on NODE_PATH, after any NODE_PATH already set
+NODE_ENV = {**os.environ, "NODE_PATH": os.pathsep.join(
+    filter(None, [os.environ.get("NODE_PATH"), str(JSDOM_HOME / "node_modules")]))}
+
+
+def pytest_terminal_summary(terminalreporter):
+    """Say plainly when the atrium's browser path was skipped, rather than leave it in a count."""
+    skipped = [report for report in terminalreporter.stats.get("skipped", [])
+               if report.nodeid.split("::")[0].endswith("test_atrium_paths.py")]
+    if not skipped:
+        return
+    reason = skipped[0].longrepr[2] if isinstance(skipped[0].longrepr, tuple) else ""
+    terminalreporter.write_sep("!", "%d atrium path tests did not run" % len(skipped),
+                               yellow=True, bold=True)
+    terminalreporter.write_line(reason.removeprefix("Skipped: "))
+    terminalreporter.write_line('To install it: npm i --prefix "%s" jsdom' % JSDOM_HOME)
 
 
 # ---- a data directory of its own -----------------------------------------

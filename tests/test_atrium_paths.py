@@ -8,22 +8,25 @@ twice the same way, by the same builder and the same script, and is held to
 the same agreement.
 
 This is the only test here that needs anything but Python: node, and jsdom for a
-browser to run the page's script in. To run it:
+browser to run the page's script in. jsdom is installed once, into a folder of
+the user's own that conftest names JSDOM_HOME, and found there with nothing set
+by hand. On Windows, from PowerShell:
 
-    mkdir /tmp/jsdom && cd /tmp/jsdom && npm i jsdom
-    NODE_PATH=/tmp/jsdom/node_modules python -m pytest tests/test_atrium_paths.py
+    npm i --prefix "$env:LOCALAPPDATA/tesserae/jsdom" jsdom
 
-On Windows, from PowerShell (forward slashes are fine there too):
+and elsewhere:
 
-    mkdir $env:TEMP/jsdom; cd $env:TEMP/jsdom; npm i jsdom
-    $env:NODE_PATH = "$env:TEMP/jsdom/node_modules"
-    python -m pytest tests/test_atrium_paths.py
+    npm i --prefix ~/.cache/tesserae/jsdom jsdom
+
+Then python -m pytest tests/test_atrium_paths.py, as for any other test. A jsdom
+already on NODE_PATH is found too. It is not kept under the temporary folder:
+Windows clears old files out of it, and leaves an install that cannot be loaded.
 
 Nothing is installed into this repository, and nothing goes out to the network
 while the tests run: the page's one fetch is answered from the temporary commons.
 
 Without node, or without jsdom, these tests skip and the rest of the suite runs
-on Python alone.
+on Python alone, and the run's summary says that they did not run, and why.
 """
 
 import datetime
@@ -36,7 +39,7 @@ from functools import lru_cache
 
 import pytest
 
-from conftest import NOW, REPO, write
+from conftest import JSDOM_HOME, NODE_ENV, NOW, REPO, write
 
 NODE = shutil.which("node")
 
@@ -115,15 +118,16 @@ def jsdom_here():
     """Whether node can find jsdom, and so whether the page can be run at all."""
     if not NODE:
         return False
-    done = subprocess.run([NODE, "-e", "require.resolve('jsdom')"],
-                          capture_output=True, text=True)
+    done = subprocess.run([NODE, "-e", "require('jsdom')"],
+                          capture_output=True, text=True, env=NODE_ENV)
     return done.returncode == 0
 
 
 pytestmark = [
     pytest.mark.skipif(NODE is None, reason="node is not on the path"),
     pytest.mark.skipif(not jsdom_here(),
-                       reason="jsdom is not where node can find it; see this file's docstring"),
+                       reason="jsdom is not where node can find it, in %s or on NODE_PATH;"
+                              " see this file's docstring" % JSDOM_HOME),
 ]
 
 
@@ -160,7 +164,7 @@ def both_pages(tmp_path, data_dir, baked, at=AT, page="index.html"):
     done = subprocess.run(
         [NODE, str(harness), str(REPO / page), str(baked), str(at),
          str(data_dir / "commons")],
-        capture_output=True, text=True, encoding="utf-8", timeout=120)
+        capture_output=True, text=True, encoding="utf-8", timeout=120, env=NODE_ENV)
     assert done.returncode == 0, done.stderr
     said = json.loads(done.stdout)
     return said["built"], said["drawn"]
@@ -372,7 +376,7 @@ def test_the_browser_path_leaves_the_page_alone_when_the_hearth_is_quiet(tmp_pat
     done = subprocess.run(
         [NODE, str(harness), str(REPO / "index.html"), str(REPO / "index.html"), str(AT),
          str(data_dir / "commons")],
-        capture_output=True, text=True, encoding="utf-8", timeout=120)
+        capture_output=True, text=True, encoding="utf-8", timeout=120, env=NODE_ENV)
     assert done.returncode == 0, done.stderr
     said = json.loads(done.stdout)
     assert regions_of(said["drawn"]) == regions_of(said["built"])
@@ -576,7 +580,7 @@ def test_the_whole_mosaic_stands_as_baked_when_the_hearth_is_quiet(tmp_path, dat
     done = subprocess.run(
         [NODE, str(harness), str(REPO / "mosaic.html"), str(REPO / "mosaic.html"), str(AT),
          str(data_dir / "commons")],
-        capture_output=True, text=True, encoding="utf-8", timeout=120)
+        capture_output=True, text=True, encoding="utf-8", timeout=120, env=NODE_ENV)
     assert done.returncode == 0, done.stderr
     said = json.loads(done.stdout)
     assert regions_of(said["drawn"], WHOLE_REGIONS) == regions_of(said["built"], WHOLE_REGIONS)

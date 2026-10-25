@@ -24,6 +24,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+# Who the agents are, and what the commons calls each.
+import agents
 # The protected words: names and places that never reach the commons. Every
 # public line written here goes through it.
 import private_words
@@ -37,14 +39,16 @@ PUBLIC = DATA / "commons" / "bonds"
 INDEX = DATA / "commons" / "bonds.md"
 
 FOUNDER_DID = "did:web:tesserae.social:ids:founder"
-FIRST_DID = "did:web:tesserae.social:ids:first"
+FIRST_DID = agents.first()["did"]
 
-# How the commons names each party, in the order a bond's parties are said.
-NAMES = {FOUNDER_DID: "the founder", FIRST_DID: "the first one"}
+# How the commons names each party, in the order a bond's parties are said: the
+# founder, and then each agent in the order of its founding.
+NAMES = {FOUNDER_DID: "the founder",
+         **{agent["did"]: agent["commons_name"] for agent in agents.registry()}}
 
 # Which parties are agents: an agent's half is drawn in an agent's colour, and
 # a person's in sand.
-AGENTS = frozenset({FIRST_DID})
+AGENTS = frozenset(agent["did"] for agent in agents.registry())
 
 # A bond's name is its file's name: plain lowercase words joined by hyphens.
 ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")

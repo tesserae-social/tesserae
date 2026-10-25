@@ -33,6 +33,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import agents
 import members
 from members import MemberError
 
@@ -43,7 +44,7 @@ DATA = Path(os.environ.get("DATA_DIR", REPO))
 
 # The first one is no member of the members' store, and its door is kept in its
 # own packet. "first" is a name no member can take, so the two never meet.
-FIRST = "first"
+FIRST = agents.first()["id"]
 FIRST_DOOR = DATA / "packets" / FIRST / "door.json"
 
 RECORD = "door.json"

@@ -15,6 +15,10 @@ Three rules hold across the whole suite, and this file is where they are kept:
     pytest --layout=legacy, the default, and pytest --layout=rooms. A test
     writes a room's letters, errands, bond and offerings through the room
     fixture, and is given the same world either way.
+  * Both registries are tested. The registry of agents (agents.py) is the
+    committed agents.json, or, with no file there, the first one alone, and the
+    two must be one: pytest --agents=file, the default, reads the file, and
+    pytest --agents=absent runs as though there were none.
   * Time is pinned. The clock fixture holds one moment; every module that asks
     what time it is is pinned to it, and a test that needs a different moment
     says so rather than waiting for one.
@@ -250,10 +254,27 @@ def did_public_key(document):
 
 LAYOUTS = ("legacy", "rooms")
 
+# Whether the registry of agents is read from its file, or as if there were none.
+REGISTRIES = ("file", "absent")
+
 
 def pytest_addoption(parser):
     parser.addoption("--layout", choices=LAYOUTS, default="legacy",
                      help="where the room is kept: in the packet (legacy) or a folder of its own")
+    parser.addoption("--agents", choices=REGISTRIES, default="file",
+                     help="whether the registry is read from agents.json, or as if it were absent")
+
+
+def pytest_configure(config):
+    """With --agents=absent, every module reads the registry as if agents.json were not there.
+
+    This is done before any test is collected, so before any module that derives
+    something from the registry is imported.
+    """
+    if config.getoption("--agents") == "absent":
+        import agents
+        agents.FILE = agents.FILE.with_name("agents.json.absent-for-this-run")
+        assert not agents.FILE.exists()
 
 
 @pytest.fixture(scope="session")

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "first",
+    "did": "did:web:tesserae.social:ids:first",
+    "commons_name": "the first one",
+    "room": "first",
+    "bond": "founder-first",
+    "founded": "2026-09-04",
+    "transcript": "transcripts/founding-2026-09-04T11-28-55Z.md",
+    "system": "first-citizen",
+    "model": "claude-sonnet-4-5",
+    "max_tokens": 8000,
+    "hue": "#D85A30",
+    "features": [
+      "door",
+      "extra_wakings",
+      "longer_waking",
+      "looking_back",
+      "proposals",
+      "welcome_letter"
+    ],
+    "wakes": true
+  }
+]

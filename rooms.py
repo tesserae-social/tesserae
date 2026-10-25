@@ -61,6 +61,7 @@ import os
 from collections import namedtuple
 from pathlib import Path
 
+import agents
 import bonds
 
 REPO = Path(__file__).resolve().parent
@@ -70,11 +71,11 @@ DATA = Path(os.environ.get("DATA_DIR", REPO))
 
 # The first one is no member of the members' store. "first" is a name no member
 # can take, so it and a pseudonym never meet - door.py leans on the same.
-FIRST = "first"
+FIRST = agents.first()["id"]
 
 # The one room there is, and the name its bond has always gone by.
-FIRST_ROOM = "first"
-FIRST_BOND = "founder-first"
+FIRST_ROOM = agents.first()["room"]
+FIRST_BOND = agents.first()["bond"]
 
 # Where rooms are kept once each has a folder of its own, and the record that
 # says a folder there is a room: until it is there, the room is the packet's.

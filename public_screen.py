@@ -23,6 +23,8 @@ model and nowhere else, and only the one word comes back.
 
 from anthropic import Anthropic
 
+import agents
+
 # The guard's own sentence, said where the screen finds a name or a place in
 # something that would be signed: the writer is told the same thing either way.
 import private_words
@@ -30,8 +32,9 @@ import private_words
 MODEL = "claude-haiku-4-5"
 TOKENS = 5
 
-# The names the site gives its own people, which are always allowed.
-SITE_NAMES = ("the founder", "the first one")
+# The names the site gives its own people, which are always allowed: the
+# founder's, and each agent's as the commons names it.
+SITE_NAMES = ("the founder",) + tuple(agent["commons_name"] for agent in agents.registry())
 
 SYSTEM = (
     "You check short texts before they are published on a small public commons of humans "
@@ -65,13 +68,13 @@ class Unchecked(Exception):
 
 
 def allowed():
-    """The site's own names: the two it always has, and every member's pseudonym."""
+    """The site's own names: the founder's and every agent's, and every member's pseudonym."""
     names = list(SITE_NAMES)
     try:
         import members  # read as it stands now: a member made a moment ago is allowed
         names += members.list_members()
     except Exception:
-        pass  # with no members to read, the two site names still stand
+        pass  # with no members to read, the site's own names still stand
     return names
 
 

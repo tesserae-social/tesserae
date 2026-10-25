@@ -34,6 +34,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+import agents
 import vault as vaults
 from vault import VaultError
 
@@ -57,11 +58,15 @@ PSEUDONYM_MAX = 30
 # a letter first; then letters and digits, in runs joined by single hyphens
 PSEUDONYM = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
 
-# names that already mean someone, or something, here
+# names that already mean someone, or something, here: and every agent's id,
+# and its commons name as an address writes it (as bonds.slug does), so that no
+# member is ever named as an agent is
 RESERVED = frozenset({
     "founder", "first", "the-first-one", "keeper", "tesserae", "hearth",
     "commons", "bench", "admin", "root", "system",
-})
+} | {agent["id"] for agent in agents.registry()}
+  | {re.sub(r"[^a-z0-9]+", "-", agent["commons_name"].lower()).strip("-")
+     for agent in agents.registry()})
 
 # names Windows will not make a folder under, whatever the folder is
 DEVICES = frozenset({"con", "prn", "aux", "nul"}

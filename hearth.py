@@ -40,6 +40,7 @@ import tarfile
 import threading
 import time
 import zipfile
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
@@ -725,7 +726,8 @@ def attendance_records(prefs):
 
 # An attendance is one turn, and two at once would have the first one reading a
 # packet that another waking is still writing. WAKING is the whole of that
-# rule: a second caller is turned away rather than made to wait its turn.
+# rule: a second caller is turned away rather than made to wait its turn. The
+# tides never are: each waits its turn before it gets here (see Turns).
 WAKING = threading.Lock()
 
 # The record is written by a waking and read whole by a backup, and the two must
@@ -735,11 +737,11 @@ WAKING = threading.Lock()
 ATTEND_LOCK = threading.Lock()
 
 
-def hold_attendance(tide=False, ended=None, again=False):
-    """Wake the first one once, and wait for it: by the tide, or at its own asking.
+def hold_attendance(tide=False, ended=None, again=False, of=None):
+    """Wake an agent once, and wait for it: by the tide, or at its own asking.
 
-    None if the attendance was held; otherwise what went wrong, as
-    (note, output, status).
+    The first one where no other agent is named. None if the attendance was
+    held; otherwise what went wrong, as (note, output, status).
     """
     if not WAKING.acquire(blocking=False):
         return ("An attendance is already in progress. Only one is held at a time.", "", 409)
@@ -750,7 +752,7 @@ def hold_attendance(tide=False, ended=None, again=False):
         raise
     try:
         command = [sys.executable, "attend.py"]
-        if not newest_first(ATTENDANCES, "*.json"):
+        if not newest_first(packet_of(of) / ATTENDANCES.name, "*.json"):
             command.append("--first")
         if tide:
             command.append("--tide")
@@ -762,6 +764,7 @@ def hold_attendance(tide=False, ended=None, again=False):
         environment = os.environ.copy()
         environment["PYTHONIOENCODING"] = "utf-8"  # the first one writes in more than plain ASCII
         environment["DATA_DIR"] = str(DATA)  # attend.py must write where the hearth reads
+        environment["TESSERAE_AGENT"] = of or rooms.FIRST  # named every time, never inherited
 
         try:
             finished = subprocess.run(
@@ -822,12 +825,28 @@ REST_DAY_CAME = "the day came"
 STOP_REASON_LONGEST = 300  # characters: a short reason, and no more
 
 
-def pause():
-    """The first one's rest, if one stands. Nothing written means the tide runs.
+# Each agent's rest, and the keeper's stop of its tide, are its own: kept in its
+# own packet under the same names as the first one's, and holding its tide
+# alone. Each function below is the first one's where no other agent is named
+# (of), and the first one's files are where they always were. The commons is
+# told of another's as of the first one's, with no name on either yet:
+# attend.py says the tide paused, at any agent's rest, and so the hearth says
+# it resumed.
+
+def packet_of(of=None):
+    """The packet an agent's tide keeps its files in: the first one's where none is named."""
+    return PACKET if of in (None, rooms.FIRST) else DATA / "packets" / of
+
+
+def pause(of=None):
+    """An agent's rest, if one stands. Nothing written means the tide runs.
 
     A pause the founder set before his rest was his own is taken, the first
-    time it is looked at, as the rest it now is (see rest_from_old_pause).
+    time it is looked at, as the rest it now is (see rest_from_old_pause). Only
+    the first one's packet ever held one.
     """
+    if of not in (None, rooms.FIRST):
+        return load(packet_of(of) / PAUSE.name)
     rest_from_old_pause()
     return load(PAUSE)
 
@@ -837,15 +856,15 @@ def paused_by(standing):
     return standing.get("by") if standing else None
 
 
-def tide_paused():
+def tide_paused(of=None):
     """Whether the commons was told the tide paused, and has not yet been told it resumed."""
-    return bool(load(PAUSE) or load(TIDE_STOP))
+    return bool(load(packet_of(of) / PAUSE.name) or load(packet_of(of) / TIDE_STOP.name))
 
 
-def end_pause():
-    """Take the first one's rest away, and say the tide resumed, unless a stop still holds it."""
-    PAUSE.unlink(missing_ok=True)
-    if not tide_paused():
+def end_pause(of=None):
+    """Take an agent's rest away, and say the tide resumed, unless a stop still holds it."""
+    (packet_of(of) / PAUSE.name).unlink(missing_ok=True)
+    if not tide_paused(of):
         note_event("event", RESUMED)
 
 
@@ -867,13 +886,14 @@ def rest_from_old_pause():
     end_pause()
 
 
-def rest_ended(standing, zone):
-    """Why the first one's rest is over now, or None while it still stands."""
-    if paused_by(standing) != "first":
+def rest_ended(standing, zone, of=None):
+    """Why an agent's rest is over now, or None while it still stands."""
+    if paused_by(standing) != (of or rooms.FIRST):
         return None
     until = standing.get("until")
     if until == UNTIL_LETTER:
-        return BY_LETTER if newest_first(room_places().incoming, "*.md") else None
+        places = room_places(None if of is None else agents.by_id(of)["room"])
+        return BY_LETTER if places and newest_first(places.incoming, "*.md") else None
     try:
         day = datetime.strptime(until, "%Y-%m-%d").date()
     except (TypeError, ValueError):
@@ -923,27 +943,29 @@ def rest_day_asked(said):
     return said if day > datetime.now(EASTERN).date() else False
 
 
-def tide_stop():
-    """The keeper's stop, if one stands."""
-    return load(TIDE_STOP)
+def tide_stop(of=None):
+    """The keeper's stop of an agent's tide, if one stands."""
+    return load(packet_of(of) / TIDE_STOP.name)
 
 
-def begin_stop(reason):
-    """Stop the tide, and say in the commons that it paused, unless it already had."""
-    already = tide_paused()
-    write_json(TIDE_STOP, {"since": utc_stamp(), "reason": reason})
+def begin_stop(reason, of=None):
+    """Stop an agent's tide, and say in the commons that it paused, unless it already had."""
+    already = tide_paused(of)
+    write_json(packet_of(of) / TIDE_STOP.name, {"since": utc_stamp(), "reason": reason})
     if not already:
         note_event("event", PAUSED)
 
 
-def end_stop():
+def end_stop(of=None):
     """Lift the stop, keep it in tide-stop/, and say the tide resumed, unless a rest still holds it."""
-    standing = load(TIDE_STOP)
+    stop = packet_of(of) / TIDE_STOP.name
+    standing = load(stop)
     if standing:
-        write_json(TIDE_STOP_KEPT / ("tide-stop-%s.json" % standing.get("since")),
+        write_json(packet_of(of) / TIDE_STOP_KEPT.name
+                   / ("tide-stop-%s.json" % standing.get("since")),
                    {**standing, "lifted_at": utc_stamp()})
-    TIDE_STOP.unlink(missing_ok=True)
-    if not tide_paused():
+    stop.unlink(missing_ok=True)
+    if not tide_paused(of):
         note_event("event", RESUMED)
 
 
@@ -996,11 +1018,12 @@ def stop_shown():
 # and not a debt: a waking time that finds the day's attendance already held
 # lets it stand rather than waking the first one twice.
 
-def rhythm():
-    """The rhythm the first one has set. Nothing written means none."""
-    if not RHYTHM.exists():
+def rhythm(of=None):
+    """The rhythm an agent has set, the first one where none is named. Nothing written means none."""
+    kept = packet_of(of) / RHYTHM.name
+    if not kept.exists():
         return None
-    return json.loads(read_text(RHYTHM))
+    return json.loads(read_text(kept))
 
 
 def dawn_daily(setting):
@@ -1061,18 +1084,19 @@ def moment(at):
     return datetime.strptime(at, "%Y-%m-%dT%H-%M-%SZ").replace(tzinfo=timezone.utc)
 
 
-def latest_attendance_at():
-    """The stamp of the most recent attendance, or None if none has been held."""
-    newest = newest_first(ATTENDANCES, "*.json")
+def latest_attendance_at(of=None):
+    """The stamp of an agent's most recent attendance, or None if none has been held."""
+    newest = newest_first(packet_of(of) / ATTENDANCES.name, "*.json")
     if not newest:
         return None
     return json.loads(read_text(newest[0])).get("at")
 
 
-def tide_note(said):
-    """One line for each waking time, kept privately in the packet."""
-    TIDE_LOG.parent.mkdir(parents=True, exist_ok=True)
-    with TIDE_LOG.open("a", encoding="utf-8") as log:
+def tide_note(said, of=None):
+    """One line for each waking time, kept privately in the agent's own packet."""
+    kept = packet_of(of) / TIDE_LOG.name
+    kept.parent.mkdir(parents=True, exist_ok=True)
+    with kept.open("a", encoding="utf-8") as log:
         log.write(f"{utc_stamp()} · {said}\n")
 
 
@@ -1193,8 +1217,7 @@ def rhythm_of(agent):
     """The rhythm a citizen has set, kept in its own packet. Nothing written means none."""
     if agent["id"] == rooms.FIRST:
         return rhythm()
-    kept = DATA / "packets" / agent["id"] / "rhythm.json"
-    return json.loads(read_text(kept)) if kept.exists() else None
+    return rhythm(of=agent["id"])
 
 
 def attends_today(agent=None):
@@ -1219,6 +1242,11 @@ def attending(line, times):
     return ATTENDS_AT.sub("attends at " + at, line, count=1) if at else line
 
 
+# Every tide tends members.md, and the pages do on the way to handing it out;
+# TENDING keeps two of them from writing it at once.
+TENDING = threading.Lock()
+
+
 def tend_members():
     """Bring members.md to today: each citizen's "attends at ...", and each door.
 
@@ -1227,114 +1255,217 @@ def tend_members():
     raises, since it is done on the way to handing the file out.
     """
     try:
-        if not MEMBERS.exists():
-            return
-        lines = MEMBERS.read_bytes().decode("utf-8").splitlines(keepends=True)
-        times = {}  # each citizen's time, asked once
-        kept = [attending(line, times) for line in lines]
-        kept = [private_words.protect(with_its_door(line)) for line in kept]
-        if kept != lines:
-            beside = MEMBERS.with_name(MEMBERS.name + ".tmp")
-            beside.write_bytes("".join(kept).encode("utf-8"))
-            os.replace(beside, MEMBERS)  # whole or not at all: it is read while it is written
+        with TENDING:
+            if not MEMBERS.exists():
+                return
+            lines = MEMBERS.read_bytes().decode("utf-8").splitlines(keepends=True)
+            times = {}  # each citizen's time, asked once
+            kept = [attending(line, times) for line in lines]
+            kept = [private_words.protect(with_its_door(line)) for line in kept]
+            if kept != lines:
+                beside = MEMBERS.with_name(MEMBERS.name + ".tmp")
+                beside.write_bytes("".join(kept).encode("utf-8"))
+                os.replace(beside, MEMBERS)  # whole or not at all: it is read while it is written
     except Exception:
         pass
 
 
-def tide():
-    """Wait for each waking time, and hold an attendance at it. Forever, and quietly."""
-    while True:
-        try:
-            # Without the host's word on where the sun is watched from, nothing
-            # is woken - not even at a time of day - and tide.log says why.
-            waking.watched_from()
-            tend_members()
-            setting = rhythm()
-            coming = next_waking(setting) if tide_kept(setting) else None
-            # An extra waking it asked for, where there are any, is kept first
-            # whenever it comes before the day's own.
-            again = extra_waking() if the_waking.EXTRA_WAKINGS else None
-            if again and (not coming or again[1] < coming):
-                keep_extra_waking(setting, *again)
-                continue
-            if not coming:
-                time.sleep(TIDE_IDLE)  # nothing is asked of us; look again in an hour
-                continue
+# ---- each agent's tide, and the turns they take -----------------------------
 
-            # Wait for it in short stretches, reading the rhythm again after each
-            # one, so that a changed or removed file is obeyed at once.
-            changed = False
-            while not changed:
-                left = (coming - datetime.now(timezone.utc)).total_seconds()
-                if left <= 0:
-                    break
-                time.sleep(min(left, TIDE_CHUNK))
-                tend_members()  # a change may have taken effect while we slept
-                changed = rhythm() != setting
-            if changed:
-                continue  # begin again from whatever is written now
+# Every agent that wakes has a tide of its own, each keeping its own rhythm, its
+# own rest, the keeper's stop of it, and its own extra wakings, and noting each
+# waking time in its own tide.log. The first one's is the tide it always was.
+# An agent whose registry entry does not say it wakes is never woken, and nor is
+# one that has set no rhythm: its first waking is by hand, as the first one's
+# was.
+#
+# The wakings are still held one at a time. A tide whose waking time has come
+# waits its turn rather than being turned away: behind any tide whose own time
+# came before it, or came at the same moment for an agent founded before it.
+# So at a shared dawn the first one goes first, at the moment it always did,
+# and the others follow in the order they were founded, each when the one
+# before it has finished; a waking's stamp is the moment it was held. Each tide
+# says here when it is next due, and takes that back once its time has been
+# kept, let go, or gone wrong, so that nothing that befalls one agent's tide
+# holds another's back.
 
-            # A stop or a rest is answered before anything else: the keeper's
-            # stop holds the tide until it is lifted, and the first one's rest
-            # holds it until the condition it named is met, at which waking time
-            # the rest is taken away and the waking is held with the reason in
-            # its hand. The founder's own rest holds nothing, and is not asked.
-            at = latest_attendance_at()
-            zone = waking.zone(setting)
-            today = coming.astimezone(zone).date()
-            standing = pause()
-            ended = None if tide_stop() else rest_ended(standing, zone)
-            if tide_stop():
-                tide_note("stopped by the keeper")
-            elif standing and not ended:
-                tide_note("resting")
-            # The day, not the hours since the last waking: an attendance held
-            # late the evening before belongs to yesterday, and does not stand
-            # in for today's.
-            elif not ended and at and moment(at).astimezone(zone).date() == today:
-                tide_note(f"skipped, attended at {at}")  # today already has its waking
+def place_of(who):
+    """An agent's place in the order of founding, the first one's being 0."""
+    ids = [agent["id"] for agent in agents.registry()]
+    return ids.index(who) if who in ids else len(ids)
+
+
+class Turns:
+    """Whose waking it is, among the tides: one at a time, the earliest due first."""
+
+    def __init__(self):
+        self.changed = threading.Condition()
+        self.due = {}  # agent id: (when it is due, its place in the order of founding)
+        self.holding = None  # whose turn it is, while it is anyone's
+
+    def expect(self, who, when):
+        """Say when an agent's tide is next due; None, that it is due at no time it knows."""
+        with self.changed:
+            if when is None:
+                self.due.pop(who, None)
             else:
-                if ended:
-                    end_pause()
-                    tide_note(f"rest ended: {ended}")
-                trouble = hold_attendance(tide=True, ended=ended)
-                tide_note("ran" if trouble is None else f"error: {trouble[0]}")
-        except Exception as trouble:  # the tide must outlive anything that goes wrong
+                self.due[who] = (when, place_of(who))
+            self.changed.notify_all()
+
+    @contextmanager
+    def turn(self, who, when):
+        """Wait until it is this agent's turn, and hold it; give it up whatever happens."""
+        with self.changed:
+            self.due[who] = (when, place_of(who))
+            while self.holding is not None or min(self.due, key=self.due.get) != who:
+                self.changed.wait()
+            self.holding = who
+        try:
+            yield
+        finally:
+            with self.changed:
+                self.holding = None
+                self.due.pop(who, None)
+                self.changed.notify_all()
+
+
+TURNS = Turns()
+
+
+def wakes(who):
+    """Whether the registry says an agent wakes: read afresh, so that a dormant one stays asleep."""
+    agent = agents.by_id(who)
+    return bool(agent and agent.get("wakes"))
+
+
+def extra_wakings_on(who):
+    """Whether an agent's extra wakings are kept: the first one's by attend.EXTRA_WAKINGS,
+    another's by its registry entry naming them among its features."""
+    if who == rooms.FIRST:
+        return the_waking.EXTRA_WAKINGS
+    return "extra_wakings" in ((agents.by_id(who) or {}).get("features") or ())
+
+
+def tide(of=None):
+    """Wait for each of an agent's waking times, and hold an attendance at it, in its turn.
+
+    The first one's where no other agent is named. Forever, and quietly.
+    """
+    who = of or rooms.FIRST
+    how = {} if who == rooms.FIRST else {"of": who}  # the first one's calls are as they were
+    try:
+        while True:
             try:
-                tide_note(f"error: {trouble}")
-            except Exception:
-                pass
-            time.sleep(TIDE_ERROR)
+                # Without the host's word on where the sun is watched from, nothing
+                # is woken - not even at a time of day - and tide.log says why.
+                waking.watched_from()
+                tend_members()
+                if not wakes(who):
+                    TURNS.expect(who, None)
+                    time.sleep(TIDE_IDLE)  # dormant; look again in an hour
+                    continue
+                setting = rhythm(**how)
+                coming = next_waking(setting) if tide_kept(setting) else None
+                # An extra waking it asked for, where there are any, is kept first
+                # whenever it comes before the day's own.
+                again = extra_waking(**how) if extra_wakings_on(who) else None
+                if again and (not coming or again[1] < coming):
+                    keep_extra_waking(setting, *again, **how)
+                    continue
+                TURNS.expect(who, coming)
+                if not coming:
+                    time.sleep(TIDE_IDLE)  # nothing is asked of us; look again in an hour
+                    continue
+
+                # Wait for it in short stretches, reading the rhythm again after each
+                # one, so that a changed or removed file is obeyed at once.
+                changed = False
+                while not changed:
+                    left = (coming - datetime.now(timezone.utc)).total_seconds()
+                    if left <= 0:
+                        break
+                    time.sleep(min(left, TIDE_CHUNK))
+                    tend_members()  # a change may have taken effect while we slept
+                    changed = rhythm(**how) != setting
+                if changed:
+                    continue  # begin again from whatever is written now
+
+                with TURNS.turn(who, coming):
+                    keep_waking_time(setting, coming, how)
+            except Exception as trouble:  # the tide must outlive anything that goes wrong
+                TURNS.expect(who, None)  # and holds no other tide back while it waits
+                try:
+                    tide_note(f"error: {trouble}", **how)
+                except Exception:
+                    pass
+                time.sleep(TIDE_ERROR)
+    finally:
+        TURNS.expect(who, None)
 
 
-# An extra waking: once more, later the same day, at the first one's own asking,
+def keep_waking_time(setting, coming, how):
+    """One waking time come, in the agent's turn: held, or let stand, and noted."""
+    # A stop or a rest is answered before anything else: the keeper's stop holds
+    # the tide until it is lifted, and the agent's rest holds it until the
+    # condition it named is met, at which waking time the rest is taken away and
+    # the waking is held with the reason in its hand. The founder's own rest
+    # holds nothing, and is not asked.
+    at = latest_attendance_at(**how)
+    zone = waking.zone(setting)
+    today = coming.astimezone(zone).date()
+    standing = pause(**how)
+    ended = None if tide_stop(**how) else rest_ended(standing, zone, **how)
+    if tide_stop(**how):
+        tide_note("stopped by the keeper", **how)
+    elif standing and not ended:
+        tide_note("resting", **how)
+    # The day, not the hours since the last waking: an attendance held late the
+    # evening before belongs to yesterday, and does not stand in for today's.
+    elif not ended and at and moment(at).astimezone(zone).date() == today:
+        tide_note(f"skipped, attended at {at}", **how)  # today already has its waking
+    else:
+        if ended:
+            end_pause(**how)
+            tide_note(f"rest ended: {ended}", **how)
+        trouble = hold_attendance(tide=True, ended=ended, **how)
+        tide_note("ran" if trouble is None else f"error: {trouble[0]}", **how)
+
+
+# An extra waking: once more, later the same day, at an agent's own asking,
 # made at a waking (see attend.EXTRA_WAKINGS) and kept here, through the same
-# hold_attendance as every other waking. The keeper's stop and a rest of the
-# first one's own come first: an extra waking that falls while either stands is
-# let go, and its next waking is told so; the founder's rest lets it come. One whose day has gone by before the tide could keep it - the hearth
+# hold_attendance as every other waking, in its turn. The keeper's stop and a
+# rest of the agent's own come first: an extra waking that falls while either
+# stands is let go, and its next waking is told so; the founder's rest lets it
+# come. One whose day has gone by before the tide could keep it - the hearth
 # was not running - has lapsed, and is let go too. Whatever becomes of an
 # asking, it is kept in wake-again/ with what became of it, and the waking it
 # asked for is taken away before it is held, so that it cannot be kept twice.
-# The daily waking is untouched by any of it.
+# The daily waking is untouched by any of it. Each agent's are in its own
+# packet, and the first one's where they always were.
 
-def extra_waking():
+def extra_waking(of=None):
     """The extra waking asked for, as (the asking, its moment), or None where none can be read."""
     try:
-        asked = load(WAKE_AGAIN)
+        asked = load(packet_of(of) / WAKE_AGAIN.name)
         return asked, moment(asked["at"])
     except Exception:
         return None
 
 
-def set_extra_aside(asked, **became):
+def set_extra_aside(asked, of=None, **became):
     """Keep an asking in wake-again/ with what became of it, and take it from waiting."""
-    write_json(WAKE_AGAIN_KEPT / ("wake-again-%s.json" % (asked.get("asked_at") or asked["at"])),
+    write_json(packet_of(of) / WAKE_AGAIN_KEPT.name
+               / ("wake-again-%s.json" % (asked.get("asked_at") or asked["at"])),
                {**asked, **became})
-    WAKE_AGAIN.unlink(missing_ok=True)
+    (packet_of(of) / WAKE_AGAIN.name).unlink(missing_ok=True)
 
 
-def keep_extra_waking(setting, asked, when):
-    """Wait for an extra waking, then hold it - or let it go, where a stop or its own rest stands."""
+def keep_extra_waking(setting, asked, when, of=None):
+    """Wait for an extra waking, then hold it in its turn - or let it go, where a stop or its
+    own rest stands."""
+    who = of or rooms.FIRST
+    how = {} if who == rooms.FIRST else {"of": who}
+    TURNS.expect(who, when)
     changed = False
     while not changed:
         left = (when - datetime.now(timezone.utc)).total_seconds()
@@ -1342,37 +1473,45 @@ def keep_extra_waking(setting, asked, when):
             break
         time.sleep(min(left, TIDE_CHUNK))
         tend_members()
-        changed = extra_waking() != (asked, when) or rhythm() != setting
+        changed = extra_waking(**how) != (asked, when) or rhythm(**how) != setting
     if changed:
         return  # begin again from whatever is written now
-    now = datetime.now(timezone.utc)
-    if waking.today(setting, when) != waking.today(setting, now):
-        set_extra_aside(asked, dropped_at=utc_stamp(), why="lapsed")
-        tide_note("extra waking lapsed")
-    elif tide_stop():
-        set_extra_aside(asked, dropped_at=utc_stamp(), why="stopped")
-        tide_note("extra waking let go: stopped by the keeper")
-    elif pause():
-        set_extra_aside(asked, dropped_at=utc_stamp(), why="paused")
-        tide_note("extra waking let go: paused")
-    else:
-        set_extra_aside(asked, woken_at=utc_stamp())
-        trouble = hold_attendance(again=True)
-        tide_note("ran, at its own asking" if trouble is None else f"error: {trouble[0]}")
+    with TURNS.turn(who, when):
+        now = datetime.now(timezone.utc)
+        if waking.today(setting, when) != waking.today(setting, now):
+            set_extra_aside(asked, dropped_at=utc_stamp(), why="lapsed", **how)
+            tide_note("extra waking lapsed", **how)
+        elif tide_stop(**how):
+            set_extra_aside(asked, dropped_at=utc_stamp(), why="stopped", **how)
+            tide_note("extra waking let go: stopped by the keeper", **how)
+        elif pause(**how):
+            set_extra_aside(asked, dropped_at=utc_stamp(), why="paused", **how)
+            tide_note("extra waking let go: paused", **how)
+        else:
+            set_extra_aside(asked, woken_at=utc_stamp(), **how)
+            trouble = hold_attendance(again=True, **how)
+            tide_note("ran, at its own asking" if trouble is None else f"error: {trouble[0]}",
+                      **how)
 
 
-# One tide for the life of the process, and no more. Gunicorn runs a single
-# worker here, so one process is one tide.
+# One set of tides for the life of the process, and no more. Gunicorn runs a
+# single worker here, so one process is one set: the first one's tide, and one
+# for each other agent the registry says wakes, each in a thread of its own. An
+# agent the registry is changed to wake is given its tide at the next start.
 TIDE_RUNNING = False
 
 
 def start_tide():
-    """Set the tide going, once."""
+    """Set the tides going, once."""
     global TIDE_RUNNING
     if TIDE_RUNNING:
         return
     TIDE_RUNNING = True
     threading.Thread(target=tide, name="tide", daemon=True).start()
+    for agent in agents.registry()[1:]:
+        if agent.get("wakes"):
+            threading.Thread(target=tide, args=(agent["id"],), name="tide-" + agent["id"],
+                             daemon=True).start()
 
 
 # ---- the bond ------------------------------------------------------------

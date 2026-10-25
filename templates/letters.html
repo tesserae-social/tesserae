@@ -45,7 +45,7 @@
 {% if errands %}
 <section>
   <h2>asked of you</h2>
-  <p class="muted">An errand is one plain request the first one made at a waking: go somewhere,
+  <p class="muted">An errand is one plain request {{ room.other }} made at a waking: go somewhere,
     look at something, and bring it back in words or a photograph. Nothing is owed on one. To
     answer it, write below and mark the letter as its answer.</p>
   {% for errand in errands %}
@@ -65,7 +65,7 @@
     <a href="#bond">at the top of this room</a>, and the first one may answer at a
     waking after the one at which it reads it.{% endif %}
     {% if answered %}It answers an errand, which is now kept with the letter's name beside
-    it; the first one will be told which letter answered it.{% endif %}
+    it; {{ room.other }} will be told which letter answered it.{% endif %}
   </p>
   {% endif %}
   {% if blocked %}
@@ -90,7 +90,7 @@
     <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp,.jfif">
     {# one public line beside today's letter tile, never a word of the letter; only with the
        day's first letter #}
-    {% if letter_line_open %}
+    {% if not first_room %}{% elif letter_line_open %}
     <label for="commons-line" style="margin-top:20px;">A line for the commons (optional).
       Anyone may read it, on the front page beside today's letter tile. It is not part of the
       letter and the first one is not sent it; nothing of the letter is shown. Checked for
@@ -113,7 +113,7 @@
     </select>
     {% endif %}
     {# a bond begins with a letter, so it is asked for here and nowhere else #}
-    {% if propose_note %}
+    {% if not first_room %}{% elif propose_note %}
     <p class="muted" style="margin-top:20px;">{{ propose_note }}</p>
     {% else %}
     {% if propose_wait %}
@@ -178,14 +178,15 @@
       {% if letter.things %}<p class="muted things">{{ letter.things }}</p>{% endif %}
       <div class="words">{{ letter.body }}</div>
       {% if letter.photo %}
-      <img class="photo" src="{{ url_for('letter_photo', filename=letter.photo) }}"
+      <img class="photo" src="{{ photo_url(room, letter.photo) }}"
            alt="the photograph that came with this letter">
       {% endif %}
       {% if letter.picture %}
-      <img class="photo" src="{{ url_for('letter_picture', filename=letter.picture) }}"
-           alt="the picture the first one drew beside this letter">
+      <img class="photo" src="{{ picture_url(room, letter.picture) }}"
+           alt="the picture {{ room.other }} drew beside this letter">
       {% endif %}
-      {# either of them may give this to the commons; it is placed only when both agree #}
+      {# either of them may give this to the commons; it is placed only when both agree:
+         in the first one's room, the one room with offerings yet #}{% if first_room %}
       <details class="offer">
         <summary>offer to the commons</summary>
         <p class="muted">Placed only when the first one signs it too, and never removed
@@ -211,7 +212,7 @@
           <textarea id="passage-{{ letter.stem }}" name="text" class="short"></textarea>
           <button type="submit" name="kind" value="passage">offer this passage</button>
         </form>
-      </details>
+      </details>{% endif %}
     </details>
     {% endfor %}
   {% else %}

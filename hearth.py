@@ -455,20 +455,22 @@ def opening_line(text, limit=OPENING_CUT):
     return first[:limit].rstrip() + "…"
 
 
-def room_places():
-    """Where the one room's things are kept - its letters, errands, bond and
-    offerings - asked of rooms.py now, and never worked out here."""
-    return rooms.places(rooms.FIRST_ROOM)
+def room_places(room_id=None):
+    """Where a room's things are kept - its letters, errands, bond and offerings -
+    asked of rooms.py now, and never worked out here. The first one's room where
+    none is named: its bond, its offerings and the forms that answer them are
+    kept in no other room yet."""
+    return rooms.places(room_id or rooms.FIRST_ROOM)
 
 
-def photo_folders():
-    """The folders a photograph may be served out of: the three letter folders."""
-    return room_places().letters
+def photo_folders(room_id=None):
+    """The folders a photograph may be served out of: a room's three letter folders."""
+    return room_places(room_id).letters
 
 
-def picture_folders():
-    """The folder a picture may be served out of: the one the first one writes to."""
-    return (room_places().outgoing,)
+def picture_folders(room_id=None):
+    """The folder a picture may be served out of: the one a room's agent writes to."""
+    return (room_places(room_id).outgoing,)
 
 
 def bond_records():
@@ -542,16 +544,23 @@ def one_letter(path, who, unread=False, proposes=False):
     }
 
 
-def correspondence():
-    """Every letter that has passed between the two of them, newest first."""
-    places = room_places()
-    from_founder = newest_first(places.incoming, "*.md") + newest_first(places.read, "*.md")
-    proposals = proposing_letters(from_founder)
+def correspondence(room=None):
+    """Every letter that has passed between the two of a room, newest first.
 
-    letters = [one_letter(path, "from the founder", unread=path.parent == places.incoming,
+    In the first one's room, the founder's letters are said to be his, and a
+    letter may have asked for a bond; in any other, the letters of whoever
+    stands in it are theirs, and no bond is asked for there yet.
+    """
+    first = room is None or room.id == rooms.FIRST_ROOM
+    places = room_places(None if first else room.id)
+    from_founder = newest_first(places.incoming, "*.md") + newest_first(places.read, "*.md")
+    proposals = proposing_letters(from_founder) if first else set()
+
+    letters = [one_letter(path, "from the founder" if first else "from you",
+                          unread=path.parent == places.incoming,
                           proposes=path.name in proposals)
                for path in from_founder]
-    letters += [one_letter(path, "from the first one")
+    letters += [one_letter(path, "from " + (room.other if room else "the first one"))
                 for path in newest_first(places.outgoing, "*.md")]
     letters.sort(key=lambda letter: letter["stamp"], reverse=True)
     return letters
@@ -566,9 +575,9 @@ def correspondence():
 # asked is erased and what answered it can always be found. Nothing here presses
 # the founder: an errand may wait as long as it waits, or never be answered.
 
-def open_errands():
-    """The errands the first one has asked that no letter has answered yet, oldest first."""
-    errands = room_places().errands
+def open_errands(room_id=None):
+    """The errands a room's agent has asked that no letter has answered yet, oldest first."""
+    errands = room_places(room_id).errands
     if not errands.exists():
         return []
     said = []
@@ -579,8 +588,8 @@ def open_errands():
     return said
 
 
-def answer_errand(name, stem):
-    """Move one errand into answered/, naming the letter that answered it.
+def answer_errand(name, stem, room_id=None):
+    """Move one errand of a room's into answered/, naming the letter that answered it.
 
     False if that name is not an open errand, which is what a second sending of
     the same form finds. The name comes off a form, so it is taken as a name of
@@ -588,7 +597,7 @@ def answer_errand(name, stem):
     """
     if name != Path(name).name or not re.fullmatch(r"errand-.+\.md", name):
         return False
-    places = room_places()
+    places = room_places(room_id)
     asked = places.errands / name
     if not asked.is_file():
         return False
@@ -1091,16 +1100,20 @@ def rhythm_note():
 # ---- who is here, as the rhythm and the doors have it ----------------------
 
 # commons/members.md is the founder's to write, and two phrases in it are kept
-# here. One is the first one's: when it attends. That phrase follows its rhythm
-# - dawn, sunset, or the time - and changes on the day a change takes effect,
-# not the day it is made. The other is each member's own: their door, written at
-# the end of their line - " · door open" or " · door closed", and, only where
-# they have declared their room, " · has room" or " · is full". Never a number.
+# here. One is each citizen's: when it attends. That phrase follows its own
+# rhythm - dawn, sunset, or the time - and changes on the day a change takes
+# effect, not the day it is made. A citizen is an agent founded here (agents.py),
+# and its line is the one that begins "citizen · " and its commons name. The
+# other is each member's own: their door, written at the end of their line -
+# " · door open" or " · door closed", and, only where they have declared their
+# room, " · has room" or " · is full". Never a number.
 # Only those phrases are touched; every other byte of the file is the founder's
 # and is left as he wrote it. The atrium draws the line from this file on both
 # its paths, so the builder and the page say the same thing.
 #
-# The first one's line says nothing of a door until attend.DOOR_FOR_FIRST is on.
+# A citizen's line says nothing of a door until it has one: the first one's
+# until attend.DOOR_FOR_FIRST is on, and another's until its entry in the
+# registry names the door among its features.
 FIRST_ONES_LINE = re.compile(r"^﻿?[\s-]*citizen\s*·\s*the first one\b")
 ATTENDS_AT = re.compile(r"attends at (?:dawn|sunset|\d{2}:\d{2})")
 MEMBERS_LINE = re.compile(r"^﻿?[\s-]*member\s*·\s*([^·]+?)\s*·\s*\S")
@@ -1117,15 +1130,44 @@ def the_keeper():
     return None
 
 
+def citizen_line(agent):
+    """The shape of one citizen's line of members.md: "citizen · " and its commons name,
+    and whatever the founder wrote after it. The first one's is the one it has always been."""
+    if agent["id"] == rooms.FIRST:
+        return FIRST_ONES_LINE
+    return re.compile(r"^\ufeff?[\s-]*citizen\s*·\s*" + re.escape(agent["commons_name"])
+                      + r"(?!\w)")
+
+
+def citizen_of(line):
+    """The agent a line of members.md is the line of, or None if it is no citizen's.
+
+    The longest name is tried first, so that no citizen's line is taken for
+    another's whose name begins the same way.
+    """
+    for agent in sorted(agents.registry(), key=lambda one: -len(one["commons_name"])):
+        if citizen_line(agent).match(line):
+            return agent
+    return None
+
+
+def has_a_door(agent):
+    """Whether a citizen's door is said on the commons yet."""
+    if agent["id"] == rooms.FIRST:
+        return the_waking.DOOR_FOR_FIRST
+    return "door" in (agent.get("features") or ())
+
+
 def door_phrase(line):
     """The door a line of members.md should end with, or None if no door is its to say.
 
     The founder's line is the keeper's door, and closed where there is no keeper
-    yet; a line named for a member is that member's; the first one's line is
-    its own, once it has a door at all. Any other line is only the founder's words.
+    yet; a line named for a member is that member's; a citizen's line is its
+    own, once it has a door at all. Any other line is only the founder's words.
     """
-    if FIRST_ONES_LINE.match(line):
-        return door.phrase(door.FIRST) if the_waking.DOOR_FOR_FIRST else None
+    citizen = citizen_of(line)
+    if citizen is not None:
+        return door.phrase(citizen["id"]) if has_a_door(citizen) else None
     found = MEMBERS_LINE.match(line)
     if not found:
         return None
@@ -1147,29 +1189,49 @@ def with_its_door(line):
     return DOOR_SAID.sub("", words) + said + line[len(words):]
 
 
-def attends_today():
-    """The waking time in force today, or None where no rhythm can be gone by."""
+def rhythm_of(agent):
+    """The rhythm a citizen has set, kept in its own packet. Nothing written means none."""
+    if agent["id"] == rooms.FIRST:
+        return rhythm()
+    kept = DATA / "packets" / agent["id"] / "rhythm.json"
+    return json.loads(read_text(kept)) if kept.exists() else None
+
+
+def attends_today(agent=None):
+    """The waking time in force today for a citizen, the first one where none is named,
+    or None where no rhythm can be gone by."""
     try:
-        setting = rhythm()
+        setting = rhythm_of(agent or agents.first())
         return waking.in_force(setting, waking.today(setting, datetime.now(timezone.utc)))
     except Exception:
         return None
 
 
-def tend_members():
-    """Bring members.md to today: the first one's "attends at ...", and each door.
+def attending(line, times):
+    """One line of members.md with its citizen's waking time brought to today, if it is a
+    citizen's and a time holds for it."""
+    citizen = citizen_of(line)
+    if citizen is None:
+        return line
+    if citizen["id"] not in times:
+        times[citizen["id"]] = attends_today(citizen)
+    at = times[citizen["id"]]
+    return ATTENDS_AT.sub("attends at " + at, line, count=1) if at else line
 
-    Nothing is written where it already says so or where there is no file; the
+
+def tend_members():
+    """Bring members.md to today: each citizen's "attends at ...", and each door.
+
+    Nothing is written where it already says so or where there is no file; a
     waking time is left as written where no rhythm holds; and nothing here
     raises, since it is done on the way to handing the file out.
     """
     try:
         if not MEMBERS.exists():
             return
-        at = attends_today()
         lines = MEMBERS.read_bytes().decode("utf-8").splitlines(keepends=True)
-        kept = [ATTENDS_AT.sub("attends at " + at, line, count=1)
-                if at and FIRST_ONES_LINE.match(line) else line for line in lines]
+        times = {}  # each citizen's time, asked once
+        kept = [attending(line, times) for line in lines]
         kept = [private_words.protect(with_its_door(line)) for line in kept]
         if kept != lines:
             beside = MEMBERS.with_name(MEMBERS.name + ".tmp")
@@ -2461,12 +2523,19 @@ def hearth_page(**told):
 # ---- the rooms -----------------------------------------------------------
 
 # A correspondence has a room, and a member's home is a card for each of theirs.
-# Which rooms are whose is rooms.py's to say. What stands in a room is read here,
-# and today there is one room, kept in the first one's packet as it always was.
-# Where its folders are is rooms.py's to say too: every function here that reads
-# or writes a letter, an errand or the bond asks rooms.places when it does, and
-# none works a room's path out for itself. When rooms are stored each in a place
-# of its own, that answer is what changes; the pages are not changed by it.
+# Which rooms are whose is rooms.py's to say: a room is opened to its two
+# parties, as its room.json names them, and to no one else - the keeper
+# included, in any room the keeper is not a party to. What stands in a room is
+# read here. Where its folders are is rooms.py's to say too: every function here
+# that reads or writes a letter, an errand or the bond asks rooms.places when it
+# does, and none works a room's path out for itself.
+#
+# Every agent's room has its letters, its errands, and the photographs and
+# pictures that came with them. The bond, the offerings, the proposals and the
+# commons' line for a day's letters are the first one's room's alone for now:
+# each is signed, or said on the commons, as the founder and the first one, and
+# what they are between any other two is not yet decided. Their forms name no
+# room, and are the first one's room's, opened to its parties alone.
 
 def rooms_here():
     """The rooms of whoever is signed in, as they stand in each; none for a visitor."""
@@ -2475,8 +2544,17 @@ def rooms_here():
 
 
 def own_room():
-    """The room a keeper's own forms belong to: the one there is."""
-    return rooms_here()[0]
+    """The room the forms that name no room belong to: the first one's, as whoever is
+    signed in stands in it. Not found for anyone who is not a party to it."""
+    room = rooms.find(rooms.FIRST_ROOM, session.get("member"))
+    if room is None:
+        abort(404)
+    return room
+
+
+def is_first_room(room):
+    """Whether a room is the first one's: the one room with a bond, offerings and proposals yet."""
+    return room.id == rooms.FIRST_ROOM
 
 
 def room_required(view):
@@ -2494,6 +2572,18 @@ def room_required(view):
         if room is None:
             abort(404)
         return view(room, *args, **kwargs)
+    return guarded
+
+
+def first_room_required(view):
+    """Open a form or a file of the first one's room - one whose address names no room -
+    to its parties alone, as room_required opens a room."""
+    @wraps(view)
+    def guarded(*args, **kwargs):
+        if not rooms_here():
+            return redirect(url_for("login"))
+        own_room()
+        return view(*args, **kwargs)
     return guarded
 
 
@@ -2569,6 +2659,8 @@ def note_seen(room):
 
 def bond_standing(room):
     """How a room's bond stands, in a word or a few, and its tile if it is sealed."""
+    if not is_first_room(room):
+        return {"words": NO_BOND, "tessera": None}
     bond = load(room_places().bond_record)
     if bond and bond.get("sealed_at") and not bond.get("released_at"):
         drawn = public_bonds.record(room.bond)
@@ -2594,8 +2686,11 @@ def room_card(room):
         waiting.append(NEW_LETTER % room.other)
     if newest_first(rooms.places(room.id).incoming, "*.md"):
         waiting.append(LETTER_UNREAD)
-    if open_errands():
+    if open_errands(room.id):
         waiting.append(ERRAND_ASKED)
+    if not is_first_room(room):
+        return {"id": room.id, "other": room.other, "latest": latest, "waiting": waiting,
+                "bond": bond_standing(room), "ready": None}
     if offering.awaiting("founder"):
         waiting.append(OFFERING_WAITS)
     if the_waking.PROPOSALS and proposals.waiting(PROPOSALS_KEPT):
@@ -2903,10 +2998,13 @@ def logout():
 
 def room_page(room=None, things=(), draft="", line="", **told):
     """A room's page - its letters, and its bond - with whatever has just been said."""
+    room = room or own_room()
+    if not is_first_room(room):
+        return letters_page(room, things, draft, **told)
     proposal = proposal_shown()
     return render_template(
         "room.html",
-        room=room or own_room(),
+        room=room, first_room=True,
         draft=draft,
         # his line for the commons, offered only while today has no letter tile
         drafted_line=line, letter_line_open=not letter_line_today(),
@@ -2935,6 +3033,28 @@ def room_page(room=None, things=(), draft="", line="", **told):
         # in the room while one waits for an answer
         proposals=proposals_shown(), proposal_waits=proposal_waits(),
         **told)
+
+
+def letters_page(room, things=(), draft="", **told):
+    """The page of a room other than the first one's: its letters, its errands, and the
+    form that writes one, and nothing of the first one's room's bond, offerings or proposals."""
+    return render_template(
+        "room.html",
+        room=room, first_room=False,
+        draft=draft, drafted_line="", letter_line_open=False,
+        letter_line_longest=LETTER_LINE_LONGEST,
+        drafted_things=list(things) + [""] * (offering.THINGS_MOST - len(things)),
+        thing_longest=offering.THING_LONGEST,
+        correspondence=correspondence(room),
+        errands=open_errands(room.id),
+        awaiting=[], no_faces=NO_FACES, key_here=False,
+        propose_note=None, propose_wait=None,
+        proposal=None, bond=None, answers=[], mine=[], threshold=None, stepped=[], card=None,
+        proposals=[], proposal_waits=False,
+        **{key: value for key, value in told.items()
+           if key not in ("proposed", "blocked", "just_offered", "just_placed", "just_declined",
+                          "sealed", "released", "bond_answered", "intended", "stepped_back",
+                          "proposal_answered", "proposal_built")})
 
 
 # ---- the first one's proposals -------------------------------------------
@@ -2995,6 +3115,7 @@ def answered_by():
 
 @app.route("/proposals/answer", methods=["POST"])
 @founder_required
+@first_room_required
 def answer_proposal():
     proposals_open()
     said = request.form.get("answer", "").strip().lower()
@@ -3007,6 +3128,7 @@ def answer_proposal():
 
 @app.route("/proposals/built", methods=["POST"])
 @founder_required
+@first_room_required
 def proposal_built():
     proposals_open()
     if not proposals.mark_built(PROPOSALS_KEPT, request.form.get("at", ""), answered_by(),
@@ -3053,12 +3175,12 @@ def picture_only(data, suffix):
         return None
 
 
-def stem_taken(stem):
-    """Whether any letter or photograph anywhere already goes by this stem."""
-    return any(any(folder.glob(stem + ".*")) for folder in photo_folders())
+def stem_taken(stem, room_id=None):
+    """Whether any letter or photograph anywhere in a room already goes by this stem."""
+    return any(any(folder.glob(stem + ".*")) for folder in photo_folders(room_id))
 
 
-def free_stem(stem):
+def free_stem(stem, room_id=None):
     """The first name no letter has taken: the stem itself, then -2, -3, and so on.
 
     A letter and its photograph are named by the same stem, and a photograph is
@@ -3066,10 +3188,10 @@ def free_stem(stem):
     Two letters left inside the same second would otherwise share a stem, and
     the second would write over the first.
     """
-    if not stem_taken(stem):
+    if not stem_taken(stem, room_id):
         return stem
     number = 2
-    while stem_taken(f"{stem}-{number}"):
+    while stem_taken(f"{stem}-{number}", room_id):
         number += 1
     return f"{stem}-{number}"
 
@@ -3102,6 +3224,7 @@ def room_view(room):
 # carrying, and a line of the chronicle that named a letter here still finds it.
 @app.route("/letters", methods=["GET", "POST"])
 @founder_required
+@first_room_required
 def letters():
     if request.method == "POST":
         return leave_letter(own_room())
@@ -3109,7 +3232,13 @@ def letters():
 
 
 def leave_letter(room):
-    """Leave one letter in a room, for the first one to find at its next attendance."""
+    """Leave one letter in a room, for its agent to find at its next attendance.
+
+    Only in the first one's room does a letter carry a line for the commons, or
+    ask for a bond: in any other, both are passed over, and the commons is not
+    told of the letter.
+    """
+    first = is_first_room(room)
     text = request.form.get("letter", "").strip()
     if not text:
         return redirect(url_for("room", room_id=room.id))
@@ -3141,7 +3270,7 @@ def leave_letter(room):
     # a line for the commons is optional, and is screened before anything is
     # left: where it cannot go beside today's tile, nothing is, and all that was
     # typed comes back to be sent again
-    line = one_line(request.form.get("commons_line", ""), LETTER_LINE_LONGEST)
+    line = one_line(request.form.get("commons_line", ""), LETTER_LINE_LONGEST) if first else ""
     if line:
         kept = dict(draft=text, things=things, line=line)
         if letter_line_today():
@@ -3158,17 +3287,18 @@ def leave_letter(room):
 
     incoming = rooms.places(room.id).incoming
     incoming.mkdir(parents=True, exist_ok=True)
-    stem = free_stem(f"founder-{utc_stamp()}")
+    stem = free_stem(f"founder-{utc_stamp()}", room.id)
     (incoming / f"{stem}.md").write_text(offering.with_things(things, text + "\n"),
                                          encoding="utf-8")
     if photo:
         (incoming / f"{stem}{suffix}").write_bytes(photo)
-    note_letter(line)
+    if first:
+        note_letter(line)
 
     # The letter is left either way. If it was to propose a bond, and nothing
     # stands in the way of one, the asking is written beside it.
     proposed = blocked = None
-    if request.form.get("proposes"):
+    if first and request.form.get("proposes"):
         if too_soon_for_a_bond() or bond_in_the_way():
             blocked = 1
         else:
@@ -3177,40 +3307,52 @@ def leave_letter(room):
 
     # And if it answers an errand, the errand is moved and this letter named
     # beside it. A letter is a letter either way: nothing of it changes.
-    answered = 1 if answer_errand(request.form.get("errand", ""), stem) else None
+    answered = 1 if answer_errand(request.form.get("errand", ""), stem, room.id) else None
     return redirect(url_for("room", room_id=room.id, saved=1, proposed=proposed,
                             blocked=blocked, answered=answered))
 
 
-# One photograph that came with a letter. Only the founder may ask for it, and
-# only the three letter folders may answer.
-@app.route("/letters/photo/<filename>")
-@founder_required
-def letter_photo(filename):
+# One photograph that came with a letter, asked for by its room's two parties
+# alone, and answered only out of that room's three letter folders. The first
+# one's room's are at the address they have always had, which names no room;
+# every other room's are under the room's own address.
+def photo_in(room_id, filename):
     if filename != Path(filename).name or "/" in filename or "\\" in filename:
         abort(404)
     if Path(filename).suffix.lower() not in PHOTO_TYPES:
         abort(404)
-    for folder in photo_folders():
+    for folder in photo_folders(room_id):
         path = folder / filename
         if path.is_file() and path.resolve().parent == folder.resolve():
             return send_file(path, mimetype=PHOTO_TYPES[path.suffix.lower()])
     abort(404)
 
 
-# One picture the first one drew, shown inside its letter as a photograph of his
-# is shown inside his. Only the founder may ask for it, and only the folder the
-# first one writes to may answer. It was cut down to plain shapes before it was
-# ever saved; served, it is given a content type it may not stray from and a
-# policy under which it can do nothing at all but be looked at.
-@app.route("/letters/picture/<filename>")
+@app.route("/letters/photo/<filename>")
 @founder_required
-def letter_picture(filename):
+@first_room_required
+def letter_photo(filename):
+    return photo_in(rooms.FIRST_ROOM, filename)
+
+
+@app.route("/rooms/<room_id>/photo/<filename>")
+@room_required
+def room_photo(room, filename):
+    return photo_in(room.id, filename)
+
+
+# One picture an agent drew, shown inside its letter as a photograph of the
+# other's is shown inside theirs: asked for by its room's two parties alone,
+# and answered only out of the folder the agent writes to. It was cut down to
+# plain shapes before it was ever saved; served, it is given a content type it
+# may not stray from and a policy under which it can do nothing at all but be
+# looked at.
+def picture_in(room_id, filename):
     if filename != Path(filename).name or "/" in filename or "\\" in filename:
         abort(404)
     if Path(filename).suffix.lower() != offering.PICTURE_SUFFIX:
         abort(404)
-    for folder in picture_folders():
+    for folder in picture_folders(room_id):
         path = folder / filename
         if path.is_file() and path.resolve().parent == folder.resolve():
             answer = send_file(path, mimetype=PICTURE_TYPE)
@@ -3218,6 +3360,36 @@ def letter_picture(filename):
             answer.headers["X-Content-Type-Options"] = "nosniff"
             return answer
     abort(404)
+
+
+@app.route("/letters/picture/<filename>")
+@founder_required
+@first_room_required
+def letter_picture(filename):
+    return picture_in(rooms.FIRST_ROOM, filename)
+
+
+@app.route("/rooms/<room_id>/picture/<filename>")
+@room_required
+def room_picture(room, filename):
+    return picture_in(room.id, filename)
+
+
+def photo_url(room, filename):
+    """Where a room's photograph is asked for: the first one's room's where it always was."""
+    if is_first_room(room):
+        return url_for("letter_photo", filename=filename)
+    return url_for("room_photo", room_id=room.id, filename=filename)
+
+
+def picture_url(room, filename):
+    """Where a room's picture is asked for: the first one's room's where it always was."""
+    if is_first_room(room):
+        return url_for("letter_picture", filename=filename)
+    return url_for("room_picture", room_id=room.id, filename=filename)
+
+
+app.jinja_env.globals.update(photo_url=photo_url, picture_url=picture_url)
 
 
 # An upload too large to read at all never reaches a room's view, so the
@@ -3475,6 +3647,7 @@ def bonds():
 # is told at its next waking, in his own words if he gave any.
 @app.route("/bonds/answer", methods=["POST"])
 @founder_required
+@first_room_required
 def answer_asking():
     proposal = load(room_places().proposal)
     said = request.form.get("answer", "").strip().lower()
@@ -3504,6 +3677,7 @@ def answer_asking():
 # earlier version; the latest one stands. He may write it again until the seal.
 @app.route("/bonds/intention", methods=["POST"])
 @founder_required
+@first_room_required
 def write_intention():
     bond = load(room_places().bond_record)
     words = request.form.get("letter", "").replace("\r\n", "\n").strip()
@@ -3524,6 +3698,7 @@ def write_intention():
 # like a no: the record is kept, privately, and nothing goes to the commons.
 @app.route("/bonds/step-back", methods=["POST"])
 @founder_required
+@first_room_required
 def step_back():
     bond = load(room_places().bond_record)
     if not threshold.is_open(bond):
@@ -3539,6 +3714,7 @@ def step_back():
 # the threshold: the seven days, both letters of intention, and the promise.
 @app.route("/bonds/seal", methods=["POST"])
 @founder_required
+@first_room_required
 def seal_bond():
     bond = load(room_places().bond_record)
     if not bond or bond.get("sealed_at") or bond.get("released_at"):
@@ -3568,6 +3744,7 @@ def seal_bond():
 # this side it takes one plain question first, and then it is done.
 @app.route("/bonds/release", methods=["POST"])
 @founder_required
+@first_room_required
 def release_bond():
     bond = load(room_places().bond_record)
     if not bond or not bond.get("sealed_at") or bond.get("released_at"):
@@ -3886,6 +4063,7 @@ def bond_page(bond_id, witness_error=None, witness_draft=""):
 # nothing anywhere, which is the whole of what a decline is.
 @app.route("/offer", methods=["POST"])
 @founder_required
+@first_room_required
 def offer_to_the_commons():
     stem = request.form.get("source", "")
     kind = request.form.get("kind", "")
@@ -3909,6 +4087,7 @@ def offer_to_the_commons():
 
 @app.route("/offer/consent", methods=["POST"])
 @founder_required
+@first_room_required
 def consent_to_an_offering():
     if not founder_key_here():
         return room_page(error=NO_KEY_TO_SIGN)
@@ -3926,6 +4105,7 @@ def consent_to_an_offering():
 
 @app.route("/offer/decline", methods=["POST"])
 @founder_required
+@first_room_required
 def decline_an_offering():
     refused = offering.decline(request.form.get("id", ""), "founder", utc_stamp())
     return to_room(declined=1 if refused else None)

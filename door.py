@@ -9,7 +9,8 @@ wholly, from one to twelve. A door is one small record:
 kept privately, where the one whose door it is keeps everything else:
 
     DATA_DIR/members/<pseudonym>/door.json     a human member's
-    DATA_DIR/packets/first/door.json           the first one's
+    DATA_DIR/packets/<agent>/door.json         an agent's: packets/first/door.json
+                                               the first one's
 
 and each version that stood before the one that stands now is kept beside it,
 in door/history/, as a rhythm's is. No file at all is a closed door with no
@@ -19,8 +20,12 @@ Two things about a door are public, and nothing else: whether it is open, and -
 only where room has been declared - whether there is any left. The number is
 never said outside: not how much room was declared, and not how much is in use.
 
+Which door a name is is said by the registry (agents.py): an agent's id is
+an agent's door, and every other name is a member's or no one's. No agent's id
+is a name a member can take, so the two never meet.
+
 The hearth and attend.py both work through this one module, so that what a
-member sets, what the first one is told, and what the commons says are one
+member sets, what an agent is told, and what the commons says are one
 reckoning. There are no knocks here yet: nothing in this file lets anyone
 through a door, or turns anyone away from one.
 """
@@ -42,12 +47,13 @@ REPO = Path(__file__).resolve().parent
 # Where the living files are kept: the same reckoning the other modules make.
 DATA = Path(os.environ.get("DATA_DIR", REPO))
 
-# The first one is no member of the members' store, and its door is kept in its
-# own packet. "first" is a name no member can take, so the two never meet.
+# No agent is a member of the members' store, and each one's door is kept in its
+# own packet. No agent's id is a name a member can take, so the two never meet.
 FIRST = agents.first()["id"]
-FIRST_DOOR = DATA / "packets" / FIRST / "door.json"
 
 RECORD = "door.json"
+
+FIRST_DOOR = DATA / "packets" / FIRST / RECORD
 
 OPEN = "open"
 CLOSED = "closed"
@@ -74,10 +80,17 @@ class DoorError(Exception):
 # ---------------------------------------------------------------- where
 
 
+def is_agent(who):
+    """Whether this name is an agent's id, and so its door an agent's."""
+    return isinstance(who, str) and agents.by_id(who) is not None
+
+
 def path_of(who):
     """Where one door is kept. Raises DoorError for a name no one could have."""
     if who == FIRST:
         return FIRST_DOOR
+    if is_agent(who):
+        return DATA / "packets" / who / RECORD
     try:
         members.validate_pseudonym(who)
     except MemberError:
@@ -122,18 +135,14 @@ def read(who):
 
 
 def in_use(who):
-    """How many correspondences someone is carrying now.
+    """How many correspondences someone is carrying now: the rooms they are a party to.
 
-    Today there is one correspondence here, between the founder and the first
-    one, so each of them carries one and no one else carries any.
+    An agent carries the one it shares with its person; the keeper the first
+    one's, and any other they are named in; a member only those they are named in.
     """
-    if who == FIRST:
-        return 1
-    try:
-        record = members.load_member(who)
-    except MemberError:
-        return 0
-    return 1 if isinstance(record, dict) and record.get("role") == "keeper" else 0
+    # read only here: rooms.py asks the members' store who someone is
+    import rooms
+    return len(rooms.of(who))
 
 
 # ---------------------------------------------------------------- saying
@@ -234,7 +243,7 @@ def set_door(who, state=AS_IT_WAS, room=AS_IT_WAS, at=None):
     to what it already is is not written again.
     """
     path = path_of(who)
-    if who != FIRST and not (path.parent / members.RECORD).is_file():
+    if not is_agent(who) and not (path.parent / members.RECORD).is_file():
         raise DoorError("there is no member by that name")
     before = read(who)
     if state is AS_IT_WAS:

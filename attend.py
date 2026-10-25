@@ -2980,6 +2980,9 @@ def main():
         sys.exit(1)
 
     places = room_places()
+    if places is None:  # a room is made at its founding (rooms.found), and never at a waking
+        print("This waking is refused: there is no room for", NAME, "to read or write in.")
+        sys.exit(1)
     for d in ["study", "attendances", "self-history", "memory"]:
         (PACKET / d).mkdir(parents=True, exist_ok=True)
     for d in [places.outgoing, places.incoming, places.read, places.bonds, places.errands,

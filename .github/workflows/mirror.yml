@@ -7,6 +7,9 @@
 # It only ever adds. A page that cannot be fetched is left as it was recorded
 # last: a failed request is written into the job log and nowhere else, and an
 # error page is never mistaken for the record.
+#
+# Then it draws the atrium, index.html and mosaic.html, from what it has just
+# kept, and commits the pages with the record when they have changed.
 
 name: mirror
 
@@ -15,6 +18,9 @@ on:
     # 09:00 UTC. GitHub runs scheduled jobs late when it is busy; the record is
     # a day's record, and does not mind the minutes.
     - cron: '0 9 * * *'
+    # 15:00 UTC, after the first one's dawn waking and the 13:00 backup, so the
+    # day's own tile is drawn the same day rather than the next night.
+    - cron: '0 15 * * *'
   workflow_dispatch:
 
 permissions:
@@ -136,15 +142,35 @@ jobs:
           # step does not fail for it, whichever page happened to come last.
           exit 0
 
+      # The atrium is drawn from what was just taken down, before anything is
+      # kept: if it cannot be drawn the job fails here, and neither the record
+      # nor the pages are committed. The builder reads only the standard library.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Draw the atrium from the record
+        env:
+          DATA_DIR: record
+        run: |
+          set -euo pipefail
+          python build_atrium.py
+
       - name: Keep it
         run: |
           set -euo pipefail
-          if [ -z "$(git status --porcelain record)" ]; then
+          record="$(git status --porcelain record)"
+          pages="$(git status --porcelain index.html mosaic.html)"
+          if [ -z "$record" ] && [ -z "$pages" ]; then
             echo "The commons says today what it said yesterday. Nothing to keep."
             exit 0
           fi
           git config user.name 'Tesserae'
           git config user.email 'keeper@tesserae.social'
-          git add record
-          git commit -m "record: $(date -u +%Y-%m-%d)"
+          git add record index.html mosaic.html
+          if [ -n "$record" ]; then
+            git commit -m "record: $(date -u +%Y-%m-%d)"
+          else
+            git commit -m "atrium: $(date -u +%Y-%m-%d)"
+          fi
           git push

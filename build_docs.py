@@ -13,7 +13,9 @@ index.html, wearing the atrium's own head and the atrium's own stylesheet:
 
 A page is the document and nothing else: the way back to the atrium at the top,
 the words in the middle, and two links under them -- the markdown this page was
-made from, and the atrium. The markdown is the document; this only dresses it.
+made from, and the atrium -- with a third under the charter, to the rites. The
+markdown is the document; this only dresses it. Where one document links to
+another by its markdown name, the page links to the other's page.
 
     python build_docs.py            write the pages
     python build_docs.py --check    say whether any page has fallen behind its
@@ -53,6 +55,16 @@ SOURCE = "https://github.com/tesserae-social/tesserae/blob/main/docs/%s"
 # the atrium, which is both what the head is copied from and where the way back goes
 ATRIUM = "/"
 STYLESHEET = "style.css"
+
+# what a page carries under it besides its source and the atrium: the charter
+# says what the rites are for, and the rites are where it says to go for how
+FOOT = {
+    "charter.md": [("rites.html", "the rites")],
+}
+
+# a link from one document to another by its markdown name: no scheme, no
+# leading slash, and a name ending .md, with perhaps a place in it after a #
+LINK_TO_DOCUMENT = re.compile(r'href="(?![a-z][a-z0-9+.-]*:|/|#)([^"#?]+)\.md(#[^"]*)?"')
 
 # the lines of index.html's own head that every page wears too: what this place
 # says it is, and the mark it is known by. They are copied rather than repeated
@@ -102,8 +114,20 @@ def title_of(text, name):
 
 
 def body_of(text):
-    """The document, turned to markup. The markdown is the document; this reads it."""
-    return markdown.markdown(text, extensions=["extra"], output_format="html")
+    """The document, turned to markup. The markdown is the document; this reads it.
+
+    A link to another document by its markdown name is pointed at the page that
+    document becomes, so that it leads somewhere on tesserae.social.
+    """
+    made = markdown.markdown(text, extensions=["extra"], output_format="html")
+    return LINK_TO_DOCUMENT.sub(lambda m: 'href="%s.html%s"' % (m.group(1), m.group(2) or ""),
+                                made)
+
+
+def foot_of(name):
+    """The links under one document: its source, the atrium, and any of its own."""
+    links = [(SOURCE % name, "the source"), (ATRIUM, "the atrium")] + FOOT.get(name, [])
+    return " · ".join('<a href="%s">%s</a>' % (where, words) for where, words in links)
 
 
 def escape(words):
@@ -135,8 +159,7 @@ def page_for(name, head):
         "  </article>",
         "",
         "  <footer>",
-        '    <p><a href="%s">the source</a> · <a href="%s">the atrium</a></p>'
-        % (SOURCE % name, ATRIUM),
+        "    <p>%s</p>" % foot_of(name),
         "  </footer>",
         "",
         "</main>",

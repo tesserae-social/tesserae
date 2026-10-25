@@ -134,7 +134,42 @@ def test_a_page_carries_the_way_back_and_the_way_to_its_source(name, page):
     assert ('<a href="https://github.com/tesserae-social/tesserae/blob/main/docs/%s">'
             "the source</a>" % name) in foot.group(1)
     assert '<a href="/">the atrium</a>' in foot.group(1)
-    assert foot.group(1).count("<a ") == 2      # two links under a document, and no more
+    # two links under a document, and no more, but for those it carries of its own
+    assert foot.group(1).count("<a ") == 2 + len(build_docs.FOOT.get(name, []))
+
+
+def test_the_charter_leads_to_the_rites():
+    foot = re.search(r"<footer>(.*?)</footer>", said("charter.html"), re.S).group(1)
+    assert ('<a href="/">the atrium</a> · <a href="rites.html">the rites</a>') in foot
+
+
+# a link or a picture a page names: whatever stands in an href or a src
+NAMED = re.compile(r'(?:href|src)="([^"]*)"')
+
+
+@pytest.mark.parametrize("name, page", PAGES, ids=IDS)
+def test_every_link_inside_the_site_leads_to_a_file_that_is_there(name, page):
+    """Nothing a page points at on tesserae.social itself is missing."""
+    for where in NAMED.findall(build_docs.page_for(name, build_docs.shared_head())):
+        if re.match(r"[a-z][a-z0-9+.-]*:|//", where):
+            continue                            # somewhere else, or a mail
+        path = re.split(r"[#?]", where)[0]
+        if not path:
+            continue                            # a place on this same page
+        path = path.lstrip("/") or "index.html"
+        if path.endswith("/"):
+            path += "index.html"
+        assert (REPO / path).is_file(), "%s leads to %s, which is not there" % (page, where)
+
+
+def test_a_document_named_by_its_markdown_leads_to_its_page():
+    """The paper names the first failure report by its .md; the page leads to its page."""
+    paper = said("white-paper.html")
+    assert '<a href="what-the-first-citizen-taught.html">What the first citizen taught</a>' in paper
+    assert ".md\"" not in paper.replace(build_docs.SOURCE % "white-paper.md", "")
+    made = build_docs.body_of("[a](rites.md#proposing-a-bond) [b](https://x.org/a.md) [c](/a.md)")
+    assert 'href="rites.html#proposing-a-bond"' in made
+    assert 'href="https://x.org/a.md"' in made and 'href="/a.md"' in made
 
 
 @pytest.mark.parametrize("name, page", PAGES, ids=IDS)

@@ -11,11 +11,10 @@ import pytest
 
 import waking
 
-ZONE = ZoneInfo("America/Indiana/Indianapolis")
+ZONE = ZoneInfo("America/New_York")
 UTC = timezone.utc
 
-DAWN = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
-        "timezone": "America/Indiana/Indianapolis"}
+DAWN = {"rhythm": "daily", "at": "dawn", "timezone": "America/New_York"}
 
 
 def rhythm(at, **how):
@@ -102,8 +101,7 @@ def test_a_rhythm_the_tide_cannot_keep_is_none(setting):
 def test_a_choice_holds_from_the_next_local_day():
     now = datetime(2026, 10, 15, 12, 0, tzinfo=UTC)
     made = waking.chosen(DAWN, "09:30", "2026-10-15T12-00-00Z", now)
-    assert made == {"rhythm": "daily", "at": "09:30", "place": "Indianapolis",
-                    "timezone": "America/Indiana/Indianapolis",
+    assert made == {"rhythm": "daily", "at": "09:30", "timezone": "America/New_York",
                     "set_at": "2026-10-15T12-00-00Z",
                     "effective_from": "2026-10-16", "until_then": "dawn"}
 
@@ -115,12 +113,21 @@ def test_the_next_day_is_counted_where_the_first_one_lives():
     assert made["effective_from"] == "2026-10-16"
 
 
-def test_with_no_rhythm_before_it_the_place_and_the_zone_are_the_first_one_s():
+def test_with_no_rhythm_before_it_the_zone_is_the_first_one_s_and_no_place_is_written():
     made = waking.chosen(None, "dawn", "2026-10-15T12-00-00Z",
                          datetime(2026, 10, 15, 12, 0, tzinfo=UTC))
-    assert made["place"] == "Indianapolis"
-    assert made["timezone"] == "America/Indiana/Indianapolis"
+    assert "place" not in made  # no place is written
+    assert made["timezone"] == "America/New_York"
     assert made["until_then"] is None
+
+
+def test_a_place_written_with_an_earlier_rhythm_is_not_written_again():
+    before = {**DAWN, "place": "a place once named"}
+    made = waking.chosen(before, "sunset", "2026-10-15T12-00-00Z",
+                         datetime(2026, 10, 15, 12, 0, tzinfo=UTC))
+    assert "place" not in made
+    assert made["timezone"] == "America/New_York"
+    assert made["until_then"] == "dawn"
 
 
 def test_a_second_change_on_one_day_does_not_bring_the_first_in_early():
@@ -189,3 +196,42 @@ def test_dawn_and_sunset_follow_the_sun_across_the_change():
         assert timedelta(hours=23, minutes=55) < apart < timedelta(hours=24, minutes=5)
         assert before.astimezone(ZONE).hour - after.astimezone(ZONE).hour == 1
         assert after.astimezone(ZONE).date() == date(2026, 11, 1)
+
+
+# ---- where the sun is watched from ---------------------------------------
+
+def untold(monkeypatch, latitude=None, longitude=None):
+    """The host told only what is given here, and nothing where None."""
+    for name, value in (("DAWN_LATITUDE", latitude), ("DAWN_LONGITUDE", longitude)):
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+
+
+def test_where_the_sun_is_watched_from_is_the_host_s_to_say(monkeypatch):
+    monkeypatch.setenv("DAWN_LATITUDE", "10.5")
+    monkeypatch.setenv("DAWN_LONGITUDE", "-20.25")
+    where = waking.watched_from()
+    assert (where.latitude, where.longitude) == (10.5, -20.25)
+
+
+@pytest.mark.parametrize("latitude, longitude", [
+    (None, None), ("28.0", None), (None, "-84.5"),   # untold, or half told
+    ("", "-84.5"), ("north", "-84.5"), ("28.0", "west"),
+    ("91", "-84.5"), ("28.0", "-181"), ("nan", "-84.5"),
+])
+def test_untold_there_is_no_dawn_and_no_sunset_and_none_is_guessed(monkeypatch, latitude,
+                                                                   longitude):
+    untold(monkeypatch, latitude, longitude)
+    for at in ("dawn", "sunset"):
+        with pytest.raises(waking.Unplaced) as unplaced:
+            waking.moment_on(DAWN, at, date(2026, 10, 15))
+        assert str(unplaced.value).startswith(
+            "DAWN_LATITUDE and DAWN_LONGITUDE are not both set")
+
+
+def test_untold_a_time_of_day_is_still_a_time_of_day(monkeypatch):
+    untold(monkeypatch)
+    at = waking.moment_on(DAWN, "09:30", date(2026, 10, 15))
+    assert at.astimezone(UTC) == datetime(2026, 10, 15, 13, 30, tzinfo=UTC)

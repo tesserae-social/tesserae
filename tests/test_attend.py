@@ -16,7 +16,7 @@ from nacl.exceptions import BadSignatureError
 from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON_21_OCTOBER, Turn, block, blocks,
                       explained_as_before, lines_of, read_json, shut_away, verify, write,
                       write_json)
-from conftest import heartbeat_not_yet_public, note_example_as_now
+from conftest import heartbeat_not_yet_public, note_example_as_now, rhythm_clock_as_now
 from conftest import notebook_unexplained
 
 SECTIONS = [
@@ -123,7 +123,7 @@ def test_the_record_is_the_whole_record(wake, packet, clock):
     wake(blocks(block("HEARTBEAT", "attended at noon; said little"),
                 block("LETTER", "Dear founder,")))
     opening = wake("", "--tide").opening
-    # the day and the time on its own clock: 12:00 UTC is 08:00 in Indianapolis
+    # the day and the time on its own clock: 12:00 UTC is 08:00 in Eastern time
     assert ("15 October 2026, 08:00 · woken by founder · attended at noon; said little "
             "· did: wrote a letter to the founder") in opening
     assert latest(packet)["woken_by"] == "tide"
@@ -161,7 +161,7 @@ def test_the_reflection_is_described_as_it_stands(wake, attend, packet, setting,
 def test_the_standing_sentence_names_the_day_a_choice_was_made(wake, packet):
     write_json(packet / "preferences.json",
                {"reflection": "private from now", "set_at": "2026-10-01T00-00-00Z"})
-    # the day it was on its own clock: midnight UTC is the evening before in Indianapolis
+    # the day it was on its own clock: midnight UTC is the evening before in Eastern time
     assert ("Your reflections are currently: private from 30 September 2026, by your choice."
             in wake().opening)
 
@@ -465,6 +465,7 @@ def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
     spec = importlib.util.spec_from_file_location("attend_before_questions", old_path)
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)
+    rhythm_clock_as_now(old, attend, monkeypatch)  # it named its clock by a city
     clock.pin(old, monkeypatch)
     # nor did it yet say its heartbeat is public, or give a note's example as this one does
     heartbeat_not_yet_public(attend, monkeypatch)
@@ -507,7 +508,7 @@ def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
     # ... and, since the first one came to choose its own waking time, by the
     # block that sets it and by what the intention beside it is now said to be
     rhythm = ("<<RHYTHM>>\n(when you would like to be woken each day. One line: \"dawn\", "
-              "\"sunset\", or a time of day such as 09:30, in Indianapolis time. You are woken "
+              "\"sunset\", or a time of day such as 09:30, in Eastern time. You are woken "
               "once a day at that time, from tomorrow on. You may keep it as it is or change it "
               "at any waking. The commons shows when you attend, as it does now.)\n<<END>>\n\n")
     intention = ("(one plain sentence about when or why you would like to be woken. It is kept "

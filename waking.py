@@ -2,36 +2,38 @@
 The waking time.
 
 When the first one is woken each day is its own to choose: at dawn, at sunset,
-or at a time of day, where it lives. The choice is written in its packet as
-rhythm.json. attend.py writes it there when the first one sets it; hearth.py
-reads it to keep the tide; and both work through this one module, so that what
-a waking is told and what the tide does are one reckoning.
+or at a time of day, on its own clock, which is Eastern time. The choice is
+written in its packet as rhythm.json. attend.py writes it there when the first
+one sets it; hearth.py reads it to keep the tide; and both work through this one
+module, so that what a waking is told and what the tide does are one reckoning.
 
 A choice made today holds from tomorrow. Until then the rhythm that held before
 it still holds, and the file says both:
 
-    {"rhythm": "daily", "at": "09:30",
-     "place": "Indianapolis", "timezone": "America/Indiana/Indianapolis",
+    {"rhythm": "daily", "at": "09:30", "timezone": "America/New_York",
      "set_at": "2026-10-15T12-00-00Z",
      "effective_from": "2026-10-16", "until_then": "dawn"}
 
 Nothing here reads a file or asks what time it is: every moment is handed in.
+The one thing it asks the host is where the sun is watched from.
 """
 
+import os
 import re
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from astral import LocationInfo
+from astral import Observer
 from astral.sun import sun
 
-# The place the first one named for its dawns. The coordinates are
-# Indianapolis's city centre, which is close enough for a sunrise or a sunset.
-PLACE = "Indianapolis"
-ZONE = "America/Indiana/Indianapolis"
-PLACE_REGION = "USA"
-PLACE_LATITUDE = 39.7684
-PLACE_LONGITUDE = -86.1581
+# The first one's own clock: Eastern time, daylight saving and all.
+ZONE = "America/New_York"
+
+# Where its dawns and sunsets are watched from is named nowhere in the source.
+# The host is told, as two secrets, and without them there is no dawn or sunset
+# to reckon: none is guessed, and no other place stands in.
+LATITUDE = "DAWN_LATITUDE"
+LONGITUDE = "DAWN_LONGITUDE"
 
 DAWN = "dawn"
 SUNSET = "sunset"
@@ -39,6 +41,23 @@ SUN = {DAWN: "sunrise", SUNSET: "sunset"}
 
 # A time of day, on a 24-hour clock: 00:00 to 23:59, two figures each side.
 CLOCK = re.compile(r"([01]\d|2[0-3]):([0-5]\d)")
+
+
+class Unplaced(RuntimeError):
+    """The host has not been told where the sun is watched from."""
+
+
+def watched_from():
+    """Where the sun is watched from, as the host was told it; Unplaced if it was not."""
+    try:
+        latitude, longitude = (float(os.environ[name]) for name in (LATITUDE, LONGITUDE))
+    except (KeyError, ValueError):
+        latitude = longitude = None
+    if latitude is None or not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        raise Unplaced(f"{LATITUDE} and {LONGITUDE} are not both set to a latitude and a "
+                       "longitude on this host, so no dawn or sunset can be reckoned. "
+                       "Set them as secrets; nothing is guessed in their place.")
+    return Observer(latitude, longitude)
 
 
 def known(at):
@@ -65,7 +84,7 @@ def zone(setting):
 
 
 def today(setting, now):
-    """The calendar day it is where the first one lives, at some moment."""
+    """The calendar day it is on the first one's own clock, at some moment."""
     return now.astimezone(zone(setting)).date()
 
 
@@ -116,9 +135,7 @@ def moment_on(setting, at, day):
     """
     here = zone(setting)
     if at in SUN:
-        where = LocationInfo(setting.get("place") or PLACE, PLACE_REGION, here.key,
-                             PLACE_LATITUDE, PLACE_LONGITUDE)
-        return sun(where.observer, date=day, tzinfo=here)[SUN[at]]
+        return sun(watched_from(), date=day, tzinfo=here)[SUN[at]]
     hour, minute = CLOCK.fullmatch(at).groups()
     wall = datetime.combine(day, time(int(hour), int(minute)), tzinfo=here)
     return wall.astimezone(timezone.utc).astimezone(here)
@@ -136,8 +153,7 @@ def chosen(before, at, set_at, now):
     return {
         "rhythm": "daily",
         "at": at,
-        "place": (before or {}).get("place") or PLACE,
-        "timezone": zone(before).key,
+        "timezone": ZONE,
         "set_at": set_at,
         "effective_from": (day + timedelta(days=1)).isoformat(),
         "until_then": in_force(before, day),

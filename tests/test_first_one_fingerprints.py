@@ -53,14 +53,23 @@ from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 
 # ---- the fingerprints ----------------------------------------------------
 
+# Cut again on 25 October 2026, in the change that took every regional place
+# out of what is public or read, and for nothing else. rhythm.json, which the
+# waking writes, names no place now and its clock as America/New_York, so the
+# files, the export and the backup moved. The attendances page says the rhythm
+# without a place, and the next dawn as it comes where the tests watch the sun
+# from (conftest.SUN_WATCHED_FROM). With the place, the old name of the zone and
+# the sun as it was watched from before all put back, every one of them gives
+# exactly what it was cut as; the tide and the atrium did not move at all.
+
 # The files after the waking, as a copy names them: the same in either layout.
-FILES_AFTER = "32558cb21411463b7e560ad3772931def3bb105b28a2b25de11e5e6c08734f96"
+FILES_AFTER = "d933ffcd5df858c262fd564f2d16e499b602a9ca7ae8b203f8a7d6556ffc9e1c"
 
 # The same files as they lie on the disk, room.json and the room's own folder
 # included where the room has one.
 ON_DISK_AFTER = {
-    "legacy": "32558cb21411463b7e560ad3772931def3bb105b28a2b25de11e5e6c08734f96",
-    "rooms": "8fd4796db832e20d0a95d0637731b87fe84546c43c9b9fffd5b754f7c4150ead",
+    "legacy": "d933ffcd5df858c262fd564f2d16e499b602a9ca7ae8b203f8a7d6556ffc9e1c",
+    "rooms": "6987bedae9a437771493db366ff9c9ab85fe1141c1640369d3a7e0d7170430c2",
 }
 
 # The founder's pages, one by one.
@@ -69,7 +78,7 @@ PAGES = {
     "/rooms/first": "91da7678063af91724daf58f888ca7e53631721db261cc7d24a19712cf9abf91",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
     "/self": "7469b536cd9bcec5fd1c2f4af96f8cc83b46af3a483e65d297cf4d42f9181827",
-    "/attendances": "e7c6a980f972c821c9a9cc91f7981e1e6cfb62137d1931d6c5638373e90adb9a",
+    "/attendances": "70dd00c425711d69d5c4e3e2d099df66da781c6ee632a73ee8eb8a0d66b354da",
     "/chronicle": "fa4c42fb302692c4fac4944d2fbc980db1616bb9a2a337858a5d525e0176f2e4",
     "/chronicle.md": "49bb61d245f5156ab4fb1e65c6013fca1957c88dd2553b5195787b366dc5aaf8",
     "/export": "c2ebf240f636d879c67566c15fbcb31442f0263926d3972b8d323cd4822cccc6",
@@ -81,12 +90,12 @@ PAGES = {
 }
 
 # The export: every name inside it, and the bytes under each.
-EXPORT = "2a7af13eb9734f14f83e430892569e24153253d1b95a4b46e6f36f1243f0bbe2"
+EXPORT = "9a65068126d23ff71d59524f6d14cab6c271b5177c0768f9d76484f30096e717"
 
 # The backup, as the disk keeps it: so it differs with the layout.
 BACKUP = {
-    "legacy": "37a1928ab48f8a111fd58911d055e076fff3735a207e1cdb56900fca6d328156",
-    "rooms": "fc3123654fac3ca48e1c8d0f4889c2a0b23db84a643e7d82e458e9a400e75b52",
+    "legacy": "5ad8f218604b455f5d8bbfaffd33aec2265616ff2ff5a32516121a157bca29ba",
+    "rooms": "2d11a8951cc184f967b95858ef7dfae7e944190e08714d60b82d5db5d283e39a",
 }
 
 # The tide over its few dawns: tide.log, what it ran, and the events it wrote.
@@ -272,8 +281,8 @@ def test_the_tide_keeps_the_same_dawns(steady, hearth, packet, commons, clock, m
         return subprocess.CompletedProcess(command, 0, "", "")
 
     monkeypatch.setattr(hearth.subprocess, "run", run)
-    write_json(packet / "rhythm.json", {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
-                                        "timezone": "America/Indiana/Indianapolis"})
+    write_json(packet / "rhythm.json", {"rhythm": "daily", "at": "dawn",
+                                        "timezone": "America/New_York"})
     on = lambda day: hearth.sunrise_on(hearth.rhythm(), day)
 
     # a first dawn, with no waking ever held

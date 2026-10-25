@@ -13,7 +13,7 @@ import sys
 
 import pytest
 
-from conftest import before_rooms
+from conftest import before_rooms, rhythm_clock_as_now
 from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON, SWITCHED_ON_21_OCTOBER, Turn,
                       block, blocks, explained_as_before, lines_of, page, read_json, shut_away, write,
                       write_json)
@@ -842,6 +842,7 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     spec = importlib.util.spec_from_file_location("attend_before_the_shelf", old_path)
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)
+    rhythm_clock_as_now(old, attend, monkeypatch)  # it named its clock by a city
     clock.pin(old, monkeypatch)
     # nor did it yet say its heartbeat is public, or give a note's example as this one does
     heartbeat_not_yet_public(attend, monkeypatch)

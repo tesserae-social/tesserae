@@ -26,6 +26,7 @@ import zipfile
 
 import pytest
 
+from conftest import rhythm_clock_as_now
 from conftest import (REPO, Turn, block, blocks, lines_of, page, post, read_json, shut_away,
                       verify, write, write_json)
 from test_backup import bucket  # noqa: F401  (the bucket in memory, as a fixture)
@@ -144,6 +145,7 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
     spec = importlib.util.spec_from_file_location("attend_before_welcome", old_path)
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)
+    rhythm_clock_as_now(old, attend, monkeypatch)  # it named its clock by a city
     clock.pin(old, monkeypatch)
     assert not hasattr(old, "WELCOME_LETTER")
 

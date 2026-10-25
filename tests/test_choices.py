@@ -21,7 +21,7 @@ import sys
 
 import pytest
 
-from conftest import before_rooms
+from conftest import before_rooms, rhythm_clock_as_now
 from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
                       page, shut_away, solstices_as_before, stamps_as_before, write, write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now
@@ -36,14 +36,13 @@ MEMORY = "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth)
 PREFERENCES = {"reflection": "private from now", "set_at": "2026-09-20T03-08-00Z",
                "chosen_in": "letter at attendance 2026-09-20T03-08",
                "note": "First wakings remain open by the first one's choice."}
-DAWN = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
-        "timezone": "America/Indiana/Indianapolis",
+DAWN = {"rhythm": "daily", "at": "dawn", "timezone": "America/New_York",
         "set_at": "2026-09-20T03-30-35Z",
         "chosen_in": "letter at attendance 2026-09-20T03-30",
         "note": "Dawn wakings, daily for now, in the first one's words."}
 
 # Each day is the day it was on its own clock: 03:08 UTC on 20 September was
-# still the evening of the 19th in Indianapolis.
+# still the evening of the 19th in Eastern time.
 REFLECTIONS = "Your reflections are kept private, by your choice since 19 September 2026."
 WAKING = "You wake daily at dawn, by your choice since 19 September 2026."
 ARTICLE_RESTS = "The 1 October letter rests, as you asked on 6 October."
@@ -131,6 +130,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     spec = importlib.util.spec_from_file_location("attend_before_choices", old_path)
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)
+    rhythm_clock_as_now(old, attend, monkeypatch)  # it named its clock by a city
     clock.pin(old, monkeypatch)
     # nor did it yet say its heartbeat is public, or give a note's example as this one does
     heartbeat_not_yet_public(attend, monkeypatch)

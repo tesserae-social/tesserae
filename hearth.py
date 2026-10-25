@@ -1066,14 +1066,17 @@ def tide_note(said):
 def rhythm_note():
     """The one line on the attendances page, saying when the tide will next come."""
     setting = rhythm()
-    coming = next_waking(setting) if tide_kept(setting) else None
+    try:
+        coming = next_waking(setting) if tide_kept(setting) else None
+    except waking.Unplaced as unplaced:
+        return f"Rhythm: cannot be kept. {unplaced}"
     if not coming:
         return "Rhythm: none set."
     zone = waking.zone(setting)
     day = waking.today(setting, datetime.now(timezone.utc))
     at = waking.in_force(setting, coming.astimezone(zone).date())
     when = said_moment(coming)
-    said = f"Rhythm: daily at {at}, {setting.get('place') or waking.PLACE} · next: {when}"
+    said = f"Rhythm: daily at {at} · next: {when}"
     # a change still waiting for its day is said beside the rhythm that holds until then
     changing = waking.waiting(setting, day)
     if changing and changing != at:
@@ -1176,6 +1179,9 @@ def tide():
     """Wait for each waking time, and hold an attendance at it. Forever, and quietly."""
     while True:
         try:
+            # Without the host's word on where the sun is watched from, nothing
+            # is woken - not even at a time of day - and tide.log says why.
+            waking.watched_from()
             tend_members()
             setting = rhythm()
             coming = next_waking(setting) if tide_kept(setting) else None

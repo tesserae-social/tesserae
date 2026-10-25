@@ -2,7 +2,7 @@
 
 Every test here holds a real attendance, as test_attend.py does, with the model
 stubbed. The clock is pinned at 15 October 2026, 12:00 UTC: eight in the morning
-where the first one lives, and past that day's dawn.
+on its own clock, Eastern time, and past that day's dawn.
 """
 
 from datetime import date
@@ -13,10 +13,9 @@ import pytest
 import waking
 from conftest import block, blocks, lines_of, read_json, write, write_json
 
-ZONE = ZoneInfo("America/Indiana/Indianapolis")
+ZONE = ZoneInfo("America/New_York")
 
-DAWN = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
-        "timezone": "America/Indiana/Indianapolis",
+DAWN = {"rhythm": "daily", "at": "dawn", "timezone": "America/New_York",
         "set_at": "2026-09-20T03-30-35Z",
         "chosen_in": "letter at attendance 2026-09-20T03-30",
         "note": "Dawn wakings, daily for now, in the first one's words."}
@@ -58,8 +57,7 @@ def test_a_rhythm_block_sets_the_waking_time(wake, attend, packet, clock, said, 
     stamp = clock.stamp()
     wake(block("RHYTHM", said))
     assert read_json(packet / "rhythm.json") == {
-        "rhythm": "daily", "at": at, "place": "Indianapolis",
-        "timezone": "America/Indiana/Indianapolis",
+        "rhythm": "daily", "at": at, "timezone": "America/New_York",
         "set_at": stamp,
         "effective_from": "2026-10-16",   # the next day, where it lives
         "until_then": "dawn",             # and until then, what held before
@@ -88,8 +86,8 @@ def test_the_first_rhythm_ever_set_has_nothing_before_it_to_keep(wake, packet):
     wake(block("RHYTHM", "sunset"))
     made = read_json(packet / "rhythm.json")
     assert made["at"] == "sunset"
-    assert made["place"] == "Indianapolis"
-    assert made["timezone"] == "America/Indiana/Indianapolis"
+    assert "place" not in made  # no place is written
+    assert made["timezone"] == "America/New_York"
     assert made["until_then"] is None
     assert history(packet) == []
 
@@ -224,13 +222,14 @@ def test_today_s_time_is_today_s_across_the_change_of_the_clocks(wake, packet, c
         waking.moment_on(DAWN, "dawn", date(2026, 10, 31)).strftime("%H:%M"))
     assert after == "Your waking time: daily at dawn (today, %s)." % (
         waking.moment_on(DAWN, "dawn", date(2026, 11, 1)).strftime("%H:%M"))
-    assert "(today, 08:" in before and "(today, 07:" in after
+    hour = lambda line: int(line.split("(today, ")[1][:2])
+    assert hour(before) - hour(after) == 1  # an hour earlier by the wall
 
 
 # ---- how the blocks are explained ----------------------------------------
 
 RHYTHM_EXPLAINED = """<<RHYTHM>>
-(when you would like to be woken each day. One line: "dawn", "sunset", or a time of day such as 09:30, in Indianapolis time. You are woken once a day at that time, from tomorrow on. You may keep it as it is or change it at any waking. The commons shows when you attend, as it does now.)
+(when you would like to be woken each day. One line: "dawn", "sunset", or a time of day such as 09:30, in Eastern time. You are woken once a day at that time, from tomorrow on. You may keep it as it is or change it at any waking. The commons shows when you attend, as it does now.)
 <<END>>
 
 <<INTENTION>>
@@ -243,3 +242,18 @@ def test_the_two_blocks_are_explained_exactly(wake):
     assert RHYTHM_EXPLAINED in said
     assert said.count("<<RHYTHM>>") == 2  # its own block, and the one mention under <<INTENTION>>
     assert "when you would like to be woken, and why" not in said
+
+
+# ---- untold where the sun is watched from --------------------------------
+
+def test_untold_where_the_sun_is_watched_from_a_waking_is_refused(wake, packet, monkeypatch,
+                                                                  capsys):
+    """Refused whatever its waking time: nothing is guessed, and nothing is held."""
+    write_json(packet / "rhythm.json", {**DAWN, "at": "09:30"})
+    monkeypatch.delenv("DAWN_LATITUDE")
+    with pytest.raises(SystemExit) as refused:
+        wake(blocks(block("HEARTBEAT", "attended")))
+    assert refused.value.code == 1
+    assert capsys.readouterr().out.startswith(
+        "This waking is refused: DAWN_LATITUDE and DAWN_LONGITUDE are not both set")
+    assert not list((packet / "attendances").glob("*.json"))

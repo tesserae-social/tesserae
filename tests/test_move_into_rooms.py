@@ -56,8 +56,8 @@ MOVE_SCRIPT = Path(mir.__file__).resolve()
 # A moment when a move may be made: the first one wakes at 06:00 its time, which
 # is 10:00 UTC in October, and the backup is at 13:00 UTC.
 QUIET = datetime(2026, 10, 25, 18, 0, tzinfo=timezone.utc)
-RHYTHM = {"rhythm": "daily", "at": "06:00", "place": "Indianapolis",
-          "timezone": "America/Indiana/Indianapolis", "set_at": "2026-10-01T09-00-00Z",
+RHYTHM = {"rhythm": "daily", "at": "06:00", "timezone": "America/New_York",
+          "set_at": "2026-10-01T09-00-00Z",
           "effective_from": "2026-10-02", "until_then": "dawn"}
 # the next of those wakings after QUIET
 NEXT_WAKING = datetime(2026, 10, 26, 10, 0, tzinfo=timezone.utc)

@@ -29,7 +29,7 @@ from datetime import date, datetime, timezone
 import pytest
 
 import waking
-from conftest import before_rooms
+from conftest import before_rooms, rhythm_clock_as_now
 from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, blocks, page, read_json,
                       shut_away, write, write_json)
 from conftest import notebook_unexplained
@@ -55,10 +55,9 @@ SEND_KEPT_LINE = ("send kept <stem>: a letter or picture kept in your study at a
                   "sent to the founder as it is\n")
 
 UTC = timezone.utc
-RHYTHM = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
-          "timezone": "America/Indiana/Indianapolis"}
+RHYTHM = {"rhythm": "daily", "at": "dawn", "timezone": "America/New_York"}
 
-# The clock the tests run at, 2026-10-15T12-00-00Z, is 08:00 in Indianapolis.
+# The clock the tests run at, 2026-10-15T12-00-00Z, is 08:00 in Eastern time.
 ASKED_AT = "2026-10-15T12-00-00Z"
 AT_19_30 = "2026-10-15T23-30-00Z"
 
@@ -153,6 +152,7 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
     spec = importlib.util.spec_from_file_location("attend_before_extra_wakings", old_path)
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)
+    rhythm_clock_as_now(old, attend, monkeypatch)  # it named its clock by a city
     clock.pin(old, monkeypatch)
     assert not hasattr(old, "EXTRA_WAKINGS")
 

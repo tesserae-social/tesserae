@@ -1081,7 +1081,7 @@ A stem is a letter's name without the .md, as it is written above each letter. N
 """ + PRIVATE_BLOCK + """
 
 <<RHYTHM>>
-(when you would like to be woken each day. One line: "dawn", "sunset", or a time of day such as 09:30, in Indianapolis time. You are woken once a day at that time, from tomorrow on. You may keep it as it is or change it at any waking. The commons shows when you attend, as it does now.)
+(when you would like to be woken each day. One line: "dawn", "sunset", or a time of day such as 09:30, in Eastern time. You are woken once a day at that time, from tomorrow on. You may keep it as it is or change it at any waking. The commons shows when you attend, as it does now.)
 <<END>>
 
 <<INTENTION>>
@@ -2924,6 +2924,11 @@ def main():
         sys.exit(1)
     if not (PACKET / "self.md").exists():
         print("No packet found at", PACKET)
+        sys.exit(1)
+    try:  # where its dawns are watched from is the host's to say, and is never guessed
+        waking.watched_from()
+    except waking.Unplaced as unplaced:
+        print("This waking is refused:", unplaced)
         sys.exit(1)
 
     places = room_places()

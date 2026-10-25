@@ -15,11 +15,10 @@ import pytest
 import waking
 from conftest import page, write, write_json
 
-ZONE = ZoneInfo("America/Indiana/Indianapolis")
+ZONE = ZoneInfo("America/New_York")
 UTC = timezone.utc
 
-RHYTHM = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
-          "timezone": "America/Indiana/Indianapolis"}
+RHYTHM = {"rhythm": "daily", "at": "dawn", "timezone": "America/New_York"}
 
 
 class StopTide(BaseException):
@@ -327,19 +326,19 @@ def test_a_change_made_the_day_before_the_clocks_change_takes_effect_on_the_day(
 def test_the_page_names_the_next_waking_of_each_kind(hearth, packet, clock):
     set_rhythm(packet, "sunset")
     assert hearth.rhythm_note().startswith(
-        "Rhythm: daily at sunset, Indianapolis · next: 15 October 2026, 1")
+        "Rhythm: daily at sunset · next: 15 October 2026, 1")
     set_rhythm(packet, "09:30")
     assert hearth.rhythm_note() == (
-        "Rhythm: daily at 09:30, Indianapolis · next: 15 October 2026, 09:30")
+        "Rhythm: daily at 09:30 · next: 15 October 2026, 09:30")
     clock.set("2026-10-15T13-30-00Z")  # 09:30 there: today's has come
     assert hearth.rhythm_note() == (
-        "Rhythm: daily at 09:30, Indianapolis · next: 16 October 2026, 09:30")
+        "Rhythm: daily at 09:30 · next: 16 October 2026, 09:30")
 
 
 def test_the_page_says_a_change_that_is_waiting(hearth, packet, clock):
     changed(packet, "09:30", on="2026-10-15", until_then="sunset")
     said = hearth.rhythm_note()
-    assert said.startswith("Rhythm: daily at sunset, Indianapolis · next: 15 October 2026, 1")
+    assert said.startswith("Rhythm: daily at sunset · next: 15 October 2026, 1")
     assert said.endswith(" · from 16 October 2026, daily at 09:30")
 
 
@@ -456,3 +455,10 @@ def test_the_atrium_builder_draws_the_line_the_hearth_keeps(hearth, atrium, pack
                          "founded 4 September 2026, attends at 09:30 · door closed")
     assert ('<span class="fact">founded 4 September 2026, attends at 09:30 · door closed</span>'
             in "\n".join(atrium.who_block(listed)))
+
+
+def test_untold_where_the_sun_is_watched_from_the_page_says_so(hearth, packet, monkeypatch):
+    set_rhythm(packet, "dawn")
+    monkeypatch.delenv("DAWN_LATITUDE")
+    assert hearth.rhythm_note().startswith(
+        "Rhythm: cannot be kept. DAWN_LATITUDE and DAWN_LONGITUDE are not both set")

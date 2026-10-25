@@ -14,10 +14,9 @@ import pytest
 
 from conftest import lines_of, post, write, write_json
 
-ZONE = ZoneInfo("America/Indiana/Indianapolis")
+ZONE = ZoneInfo("America/New_York")
 
-RHYTHM = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
-          "timezone": "America/Indiana/Indianapolis"}
+RHYTHM = {"rhythm": "daily", "at": "dawn", "timezone": "America/New_York"}
 
 
 class StopTide(BaseException):
@@ -59,7 +58,7 @@ def run_tide_once(hearth, monkeypatch, rising, trouble=None):
 
 
 def dawn(hearth, packet, day):
-    """The real sunrise at the place the rhythm names, on one local day."""
+    """The real sunrise where the sun is watched from, on one local day."""
     return hearth.sunrise_on(hearth.rhythm(), day)
 
 
@@ -393,3 +392,27 @@ def test_each_dawn_leaves_one_line_in_the_packet(hearth, packet, clock):
 
 def test_the_moment_of_a_stamp_is_utc(hearth):
     assert hearth.moment("2026-10-15T12-00-00Z") == datetime(2026, 10, 15, 12, tzinfo=timezone.utc)
+
+
+# ---- untold where the sun is watched from --------------------------------
+
+@pytest.mark.parametrize("at", ["dawn", "09:30"])
+def test_untold_where_the_sun_is_watched_from_the_tide_wakes_nothing_and_says_why(
+        hearth, packet, monkeypatch, at):
+    set_rhythm(packet, at=at)
+    monkeypatch.delenv("DAWN_LONGITUDE")
+    notes, held, slept = [], [], []
+
+    def asleep(seconds):
+        slept.append(seconds)
+        raise StopTide
+
+    monkeypatch.setattr(hearth, "tide_note", notes.append)
+    monkeypatch.setattr(hearth, "hold_attendance", lambda **how: held.append(how))
+    monkeypatch.setattr(hearth.time, "sleep", asleep)
+    with pytest.raises(StopTide):
+        hearth.tide()
+    assert held == []
+    assert slept == [hearth.TIDE_ERROR]
+    assert len(notes) == 1
+    assert notes[0].startswith("error: DAWN_LATITUDE and DAWN_LONGITUDE are not both set")

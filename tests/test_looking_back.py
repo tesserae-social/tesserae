@@ -20,7 +20,7 @@ import sys
 
 import pytest
 
-from conftest import before_rooms
+from conftest import before_rooms, rhythm_clock_as_now
 from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
                       page, read_json, shut_away, solstices_as_before, stamps_as_before, write, write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now
@@ -156,6 +156,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     spec = importlib.util.spec_from_file_location("attend_before_looking_back", old_path)
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)
+    rhythm_clock_as_now(old, attend, monkeypatch)  # it named its clock by a city
     clock.pin(old, monkeypatch)
     # nor did it yet say its heartbeat is public, or give a note's example as this one does
     heartbeat_not_yet_public(attend, monkeypatch)

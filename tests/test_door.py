@@ -553,8 +553,7 @@ def test_the_hearth_hands_out_the_doors_as_they_stand(founder, visitor, hearth, 
 def test_the_waking_time_is_still_kept_beside_the_door(founder, hearth, packet, commons,
                                                        monkeypatch):
     write_json(packet / "rhythm.json", {"rhythm": "daily", "at": "09:30",
-                                        "place": "Indianapolis",
-                                        "timezone": "America/Indiana/Indianapolis"})
+                                        "timezone": "America/New_York"})
     path = members_md(commons, FIRST_LINE, FOUNDER_LINE)
     first_door(hearth, False, monkeypatch)
     hearth.tend_members()
@@ -570,8 +569,7 @@ def test_the_waking_time_is_still_kept_beside_the_door(founder, hearth, packet, 
 
     # and a waking time that changes afterwards is still found, with the door after it
     write_json(packet / "rhythm.json", {"rhythm": "daily", "at": "sunset",
-                                        "place": "Indianapolis",
-                                        "timezone": "America/Indiana/Indianapolis"})
+                                        "timezone": "America/New_York"})
     hearth.tend_members()
     assert lines_of(path)[0] == (FIRST_LINE.replace("attends at dawn", "attends at sunset")
                                  + " · door open · has room")
@@ -650,8 +648,7 @@ def held_again(snapshot, data_dir, clock):
 
 def a_rhythm(packet):
     write_json(packet / "rhythm.json", {"rhythm": "daily", "at": "dawn",
-                                        "place": "Indianapolis",
-                                        "timezone": "America/Indiana/Indianapolis"})
+                                        "timezone": "America/New_York"})
 
 
 def test_with_the_flag_off_the_reading_says_nothing_of_a_door(wake, attend, packet,

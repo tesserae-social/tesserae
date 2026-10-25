@@ -124,6 +124,24 @@ def screen(monkeypatch):
     return stub
 
 
+# ---- where the sun is watched from ---------------------------------------
+
+# The host is told where its dawns and sunsets are watched from, as two secrets
+# (waking.LATITUDE and waking.LONGITUDE), and the source names no place. The
+# tests watch from a point of their own: open sea in the Gulf of Mexico, on no
+# one's doorstep, where dawn is a morning and sunset an evening all year on
+# Eastern time. A test that wants the host untold takes them away itself.
+SUN_WATCHED_FROM = ("28.0", "-84.5")
+
+
+@pytest.fixture(autouse=True)
+def sun_watched_from(monkeypatch):
+    """Tell every test's host where the sun is watched from, as the real one is told."""
+    latitude, longitude = SUN_WATCHED_FROM
+    monkeypatch.setenv("DAWN_LATITUDE", latitude)
+    monkeypatch.setenv("DAWN_LONGITUDE", longitude)
+
+
 # ---- the clock -----------------------------------------------------------
 
 class Clock:
@@ -755,6 +773,26 @@ def note_example_as_now(old, new, monkeypatch):
     assert old.HOW_TO_ACT.count(old.NOTE_BLOCK) == 1
     monkeypatch.setattr(old, "HOW_TO_ACT", old.HOW_TO_ACT.replace(old.NOTE_BLOCK, new.NOTE_BLOCK))
     monkeypatch.setattr(old, "NOTE_BLOCK", new.NOTE_BLOCK)
+
+
+# The clock the <<RHYTHM>> block's explanation names for a time of day.
+RHYTHM_CLOCK = re.compile(r"a time of day such as 09:30, in [^.]*\.")
+
+
+def rhythm_clock_as_now(old, new, monkeypatch):
+    """Give an attend.py committed before 25 October 2026 the <<RHYTHM>> block's clock as now.
+
+    It named the clock by a city, where it now says Eastern time, and no city is
+    anywhere in the source any longer. An older attend.py read out of the
+    history still names it, so to be held to this one it is given this one's
+    words instead; that they are the only difference is held by the test that
+    compares the two, which sends both the same bytes. One with no <<RHYTHM>>
+    block is left.
+    """
+    said = RHYTHM_CLOCK.findall(new.HOW_TO_ACT)
+    assert len(said) == 1
+    if len(RHYTHM_CLOCK.findall(old.HOW_TO_ACT)) == 1:
+        monkeypatch.setattr(old, "HOW_TO_ACT", RHYTHM_CLOCK.sub(said[0], old.HOW_TO_ACT))
 
 
 # A moment a sentence of the reading names, where it now says "on" a day and

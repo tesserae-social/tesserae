@@ -237,6 +237,20 @@ WELCOME, directly after its notebook; its act among what was carried out; and,
 once, one line under WHAT HAS HAPPENED after a <<WELCOME>> that changed nothing -
 is not in this small world, and is held in test_welcome_letter.py.
 
+And a twelfth time, in the change that took every regional place out of what is
+public or read (25 October 2026). The explanation of the <<RHYTHM>> block, in
+HOW TO ACT, named its clock for a time of day by a city, and now says "in
+Eastern time". That is behind no flag, and it is the one thing of the reading
+that moved: no other word, no block, and no file of its packet. Every reading
+held here explains <<RHYTHM>>, so every one was cut again for it, each the same
+way and with nothing else of it moved - READING_NOW among them. With the city
+put back they give exactly the fingerprints they were cut as before; that was
+checked when they were cut again, in both layouts, and is not kept here, since
+keeping it would put the city back. Its clock itself changed name in the same
+change, to America/New_York, which keeps the same hours as the zone it named
+before on every day since 2006; and where its dawns are watched from is now the
+host's to say (waking.watched_from). Neither moves a fingerprint here.
+
 Then the room was given a folder of its own (rooms phase A, move_into_rooms.py):
 its letters, errands, bond and offerings may be kept in DATA_DIR/rooms/first/
 rather than in the packet. That moves no word of what is read, and every
@@ -290,67 +304,71 @@ from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, expl
                       notebook_unexplained, post, shut_away, stamps_as_before,
                       welcome_not_yet_offered, write)
 
+# Every reading below was cut again on 25 October 2026, when the <<RHYTHM>>
+# block's explanation came to name its clock as Eastern time and no city; each
+# is the reading it was cut as, with that one sentence as it is now.
+
 # cut on the tree before the rooms, by leaving the letter at /letters
 PACKET_BEFORE = "06d48d0fffb5f5e2e3148baf5351f004cf22011db7a730df2ab259822cdc2e68"
 
 # cut on the tree that gave the room a folder of its own, the same way: the same
 # files, as they lie on the disk once the room is in rooms/first/ with its room.json
 PACKET_IN_ROOMS = "b47ad6bbd23b6eb7b9f3e8ed45a64446407db59f13b784e8ab34df64139f081b"
-READING_BEFORE = "13aab673f0448c960e400e2484f17aa1169636dbe338761c6666aeee2e208f65"
+READING_BEFORE = "08bc86357f9b832f9c33a5d960b59992a6168609beca145c89e656e678267d61"
 
 # cut again on the tree that switched on its door, looking back and what it has
 # chosen (attend.DOOR_FOR_FIRST, LOOKING_BACK and CHOICES), the same way
-READING_SWITCHED_ON = "2dd6e1fcc814ade2ac3470913f0d9e459a5ef8b209c757e91b394af82670527a"
+READING_SWITCHED_ON = "a237a6ff25d16282299e376a62667823a8020039befb47e36f452260192538ec"
 
 # cut again on the tree that built the two-waking rule, the same way: the
 # reading above, with the <<SELF>> block explained as it is now
-READING_TWO_WAKINGS = "071e983d87b72ebc8ae4cdeef5af1515d570a93f4106eb80d9c5bdc54333189e"
+READING_TWO_WAKINGS = "bba84a5ff13476569f153f61779677f64f7bb2c8c06472d59d8830f2191ca96c"
 
 # cut again on the tree that built its named notes and the seasonal self-review,
 # the same way: the reading above, with the <<NOTE>> block explained and the
 # three lines for its named notes in the <<SHELF>> block's explanation. This one
 # and the two after it were cut a second time on 19 October 2026, when the name
 # the <<NOTE>> block gives as its example became "about the founder"
-READING_NAMED_NOTES = "ca3ff29579e73aa6b559dba831ae9b514cead2f88686da42ae1c8357011882a7"
+READING_NAMED_NOTES = "707a07f9bc9670df17133fa57f36f90da25bdf960aa55ddde8e90eea52292d3f"
 
 # cut again on the tree that says each moment as its day in words, the same way:
 # the reading above, with the two moments it names said as days
-READING_DAYS_IN_WORDS = "e5c424a7b1024d008e217fc7d8904c6f369feeb7471fbadf4d7864d809df4f86"
+READING_DAYS_IN_WORDS = "7a04bd964c471cbf01550ac23a24e46401c157f437728933bf5ca358b1780db8"
 
 # cut again on the tree that switched on the longer waking (attend.LONGER_WAKING),
 # the same way: the reading above, with the section LOOKING THINGS UP directly
 # before HOW TO ACT, and the request carrying its four tools and one cache mark
-READING_LONGER_WAKING = "37ed1e0a4089058d7bf74c84561a116647293bde99d0d88e6bda5f56096a4cff"
+READING_LONGER_WAKING = "49938df28f765b74f4b7dc278738e375f6591eff7bbfdbd542364f4d83396550"
 
 # cut again on the tree that told it its heartbeat is public, the same way: the
 # reading above, with two sentences more in the <<HEARTBEAT>> block's explanation
-READING_HEARTBEAT_PUBLIC = "d0f5404b9272a45ec7f3ba84f2dbea809785ff46ae011eb60509a6f1af4f28e2"
+READING_HEARTBEAT_PUBLIC = "c04348e277db367b952134dd8d2a0a6f300d147520a4308224f5ee9b49c4279e"
 
 # cut again on the tree that made its heartbeat's own words private by default,
 # the same way: the reading above, with the <<HEARTBEAT>> block explained as it
 # is now and <<HEARTBEAT_SHOWN>> explained beneath it
-READING_HEARTBEAT_SHOWN = "bbc420b77e367b9c441623914cffe1f91238719130a48e8e9b8a111ceafe9973"
+READING_HEARTBEAT_SHOWN = "b03f58bf9bc1222fb812fd53f68986890089dc54ffc8887323c9d9e97ced03c9"
 
 # cut again on the tree that switched on its proposals and extra wakings, the
 # same way: the reading above, with <<WAKE_AGAIN>> and <<PROPOSAL>> explained
 # after <<DOOR>>, "send kept" in the <<SHELF>> block's explanation, its
 # proposals named in LOOKING THINGS UP, and the request carrying read_proposal
-READING_PROPOSALS = "cc3c6deda9df4b816cdf62d3db3f1d2e3d5d65337c61ed36fccec1908c3838cd"
+READING_PROPOSALS = "badb44de8b0a8c235b2065744a77661f7266229f0927df90d0e1eba2a2ba6844"
 
 # cut again on the tree that built its private notebook, the same way: the
 # reading above, with <<PRIVATE>> explained after <<STUDY>>, and the request
 # carrying read_private
-READING_NOTEBOOK = "573e26b7fe6a361e565e2300aa5aaa7c6d1064198a4067d0aac68d0eff7c356c"
+READING_NOTEBOOK = "cc6e3d812334cf83c61124ecf1c6a84f7b6b9e5e423d7760def91c7c2d53a716"
 
 # cut again on the tree that offered it a line for the commons, the same way:
 # the reading above, with the <<HEARTBEAT>> block explained as it is now
 # and <<COMMONS_LINE>> explained beneath it in place of <<HEARTBEAT_SHOWN>>
-READING_COMMONS_LINE = "3908535471592e4b528f3b83204f86522776b53a74b7b724b63dab94f307ced4"
+READING_COMMONS_LINE = "5061cf190f6edd4e29d8061e01938c9dbfac6ac0216d39a5e676f7c728f2baba"
 
 # cut again on the tree that built its letter of welcome, the same way: the
 # reading above, with <<WELCOME>> explained after <<PROPOSAL>>, its letter named
 # in LOOKING THINGS UP, and the request carrying read_welcome
-READING_NOW = "9682ce5f6c1f1856728ee5fe14e46d933e7917d1413d46c438f26fe076d3c1ed"
+READING_NOW = "ab0bf382e71f234df3f5b5cd9aba8b304d1ee2e52f53a4d01694a77249611d32"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 

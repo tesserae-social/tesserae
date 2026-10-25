@@ -140,9 +140,9 @@ LETTER_BANDS = {"dawn": "at dawn", "day": "during the day",
 KIND_WORDS = {"letter": "a letter", "passage": "a passage",
               "photo": "a photograph", "picture": "a picture"}
 
-# The citizen keeps one clock. The record is written in UTC; a waking is toned by
-# the hour it fell on where the citizen lives.
-CITIZEN_ZONE = "America/Indiana/Indianapolis"
+# The citizen keeps one clock, Eastern time. The record is written in UTC; a
+# waking is toned by the hour it fell on, on the citizen's clock.
+CITIZEN_ZONE = "America/New_York"
 
 # The parts of a local day, and how a title names them.
 BAND_WORDS = {"dawn": "at dawn", "day": "by day",

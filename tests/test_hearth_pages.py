@@ -14,8 +14,7 @@ REFLECTION = "What I thought about at this waking."
 OLDER = "2026-10-01T09-00-00Z"
 NEWER = "2026-10-05T09-00-00Z"
 
-RHYTHM = {"rhythm": "daily", "at": "dawn", "place": "Indianapolis",
-          "timezone": "America/Indiana/Indianapolis"}
+RHYTHM = {"rhythm": "daily", "at": "dawn", "timezone": "America/New_York"}
 
 # everything a visitor may reach without the password
 OPEN_PATHS = ["/login", "/bench", "/commons", "/commons/heartbeats.md",
@@ -234,7 +233,7 @@ def test_with_no_rhythm_the_page_says_so(founder):
 def test_with_a_rhythm_the_page_names_the_next_dawn(founder, packet):
     write_json(packet / "rhythm.json", RHYTHM)
     said = page(founder.get("/attendances"))
-    assert "Rhythm: daily at dawn, Indianapolis · next: 16 October 2026, 0" in said
+    assert "Rhythm: daily at dawn · next: 16 October 2026, 0" in said
 
 
 def no_events(commons):

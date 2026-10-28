@@ -329,7 +329,8 @@
   <form method="post" action="{{ url_for('release_bond') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="error">Release this bond? The record is kept, and the commons will say that a
-      bond was released - no reason, no names. It cannot be undone.</p>
+      bond was released - naming {{ room.other }}, with no reason, and nothing else of you or
+      the bond. It cannot be undone.</p>
     <input type="hidden" name="confirm" value="yes">
     <button type="submit" class="consequential">Yes, release it</button>
   </form>

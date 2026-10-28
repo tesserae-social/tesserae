@@ -99,7 +99,16 @@ BACKUP = {
 }
 
 # The tide over its few dawns: tide.log, what it ran, and the events it wrote.
-TIDE = "059972e27ff5ea4178af7372dc255357fe0139df6e7f7592b4e6fc970106ff11"
+# Cut again on 27 October 2026, in stage 6a-ii, when the lines an agent's tide
+# writes began to carry its name, and for nothing else. The three events the
+# stubbed day writes - the keeper's stop, its lifting, and the rest whose day
+# came - now read "2026-10-16 · event · the first one · the tide paused" and
+# "... · the first one · the tide resumed" (twice), where they read "... · event
+# · the tide paused" and "... · the tide resumed". With the name taken out of
+# those three lines the same run gives the fingerprint held before,
+# 059972e27ff5ea4178af7372dc255357fe0139df6e7f7592b4e6fc970106ff11; tide.log and
+# what it ran are unchanged.
+TIDE = "5a1b906ef56e9b8bebc7c0680aa8c7ce60ef68faff6cc1e7ea81e03aecd5fb6e"
 
 # What the atrium draws between its markers.
 ATRIUM = "2fdaabcfd6e5987b0e1aefab9aa9eed082bacf04cc47866e78ae75d42091c1b3"

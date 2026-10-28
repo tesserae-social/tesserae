@@ -133,6 +133,13 @@ NAMED_KINDS = ("event", "offering", "seal")
 # What comes between the name and the rest of the words, as events.md is read.
 AFTER_A_NAME = " · "
 
+# A seal names its two parties in its own words, the person and then the agent,
+# so nothing is put before them (bonds.sealed_words):
+#
+#     a bond was sealed between the founder and the first one
+SEALED_BETWEEN = "a bond was sealed between "
+AND_THE_AGENT = " and "
+
 
 def named(kind, words):
     """The agent one line of events.md is named for, and its words without the name: or None.
@@ -140,6 +147,9 @@ def named(kind, words):
     A line written before agents were named in the record, or one of a kind
     that is never named, is None. The longest name is tried first, so that no
     agent's line is taken for another's whose name begins the same way.
+
+    A seal is the agent's whose name ends its words, after "and"; its words are
+    the sentence whole, since the name is part of it.
     """
     if kind not in NAMED_KINDS:
         return None
@@ -148,4 +158,16 @@ def named(kind, words):
     for name, agent in called:
         if words.startswith(name + AFTER_A_NAME):
             return agent, words[len(name + AFTER_A_NAME):]
+    if kind == "seal" and words.startswith(SEALED_BETWEEN):
+        for name, agent in called:
+            if words.endswith(AND_THE_AGENT + name):
+                return agent, words
     return None
+
+
+def event_words(agent, words):
+    """The words of a line of events.md that is an agent's own, with its name before them.
+
+    The name is the agent's commons name as it is now, and named() reads it back.
+    """
+    return agent["commons_name"] + AFTER_A_NAME + words

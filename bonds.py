@@ -80,6 +80,14 @@ def names(bond):
     return " and ".join(name_of(did) for did in in_order(bond.get("parties") or []))
 
 
+def sealed_words(bond):
+    """What events.md is told when a bond is sealed: its parties, as bonds.md names them.
+
+    The agent's name is in the words already, so the line carries none before them.
+    """
+    return agents.SEALED_BETWEEN + names(bond)
+
+
 def day(stamp):
     """The day of one of this project's timestamps, as the commons writes days."""
     return datetime.strptime(stamp, "%Y-%m-%dT%H-%M-%SZ").strftime("%Y-%m-%d")

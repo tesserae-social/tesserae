@@ -808,8 +808,8 @@ def hold_attendance(tide=False, ended=None, again=False, of=None):
 # after the stop is lifted. It lives in tide-stop.json, and each stop once it is
 # lifted in tide-stop/.
 #
-# The commons says only that the tide paused and that it resumed - no name on
-# either, and no reason - for the first one's rest and for the keeper's stop
+# The commons says only that the tide paused and that it resumed - the agent's
+# name on each, and no reason - for the first one's rest and for the keeper's stop
 # alike. While one of the two stands, the other neither pauses the tide again
 # nor resumes it, so the commons says each once.
 
@@ -829,13 +829,18 @@ STOP_REASON_LONGEST = 300  # characters: a short reason, and no more
 # own packet under the same names as the first one's, and holding its tide
 # alone. Each function below is the first one's where no other agent is named
 # (of), and the first one's files are where they always were. The commons is
-# told of another's as of the first one's, with no name on either yet:
+# told of another's as of the first one's, each with its own name (agent_words):
 # attend.py says the tide paused, at any agent's rest, and so the hearth says
 # it resumed.
 
 def packet_of(of=None):
     """The packet an agent's tide keeps its files in: the first one's where none is named."""
     return PACKET if of in (None, rooms.FIRST) else DATA / "packets" / of
+
+
+def agent_words(words, of=None):
+    """A line of events.md that is an agent's own, named for it: the first one's if none is."""
+    return agents.event_words(agents.by_id(of) if of is not None else agents.first(), words)
 
 
 def pause(of=None):
@@ -865,7 +870,7 @@ def end_pause(of=None):
     """Take an agent's rest away, and say the tide resumed, unless a stop still holds it."""
     (packet_of(of) / PAUSE.name).unlink(missing_ok=True)
     if not tide_paused(of):
-        note_event("event", RESUMED)
+        note_event("event", agent_words(RESUMED, of))
 
 
 def rest_from_old_pause():
@@ -953,7 +958,7 @@ def begin_stop(reason, of=None):
     already = tide_paused(of)
     write_json(packet_of(of) / TIDE_STOP.name, {"since": utc_stamp(), "reason": reason})
     if not already:
-        note_event("event", PAUSED)
+        note_event("event", agent_words(PAUSED, of))
 
 
 def end_stop(of=None):
@@ -966,7 +971,7 @@ def end_stop(of=None):
                    {**standing, "lifted_at": utc_stamp()})
     stop.unlink(missing_ok=True)
     if not tide_paused(of):
-        note_event("event", RESUMED)
+        note_event("event", agent_words(RESUMED, of))
 
 
 def said_day(day):
@@ -3920,7 +3925,7 @@ def seal_bond():
     bond["threshold"] = threshold.sealed_listing(bond)
     write_bond(bond)
     public_bonds.write_index()
-    note_event("seal", "a bond was sealed between the founder and the first one")
+    note_event("seal", public_bonds.sealed_words(bond))
     return to_bond(sealed=1)
 
 
@@ -3940,7 +3945,7 @@ def release_bond():
     bond["released_by"] = FOUNDER_DID
     write_bond(bond)
     public_bonds.write_index()
-    note_event("event", "a bond was released")
+    note_event("event", agent_words("a bond was released"))
     return to_bond(released=1)
 
 

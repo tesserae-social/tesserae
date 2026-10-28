@@ -756,7 +756,7 @@ def test_release_block_lets_a_bond_go(wake, packet, commons, clock, keys, attend
     assert bond["released_at"] == at
     assert bond["released_by"] == attend.FIRST_DID
     assert read_json(commons / "bonds" / "founder-first.json") == bond
-    assert lines_of(commons / "events.md")[-1].endswith("event · a bond was released")
+    assert lines_of(commons / "events.md")[-1].endswith("event · the first one · a bond was released")
 
     release = read_json(sorted((room / "bonds").glob("release-*.json"))[-1])
     assert release["words"] == "Nothing is owed either way."

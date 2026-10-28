@@ -154,12 +154,12 @@ def test_the_keeper_s_stop_holds_the_tide(hearth, packet, monkeypatch, commons):
     notes, held = run_tide_once(hearth, monkeypatch, dawn(hearth, packet, date(2026, 10, 15)))
     assert notes == ["stopped by the keeper"]
     assert held == []
-    assert lines_of(commons / "events.md")[-1].endswith("event · " + hearth.PAUSED)
+    assert lines_of(commons / "events.md")[-1].endswith("event · the first one · " + hearth.PAUSED)
 
     hearth.end_stop()
     notes, held = run_tide_once(hearth, monkeypatch, dawn(hearth, packet, date(2026, 10, 15)))
     assert notes == ["ran"]
-    assert lines_of(commons / "events.md")[-1].endswith("event · " + hearth.RESUMED)
+    assert lines_of(commons / "events.md")[-1].endswith("event · the first one · " + hearth.RESUMED)
 
 
 def test_a_stop_holds_even_a_rest_whose_day_has_come(hearth, packet, monkeypatch, commons):
@@ -178,7 +178,8 @@ def test_a_stop_holds_even_a_rest_whose_day_has_come(hearth, packet, monkeypatch
     assert lines_of(commons / "events.md") == before  # and is still, until its rest ends
     notes, held = run_tide_once(hearth, monkeypatch, dawn(hearth, packet, date(2026, 10, 15)))
     assert notes == ["rest ended: %s" % hearth.BY_DATE, "ran"]
-    assert lines_of(commons / "events.md") == before + ["2026-10-15 · event · " + hearth.RESUMED]
+    assert lines_of(commons / "events.md") == before + [
+        "2026-10-15 · event · the first one · " + hearth.RESUMED]
 
 
 def test_a_founder_s_pause_from_before_holds_the_tide_no_longer(hearth, packet, monkeypatch,
@@ -193,7 +194,8 @@ def test_a_founder_s_pause_from_before_holds_the_tide_no_longer(hearth, packet, 
     assert not (packet / "pause.json").exists()
     assert json.loads((packet / "founder-rest.json").read_text(encoding="utf-8")) == {
         "since": "2026-10-10T09-00-00Z", "until": None, "from": "pause.json"}
-    assert lines_of(commons / "events.md") == before + ["2026-10-15 · event · " + hearth.RESUMED]
+    assert lines_of(commons / "events.md") == before + [
+        "2026-10-15 · event · the first one · " + hearth.RESUMED]
 
 
 def test_a_rest_of_its_own_before_the_day_it_named(hearth, packet, monkeypatch):
@@ -215,7 +217,7 @@ def test_a_rest_ends_on_the_day_it_named(hearth, packet, monkeypatch, commons, u
     assert notes == ["rest ended: %s" % hearth.BY_DATE, "ran"]
     assert held == [{"tide": True, "ended": hearth.BY_DATE}]
     assert not (packet / "pause.json").exists()
-    assert lines_of(commons / "events.md")[-1].endswith("event · " + hearth.RESUMED)
+    assert lines_of(commons / "events.md")[-1].endswith("event · the first one · " + hearth.RESUMED)
 
 
 def test_a_rest_that_waits_for_a_letter_waits(hearth, packet, monkeypatch):

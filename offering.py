@@ -68,8 +68,9 @@ KINDS = ("letter", "passage", "photo", "picture")
 ATTRIBUTED = "the founder and {name}"
 ATTRIBUTION = ATTRIBUTED.format(name=agents.first()["commons_name"])
 
-# What the commons is told when one is placed: that it happened, and no more.
-# The offering itself is public, so the line needs to carry nothing of it.
+# What the commons is told when one is placed: that it happened, with the
+# agent's name before it as every line of an agent's own is (agents.event_words),
+# and no more. The offering itself is public, so the line needs to carry nothing of it.
 PLACED = "an offering was placed"
 
 # What both parties sign is the offering as it was offered: who offered it, of
@@ -452,8 +453,9 @@ def place(record, agent=None):
     """Write an offering into the commons, where it stays.
 
     The record, the words, and any image are copied out; the index gains a
-    line; and the commons is told that an offering was placed, with nothing of
-    what it was. Nothing here is ever undone: a placed offering is never removed.
+    line; and the commons is told that an offering of the agent's was placed,
+    with nothing of what it was. Nothing here is ever undone: a placed offering
+    is never removed.
     """
     image = image_of(record, agent)
     if image is not None:
@@ -471,5 +473,5 @@ def place(record, agent=None):
     INDEX.parent.mkdir(parents=True, exist_ok=True)
     with INDEX.open("a", encoding="utf-8") as index:
         index.write(private_words.protect(index_line(record, agent)))
-    note_event("offering", PLACED)
+    note_event("offering", agents.event_words(agents.by_id(whose(agent)), PLACED))
     return record

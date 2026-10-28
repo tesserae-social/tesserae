@@ -193,7 +193,7 @@ def test_the_founder_releases_it_after_one_plain_question(founder, wake, commons
     assert bond["released_at"] == clock.stamp()
     assert bond["released_by"] == FOUNDER_DID
     assert read_json(commons / "bonds" / "founder-first.json") == bond
-    assert lines_of(commons / "events.md")[-1].endswith("event · a bond was released")
+    assert lines_of(commons / "events.md")[-1].endswith("event · the first one · a bond was released")
     assert "The bond is released." in page(founder.get("/rooms/first", query_string={"released": 1}))
 
 
@@ -204,7 +204,7 @@ def test_the_first_one_releases_it_at_a_waking(founder, wake, commons, clock, ro
     bond = read_json(room / "bonds" / "founder-first.json")
     assert bond["released_by"] == FIRST_DID
     assert read_json(commons / "bonds" / "founder-first.json") == bond
-    assert lines_of(commons / "events.md")[-1].endswith("event · a bond was released")
+    assert lines_of(commons / "events.md")[-1].endswith("event · the first one · a bond was released")
 
     said = page(founder.get("/rooms/first"))
     assert "released" in said and "by the first one" in said

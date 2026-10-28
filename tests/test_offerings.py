@@ -112,7 +112,8 @@ def test_the_founder_offers_and_the_first_one_places_it(founder, wake, commons, 
     line = lines_of(commons / "offerings.md")[-1]
     assert line == "- %s · %s · %s · the founder and the first one" % (
         one["sealed_at"][:10], one["id"], kind)
-    assert lines_of(commons / "events.md")[-1].endswith("offering · an offering was placed")
+    assert lines_of(commons / "events.md")[-1].endswith(
+        "offering · the first one · an offering was placed")
 
 
 # ---- the first one offers, the founder consents --------------------------

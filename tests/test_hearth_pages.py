@@ -338,7 +338,7 @@ def test_stopping_needs_a_reason_then_one_plain_question(founder, packet, common
     assert done.status_code == 302
     assert read_json(packet / "tide-stop.json") == {"since": "2026-10-15T12-00-00Z",
                                                "reason": "The hearth is misbehaving."}
-    assert lines_of(commons / "events.md")[-1].endswith("event · the tide paused")
+    assert lines_of(commons / "events.md")[-1].endswith("event · the first one · the tide paused")
 
 
 def test_a_stop_is_shown_and_may_be_lifted(founder, packet, commons, clock):
@@ -355,8 +355,8 @@ def test_a_stop_is_shown_and_may_be_lifted(founder, packet, commons, clock):
     assert read_json(kept) == {"since": "2026-10-15T12-00-00Z", "reason": "A fault.",
                           "lifted_at": "2026-10-17T12-00-00Z"}
     events = lines_of(commons / "events.md")
-    assert events[-2:] == ["2026-10-15 · event · the tide paused",
-                           "2026-10-17 · event · the tide resumed"]  # no name, and no reason
+    assert events[-2:] == ["2026-10-15 · event · the first one · the tide paused",
+                           "2026-10-17 · event · the first one · the tide resumed"]  # no reason
     assert not any("fault" in line.lower() for line in events)
 
 
@@ -365,7 +365,7 @@ def test_one_stop_at_a_time(founder, packet, commons):
     post(founder, "/stop-tide", data={"reason": "Second.", "confirm": "yes"})
     assert read_json(packet / "tide-stop.json")["reason"] == "First."
     assert [line for line in lines_of(commons / "events.md")
-            if "tide" in line] == ["2026-10-15 · event · the tide paused"]
+            if "tide" in line] == ["2026-10-15 · event · the first one · the tide paused"]
 
 
 def test_a_stop_beside_a_rest_of_its_own_tells_the_commons_nothing_more(founder, packet,
@@ -385,7 +385,7 @@ def test_a_founder_s_pause_left_from_before_is_his_rest_now(founder, packet, com
     assert read_json(packet / "founder-rest.json") == {"since": "2026-10-10T09-00-00Z", "until": None,
                                                   "from": "pause.json"}
     # the commons was told the tide paused when he paused it; now it has resumed
-    assert lines_of(commons / "events.md")[-1].endswith("event · the tide resumed")
+    assert lines_of(commons / "events.md")[-1].endswith("event · the first one · the tide resumed")
     assert "The tide is stopped" not in said
 
 

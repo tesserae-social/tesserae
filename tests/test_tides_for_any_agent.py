@@ -344,7 +344,8 @@ def test_the_second_one_s_rest_ends_with_a_letter_in_its_own_room(hearth, monkey
         {"tide": True, "ended": "a letter arrived", "of": "second"}]
     assert not (packets(two)["second"] / "pause.json").exists()
     assert (packets(two)["first"] / "pause.json").exists()  # the first one's still stands
-    assert lines_of(two / "commons" / "events.md")[-1].endswith("· event · the tide resumed")
+    assert lines_of(two / "commons" / "events.md")[-1].endswith(
+        "· event · the scratch one · the tide resumed")
 
 
 def test_the_keeper_s_stop_of_the_second_holds_only_its_own_tide(hearth, monkeypatch, two,
@@ -364,7 +365,8 @@ def test_the_keeper_s_stop_of_the_second_holds_only_its_own_tide(hearth, monkeyp
         "tide-stop"]
     assert not (packets(two)["first"] / "tide-stop").exists()
     assert lines_of(two / "commons" / "events.md")[-2:] == [
-        "2026-10-15 · event · the tide paused", "2026-10-15 · event · the tide resumed"]
+        "2026-10-15 · event · the scratch one · the tide paused",
+        "2026-10-15 · event · the scratch one · the tide resumed"]
 
 
 def test_the_keeper_s_stop_of_the_first_holds_only_its_own_tide(hearth, monkeypatch, two,

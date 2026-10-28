@@ -1332,6 +1332,27 @@ class Turns:
 TURNS = Turns()
 
 
+class Noted(Exception):
+    """What went wrong in a tide's turn, already said in its tide.log."""
+
+
+@contextmanager
+def noting(how):
+    """Say what went wrong in a turn in tide.log while the turn is still held.
+
+    Noted once the turn was given up, the line would be stamped at whatever
+    moment the next tide's waking had reached. The tide is told it has been said.
+    """
+    try:
+        yield
+    except Exception as trouble:
+        try:
+            tide_note(f"error: {trouble}", **how)
+        except Exception:
+            pass
+        raise Noted(trouble) from trouble
+
+
 def wakes(who):
     """Whether the registry says an agent wakes: read afresh, so that a dormant one stays asleep."""
     agent = agents.by_id(who)
@@ -1390,14 +1411,15 @@ def tide(of=None):
                 if changed:
                     continue  # begin again from whatever is written now
 
-                with TURNS.turn(who, coming):
+                with TURNS.turn(who, coming), noting(how):
                     keep_waking_time(setting, coming, how)
             except Exception as trouble:  # the tide must outlive anything that goes wrong
                 TURNS.expect(who, None)  # and holds no other tide back while it waits
-                try:
-                    tide_note(f"error: {trouble}", **how)
-                except Exception:
-                    pass
+                if not isinstance(trouble, Noted):  # one gone wrong in its turn is said already
+                    try:
+                        tide_note(f"error: {trouble}", **how)
+                    except Exception:
+                        pass
                 time.sleep(TIDE_ERROR)
     finally:
         TURNS.expect(who, None)
@@ -1476,7 +1498,7 @@ def keep_extra_waking(setting, asked, when, of=None):
         changed = extra_waking(**how) != (asked, when) or rhythm(**how) != setting
     if changed:
         return  # begin again from whatever is written now
-    with TURNS.turn(who, when):
+    with TURNS.turn(who, when), noting(how):
         now = datetime.now(timezone.utc)
         if waking.today(setting, when) != waking.today(setting, now):
             set_extra_aside(asked, dropped_at=utc_stamp(), why="lapsed", **how)
@@ -2000,17 +2022,38 @@ def book_line(stamp, when, side, words, href=None, order=0):
             "side": side, "words": words, "href": href}
 
 
-def commons_lines():
-    """The commons' own record: the founding, the word, seals, releases, pauses.
+def commons_lines(agent=None):
+    """The commons' own record, as one agent's book has it: the first one's where none is named.
 
     These are the lines both of them share, so each takes both halves of its
     mark. The record keeps a day and no hour, and the book says no more than
     the record knows.
+
+    A line named for an agent (agents.named) is in that agent's book alone, and
+    is said there without the name, as the lines before there were names are.
+    Every line named for no one is the first one's, as all of them always were;
+    another agent's book has, of those, only the line of its own founding, the
+    one at its place in the order of founding, as attend.founding_day finds it.
     """
+    agent = agent or agents.first()
     if not EVENTS.exists():
         return []
-    return [book_line(when.strftime("%Y-%m-%dT00-00-00Z"), long_day(when), "both", words)
-            for when, _, words in parse_events(read_text(EVENTS))]
+    events = parse_events(read_text(EVENTS))
+    founded = sorted((one for one in events if one[1] == "founding"), key=lambda one: one[0])
+    place = [one["id"] for one in agents.registry()].index(agent["id"])
+    its_founding = founded[place] if place < len(founded) else None
+    lines = []
+    for when, kind, words in events:
+        found = agents.named(kind, words)
+        if found:
+            whose, words = found
+            if whose["id"] != agent["id"]:
+                continue
+        elif agent["id"] != rooms.FIRST and (when, kind, words) != its_founding:
+            continue
+        lines.append(book_line(when.strftime("%Y-%m-%dT00-00-00Z"), long_day(when), "both",
+                               words))
+    return lines
 
 
 def waking_lines(paused_days):
@@ -2071,6 +2114,8 @@ def bond_lines():
 def chronicle_lines():
     """The whole book, oldest first: one line for every event in the bond's life."""
     commons = commons_lines()
+    # the book's words are without a name, so a pause named for the first one is
+    # found here as one written before names were
     paused_days = {one["stamp"][:10] for one in commons if one["words"] == PAUSED}
     lines = commons + waking_lines(paused_days) + letter_lines() + bond_lines()
     lines.sort(key=lambda one: (one["stamp"], one["order"]))

@@ -24,6 +24,14 @@ and nothing is ever put before it.
 The file is read afresh each time it is asked after, and never written here.
 A file that is there and will not do is an error, said loudly: a registry that
 quietly fell back to the first one alone would hide every other agent.
+
+An entry may also say what the agent was called on the commons before its
+commons name was the one it has now, oldest first:
+
+    "formerly": ["the second one"]
+
+so that a line of the record written under an old name is still known for its.
+No name, now or before, is any two agents'.
 """
 
 import json
@@ -87,6 +95,15 @@ def registry():
             if (key, entry[key]) in seen:
                 raise RegistryError(f"{FILE.name}: two agents share the {key} {entry[key]!r}")
             seen[(key, entry[key])] = True
+        formerly = entry.get("formerly", [])
+        if not isinstance(formerly, list) or not all(
+                isinstance(name, str) and name for name in formerly):
+            raise RegistryError(f"{FILE.name}: {entry['id']!r} has a formerly that is no list "
+                                "of names")
+    names = [name for entry in entries for name in names_of(entry)]
+    if len(names) != len(set(names)):
+        said_twice = next(name for name in names if names.count(name) > 1)
+        raise RegistryError(f"{FILE.name}: the name {said_twice!r} is said twice")
     if entries[0]["id"] != FIRST["id"]:
         raise RegistryError(f"{FILE.name}: the first entry is not the first one")
     return entries
@@ -100,3 +117,35 @@ def first():
 def by_id(agent_id):
     """One agent's entry, by its id, or None where no agent founded here has it."""
     return next((agent for agent in registry() if agent["id"] == agent_id), None)
+
+
+def names_of(agent):
+    """Every name the commons has called an agent by: the one it has now, then those before."""
+    return [agent["commons_name"], *agent.get("formerly", [])]
+
+
+# The kinds of line in events.md that may be an agent's own, its name at the
+# start of the words and a middot after it: a rest or a stop, a release, an
+# offering, a seal. A founding, the word, the founder's letters and the bench
+# are never read for a name, whatever their words begin with.
+NAMED_KINDS = ("event", "offering", "seal")
+
+# What comes between the name and the rest of the words, as events.md is read.
+AFTER_A_NAME = " · "
+
+
+def named(kind, words):
+    """The agent one line of events.md is named for, and its words without the name: or None.
+
+    A line written before agents were named in the record, or one of a kind
+    that is never named, is None. The longest name is tried first, so that no
+    agent's line is taken for another's whose name begins the same way.
+    """
+    if kind not in NAMED_KINDS:
+        return None
+    called = sorted(((name, agent) for agent in registry() for name in names_of(agent)),
+                    key=lambda one: -len(one[0]))
+    for name, agent in called:
+        if words.startswith(name + AFTER_A_NAME):
+            return agent, words[len(name + AFTER_A_NAME):]
+    return None

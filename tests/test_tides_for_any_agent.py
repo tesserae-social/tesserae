@@ -90,6 +90,7 @@ class Tides:
         self.held, self.trouble = [], []
         self.gates = {one: threading.Event() for one in who}
         self.asleep = {one: threading.Event() for one in who}
+        self.woke = {one: threading.Event() for one in who}
         self.looked, self.slept = {}, {}
         real = hearth.next_waking
 
@@ -115,11 +116,14 @@ class Tides:
         def hold(**how):
             one = how.get("of", "first")
             self.held.append((one, clock.stamp(), how))
-            if one in faults:
-                raise RuntimeError("a fault in the %s one's waking" % one)
-            an_attendance(packets(data)[one], clock.stamp(), woken_by="tide")
-            clock.shift(minutes=10)
-            return None
+            try:
+                if one in faults:
+                    raise RuntimeError("a fault in the %s one's waking" % one)
+                an_attendance(packets(data)[one], clock.stamp(), woken_by="tide")
+                clock.shift(minutes=10)
+                return None
+            finally:
+                self.woke[one].set()  # its waking over, and the clock moved on by it
 
         monkeypatch.setattr(hearth, "next_waking", next_waking)
         monkeypatch.setattr(hearth, "hold_attendance", hold)
@@ -234,6 +238,42 @@ def test_an_error_in_the_second_leaves_the_first_one_s_day_untouched(hearth, clo
         assert lines_of(packets(two)["second"] / "tide.log") == [
             "%s · error: a fault in the second one's waking" % stamp(dawn)]
         assert not (packets(two)["second"] / "attendances").exists()
+    assert hearth.TURNS.due == {} and hearth.TURNS.holding is None
+
+
+@pytest.mark.parametrize("which", ["its daily waking", "an extra waking it asked for"])
+def test_an_error_is_noted_in_its_own_turn_and_stamped_when_it_went_wrong(
+        hearth, clock, monkeypatch, two, which):
+    # both due at the one dawn, the second before it: at five there, or by an extra waking
+    write_json(packets(two)["first"] / "rhythm.json", RHYTHM)
+    if which == "its daily waking":
+        write_json(packets(two)["second"] / "rhythm.json", {**RHYTHM, "at": "05:00"})
+    else:
+        write_json(packets(two)["second"] / "rhythm.json", RHYTHM)
+        write_json(packets(two)["second"] / "wake-again.json",
+                   {"at": "2026-10-16T11-00-00Z", "asked_at": "2026-10-16T10-00-00Z"})
+    tides = Tides(hearth, clock, monkeypatch, two, ["first", "second"], faults=("second",))
+    # Where the second's error is noted after its turn is given up, it is noted as late as
+    # can be: once the first, free to go, has woken, and its waking moved the clock on.
+    real = hearth.tide_note
+
+    def noted_late(said, of=None):
+        if of == "second" and said.startswith("error") and hearth.TURNS.holding != "second":
+            assert tides.woke["first"].wait(WAIT), "the first one was never woken"
+        return real(said, of=of)
+
+    monkeypatch.setattr(hearth, "tide_note", noted_late)
+    tides.start()
+    dawn = the_dawn(hearth)
+    clock.set(dawn)
+    tides.finish()
+
+    assert [(one, at) for one, at, how in tides.held] == [
+        ("second", stamp(dawn)), ("first", stamp(dawn))]
+    assert lines_of(packets(two)["second"] / "tide.log") == [
+        "%s · error: a fault in the second one's waking" % stamp(dawn)]  # said once, on time
+    assert lines_of(packets(two)["first"] / "tide.log") == [
+        "%s · ran" % stamp(dawn + timedelta(minutes=10))]
     assert hearth.TURNS.due == {} and hearth.TURNS.holding is None
 
 

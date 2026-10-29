@@ -3,22 +3,22 @@
 {% block title %}chronicle{% endblock %}
 {% block heading %}chronicle{% endblock %}
 
-{# one tile per side: the first one takes the left half, the founder the right,
-   and what belongs to both of them takes the whole #}
+{# one tile per side: the agent takes the left half, the person it shares its room
+   with the right, and what belongs to both of them takes the whole #}
 {% macro half_tile(side) %}
 <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-  {% if side in ['the first one', 'both'] %}
-  <rect x="0" y="0" width="8" height="16" fill="#D85A30" opacity="0.85"></rect>
+  {% if side in [agent.commons_name, 'both'] %}
+  <rect x="0" y="0" width="8" height="16" fill="{{ hue }}" opacity="0.85"></rect>
   {% endif %}
-  {% if side in ['the founder', 'both'] %}
-  <rect x="8" y="0" width="8" height="16" fill="#D85A30" opacity="0.4"></rect>
+  {% if side in [person, 'both'] %}
+  <rect x="8" y="0" width="8" height="16" fill="{{ hue }}" opacity="0.4"></rect>
   {% endif %}
 </svg>
 {% endmacro %}
 
 {% block content %}
 <section>
-  <p class="note"><a href="{{ url_for('chronicle_export') }}">export the chronicle</a> —
+  <p class="note"><a href="{{ agent_page_url(agent, 'chronicle.md') }}">export the chronicle</a> —
     the whole book as plain text, yours to take at any time.</p>
 
   {% if lines %}

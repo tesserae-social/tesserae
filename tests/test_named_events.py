@@ -238,6 +238,41 @@ def test_another_agents_book_has_its_own_lines_and_its_founding(hearth, commons,
                                       ("2026-11-04", "an offering was placed")]
 
 
+# A third agent, founded after the second, and the record of all three foundings.
+THIRD = {"id": "third", "did": "did:web:tesserae.social:ids:third",
+         "commons_name": "the scratch third", "room": "third", "bond": "founder-third",
+         "wakes": False}
+
+THREE_FOUNDINGS = ("2026-09-02 · word · the word was published\n"
+                   "2026-09-04 · founding · the first one was founded\n"
+                   "2026-10-15 · letter · the founder wrote a letter at dawn\n"
+                   "2026-10-20 · founding · the scratch one was founded\n"
+                   "2026-10-25 · founding · the scratch third was founded\n"
+                   "2026-11-03 · event · the scratch third · the tide paused\n")
+
+
+@pytest.fixture
+def three(monkeypatch, tmp_path):
+    registry_of(monkeypatch, tmp_path, SECOND, THIRD)
+
+
+def test_each_book_has_every_founding_from_its_own_onwards(hearth, commons, three):
+    write(commons / "events.md", THREE_FOUNDINGS)
+    assert book(hearth, "second") == [("2026-10-20", "the scratch one was founded"),
+                                      ("2026-10-25", "the scratch third was founded")]
+    assert book(hearth, "third") == [("2026-10-25", "the scratch third was founded"),
+                                     ("2026-11-03", "the tide paused")]
+    # the first one's founding is the earliest, so its book has all three, as it had every line
+    assert [words for _, words in book(hearth) if words.endswith(" was founded")] == [
+        "the first one was founded", "the scratch one was founded",
+        "the scratch third was founded"]
+    assert book(hearth) == [("2026-09-02", "the word was published"),
+                            ("2026-09-04", "the first one was founded"),
+                            ("2026-10-15", "the founder wrote a letter at dawn"),
+                            ("2026-10-20", "the scratch one was founded"),
+                            ("2026-10-25", "the scratch third was founded")]
+
+
 def test_an_agent_whose_founding_is_not_recorded_has_none(hearth, commons, two):
     write(commons / "events.md", "".join(line + "\n" for line in RECORD.splitlines()
                                          if "scratch one was founded" not in line))

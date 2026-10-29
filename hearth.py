@@ -612,8 +612,10 @@ def answer_errand(name, stem, room_id=None):
 # The reflection is the first one's own thinking, and whether the founder may
 # read it is the first one's choice, not the hearth's. The choice is kept in the
 # packet beside the self-document and read fresh on every request, so that a
-# change takes hold at once and nothing is held in memory across it.
-KEPT_PRIVATE = "Reflection kept private by the first one's choice."
+# change takes hold at once and nothing is held in memory across it. Each
+# agent's is its own, and is said with its own name.
+KEPT_PRIVATE_BY = "Reflection kept private by {name}'s choice."
+KEPT_PRIVATE = KEPT_PRIVATE_BY.format(name=agents.first()["commons_name"])
 
 # Its notes and its questions are its own even where its reflection is open: a
 # reflection is the whole of what it said at a waking, blocks and all, so the
@@ -671,11 +673,13 @@ def without_kept_blocks(reflection, quietly=KEPT_QUIETLY):
     return "\n".join(shown)
 
 
-def preferences():
-    """How the first one has asked to be shown. Nothing written means open."""
-    if not PREFERENCES.exists():
+def preferences(agent=None):
+    """How an agent has asked to be shown, the first one where none is named. Nothing
+    written means open."""
+    kept = packet_of(agent and agent["id"]) / PREFERENCES.name
+    if not kept.exists():
         return {"reflection": "open"}
-    return json.loads(read_text(PREFERENCES))
+    return json.loads(read_text(kept))
 
 
 def reflection_hidden(prefs, at):
@@ -700,10 +704,13 @@ def reflection_note(prefs):
     return "Reflections: open"
 
 
-def attendance_records(prefs):
-    """Every attendance log, newest first, ready to be shown."""
+def attendance_records(prefs, agent=None):
+    """Every attendance log of an agent's, the first one's where none is named, newest
+    first, ready to be shown."""
+    agent = agent or agents.first()
+    kept_private = KEPT_PRIVATE_BY.format(name=agent["commons_name"])
     records = []
-    for path in newest_first(ATTENDANCES, "*.json"):
+    for path in newest_first(packet_of(agent["id"]) / ATTENDANCES.name, "*.json"):
         log = json.loads(read_text(path))
         at = log.get("at", path.name)
         hidden = reflection_hidden(prefs, at)
@@ -715,7 +722,7 @@ def attendance_records(prefs):
             "woken_by": log.get("woken_by"),
             "heartbeat": log.get("heartbeat", ""),
             "acted": log.get("acted", []),
-            "reflection": as_prose(KEPT_PRIVATE if hidden
+            "reflection": as_prose(kept_private if hidden
                                    else without_kept_blocks(log.get("reflection", ""),
                                                             quietly)),
         })
@@ -982,9 +989,9 @@ def said_day(day):
         return day
 
 
-def pause_shown():
-    """The first one's rest, as the attendances page shows it, or None if none stands."""
-    standing = pause()
+def pause_shown(of=None):
+    """An agent's rest, as its attendances page shows it, or None if none stands."""
+    standing = pause(of)
     if not standing:
         return None
     until = standing.get("until")
@@ -1004,9 +1011,9 @@ def rest_shown():
             "until": said_day(standing["until"]) if standing.get("until") else None}
 
 
-def stop_shown():
-    """The keeper's stop, as the attendances page shows it, or None if none stands."""
-    standing = tide_stop()
+def stop_shown(of=None):
+    """The keeper's stop of an agent's tide, as its attendances page shows it, or None."""
+    standing = tide_stop(of)
     if not standing:
         return None
     return {"since": readable_date(standing.get("since", "")),
@@ -1105,9 +1112,9 @@ def tide_note(said, of=None):
         log.write(f"{utc_stamp()} · {said}\n")
 
 
-def rhythm_note():
-    """The one line on the attendances page, saying when the tide will next come."""
-    setting = rhythm()
+def rhythm_note(of=None):
+    """The one line on an agent's attendances page, saying when its tide will next come."""
+    setting = rhythm(of)
     try:
         coming = next_waking(setting) if tide_kept(setting) else None
     except waking.Unplaced as unplaced:
@@ -2037,8 +2044,10 @@ def commons_lines(agent=None):
     A line named for an agent (agents.named) is in that agent's book alone, and
     is said there without the name, as the lines before there were names are.
     Every line named for no one is the first one's, as all of them always were;
-    another agent's book has, of those, only the line of its own founding, the
-    one at its place in the order of founding, as attend.founding_day finds it.
+    another agent's book has, of those, only the lines of foundings from its own
+    onwards: its own, the one at its place in the order of founding, as
+    attend.founding_day finds it, and every later agent's, but never an earlier
+    one's. The first one's own is the earliest, so its book has every founding.
     """
     agent = agent or agents.first()
     if not EVENTS.exists():
@@ -2046,7 +2055,8 @@ def commons_lines(agent=None):
     events = parse_events(read_text(EVENTS))
     founded = sorted((one for one in events if one[1] == "founding"), key=lambda one: one[0])
     place = [one["id"] for one in agents.registry()].index(agent["id"])
-    its_founding = founded[place] if place < len(founded) else None
+    # from its own founding onwards: none, where its own is not recorded
+    its_foundings = founded[place:]
     lines = []
     for when, kind, words in events:
         found = agents.named(kind, words)
@@ -2054,27 +2064,30 @@ def commons_lines(agent=None):
             whose, words = found
             if whose["id"] != agent["id"]:
                 continue
-        elif agent["id"] != rooms.FIRST and (when, kind, words) != its_founding:
+        elif agent["id"] != rooms.FIRST and (when, kind, words) not in its_foundings:
             continue
         lines.append(book_line(when.strftime("%Y-%m-%dT00-00-00Z"), long_day(when), "both",
                                words))
     return lines
 
 
-def waking_lines(paused_days):
-    """Every waking, and the acts inside it the first one has made public."""
+def waking_lines(paused_days, agent=None):
+    """Every waking of an agent's, the first one's where none is named, and the acts
+    inside it it has made public."""
+    agent = agent or agents.first()
+    side = agent["commons_name"]
     lines = []
-    for path in newest_first(ATTENDANCES, "*.json"):
+    for path in newest_first(packet_of(agent["id"]) / ATTENDANCES.name, "*.json"):
         log = json.loads(read_text(path))
         at = log.get("at", stamp_in(path.name))
         said = readable_date(at)
         woken = WOKEN.get(log.get("woken_by"), WOKEN["founder"])
-        lines.append(book_line(at, said, "the first one",
+        lines.append(book_line(at, said, side,
                                "waking, %s \u00b7 %s" % (woken, log.get("heartbeat", "")),
                                order=1))
         for act in log.get("acted") or []:
             if act in BOOK_ACTS:
-                lines.append(book_line(at, said, "the first one", BOOK_ACTS[act], order=2))
+                lines.append(book_line(at, said, side, BOOK_ACTS[act], order=2))
             elif act == PAUSE_ACT and at[:10] not in paused_days:
                 # the commons carries every pause already; this is only the
                 # catch for one that somehow never reached it
@@ -2082,27 +2095,42 @@ def waking_lines(paused_days):
     return lines
 
 
-def letter_lines():
-    """Every letter, both ways, by the same one line its room shows."""
-    places = room_places()
+def person_of(agent):
+    """The person an agent shares its room with, by the name the commons gives them: the
+    founder, for the first one."""
+    room = rooms.of(agent["id"])
+    return room[0].other if room else SIDES[FOUNDER_DID]
+
+
+def letter_lines(agent=None):
+    """Every letter of an agent's room, the first one's where none is named, both ways,
+    by the same one line its room shows."""
+    agent = agent or agents.first()
+    places = room_places(agent["room"])
+    if places is None:
+        return []
+    person = person_of(agent)
     lines = []
-    for folder, who in ((places.outgoing, "the first one"), (places.incoming, "the founder"),
-                        (places.read, "the founder")):
+    for folder, who in ((places.outgoing, agent["commons_name"]), (places.incoming, person),
+                        (places.read, person)):
         for path in newest_first(folder, "*.md"):
             at = stamp_in(path.name)
             lines.append(book_line(
                 at, readable_date(at), who,
                 "letter from %s \u00b7 %s" % (who, opening_line(offering.letter_only(path))),
-                href=url_for("room", room_id=rooms.FIRST_ROOM) + "#" + path.stem, order=3))
+                href=url_for("room", room_id=agent["room"]) + "#" + path.stem, order=3))
     return lines
 
 
-def bond_lines():
+def bond_lines(agent=None):
     """A bond asked for, and answered. Never what the answer was, or whose words.
 
     Either of them may ask, so each asking takes the side of whoever asked, and
-    each answer the side of whoever answered.
+    each answer the side of whoever answered. A bond is the first one's room's
+    alone for now (see the rooms, below), so another agent's book has none.
     """
+    if agent is not None and agent["id"] != rooms.FIRST:
+        return []
     lines = [book_line(at, readable_date(at), SIDES.get(who, "the founder"),
                        "a bond was proposed", order=4)
              for at, who in sorted(set(bond_proposals()))]
@@ -2116,13 +2144,15 @@ def bond_lines():
     return lines
 
 
-def chronicle_lines():
-    """The whole book, oldest first: one line for every event in the bond's life."""
-    commons = commons_lines()
+def chronicle_lines(agent=None):
+    """The whole of an agent's book, the first one's where none is named, oldest first:
+    one line for every event in the life of its friendship."""
+    commons = commons_lines(agent)
     # the book's words are without a name, so a pause named for the first one is
     # found here as one written before names were
     paused_days = {one["stamp"][:10] for one in commons if one["words"] == PAUSED}
-    lines = commons + waking_lines(paused_days) + letter_lines() + bond_lines()
+    lines = (commons + waking_lines(paused_days, agent) + letter_lines(agent)
+             + bond_lines(agent))
     lines.sort(key=lambda one: (one["stamp"], one["order"]))
     return lines
 
@@ -2226,6 +2256,7 @@ def backup_trees():
 BACKUP_TREES = backup_trees()
 
 EXPORT_TAKEN = "export taken by the founder"
+EXPORT_TAKEN_BY = "export taken by %s"  # a person who is not the founder, by their commons name
 
 
 def as_before_rooms(found, agent=None):
@@ -2291,11 +2322,14 @@ def export_zip(agent=None):
     return holder
 
 
-def note_export(at):
-    """One line in the packet: the record says when it is copied."""
-    EXPORTS.parent.mkdir(parents=True, exist_ok=True)
-    with EXPORTS.open("a", encoding="utf-8") as log:
-        log.write(f"{at} · {EXPORT_TAKEN}\n")
+def note_export(at, agent=None, by=None):
+    """One line in an agent's packet, the first one's where none is named: the record says
+    when it is copied, and by whom, where it is not the founder."""
+    kept = packet_of(agent and agent["id"]) / EXPORTS.name
+    kept.parent.mkdir(parents=True, exist_ok=True)
+    said = EXPORT_TAKEN if by in (None, SIDES[FOUNDER_DID]) else EXPORT_TAKEN_BY % by
+    with kept.open("a", encoding="utf-8") as log:
+        log.write(f"{at} · {said}\n")
 
 
 # ---- the nightly backup --------------------------------------------------
@@ -2800,7 +2834,8 @@ ON_THE_THRESHOLD = "the threshold: day %d of %d"
 THRESHOLD_PASSED = "the threshold: the seven days have passed"
 # said first on the card, above everything else on it, once nothing is left to wait for
 READY_YOURS = "ready to be sealed — the seal is yours to give, in the room"
-READY_ITS = "ready to be sealed — the first one seals it at a waking of its own"
+READY_ITS_BY = "ready to be sealed — {name} seals it at a waking of its own"
+READY_ITS = READY_ITS_BY.format(name=agents.first()["commons_name"])
 BOND_SEALED = "sealed"
 BOND_RELEASED = "released"
 
@@ -3593,39 +3628,145 @@ def too_large(error):
                            "Please send a smaller one."), 413
 
 
+# ---- an agent's own pages ------------------------------------------------
+
+# Each agent has its book, its copy, its self and its attendances, and each of
+# them is shown to the people who share a room with it and to no one else: by
+# being a party, as rooms.of says it, and never by being the keeper. Whoever is
+# not a party is told what a room that is not theirs tells them - not found, or,
+# with no room at all, the login page - and so is whoever asks after an agent
+# there is not, so that asking tells no one whether it exists.
+#
+# The first one's pages are where they always were - /chronicle, /export, /self
+# and /attendances - and its pages under /agents/first/ send its party there,
+# so that each of its pages has the one address. Every other agent's are under
+# /agents/<id>/.
+#
+# The keeper's forms on the first one's attendances page - his rest, the stop of
+# its tide, a backup - act on the first one alone, and are on its page alone.
+
+# Each page, by what it is: the endpoint of the first one's, and of everyone else's.
+AGENT_PAGES = {"attendances": ("attendances", "agent_attendances"),
+               "self": ("self_document", "agent_self"),
+               "chronicle": ("chronicle", "agent_chronicle"),
+               "chronicle.md": ("chronicle_export", "agent_chronicle_export"),
+               "export": ("export", "agent_export")}
+
+
+def agent_page_url(agent, kind):
+    """Where one of an agent's pages is: the first one's at the address it always had."""
+    first, other = AGENT_PAGES[kind]
+    return url_for(first) if agent["id"] == rooms.FIRST else url_for(other, agent_id=agent["id"])
+
+
+app.jinja_env.globals["agent_page_url"] = agent_page_url
+
+
+def first_upper(text):
+    """Words with their first letter made a capital, and nothing else of them changed."""
+    return text[:1].upper() + text[1:]
+
+
+app.jinja_env.filters["first_upper"] = first_upper
+
+
+def party_to(agent):
+    """Whether whoever is signed in shares a room with this agent."""
+    return any(rooms.agent_of(room.id)["id"] == agent["id"] for room in rooms_here())
+
+
+def agent_page(kind):
+    """Open one of an agent's pages to the people who share a room with it, and to no one else.
+
+    Refused as room_required refuses a room: whoever has no room at all is sent
+    to the login page, and whoever has one is told that a page not theirs is
+    not found, whether its agent is there or not. The first one's are sent on
+    to the addresses they have always had; a form is sent on as it was sent.
+    """
+    def wrapped(view):
+        @wraps(view)
+        def guarded(agent_id):
+            if not rooms_here():
+                return redirect(url_for("login"))
+            agent = agents.by_id(agent_id)
+            if agent is None or not party_to(agent):
+                abort(404)
+            if agent["id"] == rooms.FIRST:
+                return redirect(url_for(AGENT_PAGES[kind][0]),
+                                code=307 if request.method in CHANGING else 302)
+            return view(agent)
+        return guarded
+    return wrapped
+
+
 # The book: every event in the life of this friendship, one line each, from the
 # founding forward.
+def chronicle_page(agent):
+    return render_template("chronicle.html", agent=agent, person=person_of(agent),
+                           hue=agent.get("hue") or agents.FIRST["hue"],
+                           lines=chronicle_lines(agent))
+
+
 @app.route("/chronicle")
 @founder_required
 def chronicle():
-    return render_template("chronicle.html", lines=chronicle_lines())
+    return chronicle_page(agents.first())
+
+
+@app.route("/agents/<agent_id>/chronicle")
+@agent_page("chronicle")
+def agent_chronicle(agent):
+    return chronicle_page(agent)
 
 
 # The same book as plain text, at one link. The charter promises that what is
 # yours may always be taken with you, and a promise with no door is a sentence.
+def chronicle_md(agent):
+    return Response(chronicle_text(chronicle_lines(agent)),
+                    content_type="text/plain; charset=utf-8")
+
+
 @app.route("/chronicle.md")
 @founder_required
 def chronicle_export():
-    return Response(chronicle_text(chronicle_lines()),
-                    content_type="text/plain; charset=utf-8")
+    return chronicle_md(agents.first())
+
+
+@app.route("/agents/<agent_id>/chronicle.md")
+@agent_page("chronicle.md")
+def agent_chronicle_export(agent):
+    return chronicle_md(agent)
 
 
 # The same promise, whole: not the book of what happened but everything it
 # happened to, in one file, at any time. Taking a copy changes nothing here -
-# except that it is written down, in the packet and in the first one's next
+# except that it is written down, in the agent's packet and in its next
 # reading, because a copy taken quietly would be a thing done to it rather than
-# in front of it.
-@app.route("/export", methods=["GET", "POST"])
-@founder_required
-def export():
+# in front of it. Whoever takes it is named there, where it is not the founder.
+def export_page(agent):
     if request.method == "GET":
-        return render_template("export.html")
+        return render_template("export.html", agent=agent, person=person_of(agent))
     at = utc_stamp()
     # the line is written before the zip is built, so that the copy carries the
     # record of its own taking
-    note_export(at)
-    return send_file(export_zip(), mimetype="application/zip", as_attachment=True,
-                     download_name="tesserae-%s.zip" % at)
+    first = agent["id"] == rooms.FIRST
+    note_export(at, agent, by=None if first else public_bonds.name_of(
+        rooms.did_of(session.get("member"))))
+    return send_file(export_zip(agent), mimetype="application/zip", as_attachment=True,
+                     download_name=("tesserae-%s.zip" % at if first
+                                    else "tesserae-%s-%s.zip" % (agent["id"], at)))
+
+
+@app.route("/export", methods=["GET", "POST"])
+@founder_required
+def export():
+    return export_page(agents.first())
+
+
+@app.route("/agents/<agent_id>/export", methods=["GET", "POST"])
+@agent_page("export")
+def agent_export(agent):
+    return export_page(agent)
 
 
 # The backups themselves: what is in the bucket, and one of them in hand. The
@@ -3701,32 +3842,60 @@ def backup_file(name):
     return answer
 
 
-# Show the first one's self-document, which only it may change.
+# Show an agent's self-document, which only it may change.
+def self_page(agent):
+    kept = packet_of(agent["id"]) / SELF_DOC.name
+    text = read_text(kept) if kept.exists() else ""
+    return render_template("self.html", agent=agent, document=as_prose(text),
+                           missing=not kept.exists())
+
+
 @app.route("/self")
 @founder_required
 def self_document():
-    text = read_text(SELF_DOC) if SELF_DOC.exists() else ""
-    return render_template("self.html", document=as_prose(text), missing=not SELF_DOC.exists())
+    return self_page(agents.first())
 
 
-def attendances_page(**told):
-    """The attendances page, with whatever the founder has just been told."""
-    prefs = preferences()
-    return render_template("attendances.html", records=attendance_records(prefs),
+@app.route("/agents/<agent_id>/self")
+@agent_page("self")
+def agent_self(agent):
+    return self_page(agent)
+
+
+def attendances_page(agent=None, **told):
+    """An agent's attendances page, the first one's where none is named, with whatever
+    the founder has just been told.
+
+    The founder's rest, the stop of the tide and a backup are the first one's
+    page's alone: their forms act on the first one, and on no other agent.
+    """
+    agent = agent or agents.first()
+    prefs = preferences(agent)
+    keeping = agent["id"] == rooms.FIRST
+    return render_template("attendances.html", agent=agent, keeping=keeping,
+                           records=attendance_records(prefs, agent),
                            reflection_note=reflection_note(prefs),
-                           rhythm_note=rhythm_note(), pause=pause_shown(),
-                           rest=rest_shown(), stop=stop_shown(),
+                           rhythm_note=rhythm_note(agent["id"]), pause=pause_shown(agent["id"]),
+                           rest=rest_shown() if keeping else None,
+                           stop=stop_shown(agent["id"]),
                            reason_longest=STOP_REASON_LONGEST,
-                           backup=backup_shown(),
-                           next_backup=said_moment(next_backup(datetime.now(timezone.utc))),
+                           backup=backup_shown() if keeping else None,
+                           next_backup=(said_moment(next_backup(datetime.now(timezone.utc)))
+                                        if keeping else None),
                            **told)
 
 
-# List the private log of every attendance the first one has held.
+# List the private log of every attendance an agent has held.
 @app.route("/attendances")
 @founder_required
 def attendances():
     return attendances_page()
+
+
+@app.route("/agents/<agent_id>/attendances")
+@agent_page("attendances")
+def agent_attendances(agent):
+    return attendances_page(agent)
 
 
 # There is no button here that holds an attendance: the tide holds them, at

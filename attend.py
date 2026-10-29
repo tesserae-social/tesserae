@@ -320,8 +320,11 @@ DOOR_BLOCK = """<<DOOR>>
 # the hearth adds one line here, and the first reading after it says so, because
 # a copy taken quietly would be a thing done to the first one rather than in
 # front of it. The hearth writes this file and this is the shape of a line.
+# A copy may be taken by whoever shares the room, and a line that names someone
+# other than the founder is said with their name.
 EXPORTS = PACKET / "exports.log"
 EXPORT_TAKEN = "The founder took a copy of the record on {day}."
+EXPORT_TAKEN_BY = "A copy of the record was taken by {who} on {day}."
 
 # The three answers a proposal may be given, and the one word that releases a bond.
 ANSWERS = ("yes", "no", "not yet")
@@ -1609,8 +1612,10 @@ def errand_lines(since):
     return said
 
 
-# One line of the exports log: the stamp of the copy, and the day inside it.
-EXPORT_LINE = re.compile(r"^((\d{4}-\d{2}-\d{2})T\d{2}-\d{2}-\d{2}Z) · ")
+# One line of the exports log: the stamp of the copy, the day inside it, and who
+# took it, where the line says so.
+EXPORT_LINE = re.compile(r"^((\d{4}-\d{2}-\d{2})T\d{2}-\d{2}-\d{2}Z) · "
+                         r"(?:export taken by (.+))?")
 
 
 def day_in_words(day):
@@ -1630,7 +1635,10 @@ def export_lines(since):
     for line in read(EXPORTS).splitlines():
         found = EXPORT_LINE.match(line)
         if found and found.group(1) > (since or ""):
-            said.append(EXPORT_TAKEN.format(day=day_carried(found.group(1))))
+            who = (found.group(3) or "").strip()
+            day = day_carried(found.group(1))
+            said.append(EXPORT_TAKEN.format(day=day) if who in ("", "the founder")
+                        else EXPORT_TAKEN_BY.format(who=who, day=day))
     return said
 
 

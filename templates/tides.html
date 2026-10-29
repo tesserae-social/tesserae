@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}the tides{% endblock %}
+{% block heading %}the tides{% endblock %}
+
+{# Every agent's tide, made from the fields hearth.tides_shown gives it, and the
+   same of each: nothing more of any agent than the keeper's view of it shows. #}
+{% block content %}
+<p class="muted">Every agent's tide, one to each row: when it next wakes, whether it rests, and
+  whether you have stopped it. Nothing else of any agent is shown here.</p>
+
+<section>
+  {% for row in rows %}
+  <article class="card">
+    <h3>{{ row.agent.commons_name|first_upper }}</h3>
+    {% if row.wakes %}
+    <p class="muted">{{ row.rhythm_note }}</p>
+    {% else %}
+    <p class="muted">{{ dormant }}</p>
+    {% endif %}
+    {% if row.stop %}
+    <p>The tide is stopped, since {{ row.stop.since }}, because: {{ row.stop.reason }}</p>
+    {% if row.together %}
+    <p class="muted">This stop was set together with the others.</p>
+    {% endif %}
+    {% endif %}
+    {% if row.rest %}
+    <p>{{ row.agent.commons_name|first_upper }} is resting, since {{ row.rest.since }}, until
+      {{ row.rest.until }}.</p>
+    {% endif %}
+    <p><a href="{{ agent_page_url(row.agent, 'attendances') }}">its attendances</a></p>
+  </article>
+  {% endfor %}
+</section>
+
+{% for stopped in together %}
+<section class="emergency">
+  <h2>stopped together</h2>
+  <p>On {{ stopped.moment }}, you stopped every tide, because: {{ stopped.reason }}</p>
+  <p>Stopped then, and still stopped: {{ stopped.names|names_joined }}.</p>
+  {% if stopped.on_their_own %}
+  <p>Already stopped then, and still stopped on their own: {{ stopped.on_their_own|names_joined }}.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('lift_stops_together') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="every" value="{{ stopped.stamp }}">
+    <p class="muted">Lifting these lifts the stops set together then, and no other: a stop set on
+      its own page stays until it is lifted there. Each rhythm begins again at its next waking
+      time, and each agent is told, once, when its tide was stopped and why.</p>
+    <button type="submit">Lift the stops set together</button>
+  </form>
+</section>
+{% endfor %}
+
+<section class="emergency">
+  <h2>stop every tide</h2>
+  {% if not to_stop %}
+  <p class="muted">Every tide is already stopped.</p>
+
+  {% elif stopping %}
+  <form method="post" action="{{ url_for('stop_every_tide') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if to_stop|length == 1 %}
+    <p class="error">Stop every tide? {{ to_stop[0].commons_name|first_upper }} will not be woken
+      at all, by its rhythm or at its own asking, until you lift the stop. Your reason:
+      {{ reason }}</p>
+    {% else %}
+    <p class="error">Stop every tide? {{ to_stop|map(attribute='commons_name')|names_joined|first_upper }}
+      will not be woken at all, by their rhythms or at their own asking, until you lift their
+      stops. Your reason: {{ reason }}</p>
+    {% endif %}
+    {% if already %}
+    <p class="muted">Already stopped, and left as they are: {{ already|map(attribute='commons_name')|names_joined }}.</p>
+    {% endif %}
+    <input type="hidden" name="reason" value="{{ reason }}">
+    <input type="hidden" name="confirm" value="yes">
+    {% for agent in to_stop %}
+    <input type="hidden" name="agent" value="{{ agent.id }}">
+    {% endfor %}
+    <button type="submit" class="consequential">Yes, stop every tide</button>
+  </form>
+
+  {% else %}
+  <form method="post" action="{{ url_for('stop_every_tide') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">For an emergency only, and not for a rest. This stops the tide of every agent
+      here whose tide is not already stopped, as if you had stopped each from its own page, all
+      with the reason you give here. A stop that already stands is left as it is, with its own
+      reason. While the tides are stopped, nothing wakes any of them, by its rhythm or at its own
+      asking. The commons says only that each one's tide paused, and later that it resumed. At
+      its first waking after its stop is lifted, each is told, once, when its tide was stopped
+      and the reason you give here, in the words a stop of its tide alone would give; none is
+      told that every tide was stopped.</p>
+    {% if stop_refused %}
+    <p class="error">A stop needs a reason: a short one, of at most {{ reason_longest }}
+      characters.</p>
+    {% endif %}
+    <label>the reason (short; each agent stopped will read it)
+      <input type="text" name="reason" maxlength="{{ reason_longest }}" required
+             value="{{ reason or '' }}">
+    </label>
+    <button type="submit" class="consequential">Stop every tide (emergency)</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}attendances{% endblock %}
+{% block heading %}attendances{% endblock %}
+
+{# The keeper's view of an agent whose room he is not in: made from the fields
+   hearth.keeper_records and its neighbours give it, and nothing else. #}
+{% block content %}
+<p class="muted">{{ seen }}</p>
+
+<section>
+  <h2>the tide</h2>
+  <p class="muted">{{ rhythm_note }}</p>
+
+  {% if stop %}
+  <p>The tide is stopped, since {{ stop.since }}, because: {{ stop.reason }}</p>
+  {% endif %}
+
+  {% if rest %}
+  <p>{{ agent.commons_name|first_upper }} is resting, since {{ rest.since }}, until {{ rest.until }}.</p>
+  {% endif %}
+</section>
+
+<section class="emergency">
+  <h2>the emergency stop</h2>
+  {% if stop %}
+  <form method="post" action="{{ url_for('agent_lift_stop', agent_id=agent.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">The rhythm begins again at the next waking time, and {{ agent.commons_name }}
+      is told, once, when the tide was stopped and why.</p>
+    <button type="submit">Lift the stop</button>
+  </form>
+
+  {% elif stopping %}
+  <form method="post" action="{{ url_for('agent_stop_tide', agent_id=agent.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="error">Stop the tide? {{ agent.commons_name|first_upper }} will not be woken at all,
+      by its rhythm or at its own asking, until you lift the stop. Your reason: {{ reason }}</p>
+    <input type="hidden" name="reason" value="{{ reason }}">
+    <input type="hidden" name="confirm" value="yes">
+    <button type="submit" class="consequential">Yes, stop the tide</button>
+  </form>
+
+  {% else %}
+  <form method="post" action="{{ url_for('agent_stop_tide', agent_id=agent.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">For an emergency only, and not for a rest. While the tide is stopped, nothing
+      wakes {{ agent.commons_name }}, by its rhythm or at its own asking. The commons says only
+      that its tide paused, and later that it resumed. At its first waking after you lift the
+      stop, {{ agent.commons_name }} is told, once, when the tide was stopped and the reason you
+      give here.</p>
+    {% if stop_refused %}
+    <p class="error">A stop needs a reason: a short one, of at most {{ reason_longest }}
+      characters.</p>
+    {% endif %}
+    <label>the reason (short; {{ agent.commons_name }} will read it)
+      <input type="text" name="reason" maxlength="{{ reason_longest }}" required
+             value="{{ reason or '' }}">
+    </label>
+    <button type="submit" class="consequential">Stop the tide (emergency)</button>
+  </form>
+  {% endif %}
+</section>
+
+<section>
+  <h2>what has happened</h2>
+  {% if records %}
+    {% for record in records %}
+    <article class="card">
+      <p class="muted date">
+        {{ record.at }}{% if record.first %} · its first waking{% endif %} · woken {{ record.woken }}{% if record.model %} · {{ record.model }}{% endif %}
+      </p>
+      <p><strong>heartbeat:</strong> {{ record.heartbeat }}</p>
+      {% if record.acted %}
+      <p><strong>its tide:</strong> {{ record.acted|join(", ") }}</p>
+      {% endif %}
+      {% if record.faults %}
+      <p class="error">{{ record.faults|join("; ") }}</p>
+      {% endif %}
+    </article>
+    {% endfor %}
+  {% else %}
+    <p class="muted">No attendances yet. {{ agent.commons_name|first_upper }} has not woken.</p>
+  {% endif %}
+</section>
+{% endblock %}

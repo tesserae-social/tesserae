@@ -332,6 +332,8 @@ def test_a_non_party_is_refused_as_a_room_refuses_one_the_keeper_included(
     assert room_refused[0] == 404
     for (method, path, form), (_, nowhere, _) in zip(agent_pages(agent_id),
                                                      agent_pages("nowhere")):
+        if who == "founder" and path.endswith("/attendances"):
+            continue  # the keeper's view of it, since stage 6c: see test_keeper_view.py
         refused = as_refused(ask(client, method, path, form))
         assert refused == room_refused, (who, path)
         assert refused == as_refused(ask(client, method, nowhere, form)), (who, path)

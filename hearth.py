@@ -3644,6 +3644,11 @@ def too_large(error):
 #
 # The keeper's forms on the first one's attendances page - his rest, the stop of
 # its tide, a backup - act on the first one alone, and are on its page alone.
+#
+# The one exception is the keeper's, and it is one page: an agent's attendances,
+# to the keeper who is not a party to its room, are what he needs to keep its
+# tide, and no more (see the keeper's view, below). Every other page of it is
+# refused him as before.
 
 # Each page, by what it is: the endpoint of the first one's, and of everyone else's.
 AGENT_PAGES = {"attendances": ("attendances", "agent_attendances"),
@@ -3675,17 +3680,24 @@ def party_to(agent):
     return any(rooms.agent_of(room.id)["id"] == agent["id"] for room in rooms_here())
 
 
-def agent_page(kind):
+def agent_page(kind, kept_for_the_keeper=None):
     """Open one of an agent's pages to the people who share a room with it, and to no one else.
 
     Refused as room_required refuses a room: whoever has no room at all is sent
     to the login page, and whoever has one is told that a page not theirs is
     not found, whether its agent is there or not. The first one's are sent on
     to the addresses they have always had; a form is sent on as it was sent.
+
+    Where a page has a view kept for the keeper, the keeper who is not a party
+    to an agent other than the first one is shown that view of it instead.
     """
     def wrapped(view):
         @wraps(view)
         def guarded(agent_id):
+            if kept_for_the_keeper is not None and keeper_here():
+                agent = agents.by_id(agent_id)
+                if agent is not None and agent["id"] != rooms.FIRST and not party_to(agent):
+                    return kept_for_the_keeper(agent)
             if not rooms_here():
                 return redirect(url_for("login"))
             agent = agents.by_id(agent_id)
@@ -3892,10 +3904,156 @@ def attendances():
     return attendances_page()
 
 
+# ---- the keeper's view of an agent he is not a party to -------------------
+
+# The keeper keeps every agent's tide, and so may see, for an agent whose room he
+# is not in, what keeping it needs: when it woke and how, the model, the line the
+# commons was shown, the acts that are its tide's own, what went wrong with them,
+# its rhythm, its rest and his own stop. That is all. The page is made from these
+# alone, each read from the record for itself and nothing else of it carried,
+# and never by taking things away from the page its party sees: what is not named
+# here is not shown, whatever a record comes to hold. Not its reflection, nor
+# even that it is kept; not its letters, pictures or errands, nor how often it
+# writes them; not its offerings, bonds or proposals; not its self, its notes or
+# its shelf; not the words of its rest. The page says once that its reflections
+# are not shown.
+
+KEEPER_SEES = "{name}'s reflections are not shown to someone who is not a party to its room."
+
+# how it was woken, as the record writes it
+KEEPER_WOKEN = {"tide": "by the tide", "founder": "by the keeper's hand",
+                the_waking.ITS_OWN_ASKING: "at its own asking"}
+NOT_RECORDED = "not recorded"
+
+# the acts that are its tide's own, as attend.py writes them, and no other
+KEEPER_ACTS = (the_waking.RHYTHM_ACT, the_waking.PAUSE_ACT, the_waking.WAKE_AGAIN_ACT,
+               the_waking.DOOR_ACT)
+
+# what went wrong at a waking, by what the record says of it, and how it is said
+KEEPER_FAULTS = (
+    (lambda log: log.get("stop_reason") == "max_tokens", "cut off at its length limit"),
+    (lambda log: log.get("rhythm_refused") is True, "its waking time could not be read"),
+    (lambda log: log.get("door_refused") is True, "its door could not be read"),
+)
+REST_UNREAD = "a day that cannot be read, so its rest ends at its next waking time"
+
+
+def moment_said(text):
+    """The stamp in a text, said in words: None where there is none, and never the text."""
+    found = STAMP.search(text) if isinstance(text, str) else None
+    return said_moment(moment(found.group())) if found else None
+
+
+def keeper_records(agent):
+    """Every attendance of an agent's, newest first, as the keeper who is not a party may
+    see it: each field that may be shown, read for itself, and nothing else of the record."""
+    records = []
+    for path in newest_first(packet_of(agent["id"]) / ATTENDANCES.name, "*.json"):
+        log = json.loads(read_text(path))
+        if not isinstance(log, dict):
+            continue
+        acted = log.get("acted") if isinstance(log.get("acted"), list) else []
+        # the line the commons was shown, as heartbeats.md shows it
+        shown = log.get("heartbeat_shown", log.get("heartbeat"))
+        model = log.get("model")
+        records.append({
+            "at": moment_said(log.get("at")) or moment_said(path.name) or NOT_RECORDED,
+            "woken": KEEPER_WOKEN.get(log.get("woken_by"), NOT_RECORDED),
+            "first": log.get("first") is True,
+            "model": model if isinstance(model, str) else None,
+            "heartbeat": shown if isinstance(shown, str) else "",
+            "acted": [act for act in KEEPER_ACTS if act in acted],
+            "faults": [said for fault, said in KEEPER_FAULTS if fault(log)],
+        })
+    return records
+
+
+def keeper_rest(agent):
+    """An agent's own rest, as the keeper may see it: since when, and until what - a letter,
+    or a day - and never its words. None where it is not resting."""
+    standing = pause(agent["id"])
+    if not isinstance(standing, dict) or standing.get("by") != agent["id"]:
+        return None
+    until = standing.get("until")
+    if until == UNTIL_LETTER:
+        condition = UNTIL_LETTER
+    else:
+        try:
+            condition = long_day(datetime.strptime(until, "%Y-%m-%d"))
+        except (TypeError, ValueError):
+            condition = REST_UNREAD
+    return {"since": moment_said(standing.get("since")) or NOT_RECORDED, "until": condition}
+
+
+def keeper_stop(agent):
+    """The keeper's own stop of an agent's tide, as his page shows it, or None."""
+    standing = tide_stop(agent["id"])
+    if not isinstance(standing, dict):
+        return None
+    reason = standing.get("reason")
+    return {"since": moment_said(standing.get("since")) or NOT_RECORDED,
+            "reason": reason if isinstance(reason, str) else ""}
+
+
+def keeper_attendances_page(agent, **told):
+    """An agent's attendances, as the keeper who is not a party to its room may see them."""
+    return render_template("keeper_attendances.html", agent=agent,
+                           seen=KEEPER_SEES.format(name=first_upper(agent["commons_name"])),
+                           records=keeper_records(agent), rhythm_note=rhythm_note(agent["id"]),
+                           rest=keeper_rest(agent), stop=keeper_stop(agent),
+                           reason_longest=STOP_REASON_LONGEST, **told)
+
+
 @app.route("/agents/<agent_id>/attendances")
-@agent_page("attendances")
+@agent_page("attendances", kept_for_the_keeper=keeper_attendances_page)
 def agent_attendances(agent):
     return attendances_page(agent)
+
+
+def keeper_form(first):
+    """A form of the keeper's for an agent's tide: for the keeper alone, as the first one's
+    is, and for an agent that is there. The first one's is sent on to the address it has
+    always had, as it was sent."""
+    def wrapped(view):
+        @wraps(view)
+        def guarded(agent_id):
+            if not founder_powers():
+                return redirect(url_for("login"))
+            agent = agents.by_id(agent_id)
+            if agent is None:
+                abort(404)
+            if agent["id"] == rooms.FIRST:
+                return redirect(url_for(first), code=307)
+            return view(agent)
+        return guarded
+    return wrapped
+
+
+# The keeper stops any agent's tide, and lifts the stop, as he does the first
+# one's: a short reason and one plain question first, and nothing asked to lift
+# it. Each writes in that agent's own packet alone, and its line in the commons
+# carries that agent's name.
+@app.route("/agents/<agent_id>/stop-tide", methods=["POST"])
+@keeper_form("stop_tide")
+def agent_stop_tide(agent):
+    back = url_for("agent_attendances", agent_id=agent["id"])
+    if tide_stop(agent["id"]):
+        return redirect(back)  # one stop at a time, and one stands
+    reason = " ".join((request.form.get("reason") or "").split())
+    if not reason or len(reason) > STOP_REASON_LONGEST:
+        return keeper_attendances_page(agent, stop_refused=True, reason=reason)
+    if request.form.get("confirm") != "yes":
+        return keeper_attendances_page(agent, stopping=True, reason=reason)
+    begin_stop(reason, of=agent["id"])
+    return redirect(back)
+
+
+@app.route("/agents/<agent_id>/lift-stop", methods=["POST"])
+@keeper_form("lift_stop")
+def agent_lift_stop(agent):
+    if tide_stop(agent["id"]):
+        end_stop(of=agent["id"])
+    return redirect(url_for("agent_attendances", agent_id=agent["id"]))
 
 
 # There is no button here that holds an attendance: the tide holds them, at

@@ -148,6 +148,10 @@ import rooms
 # that is public - its DID, its room, its bond, its name on the commons.
 import agents
 
+# Whose rest from the correspondence it is told of, and where each is kept: the
+# people it shares a room with, and no one else (members.rest_of).
+import members
+
 # Which agent wakes: the one TESSERAE_AGENT names, or the first one where it
 # names none. The hearth names it when it starts a waking; nothing is guessed,
 # and an id no agent here has is refused before anything is read.
@@ -984,10 +988,13 @@ WOKEN_BY_FOUNDER = "The founder opened this attendance."
 
 # The founder's rest from the correspondence stops nothing of its wakings; while
 # it stands, each waking says so, with the day it began and the day it ends on,
-# if he named one. The hearth writes it (see hearth.founder_rest).
-FOUNDER_REST = PACKET / "founder-rest.json"
+# if he named one. A member's rest is said the same way, by the name the commons
+# gives them. Each is read only by an agent that shares a room with them, and
+# kept where members.rest_of says; the hearth writes it (see hearth.founder_rest).
 FOUNDER_RESTING = ("The founder is resting from the correspondence, since {since}{until}. Your "
                    "wakings go on as you choose, and letters you write will wait for him.")
+MEMBER_RESTING = ("{name} is resting from the correspondence, since {since}{until}. Your "
+                  "wakings go on as you choose, and letters you write will wait for them.")
 FOUNDER_RESTING_UNTIL = ", until {day}"
 # The keeper's stop holds the tide outright, in an emergency, with a reason; the
 # first waking after it is lifted says, once, when it stood and why.
@@ -2749,23 +2756,31 @@ def wake_again_let_go(since):
 
 
 def founder_rest_lines():
-    """The one line the reading says while the founder rests, or none.
+    """For each person it shares a room with, the one line the reading says while they rest.
 
-    A rest whose day has come is over, though the hearth may not yet have put it
-    away; one that cannot be read is not said.
+    Only the people of its own rooms are asked after, by rooms.of: a rest covers
+    its own rooms and no others. The founder's line is the one it has always
+    been. A rest whose day has come is over, though the hearth may not yet have
+    put it away; one that cannot be read is not said.
     """
-    try:
-        rest = load(FOUNDER_REST)
-        if not rest:
-            return []
-        until = rest.get("until")
-        if until and datetime.now(here()).date().isoformat() >= until:
-            return []
-        return [FOUNDER_RESTING.format(
-            since=on_day(rest.get("since", "")),
-            until=FOUNDER_RESTING_UNTIL.format(day=day_in_words(until)) if until else "")]
-    except (ValueError, TypeError, AttributeError):
-        return []
+    said = []
+    for room in rooms.of(NAME):
+        person = room.parties[0]  # the human of the pair, as the stores name them
+        try:
+            rest = load(members.rest_of(person)[0])
+            if not rest:
+                continue
+            until = rest.get("until")
+            if until and datetime.now(here()).date().isoformat() >= until:
+                continue
+            words = FOUNDER_RESTING if person == members.FOUNDER else MEMBER_RESTING
+            said.append(words.format(
+                name=room.other,  # their name as the commons gives it, and as they chose it
+                since=on_day(rest.get("since", "")),
+                until=FOUNDER_RESTING_UNTIL.format(day=day_in_words(until)) if until else ""))
+        except (members.MemberError, ValueError, TypeError, AttributeError):
+            continue
+    return said
 
 
 def tide_stop_lines(since):

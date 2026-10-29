@@ -828,6 +828,7 @@ PAUSED = "the tide paused"
 RESUMED = "the tide resumed"
 
 RETURNED = "he returned"  # how a rest of the founder's ended, as its history keeps it
+THEY_RETURNED = "they returned"  # and a member's
 REST_DAY_CAME = "the day came"
 STOP_REASON_LONGEST = 300  # characters: a short reason, and no more
 
@@ -913,31 +914,40 @@ def rest_ended(standing, zone, of=None):
     return BY_DATE if datetime.now(zone).date() >= day else None
 
 
-def founder_rest():
-    """The founder's rest, if one stands. One whose day has come is over, and is kept."""
-    rest_from_old_pause()
-    standing = load(FOUNDER_REST)
+# A member rests from the correspondence as the founder does, from their account
+# page, and their rest is kept with them (members.rest_of). It covers their own
+# rooms and no others: each agent is told only of the rests of the people it
+# shares a room with. Each function below is the founder's where no one else is
+# named, and his files are where they always were.
+
+def founder_rest(person=members.FOUNDER):
+    """A person's rest, if one stands: the founder's if no one is named. One whose
+    day has come is over, and is kept."""
+    if person == members.FOUNDER:
+        rest_from_old_pause()
+    standing = load(members.rest_of(person)[0])
     if not standing:
         return None
     until = standing.get("until")
     if until and datetime.now(EASTERN).date().isoformat() >= until:
-        end_rest(REST_DAY_CAME)
+        end_rest(REST_DAY_CAME, person)
         return None
     return standing
 
 
-def begin_rest(until=None):
-    """Write the founder's rest. Nothing is said in the commons, and the tide goes on."""
-    write_json(FOUNDER_REST, {"since": utc_stamp(), "until": until})
+def begin_rest(until=None, person=members.FOUNDER):
+    """Write a person's rest. Nothing is said in the commons, and the tide goes on."""
+    write_json(members.rest_of(person)[0], {"since": utc_stamp(), "until": until})
 
 
-def end_rest(how=RETURNED):
-    """Take the founder's rest away, and keep it in founder-rest/ with how it ended."""
-    standing = load(FOUNDER_REST)
+def end_rest(how=RETURNED, person=members.FOUNDER):
+    """Take a person's rest away, and keep it with how it ended: the founder's in founder-rest/."""
+    rest, kept = members.rest_of(person)
+    standing = load(rest)
     if standing:
-        write_json(FOUNDER_REST_KEPT / ("founder-rest-%s.json" % standing.get("since")),
+        write_json(kept / ("%s-%s.json" % (kept.name, standing.get("since"))),
                    {**standing, "ended_at": utc_stamp(), "ended": how})
-    FOUNDER_REST.unlink(missing_ok=True)
+    rest.unlink(missing_ok=True)
 
 
 def rest_day_asked(said):
@@ -1009,9 +1019,10 @@ def pause_shown(of=None):
     }
 
 
-def rest_shown():
-    """The founder's rest, as the attendances page shows it, or None if none stands."""
-    standing = founder_rest()
+def rest_shown(person=members.FOUNDER):
+    """A person's rest, as their page shows it, or None if none stands: the founder's
+    on the attendances page, a member's on their account page."""
+    standing = founder_rest(person)
     if not standing:
         return None
     return {"since": readable_date(standing.get("since", "")),
@@ -3188,6 +3199,23 @@ def recover():
 PASSWORD_CHANGED = "Your password is changed."
 
 
+def resting_member():
+    """The member signed in, where their rest is theirs to set here; None for the keeper.
+
+    The keeper's rest is the founder's, and is set where it always has been, on
+    the attendances page.
+    """
+    name = session.get("member")
+    return name if name and not keeper_here() else None
+
+
+def account_page(**told):
+    """The account page, with whatever has just been said, and the member's rest."""
+    name = resting_member()
+    return render_template("account.html", rests_here=bool(name),
+                           rest=rest_shown(name) if name else None, **told)
+
+
 @app.route("/account", methods=["GET", "POST"])
 def account():
     name = session.get("member")
@@ -3200,13 +3228,13 @@ def account():
         now = datetime.now(timezone.utc)
         counted = tries_counted(name, now)
         if locked_out(counted, now):
-            return render_template("account.html", error=NOT_THE_PASSWORD)
+            return account_page(error=NOT_THE_PASSWORD)
         if password != again:
-            return render_template("account.html", error=PASSWORDS_DIFFER)
+            return account_page(error=PASSWORDS_DIFFER)
         try:
             vault.check_password(password)
         except VaultError as reason:
-            return render_template("account.html", error=str(reason).capitalize() + ".")
+            return account_page(error=str(reason).capitalize() + ".")
 
         record = member_record(name)
         try:
@@ -3221,10 +3249,35 @@ def account():
             if record:
                 forget_misses(counted[0])
                 remember_member(name, record)
-                return render_template("account.html", changed=PASSWORD_CHANGED)
+                return account_page(changed=PASSWORD_CHANGED)
         note_miss(counted, now)
-        return render_template("account.html", error=NOT_THE_PASSWORD)
-    return render_template("account.html")
+        return account_page(error=NOT_THE_PASSWORD)
+    return account_page()
+
+
+# A member rests from the correspondence and returns to it, as the founder does
+# from the attendances page: no question first, and a day it ends on if they
+# name one. It covers their own rooms and no others, and nothing is said in the
+# commons. The keeper's rest is the founder's, and is not set here.
+@app.route("/account/rest", methods=["POST"])
+@member_required
+def member_rest():
+    name = resting_member()
+    if name and not founder_rest(name):  # one rest at a time
+        until = rest_day_asked(request.form.get("until"))
+        if until is False:
+            return account_page(rest_refused=True)
+        begin_rest(until, name)
+    return redirect(url_for("account"))
+
+
+@app.route("/account/return", methods=["POST"])
+@member_required
+def member_return():
+    name = resting_member()
+    if name:
+        end_rest(THEY_RETURNED, name)
+    return redirect(url_for("account"))
 
 
 # Forget whoever was signed in, wholly - the form token with the rest - and

@@ -19,6 +19,13 @@ far they have read in each:
     members/<pseudonym>/seen.json
         {room id: the stamp of the newest letter of the other's they have opened}
 
+and, while they rest from the correspondence, their rest, with each one that is
+over kept beside it (see rest_of):
+
+    members/<pseudonym>/rest.json
+        {"since": UTC stamp, "until": YYYY-MM-DD or null}
+    members/<pseudonym>/rest/rest-<since>.json
+
 Storage only: no route, no page. A member's public identity document is shaped
 here from their record (did_document), and served by the hearth. The name is checked before it is ever made into
 a path, and that check is the whole of the path's safety. Nothing here logs or
@@ -358,3 +365,31 @@ def mark_seen(pseudonym, room_id, stamp):
             return
         held[room_id] = stamp
         _write_json(folder / SEEN, held)
+
+
+# ---------------------------------------------------------------- a rest
+
+# A person's rest from the correspondence is theirs, and covers their own rooms
+# and no others: an agent reads the rest of each person it shares a room with,
+# and of no one else. The founder's is where it has always been, in the first
+# one's packet, so that the first one's packet, its backup and its reading are
+# what they were; a member's is kept with them. The hearth writes both; a waking
+# only reads.
+FOUNDER = "founder"  # the founder in a room, as rooms.store_name names him
+REST = "rest.json"
+REST_KEPT = "rest"
+
+
+def rest_of(person):
+    """Where a person's rest stands, and where each one that is over is kept: (rest, kept).
+
+    person is a room's name for them: "founder", or a member's pseudonym, which
+    is checked before it is made into a path. A rest that is over is kept in
+    kept under the folder's own name and its since: founder-rest-<since>.json,
+    as always, or rest-<since>.json.
+    """
+    if person == FOUNDER:
+        packet = DATA / "packets" / agents.first()["id"]
+        return packet / "founder-rest.json", packet / "founder-rest"
+    folder = _folder(person)
+    return folder / REST, folder / REST_KEPT

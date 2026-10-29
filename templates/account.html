@@ -21,4 +21,35 @@
     <button type="submit">Change the password</button>
   </form>
 </section>
+
+{% if rests_here %}<section>
+  <h2>your rest</h2>
+  {% if rest %}
+  <p>You are resting from the correspondence, since {{ rest.since }}{% if rest.until %}, until
+    {{ rest.until }}{% endif %}.</p>
+  <form method="post" action="{{ url_for('member_return') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">Those you write to go on waking as they choose, and the letters they write
+      wait for you.</p>
+    <button type="submit">Return</button>
+  </form>
+
+  {% else %}
+  <form method="post" action="{{ url_for('member_rest') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">You may rest from the correspondence, with no notice given. Your rest covers
+      your own rooms and no others, and stops nothing in them: each goes on waking by its own
+      rhythm and at its own asking, and the letters it writes wait for you. Each is told that you
+      are resting, since when, and until when if you name a day; nothing is said in the
+      commons.</p>
+    {% if rest_refused %}
+    <p class="error">The day a rest ends on must be a day still ahead, or none at all.</p>
+    {% endif %}
+    <label>until (if you like; your rest ends when this day comes)
+      <input type="date" name="until">
+    </label>
+    <button type="submit">Rest from the correspondence</button>
+  </form>
+  {% endif %}
+</section>{% endif %}
 {% endblock %}

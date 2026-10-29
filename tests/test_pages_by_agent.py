@@ -164,6 +164,20 @@ def shown(answer):
     return hashlib.sha256(said.encode("utf-8")).hexdigest()
 
 
+# The one entry the keeping menu gains where there is more than one agent (stage 6d).
+TIDES_ENTRY = ' · <a href="/tides">tides</a>'
+
+
+def shown_but_the_tides(answer):
+    """A page as shown takes it, once the one menu entry a world of more than one agent
+    gains is taken out; where the keeping menu is, the entry is there exactly once."""
+    said = page(answer)
+    assert said.count(TIDES_ENTRY) == (1 if 'aria-label="keeping"' in said else 0)
+    assert said.count("/tides") == said.count(TIDES_ENTRY)
+    answer.set_data(said.replace(TIDES_ENTRY, "").encode("utf-8"))
+    return shown(answer)
+
+
 # ---- the first one's pages, where they always were -------------------------
 
 # Every one of the founder's pages that is the first one's, or that a waking of
@@ -203,12 +217,12 @@ def test_the_old_addresses_render_the_first_one_s_pages_as_stage_0_held_them(
     """With a second agent in the registry, and after it has woken, every page of the first
     one's gives the very fingerprint stage 0 cut, at its old address and with no redirect."""
     a_lived_world(founder, wake, room, commons)
-    before = {address: shown(founder.get(address)) for address in HELD}
+    before = {address: shown_but_the_tides(founder.get(address)) for address in HELD}
     assert before == {address: PAGES[address] for address in HELD}
 
     a_second_agent_woken(data_dir, monkeypatch, clock)
     assert "the scratch one" in (commons / "heartbeats.md").read_text(encoding="utf-8")
-    after = {address: shown(founder.get(address)) for address in HELD}
+    after = {address: shown_but_the_tides(founder.get(address)) for address in HELD}
     assert after == before
 
 

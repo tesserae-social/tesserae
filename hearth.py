@@ -960,10 +960,17 @@ def tide_stop(of=None):
     return load(packet_of(of) / TIDE_STOP.name)
 
 
-def begin_stop(reason, of=None):
-    """Stop an agent's tide, and say in the commons that it paused, unless it already had."""
+def begin_stop(reason, of=None, every=None):
+    """Stop an agent's tide, and say in the commons that it paused, unless it already had.
+
+    A stop set with every other tide's carries the moment they were all stopped at,
+    as its since and as its stamp, so that they may be lifted together.
+    """
     already = tide_paused(of)
-    write_json(packet_of(of) / TIDE_STOP.name, {"since": utc_stamp(), "reason": reason})
+    standing = {"since": every or utc_stamp(), "reason": reason}
+    if every:
+        standing["every"] = every
+    write_json(packet_of(of) / TIDE_STOP.name, standing)
     if not already:
         note_event("event", agent_words(PAUSED, of))
 
@@ -2624,7 +2631,10 @@ def member_required(view):
 def who_is_here():
     """What every page may know of who is signed in: whether the gate would open,
     and whether it is a member (who has an account page)."""
-    return {"founder_here": founder_powers(), "member_here": bool(session.get("member"))}
+    founder_here = founder_powers()
+    return {"founder_here": founder_here, "member_here": bool(session.get("member")),
+            # every tide's page is linked only where there is more than one tide to keep
+            "tides_linked": founder_here and len(agents.registry()) > 1}
 
 
 # ---- signing in ----------------------------------------------------------
@@ -4054,6 +4064,118 @@ def agent_lift_stop(agent):
     if tide_stop(agent["id"]):
         end_stop(of=agent["id"])
     return redirect(url_for("agent_attendances", agent_id=agent["id"]))
+
+
+# ---- every tide, on one page -----------------------------------------------
+
+# The keeper keeps every agent's tide, and may stop them all at once, in an
+# emergency. The page shows, for each agent alike, the first one among them, no
+# more than the keeper's view of it does: its rhythm, its own rest by since and
+# condition, his stop, and where its attendances are. Only an agent that wakes
+# is stopped: a dormant one has no tide. Each stop is written as a stop from its
+# own page would be, with the reason given here, and nothing else is said of it:
+# the commons is told only that each one's tide paused, and each agent, when it
+# is lifted, only when its own tide was stopped and why. None is told that every
+# tide was stopped. The stops set together carry the moment they were set, and
+# are lifted together by it; a stop that already stood is never written over,
+# and is lifted only from its own page.
+#
+# The page is linked from the keeping menu only where there is more than one
+# agent; it answers with one all the same.
+
+TIDE_DORMANT = "It does not wake, so it has no tide to stop."
+
+
+def names_joined(names):
+    """Names as a sentence lists them: "a, b and c"."""
+    names = list(names)
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+app.jinja_env.filters["names_joined"] = names_joined
+
+
+def stop_stamp(standing):
+    """The moment a stop was set together with the others, or None if it was set on its own."""
+    every = standing.get("every") if isinstance(standing, dict) else None
+    return every if isinstance(every, str) and STAMP.fullmatch(every) else None
+
+
+def tides_shown():
+    """Each agent's tide as the page shows it, in the order of founding."""
+    rows = []
+    for agent in agents.registry():
+        standing = tide_stop(agent["id"])
+        rows.append({"agent": agent, "wakes": bool(agent.get("wakes")),
+                     "rhythm_note": rhythm_note(agent["id"]) if agent.get("wakes") else None,
+                     "stop": keeper_stop(agent), "together": stop_stamp(standing) is not None,
+                     "rest": keeper_rest(agent), "stamp": stop_stamp(standing),
+                     "since": standing.get("since") if isinstance(standing, dict) else None,
+                     "reason": standing.get("reason") if isinstance(standing, dict) else None})
+    return rows
+
+
+def stopped_together(rows):
+    """Each moment every tide was stopped at whose stops still stand, the newest first."""
+    said = []
+    for stamp in sorted({row["stamp"] for row in rows if row["stamp"]}, reverse=True):
+        together = [row for row in rows if row["stamp"] == stamp]
+        reason = together[0]["reason"]
+        on_their_own = [row["agent"]["commons_name"] for row in rows
+                        if row["stop"] and row["stamp"] != stamp
+                        and isinstance(row["since"], str) and STAMP.fullmatch(row["since"])
+                        and row["since"] <= stamp]
+        said.append({"stamp": stamp, "moment": moment_said(stamp),
+                     "reason": reason if isinstance(reason, str) else "",
+                     "names": [row["agent"]["commons_name"] for row in together],
+                     "on_their_own": on_their_own})
+    return said
+
+
+def tides_page(**told):
+    """Every agent's tide, with whatever the keeper has just been told."""
+    rows = tides_shown()
+    waking = [row for row in rows if row["wakes"]]
+    return render_template("tides.html", rows=rows, dormant=TIDE_DORMANT,
+                           together=stopped_together(rows),
+                           to_stop=[row["agent"] for row in waking if not row["stop"]],
+                           already=[row["agent"] for row in waking if row["stop"]],
+                           reason_longest=STOP_REASON_LONGEST, **told)
+
+
+@app.route("/tides")
+@founder_required
+def tides():
+    return tides_page()
+
+
+@app.route("/stop-every-tide", methods=["POST"])
+@founder_required
+def stop_every_tide():
+    reason = " ".join((request.form.get("reason") or "").split())
+    if not reason or len(reason) > STOP_REASON_LONGEST:
+        return tides_page(stop_refused=True, reason=reason)
+    if request.form.get("confirm") != "yes":
+        return tides_page(stopping=True, reason=reason)
+    # only those the keeper was asked about: one founded since is not stopped
+    asked = set(request.form.getlist("agent"))
+    stamp = utc_stamp()
+    for agent in agents.registry():
+        if agent.get("wakes") and agent["id"] in asked and not tide_stop(agent["id"]):
+            begin_stop(reason, of=None if agent["id"] == rooms.FIRST else agent["id"],
+                       every=stamp)
+    return redirect(url_for("tides"))
+
+
+@app.route("/lift-stops-together", methods=["POST"])
+@founder_required
+def lift_stops_together():
+    every = request.form.get("every") or ""
+    if STAMP.fullmatch(every):
+        for agent in agents.registry():
+            if stop_stamp(tide_stop(agent["id"])) == every:
+                end_stop(of=None if agent["id"] == rooms.FIRST else agent["id"])
+    return redirect(url_for("tides"))
 
 
 # There is no button here that holds an attendance: the tide holds them, at

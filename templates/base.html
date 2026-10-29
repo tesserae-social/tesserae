@@ -446,7 +446,8 @@
     {{ menu([('chronicle', 'chronicle', url_for('chronicle')),
              ('attendances', 'attendances', url_for('attendances')),
              ('self_document', 'self', url_for('self_document')),
-             ('export', 'export', url_for('export')), ('backups', 'backups', url_for('backups'))]) }}
+             ('export', 'export', url_for('export')), ('backups', 'backups', url_for('backups'))]
+            + ([('tides', 'tides', url_for('tides'))] if tides_linked else [])) }}
   </nav>
   {% endif %}
 

@@ -22,7 +22,7 @@ import pytest
 from conftest import page, post, write, write_json
 from test_first_one_fingerprints import PAGES, a_lived_world
 from test_pages_by_agent import (OLD, a_second_room, agent_pages, alder, ask,  # noqa: F401
-                                 hazel, hearth, scratch_registry, shown, zipped)
+                                 hazel, hearth, scratch_registry, shown_but_the_tides, zipped)
 from test_rooms_for_any_agent import as_refused, member_vaults, tree_hash  # noqa: F401
 
 # Words planted in the scratch one's record, none of which the keeper may ever be shown.
@@ -316,9 +316,9 @@ def test_the_first_one_s_pages_hold_stage_0_s_fingerprints_beside_the_keeper_s_v
         hearth, founder, wake, room, commons, data_dir, packet):
     a_lived_world(founder, wake, room, commons)
     a_planted_record(data_dir, packet)
-    assert {address: shown(founder.get(address)) for address in HELD} == {
+    assert {address: shown_but_the_tides(founder.get(address)) for address in HELD} == {
         address: PAGES[address] for address in HELD}
     post(founder, "/agents/second/stop-tide", data={"reason": "a test", "confirm": "yes"})
     post(founder, "/agents/second/lift-stop")
-    assert {address: shown(founder.get(address)) for address in HELD} == {
+    assert {address: shown_but_the_tides(founder.get(address)) for address in HELD} == {
         address: PAGES[address] for address in HELD}

@@ -199,10 +199,11 @@ def test_a_name_that_is_not_free_is_asked_again(setup, did_path):
 
 
 def test_a_short_password_is_asked_again(setup, did_path):
-    console = Console(["ada", "written"], ["short", PASSWORD, PASSWORD])
+    # not a BIP39 word nor any word said, so the random phrase can never contain it
+    console = Console(["ada", "written"], ["tiny-pw", PASSWORD, PASSWORD])
     assert run(setup, did_path, console) == 0
     assert "a password needs at least 10 characters" in console.said
-    assert "short" not in console.said
+    assert "tiny-pw" not in console.said
 
 
 def test_two_passwords_that_differ_are_asked_again(setup, did_path):

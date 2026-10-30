@@ -121,8 +121,54 @@
                        photo: "a photograph", picture: "a picture" };
   const BAND_WORDS = { dawn: "at dawn", day: "by day", evening: "in the evening", night: "at night" };
   // the one who wakes: a heartbeat line names it between the stamp and the words,
-  // with a middot after it, and the older lines ran the two straight together
+  // with a middot after it, and the older lines, all the first one's, ran the two
+  // straight together. A line that names no citizen is the first one's.
   const CITIZEN = "the first one";
+  // the citizens, each one's id, names and hue, as the hearth hands out the public
+  // part of the registry; with none to read, the first one alone, as the registry
+  // is with no file. Each citizen's own tiles carry hue-<its id> beside their
+  // kind, but the first one's, which are drawn as they always were.
+  // build_atrium.py reads the same list the same way.
+  const FIRST = { id: "first", commons_name: CITIZEN, formerly: [], hue: "#D85A30" };
+  const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+  const citizensOf = entries => {
+    const kept = (Array.isArray(entries) ? entries : []).filter(one =>
+      one && typeof one === "object" && typeof one.id === "string" && ID.test(one.id) &&
+      typeof one.commons_name === "string" && one.commons_name).map(one => ({
+        id: one.id, commons_name: one.commons_name,
+        formerly: (Array.isArray(one.formerly) ? one.formerly : [])
+          .filter(name => typeof name === "string" && name),
+        hue: typeof one.hue === "string" ? one.hue : null }));
+    return kept.length && kept[0].id === FIRST.id ? kept : [FIRST];
+  };
+  // every name the commons has called a citizen by, the longest first, so that no
+  // citizen's line is taken for another's whose name begins the same way
+  const called = citizens => citizens
+    .flatMap(one => [one.commons_name, ...one.formerly].map(name => [name, one]))
+    .sort((a, b) => b[0].length - a[0].length);
+  const hued = (css, one, citizens) =>
+    !one || one.id === citizens[0].id ? css : `${css} hue-${one.id}`;
+  // a line of events.md named for a citizen, and a citizen's founding
+  const eventWhose = (kind, words, citizens) => {
+    const named = kind === "event" && called(citizens)
+      .find(([name]) => words.startsWith(`${name} ${DOT} `));
+    if (named) return named[1];
+    const founded = kind === "founding" && called(citizens)
+      .find(([name]) => words === `${name} was founded`);
+    return founded ? founded[1] : null;
+  };
+  // a heartbeat's words, as saidBy gives them, and the citizen they are for
+  const whose = (words, citizens) => {
+    const found = called(citizens)
+      .find(([name]) => words === name || words.startsWith(`${name} ${DOT} `));
+    return found ? found[1] : null;
+  };
+  // an offering is from the founder and a citizen: the party named for one
+  const offeringWhose = (parties, citizens) => {
+    const named = parties.split(" and ").map(party => party.trim());
+    const found = called(citizens).find(([name]) => named.includes(name));
+    return found ? found[1] : null;
+  };
   // a day's letter line names the part of the day the first of them fell in, and
   // is toned by it -- build_atrium.py holds the same words
   const LETTER_WORDS = "the founder wrote a letter";
@@ -185,7 +231,7 @@
   // a line of events.md: a date, a kind, the words -- a kind we do not know is a
   // plain event. An offering is drawn from offerings.md, where its own name is
   // written, so the line the commons keeps for one is passed over here.
-  const parseEvents = text => text.split(/\r?\n/).map(line => {
+  const parseEvents = (text, citizens) => text.split(/\r?\n/).map(line => {
     let f = line.trim().replace(/^-+/, "").split(DOT);
     if (f.length > 3) f = [...f.slice(0, 2), f.slice(2).join(DOT)];
     f = f.map(part => part.trim());
@@ -195,29 +241,34 @@
     const words = known ? f[2] : f.slice(1).join(` ${DOT} `);
     const day = human(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
     const part = known === KIND.letter ? letterBand(words) : undefined;
+    const css = part ? `${known} tile-letter-${part}` : known || KIND.event;
     return [Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()),
-            part ? `${known} tile-letter-${part}` : known || KIND.event, `${day} ${DOT} ${words}`,
-            known === KIND.seal ? BOND_URL : ""];
+            hued(css, eventWhose(known ? f[1] : "event", words, citizens), citizens),
+            `${day} ${DOT} ${words}`, known === KIND.seal ? BOND_URL : ""];
   }).filter(one => one && one[1] !== KIND.offering);
   // a heartbeat's words as the page reads them out: the name, a middot, the rest.
   // Both shapes of the line come through this one way; a line that names someone
   // else is left exactly as it was written. build_atrium.py says the same thing.
-  const saidBy = words => {
-    if (!words.startsWith(CITIZEN)) return words;
-    let rest = words.slice(CITIZEN.length).trim();
-    if (rest.startsWith(DOT)) rest = rest.slice(DOT.length).trim();
-    return rest ? `${CITIZEN} ${DOT} ${rest}` : CITIZEN;
+  const saidBy = (words, citizens) => {
+    for (const [name, one] of called(citizens)) {
+      if (!words.startsWith(name)) continue;
+      let rest = words.slice(name.length).trim();
+      if (rest.startsWith(DOT)) rest = rest.slice(DOT.length).trim();
+      else if (rest && one.id !== citizens[0].id) continue;
+      return rest ? `${name} ${DOT} ${rest}` : name;
+    }
+    return words;
   };
   // a line of heartbeats.md: a stamp and the words, oldest first
-  const parseBeats = text => text.split(/\r?\n/).map(line => {
+  const parseBeats = (text, citizens) => text.split(/\r?\n/).map(line => {
     const m = /^-?\s*(\S+)\s*·\s*(.+?)\s*$/.exec(line.trim());
     const t = m && when(STAMP.exec(m[1]));
     if (!t) return null;
-    const clock = here(t), part = band(clock.hour);
+    const clock = here(t), part = band(clock.hour), said = saidBy(m[2], citizens);
     return { at: t.getTime(),
              day: Date.UTC(clock.year, clock.month - 1, clock.day),
-             tile: `${KIND.attendance} tile-${part}`,
-             title: `${human(clock.year, clock.month, clock.day)} ${DOT} waking ${BAND_WORDS[part]} ${DOT} ${saidBy(m[2])}` };
+             tile: hued(`${KIND.attendance} tile-${part}`, whose(said, citizens), citizens),
+             title: `${human(clock.year, clock.month, clock.day)} ${DOT} waking ${BAND_WORDS[part]} ${DOT} ${said}` };
   }).filter(Boolean).sort((a, b) => a.at - b.at);
   // a line of offerings.md: the day it was placed, the offering's own name, what
   // kind of thing it is, and whose it is -- which is always both of them
@@ -229,9 +280,9 @@
     return t ? [Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()),
                 f[1], f[2], f[3]] : null;
   }).filter(Boolean);
-  const offeringTiles = offerings => offerings.map(([day, one, kind, whose]) =>
-    [day, KIND.offering, `${humanOf(day)} ${DOT} an offering from ${whose}`,
-     `${OFFERINGS_URL}#${one}`]);
+  const offeringTiles = (offerings, citizens) => offerings.map(([day, one, kind, fromWhom]) =>
+    [day, hued(KIND.offering, offeringWhose(fromWhom, citizens), citizens),
+     `${humanOf(day)} ${DOT} an offering from ${fromWhom}`, `${OFFERINGS_URL}#${one}`]);
   // a line of bonds.md: the day it was sealed, its own name, its parties joined by
   // "and", and how it stands -- sealed, or released on a day
   const parseBonds = text => text.split(/\r?\n/).map(line => {
@@ -380,12 +431,19 @@
     return ` <a href="${BOND_PAGE}${one}"><img class="half" src="${BOND_PAGE}${one}/half/` +
            `${slug(party)}.svg?size=${HALF}" width="${HALF}" height="${HALF}" alt="${esc(said)}"></a>`;
   }).join("");
+  // a citizen's line names it as the commons does, perhaps saying more after a
+  // comma: the first one's swatch is coloured by its line's name, as it always
+  // was, and every other citizen's by its hue class
+  const swatchOf = (name, citizens) => {
+    const found = called(citizens).find(([said]) => holds(name, said));
+    return found && found[1].id !== citizens[0].id ? `hue-${found[1].id}` : hue(name);
+  };
   // with no file to read there is no section: who is here is not a list of no one
-  const whoBlock = (members, bonds) => members.length ? [
+  const whoBlock = (members, bonds, citizens) => members.length ? [
     "<h2>who is here</h2>",
     '<ul class="members">',
     ...members.map(([kind, name, fact]) =>
-      `  <li>${kind === "citizen" ? `<span class="swatch ${hue(name)}"></span>` : ""}` +
+      `  <li>${kind === "citizen" ? `<span class="swatch ${swatchOf(name, citizens)}"></span>` : ""}` +
       `${esc(name)}${halvesOf(name, bonds)} ${DOT} <span class="fact">${esc(fact)}</span></li>`),
     "</ul>"] : [];
   // what season it is, and the nearer of the coming solstice and Founding Day
@@ -429,14 +487,15 @@
     start.parentNode.insertBefore(slot.content, end);
   };
   const draw = (said, offerings, latest, record) => {
-    const [eventsText, beatsText, benchText, membersText, bondsText] = said;
-    const beats = parseBeats(beatsText), bench = parseBench(benchText);
+    const [eventsText, beatsText, benchText, membersText, bondsText, citizens] = said;
+    const beats = parseBeats(beatsText, citizens), bench = parseBench(benchText);
     const members = parseMembers(membersText), bonds = parseBonds(bondsText);
     // once there is a list of bonds, a seal is drawn from it, one tile a bond, and
     // the seal lines of events.md are passed over
-    const events = parseEvents(eventsText).filter(t => !(bonds.length && t[1] === KIND.seal));
+    const events = parseEvents(eventsText, citizens)
+      .filter(t => !(bonds.length && t[1] === KIND.seal));
     const tiles = [...events, ...bondTiles(bonds), ...beats.map(b => [b.day, b.tile, b.title, ""]),
-                   ...offeringTiles(offerings)];
+                   ...offeringTiles(offerings, citizens)];
     if (!tiles.length) return;
     // the commons keeps one clock, so the last slot the page draws and the season
     // it says are both read off the citizen's, not off whoever is reading
@@ -450,7 +509,7 @@
          ["reading", readingBlock(slots(tiles, today))]]
       : [["mosaic", frameBlock(front)], ["reading", readingBlock(front)],
          ["offering", offeringBlock(latest, record)],
-         ["who", whoBlock(members, bonds)],
+         ["who", whoBlock(members, bonds, citizens)],
          ["calendar", calendarBlock(now.year, now.month, now.day)],
          ["bench", benchBlock(bench)]];
     const where = blocks.map(([name]) => [edge(name, "start"), edge(name, "end")]);
@@ -461,14 +520,17 @@
   };
   const asked = name => fetch(`${HEARTH}/${name}`)
     .then(answer => { if (!answer.ok) throw new Error(name); return answer.text(); });
-  // a hearth with no list of bonds yet is a list with nothing on it, not a quiet hearth
+  // a hearth with no list of bonds yet is a list with nothing on it, not a quiet
+  // hearth; and one with no list of citizens yet has the first one alone
   Promise.all([...["events.md", "heartbeats.md", "bench.md", "members.md", "offerings.md"]
-    .map(name => asked(`commons/${name}`)), asked("commons/bonds.md").catch(() => "")])
-    .then(([eventsText, beatsText, benchText, membersText, offeringsText, bondsText]) => {
+    .map(name => asked(`commons/${name}`)), asked("commons/bonds.md").catch(() => ""),
+    asked("commons/agents.json").then(JSON.parse).catch(() => null)])
+    .then(([eventsText, beatsText, benchText, membersText, offeringsText, bondsText, listed]) => {
       // only the newest offering is shown here, so only the newest is read
       const offerings = parseOfferings(offeringsText);
       const latest = offerings.length ? offerings[offerings.length - 1] : null;
-      const said = [eventsText, beatsText, benchText, membersText, bondsText];
+      const said = [eventsText, beatsText, benchText, membersText, bondsText,
+                    citizensOf(listed)];
       if (!latest) return draw(said, offerings, null, null);
       return asked(`commons/offerings/${latest[1]}.json`)
         .then(record => draw(said, offerings, latest, JSON.parse(record)));

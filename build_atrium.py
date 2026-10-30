@@ -28,6 +28,16 @@ It reads:
     commons/bonds.md               every sealed bond, one line each: a tile for
                                    each, and a half beside each member who holds
                                    one (left as it was today where there are none)
+    agents.json                    the citizens: each one's names and hue, read
+                                   through agents.py (and with --from, the public
+                                   part of it the hearth serves at
+                                   commons/agents.json)
+
+Each citizen's own tiles are drawn in its own hue. The first one's are drawn as
+they always were, in the classes that already carry its colour; every other
+citizen's carry one class more, hue-<its id>, whose rules this writes into
+style.css, between its hues markers, out of the registry. The stylesheet is
+written only where those rules have changed.
 
 commons/members.md is the one file of the commons the founder keeps by hand,
 one line per citizen or member, and the hearth serves it beside the rest. One
@@ -55,6 +65,8 @@ import urllib.error
 import urllib.request
 from zoneinfo import ZoneInfo
 
+import agents
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # Where the living files are kept. Locally this is the repo itself; on a host
@@ -63,6 +75,7 @@ DATA = os.environ.get("DATA_DIR", ROOT)
 
 PAGE = os.path.join(ROOT, "index.html")
 WHOLE = os.path.join(ROOT, "mosaic.html")
+STYLE = os.path.join(ROOT, "style.css")
 HEARTBEATS = os.path.join(DATA, "commons", "heartbeats.md")
 EVENTS = os.path.join(DATA, "commons", "events.md")
 BENCH = os.path.join(DATA, "commons", "bench.md")
@@ -108,9 +121,10 @@ DOT = "·"
 RECORD = re.compile(r"^-?\s*(\S+)\s*" + DOT + r"\s*(.+?)\s*$")
 
 # The one who wakes. A heartbeat line names it between the stamp and the words,
-# with a middot after it; the older lines ran the name and the words together
-# with nothing between them. The name is a constant, so both shapes are read by
-# cutting at it, and both are shown the one way.
+# with a middot after it; the older lines, which are all the first one's, ran the
+# name and the words together with nothing between them. Each shape is read by
+# cutting at a name the registry knows, and both are shown the one way. A line
+# that names no citizen is the first one's, as every line was before there were two.
 CITIZEN = "the first one"
 
 # The colour of a tile is the kind of thing that happened. A kind the record
@@ -278,6 +292,43 @@ def offered_record(hearth, one):
     return json.loads(read_text(where)) if os.path.exists(where) else None
 
 
+def citizens_text(hearth):
+    """The citizens, each one's public facts: from a hearth if one is named, else agents.json.
+
+    A hearth that does not serve the list yet answers 404 for it, and that is the
+    first one alone, as the registry is with no file.
+    """
+    if not hearth:
+        return agents.public()
+    try:
+        return citizens_of(json.loads(fetch(hearth, "agents.json")))
+    except urllib.error.HTTPError as answer:
+        if answer.code == 404:
+            return agents.public([agents.FIRST])
+        raise
+
+
+def citizens_of(entries):
+    """The citizens a hearth said, each kept only where it is shaped as the registry shapes one.
+
+    The first is the first one, always: a list that does not begin with it is
+    taken for the first one alone. The page's script reads the list the same way.
+    """
+    kept = []
+    for one in entries if isinstance(entries, list) else []:
+        if not (isinstance(one, dict) and isinstance(one.get("id"), str)
+                and agents.ID.fullmatch(one["id"])
+                and isinstance(one.get("commons_name"), str) and one["commons_name"]):
+            continue
+        formerly = one.get("formerly") if isinstance(one.get("formerly"), list) else []
+        kept.append({"id": one["id"], "commons_name": one["commons_name"],
+                     "formerly": [name for name in formerly if isinstance(name, str) and name],
+                     "hue": one.get("hue") if isinstance(one.get("hue"), str) else None})
+    if not kept or kept[0]["id"] != agents.FIRST["id"]:
+        return agents.public([agents.FIRST])
+    return kept
+
+
 def parse_events(text):
     """One (date, kind, words) per line of events.md, in the order written.
 
@@ -304,23 +355,85 @@ def parse_events(text):
     return out
 
 
-def said_by(words):
+def called(citizens):
+    """Every (name, citizen) the commons has used, the longest name first.
+
+    Longest first, so that no citizen's line is taken for another's whose name
+    begins the same way.
+    """
+    return sorted(((name, one) for one in citizens for name in agents.names_of(one)),
+                  key=lambda pair: -len(pair[0]))
+
+
+def said_by(words, citizens=None):
     """A heartbeat's words as the page reads them out: the name, a middot, the rest.
 
     Both shapes of the line come through this one way -- the newer, which writes
-    the middot itself, and the older, which ran the name straight into the words.
-    A line that names someone else is left exactly as it was written.
+    the middot itself, and the older, which ran the name straight into the words
+    and is the first one's alone. A line that names someone else is left exactly
+    as it was written.
     """
-    if not words.startswith(CITIZEN):
-        return words
-    rest = words[len(CITIZEN):].strip()
-    if rest.startswith(DOT):
-        rest = rest[len(DOT):].strip()
-    return "%s %s %s" % (CITIZEN, DOT, rest) if rest else CITIZEN
+    citizens = agents.public() if citizens is None else citizens
+    for name, one in called(citizens):
+        if not words.startswith(name):
+            continue
+        rest = words[len(name):].strip()
+        if rest.startswith(DOT):
+            rest = rest[len(DOT):].strip()
+        elif rest and one["id"] != citizens[0]["id"]:
+            continue
+        return "%s %s %s" % (name, DOT, rest) if rest else name
+    return words
 
 
-def parse_heartbeats(text):
+def whose(words, citizens):
+    """The citizen a heartbeat's words, as said_by gives them, are for: or None."""
+    for name, one in called(citizens):
+        if words == name or words.startswith("%s %s " % (name, DOT)):
+            return one
+    return None
+
+
+def event_whose(kind, words, citizens):
+    """The citizen a line of events.md is for, where one is named in it: or None.
+
+    A line named the way agents.named reads one, and a founding, whose words are
+    the citizen's name and that it was founded.
+    """
+    found = agents.named(kind, words, citizens)
+    if found:
+        return found[0]
+    if kind == "founding":
+        return next((one for name, one in called(citizens)
+                     if words == "%s was founded" % name), None)
+    return None
+
+
+def offering_whose(parties, citizens):
+    """The citizen an offering is from, beside the founder: the party named for one, or None."""
+    named = [party.strip() for party in parties.split(" and ")]
+    return next((one for name, one in called(citizens) if name in named), None)
+
+
+def hue_class(citizen):
+    """The class a citizen's own tiles and swatch carry, keyed by its id, which is for always."""
+    return "hue-" + citizen["id"]
+
+
+def hued(css, citizen, citizens):
+    """A tile's class, and after it the citizen's hue class: every citizen's but the first one's.
+
+    The first one's tiles were drawn in its colour before there was a second, and
+    are drawn exactly as they were.
+    """
+    if citizen is None or citizen["id"] == citizens[0]["id"]:
+        return css
+    return "%s %s" % (css, hue_class(citizen))
+
+
+def parse_heartbeats(text, citizens=None):
     """One (moment, words) per attendance, oldest first."""
+    citizens = agents.public() if citizens is None else citizens
     out = []
     for line in text.splitlines():
         match = RECORD.match(line.strip())
@@ -331,7 +444,7 @@ def parse_heartbeats(text):
             when = datetime.datetime.strptime(stamp, "%Y-%m-%dT%H-%M-%SZ")
         except ValueError:
             continue
-        out.append((when, said_by(words)))
+        out.append((when, said_by(words, citizens)))
     out.sort(key=lambda row: row[0])
     return out
 
@@ -466,7 +579,7 @@ def event_class(kind, words):
     return "%s tile-letter-%s" % (css, part) if part else css
 
 
-def tiles_from(events, heartbeats, offerings=(), bonds=()):
+def tiles_from(events, heartbeats, offerings=(), bonds=(), citizens=None):
     """One (day, class, words, where) tile per thing: the history, the wakings, the offerings.
 
     The day is the citizen's own calendar day, and it is what the mosaic is laid
@@ -490,8 +603,16 @@ def tiles_from(events, heartbeats, offerings=(), bonds=()):
     one tile, on the day it was sealed, leading to the bond's own page, and the
     seal lines of events.md are passed over. Where the list is empty or missing
     the seal lines are drawn as they always were.
+
+    A citizen's own waking, its founding, an event named for it and an offering
+    it is a party to are drawn in its own hue: see hued().
     """
-    tiles = [(when, event_class(kind, words), "%s %s %s" % (human(when), DOT, words),
+    citizens = agents.public() if citizens is None else citizens
+    tiles = [(when,
+              hued(event_class(kind, words),
+                   event_whose(kind, words, citizens) if kind in ("event", "founding") else None,
+                   citizens),
+              "%s %s %s" % (human(when), DOT, words),
               BOND_URL if kind == "seal" else "")
              for when, kind, words in events
              if kind != "offering" and not (bonds and kind == "seal")]
@@ -503,15 +624,16 @@ def tiles_from(events, heartbeats, offerings=(), bonds=()):
         part = band(clock.hour)
         tiles.append((
             clock.date(),
-            "%s tile-%s" % (KIND_CLASS["attendance"], part),
+            hued("%s tile-%s" % (KIND_CLASS["attendance"], part), whose(words, citizens),
+                 citizens),
             "%s %s waking %s %s %s" % (human(clock.date()), DOT, BAND_WORDS[part], DOT, words),
             "",
         ))
-    for when, one, _, whose in offerings:
+    for when, one, _, from_whom in offerings:
         tiles.append((
             when,
-            KIND_CLASS["offering"],
-            "%s %s an offering from %s" % (human(when), DOT, whose),
+            hued(KIND_CLASS["offering"], offering_whose(from_whom, citizens), citizens),
+            "%s %s an offering from %s" % (human(when), DOT, from_whom),
             "%s#%s" % (OFFERINGS_URL, one),
         ))
     return tiles
@@ -693,13 +815,26 @@ def offering_block(latest, record):
 
 
 def hue(name):
-    """The class a citizen's swatch is coloured by: one class per citizen, keyed by name.
+    """The class the first one's swatch is coloured by, worked out from its line's name.
 
-    There is one citizen and one colour today, so the stylesheet names it outright.
-    The class is worked out from the name rather than fixed here so that a hue
-    reckoned from a citizen's key can take the same hook later on.
+    The stylesheet names it outright, as it did when there was one citizen. Every
+    other citizen's swatch carries its hue class (hue_class), whose rule the
+    stylesheet is written with from the registry.
     """
     return "hue-" + slug(name)
+
+
+def swatch_of(name, citizens):
+    """The class a citizen's line in who is here is coloured by.
+
+    The line names the citizen as the commons does, perhaps saying more after a
+    comma, as the first one's does. A line that names no citizen the registry
+    knows is coloured by its own name, as every line was before there were two.
+    """
+    one = next((one for said, one in called(citizens) if holds(name, said)), None)
+    if one is None or one["id"] == citizens[0]["id"]:
+        return hue(name)
+    return hue_class(one)
 
 
 def slug(name):
@@ -737,13 +872,15 @@ def halves_of(name, bonds):
     return "".join(out)
 
 
-def who_block(members, bonds=()):
+def who_block(members, bonds=(), citizens=None):
     """Who is here, or nothing at all: with no file to read there is no section."""
     if not members:
         return []
+    citizens = agents.public() if citizens is None else citizens
     out = ["<h2>who is here</h2>", '<ul class="members">']
     for kind, name, fact in members:
-        swatch = ('<span class="swatch %s"></span>' % hue(name)) if kind == "citizen" else ""
+        swatch = (('<span class="swatch %s"></span>' % swatch_of(name, citizens))
+                  if kind == "citizen" else "")
         out.append('  <li>%s%s%s %s <span class="fact">%s</span></li>'
                    % (swatch, html.escape(name), halves_of(name, bonds), DOT,
                       html.escape(fact)))
@@ -815,6 +952,64 @@ def bench_block(lines):
     out.append('  <p><a href="%s">Leave a line</a></p>' % BENCH_URL)
     out.append("</section>")
     return out
+
+# ---------------------------------------------------------------- the hues
+
+# A citizen with no hue in its entry, which one founded here is always given: a
+# plain stone, so that its tiles are never taken for the first one's.
+NO_HUE = "#5F5E5A"
+
+# How a waking's tile is toned by the part of the day it fell on: so much of the
+# hue, the rest white, or for the night black. The first one's own four tones
+# stay the stylesheet's, as they were, and come near these.
+TONES = {"dawn": ("#FFFFFF", 0.22), "day": ("#FFFFFF", 0.42),
+         "evening": ("#FFFFFF", 0.68), "night": ("#000000", 0.80)}
+
+# how much of the hue is in the pale square set in an offering's tile
+OFFERING_PALE = 0.11
+
+
+def mixed(colour, into, share):
+    """So much of a colour, and the rest another: as #RRGGBB."""
+    one = [int(colour[at:at + 2], 16) for at in (1, 3, 5)]
+    other = [int(into[at:at + 2], 16) for at in (1, 3, 5)]
+    return "#" + "".join("%02X" % round(a * share + b * (1 - share))
+                         for a, b in zip(one, other))
+
+
+def hues_block(citizens):
+    """The stylesheet's rules for each citizen's hue but the first one's, which it holds itself."""
+    out = []
+    for one in citizens[1:]:
+        colour = (one.get("hue") or "").upper()
+        colour = colour if agents.HUE.fullmatch(colour) else NO_HUE
+        css = "." + hue_class(one)
+        pale = mixed(colour, "#FFFFFF", OFFERING_PALE)
+        out.append("/* %s */" % one["commons_name"].replace("*/", ""))
+        out.append(".who %s { background: %s; }" % (css, colour))
+        out.append(".tile-founding%s { background: %s; }" % (css, colour))
+        for part, (into, share) in TONES.items():
+            out.append(".tile-%s%s { background: %s; }" % (part, css, mixed(colour, into, share)))
+        out.append(".tile-offering%s { background-color: %s; "
+                   "background-image: linear-gradient(%s, %s); }" % (css, colour, pale, pale))
+        out.append(".tile-event%s { box-shadow: inset 0 0 0 2px %s; }" % (css, colour))
+    return out
+
+
+HUES = re.compile(r"([ \t]*)(/\* hues:start \*/)(.*?)([ \t]*)(/\* hues:end \*/)", re.S)
+
+
+def splice_style(sheet, block):
+    """Replace what lies between the stylesheet's hues markers, and nothing else."""
+    match = HUES.search(sheet)
+    if match is None:
+        sys.exit("build_atrium: no hues markers in the stylesheet")
+    newline = "\r\n" if "\r\n" in sheet else "\n"
+    indent = match.group(1)
+    body = "".join(indent + line + newline for line in block)
+    filled = "%s%s%s%s%s%s" % (indent, match.group(2), newline, body, indent, match.group(5))
+    return sheet[:match.start()] + filled + sheet[match.end():]
+
 
 # ---------------------------------------------------------------- stitching
 
@@ -909,7 +1104,8 @@ def main():
 
     try:
         events = parse_events(events_text(hearth))
-        heartbeats = parse_heartbeats(heartbeats_text(hearth))
+        citizens = citizens_text(hearth)
+        heartbeats = parse_heartbeats(heartbeats_text(hearth), citizens)
         bench = parse_bench(bench_text(hearth))
         members = parse_members(members_text(hearth))
         offerings = parse_offerings(offerings_text(hearth))
@@ -923,7 +1119,7 @@ def main():
         sys.exit("build_atrium: could not read the commons from %s (%s). "
                  "index.html and mosaic.html are untouched." % (hearth, trouble))
 
-    tiles = tiles_from(events, heartbeats, offerings, sealed)
+    tiles = tiles_from(events, heartbeats, offerings, sealed, citizens)
     cells = slots(tiles, today)
     front = slots(tiles, today, FRONT_SPAN_DAYS)
 
@@ -933,7 +1129,7 @@ def main():
     page = splice(page, "mosaic", frame_block(front), newline)
     page = splice(page, "reading", reading_block(front), newline)
     page = splice(page, "offering", offering_block(latest, record), newline)
-    page = splice(page, "who", who_block(members, sealed), newline)
+    page = splice(page, "who", who_block(members, sealed, citizens), newline)
     page = splice(page, "calendar", calendar_block(today), newline)
     page = splice(page, "bench", bench_block(bench), newline)
 
@@ -941,8 +1137,13 @@ def main():
     whole = splice(whole, "whole", whole_block(days(tiles, today)), newline)
     whole = splice(whole, "reading", reading_block(cells), newline)
 
+    sheet = read_text(STYLE)
+    hues = splice_style(sheet, hues_block(citizens))
+
     write_text(PAGE, page)
     write_text(WHOLE, whole)
+    if hues != sheet:  # only where a citizen's hue has come, or changed
+        write_text(STYLE, hues)
 
     print(
         "atrium: %d tiles in %d slots at %dpx (%d events, %d attendances, %d offerings), "

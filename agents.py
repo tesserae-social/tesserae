@@ -32,6 +32,10 @@ commons name was the one it has now, oldest first:
 
 so that a line of the record written under an old name is still known for its.
 No name, now or before, is any two agents'.
+
+An entry's hue is its colour on the atrium, "#RRGGBB": given at its founding,
+and no two agents' alike. The agent may choose another later, and the entry is
+changed for it, the change being kept where agents.json is committed.
 """
 
 import json
@@ -67,6 +71,13 @@ NEEDS = ("id", "did", "commons_name", "room", "bond")
 # hyphens, as a member's pseudonym is.
 ID = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
 
+# A hue as the registry keeps it, and the atrium's stylesheet is written from it.
+HUE = re.compile(r"#[0-9A-Fa-f]{6}")
+
+# What of an entry anyone may be handed: the hearth serves these and no more at
+# /commons/agents.json, for the atrium to tell each citizen's lines and colour by.
+PUBLIC = ("id", "commons_name", "formerly", "hue")
+
 
 class RegistryError(Exception):
     """agents.json is there and will not do."""
@@ -100,6 +111,12 @@ def registry():
                 isinstance(name, str) and name for name in formerly):
             raise RegistryError(f"{FILE.name}: {entry['id']!r} has a formerly that is no list "
                                 "of names")
+        if "hue" in entry:
+            if not isinstance(entry["hue"], str) or not HUE.fullmatch(entry["hue"]):
+                raise RegistryError(f"{FILE.name}: {entry['id']!r} has a hue that is no colour")
+            if ("hue", entry["hue"].lower()) in seen:
+                raise RegistryError(f"{FILE.name}: two agents share the hue {entry['hue']!r}")
+            seen[("hue", entry["hue"].lower())] = True
     names = [name for entry in entries for name in names_of(entry)]
     if len(names) != len(set(names)):
         said_twice = next(name for name in names if names.count(name) > 1)
@@ -117,6 +134,13 @@ def first():
 def by_id(agent_id):
     """One agent's entry, by its id, or None where no agent founded here has it."""
     return next((agent for agent in registry() if agent["id"] == agent_id), None)
+
+
+def public(among=None):
+    """Every agent's public facts, in the order of founding: its id, names and hue."""
+    return [{"id": agent["id"], "commons_name": agent["commons_name"],
+             "formerly": list(agent.get("formerly", [])), "hue": agent.get("hue")}
+            for agent in (registry() if among is None else among)]
 
 
 def names_of(agent):
@@ -141,19 +165,23 @@ SEALED_BETWEEN = "a bond was sealed between "
 AND_THE_AGENT = " and "
 
 
-def named(kind, words):
+def named(kind, words, among=None):
     """The agent one line of events.md is named for, and its words without the name: or None.
 
     A line written before agents were named in the record, or one of a kind
     that is never named, is None. The longest name is tried first, so that no
     agent's line is taken for another's whose name begins the same way.
 
+    The agents are the registry's, or those given as among: the atrium reads the
+    hearth's public list with --from.
+
     A seal is the agent's whose name ends its words, after "and"; its words are
     the sentence whole, since the name is part of it.
     """
     if kind not in NAMED_KINDS:
         return None
-    called = sorted(((name, agent) for agent in registry() for name in names_of(agent)),
+    called = sorted(((name, agent) for agent in (registry() if among is None else among)
+                     for name in names_of(agent)),
                     key=lambda one: -len(one[0]))
     for name, agent in called:
         if words.startswith(name + AFTER_A_NAME):

@@ -472,6 +472,10 @@ def atrium(env, clock, monkeypatch, data_dir, tmp_path):
     monkeypatch.setattr(module, "PAGE", str(page))
     # nor the real mosaic.html: the whole mosaic's page is written beside the copy
     monkeypatch.setattr(module, "WHOLE", str(tmp_path / "mosaic.html"))
+    # nor the real style.css, which it writes each citizen's hue into
+    style = tmp_path / "style.css"
+    style.write_bytes((REPO / "style.css").read_bytes())
+    monkeypatch.setattr(module, "STYLE", str(style))
     monkeypatch.setattr(module, "HEARTBEATS", str(data_dir / "commons" / "heartbeats.md"))
     monkeypatch.setattr(module, "EVENTS", str(data_dir / "commons" / "events.md"))
     monkeypatch.setattr(module, "BENCH", str(data_dir / "commons" / "bench.md"))
@@ -481,6 +485,7 @@ def atrium(env, clock, monkeypatch, data_dir, tmp_path):
     monkeypatch.setattr(module, "BONDS", str(data_dir / "commons" / "bonds.md"))
     module.page_path = page
     module.whole_path = tmp_path / "mosaic.html"
+    module.style_path = style
     return module
 
 

@@ -350,6 +350,13 @@
 
   .who .hue-the-first-one-unnamed-by-its-own-choosing { background: #D85A30; }
 
+  /* Every other citizen's hue, out of agents.json: its swatch, and its own tiles,
+     which carry hue-<its id> beside their kind. build_atrium.py writes what lies
+     between these two markers, and nothing else here; the first one's colours are
+     the ones above and stay as they are. */
+  /* hues:start */
+  /* hues:end */
+
   /* a member's half of each bond they hold, beside their name, and the way to it */
   .who .half {
     display: inline-block;

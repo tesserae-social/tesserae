@@ -3065,6 +3065,18 @@ def commons_members():
     return plain(MEMBERS)
 
 
+# The citizens, as the atrium tells each one's lines and colour by: of each
+# registry entry its id, its commons name, what it was called before, and its
+# hue, and nothing else of it. Open to another origin as the rest of the commons is.
+@app.route("/commons/agents.json")
+def commons_agents():
+    answer = Response(json.dumps(agents.public(), indent=2) + "\n",
+                      content_type="application/json; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
+
+
 # A member's identity document, open to anyone and to any machine: their DID and
 # the key they sign with, and nothing else of their record. The keeper has none
 # here - the keeper is the founder, whose document is at tesserae.social - and

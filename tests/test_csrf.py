@@ -323,11 +323,12 @@ def test_a_members_nav_signs_out_by_a_form_with_the_token(keeper, hearth):
 
 
 def test_at_the_bench_the_way_out_is_the_menu_s_and_the_footer_repeats_nothing(founder, keeper):
+    # for someone signed in the bench has nothing at its foot, so it has no footer
     for client in (founder, keeper):
         said = page(client.get("/bench"))
         assert said.count(the_way_out(client) + "log out</button>") == 1
-        footer = said[said.index("<footer>"):said.index("</footer>")]
-        assert "/logout" not in footer and 'href="/login"' not in footer
+        assert "<footer>" not in said
+        assert 'href="/login"' not in said
 
 
 def test_a_visitor_is_shown_log_in_and_no_way_out(visitor):

@@ -98,7 +98,7 @@ def test_a_line_is_shown_on_the_bench_and_in_the_commons(visitor, reader, common
 def test_an_empty_bench_says_so(visitor):
     said = page(visitor.get("/bench"))
     assert "The bench is empty. No one has left a line yet." in said
-    assert "A line is read once by a small utility model before it is placed" in said
+    assert "Leave one line." in said and "checked for good spirit before it appears." in said
 
 
 def test_the_form_says_which_field_may_be_left_alone(visitor):

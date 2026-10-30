@@ -91,9 +91,15 @@ ON_DISK_AFTER = {
 # hand" where it said "by the founder's hand"; and members.md, as the hearth
 # tends it, no longer says the founder "keeps the hearth". /letters and /bonds
 # did not move; nor did the files, the export, the backup, the tide or the atrium.
+#
+# /rooms/first cut again the same day, in the change that put back above the
+# letter what waits on the founder - the offerings awaiting a signature and the
+# open errands, "asked of you" - as it stood before the tidy-up; only the
+# optional extras stay folded under "more". This world has an open errand, so
+# the room moved for that alone; no other page did.
 PAGES = {
     "/": "925d4ec3afae5a9508572fc09c8c07a5d036f3972613fc41752c3d0913ea251a",
-    "/rooms/first": "3ea9002ecb7c77cf176bd26d27e432ba81f31c106c00ea51b89436b76c3963e2",
+    "/rooms/first": "5aca4f845053d255d8669653b0b884f633ac0af49ae537518aec459c65357206",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
     "/self": "1928b59fb94d956343af81e83cca7684f483c1396fd3b7d7f5e78e9125747b3e",
     "/attendances": "7ef5f02df77ac522c078c2ac264de2198ce76f0d8a35460e50cdb20eb29b175f",

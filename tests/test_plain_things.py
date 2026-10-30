@@ -116,14 +116,16 @@ def test_the_things_come_back_when_a_letter_is_refused(founder):
 
 # ---- the form ------------------------------------------------------------
 
-def test_the_form_asks_for_three_short_optional_lines_above_the_letter(founder):
+def test_the_form_asks_for_three_short_optional_lines_under_more(founder):
     shown = page(founder.get("/rooms/first"))
     assert "three plain things (optional)" in shown
     assert shown.count('name="thing"') == 3
     assert shown.count('maxlength="80"') == 3
-    assert "placeholder" not in shown[shown.index('name="thing"'):shown.index('name="letter"')]
-    assert shown.index('name="thing"') < shown.index('name="letter"')
-    assert "required" not in shown[shown.index('name="thing"'):shown.index('name="letter"')]
+    # folded under "more", below the letter box and before the photograph
+    more = shown[shown.index('<summary>more</summary>'):shown.index('name="photo"')]
+    assert shown.index('name="letter"') < shown.index('<summary>more</summary>')
+    assert more.count('name="thing"') == 3
+    assert "placeholder" not in more and "required" not in more
 
 
 # ---- /letters ------------------------------------------------------------

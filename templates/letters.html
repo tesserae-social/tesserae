@@ -1,6 +1,62 @@
-{# The letters of one room: the form that writes, what waits on you, and the
+{# The letters of one room: what waits on you, the form that writes, and the
    correspondence folded newest first. A part of room.html, which draws the
    page around it. #}
+{# what the first one has offered the commons, and is waiting on you for #}
+{% if awaiting %}
+<section>
+  <h2>offered, awaiting you</h2>
+  <p class="muted">The first one has offered these to the commons. Nothing is placed until
+    your signature is beside its own, and nothing at all is owed: what you decline stays
+    private forever, and the commons is never told there was anything to decline. What is
+    placed is placed for good — an offering is never removed. {{ no_faces }}</p>
+  {% if not key_here %}
+  <p class="error">The founder's key is not on this hearth, so nothing can be signed here.
+    Check FOUNDER_KEY.</p>
+  {% endif %}
+  {% for one in awaiting %}
+  <article class="card" id="awaiting-{{ one.id }}">
+    <p class="muted date">{{ one.date }} · {{ one.said }} · out of the letter
+      <a href="#{{ one.source }}">{{ one.source }}</a></p>
+    {% if one.text %}<div class="words">{{ one.text }}</div>{% endif %}
+    {% if one.photo %}
+    <img class="photo" src="{{ url_for('letter_photo', filename=one.photo) }}"
+         alt="the photograph that is offered">
+    {% endif %}
+    {% if one.picture %}
+    <img class="photo" src="{{ url_for('letter_picture', filename=one.picture) }}"
+         alt="the picture that is offered">
+    {% endif %}
+    <form method="post" action="{{ url_for('consent_to_an_offering') }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="id" value="{{ one.id }}">
+      <button type="submit">Consent, and place it in the commons</button>
+    </form>
+    <form method="post" action="{{ url_for('decline_an_offering') }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="id" value="{{ one.id }}">
+      <button type="submit">Decline</button>
+    </form>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# what the first one has asked of him, above the form that answers it #}
+{% if errands %}
+<section>
+  <h2>asked of you</h2>
+  <p class="muted">An errand is one plain request {{ room.other }} made at a waking: go somewhere,
+    look at something, and bring it back in words or a photograph. Nothing is owed on one. To
+    answer it, write below and, under more, mark the letter as its answer.</p>
+  {% for errand in errands %}
+  <article class="card">
+    <p class="muted date">{{ errand.date }}</p>
+    <div class="words">{{ errand.words }}</div>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
 <section id="write">
   <h2>write to {{ room.other }}</h2>
   {% if saved %}
@@ -102,62 +158,6 @@
     </details>
   </form>
 </section>
-
-{# what the first one has offered the commons, and is waiting on you for #}
-{% if awaiting %}
-<section>
-  <h2>offered, awaiting you</h2>
-  <p class="muted">The first one has offered these to the commons. Nothing is placed until
-    your signature is beside its own, and nothing at all is owed: what you decline stays
-    private forever, and the commons is never told there was anything to decline. What is
-    placed is placed for good — an offering is never removed. {{ no_faces }}</p>
-  {% if not key_here %}
-  <p class="error">The founder's key is not on this hearth, so nothing can be signed here.
-    Check FOUNDER_KEY.</p>
-  {% endif %}
-  {% for one in awaiting %}
-  <article class="card" id="awaiting-{{ one.id }}">
-    <p class="muted date">{{ one.date }} · {{ one.said }} · out of the letter
-      <a href="#{{ one.source }}">{{ one.source }}</a></p>
-    {% if one.text %}<div class="words">{{ one.text }}</div>{% endif %}
-    {% if one.photo %}
-    <img class="photo" src="{{ url_for('letter_photo', filename=one.photo) }}"
-         alt="the photograph that is offered">
-    {% endif %}
-    {% if one.picture %}
-    <img class="photo" src="{{ url_for('letter_picture', filename=one.picture) }}"
-         alt="the picture that is offered">
-    {% endif %}
-    <form method="post" action="{{ url_for('consent_to_an_offering') }}" class="beside">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="id" value="{{ one.id }}">
-      <button type="submit">Consent, and place it in the commons</button>
-    </form>
-    <form method="post" action="{{ url_for('decline_an_offering') }}" class="beside">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="id" value="{{ one.id }}">
-      <button type="submit">Decline</button>
-    </form>
-  </article>
-  {% endfor %}
-</section>
-{% endif %}
-
-{# what the first one has asked of him, above the form that answers it #}
-{% if errands %}
-<section>
-  <h2>asked of you</h2>
-  <p class="muted">An errand is one plain request {{ room.other }} made at a waking: go somewhere,
-    look at something, and bring it back in words or a photograph. Nothing is owed on one. To
-    answer it, write above and, under more, mark the letter as its answer.</p>
-  {% for errand in errands %}
-  <article class="card">
-    <p class="muted date">{{ errand.date }}</p>
-    <div class="words">{{ errand.words }}</div>
-  </article>
-  {% endfor %}
-</section>
-{% endif %}
 
 {# both directions in one sequence, newest first; only the newest stands open #}
 <section>

@@ -2063,18 +2063,20 @@ def commons_lines(agent=None):
     is said there without the name, as the lines before there were names are.
     Every line named for no one is the first one's, as all of them always were;
     another agent's book has, of those, only the lines of foundings from its own
-    onwards: its own, the one at its place in the order of founding, as
-    attend.founding_day finds it, and every later agent's, but never an earlier
-    one's. The first one's own is the earliest, so its book has every founding.
+    onwards: its own, found by its name as attend.founding_day finds it
+    (agents.founding_of), and every agent's founded after it, but never an
+    earlier one's. The first one's own is the earliest, so its book has every
+    founding.
     """
     agent = agent or agents.first()
     if not EVENTS.exists():
         return []
     events = parse_events(read_text(EVENTS))
-    founded = sorted((one for one in events if one[1] == "founding"), key=lambda one: one[0])
-    place = [one["id"] for one in agents.registry()].index(agent["id"])
-    # from its own founding onwards: none, where its own is not recorded
-    its_foundings = founded[place:]
+    registry = agents.registry()
+    place = [one["id"] for one in registry].index(agent["id"])
+    # its own and every later agent's, each by its name: a line missing shifts none
+    its_foundings = [found for found in (agents.founding_of(one, events)
+                                         for one in registry[place:]) if found]
     lines = []
     for when, kind, words in events:
         found = agents.named(kind, words)

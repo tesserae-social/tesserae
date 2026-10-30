@@ -1761,18 +1761,16 @@ def bond_stands(bond):
 def founding_day():
     """The day of its own founding, from the commons' own line for it, or None.
 
-    The commons records each founding as it happens, and the registry lists the
-    agents in the order they were founded: so an agent's founding is the
-    founding line that falls at its own place in that order, the first one's
-    the earliest of them. An agent whose founding the commons has not recorded
-    has none, and has served no wait.
+    The commons records each founding as it happens, as "<name> was founded":
+    an agent's founding is the line that names it (agents.founding_of), the
+    earliest where there are two. An agent whose founding the commons has not
+    recorded has none, and has served no wait.
     """
     events = COMMONS / "events.md"
     if not events.exists():
         return None
-    founded = sorted(when for when, kind, _ in parse_events(read(events)) if kind == "founding")
-    place = [agent["id"] for agent in agents.registry()].index(NAME)
-    return founded[place] if place < len(founded) else None
+    found = agents.founding_of(AGENT, parse_events(read(events)))
+    return found[0] if found else None
 
 
 def bonds_open_on():

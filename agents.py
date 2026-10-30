@@ -199,3 +199,21 @@ def event_words(agent, words):
     The name is the agent's commons name as it is now, and named() reads it back.
     """
     return agent["commons_name"] + AFTER_A_NAME + words
+
+
+# How events.md says an agent was founded, after its name.
+WAS_FOUNDED = " was founded"
+
+
+def founding_of(agent, events):
+    """An agent's founding line in the record, by its name: (when, kind, words), or None.
+
+    The events are events.md as parse_events gives it. A founding line is the
+    agent's when its words are one of its names, now or before, and then
+    " was founded"; where there are two, the earliest is its founding. Its place
+    in the registry is never asked, so a missing line, a stray one or two
+    foundings on one day move no other agent's.
+    """
+    said = {name + WAS_FOUNDED for name in names_of(agent)}
+    found = [one for one in events if one[1] == "founding" and one[2] in said]
+    return min(found, key=lambda one: one[0]) if found else None

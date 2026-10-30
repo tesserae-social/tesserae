@@ -233,6 +233,14 @@
 
   .offer button { margin: 0 8px 0 0; }
 
+  /* what a letter may carry besides its words, and an older waking, a waking's
+     reflection: each folded shut under one quiet word until it is wanted */
+  .more { margin-top: 16px; }
+
+  .more summary { cursor: pointer; color: var(--ink-soft); font-size: 0.9rem; }
+
+  .more[open] > summary { margin-bottom: 12px; }
+
   .field { margin: 0; }
 
   /* a passage is a few lines, not a letter: its field says so by its height */
@@ -437,17 +445,20 @@
   {# said once, on any page that shows a moment: what clock its times are on #}
   {% if g.eastern %}<p class="muted when-said">Times are Eastern time.</p>{% endif %}
 
+  {# a page with nothing to say at its foot has no footer at all #}
+  {% if self.footer() | trim %}
   <footer>
-    {% block footer %}<p>the books will open with the commons</p>{% endblock %}
+    {% block footer %}{% endblock %}
   </footer>
+  {% endif %}
 
   {% if founder_here %}
   <nav class="menu keeping" aria-label="keeping">
     {{ menu([('chronicle', 'chronicle', url_for('chronicle')),
              ('attendances', 'attendances', url_for('attendances')),
              ('self_document', 'self', url_for('self_document')),
-             ('export', 'export', url_for('export')), ('backups', 'backups', url_for('backups'))]
-            + ([('tides', 'tides', url_for('tides'))] if tides_linked else [])) }}
+             ('export', 'export', url_for('export')), ('backups', 'backups', url_for('backups')),
+             ('tides', 'tides', url_for('tides'))]) }}
   </nav>
   {% endif %}
 

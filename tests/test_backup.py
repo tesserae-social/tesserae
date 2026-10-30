@@ -465,11 +465,11 @@ def test_a_very_long_complaint_is_cut_to_one_readable_line(hearth, bucket, monke
     assert log_lines(hearth) == [said]
 
 
-# ---- the line on the attendances page ------------------------------------
+# ---- the line on the backups page ----------------------------------------
 
 def told(founder):
-    """The attendances page as running text, so a sentence can be looked for whole."""
-    return " ".join(page(founder.get("/attendances")).split())
+    """The backups page as running text, so a sentence can be looked for whole."""
+    return " ".join(page(founder.get("/backups")).split())
 
 
 def test_the_page_says_there_is_no_backup_yet(founder, bucket):
@@ -485,10 +485,19 @@ def test_the_page_says_when_the_last_one_was(founder, bucket, hearth, clock):
     assert "Last backup: 18 November 2026 · 30 kept" in told(founder)
 
 
-def test_the_attendances_page_says_when_backups_are_not_configured(founder, unconfigured):
+def test_the_backups_page_says_when_backups_are_not_configured(founder, unconfigured):
     said = told(founder)
-    assert "Backups are not configured." in said
+    assert said.count("Backups are not configured.") == 1  # said once, not twice
     assert "Last backup:" not in said
+
+
+def test_the_line_and_the_button_are_on_the_backups_page_and_not_the_attendances(founder,
+                                                                                bucket):
+    assert "Last backup: none yet" in told(founder)
+    assert "Back up now</button>" in told(founder)
+    attendances = page(founder.get("/attendances"))
+    assert "Last backup" not in attendances and "Back up now" not in attendances
+    assert 'action="/backup-now"' not in attendances
 
 
 def test_an_error_does_not_pass_for_a_backup(founder, bucket, hearth, monkeypatch):
@@ -614,8 +623,10 @@ def test_a_backup_that_is_not_there_is_not_there(founder, bucket):
     assert founder.get("/backups/" + NAME).status_code == 404
 
 
-def test_the_backups_are_reached_from_the_attendances_page(founder, bucket):
-    assert 'href="/backups"' in page(founder.get("/attendances"))
+def test_the_backups_are_reached_from_the_keeping_menu(founder, bucket):
+    said = page(founder.get("/attendances"))
+    keeping = said.split('aria-label="keeping"')[1]
+    assert 'href="/backups"' in keeping and said.count('href="/backups"') == 1
 
 
 # ---- the daily thread ----------------------------------------------------

@@ -1090,9 +1090,13 @@ def test_no_width_on_the_page_is_reckoned_from_the_window_s_own():
     assert "innerWidth" not in script and "clientWidth" not in script
 
 
+# the one quiet line after the last tile: what a tile is, and the way to the rest
+REST = ('<p class="rest">One tile for each day\'s events. Hover a tile to read it. · '
+        '<a href="/mosaic.html">the whole mosaic</a></p>')
+
 FRAME = re.compile(r'<main>\s*<div class="frame">\s*<div class="column">(.*?)</div>\s*'
                    r'<!-- mosaic:start -->(.*?)<!-- mosaic:end -->\s*'
-                   r'<p class="rest"><a href="/mosaic.html">the whole mosaic</a></p>\s*'
+                   + re.escape(REST) + r'\s*'
                    r'</div>\s*</main>', re.S)
 
 
@@ -1243,7 +1247,7 @@ def test_the_built_front_page_is_the_year_and_the_way_to_the_rest(atrium, data_d
     shown = titles_of([front])
     assert shown[0].startswith("15 October 2026") and shown[-1].startswith("16 October 2025")
     after = page.split("<!-- mosaic:end -->")[1].split("</main>")[0]
-    assert after.split() == '<p class="rest"><a href="/mosaic.html">the whole mosaic</a></p> </div>'.split()
+    assert after.split() == (REST + ' </div>').split()
     assert "502 slots at 19px" in capsys.readouterr().out
     # the whole mosaic's own page has all of it
     whole = atrium.whole_path.read_text(encoding="utf-8")
@@ -1316,7 +1320,6 @@ WHOLE_SKELETON = """<body class="atrium whole">
     <nav class="menu" aria-label="pages">
       <a href="/charter.html">the charter</a>&nbsp;·
       <a href="/white-paper.html">the white paper</a>&nbsp;·
-      <a href="/the-words.html">the words</a>&nbsp;·
       <a href="https://hearth.tesserae.social">the hearth</a>&nbsp;·
       <a href="https://hearth.tesserae.social/bench">leave a line</a>&nbsp;·
       <a href="/the-door.html">ask to join</a>
@@ -1559,7 +1562,6 @@ def test_the_atrium_says_what_it_is_in_its_head():
 MENU = [
     ("/charter.html", "the charter"),
     ("/white-paper.html", "the white paper"),
-    ("/the-words.html", "the words"),
     ("https://hearth.tesserae.social", "the hearth"),
     ("https://hearth.tesserae.social/bench", "leave a line"),
     ("/the-door.html", "ask to join"),
@@ -1644,7 +1646,6 @@ SKELETON = """<main>
       <nav class="menu" aria-label="pages">
         <a href="/charter.html">the charter</a>&nbsp;·
         <a href="/white-paper.html">the white paper</a>&nbsp;·
-        <a href="/the-words.html">the words</a>&nbsp;·
         <a href="https://hearth.tesserae.social">the hearth</a>&nbsp;·
         <a href="https://hearth.tesserae.social/bench">leave a line</a>&nbsp;·
         <a href="/the-door.html">ask to join</a>
@@ -1667,24 +1668,25 @@ SKELETON = """<main>
 
       <section class="who">
         <!-- who:start --><!-- who:end -->
+        <p class="note">A door open means someone is open to a new friendship.</p>
         <!-- calendar:start --><!-- calendar:end -->
       </section>
 
       <!-- bench:start --><!-- bench:end -->
 
       <footer>
-        <p>the books will open with the commons · <a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>
+        <p><a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>
       </footer>
 
     </div>
 
     <!-- mosaic:start --><!-- mosaic:end -->
 
-    <p class="rest"><a href="/mosaic.html">the whole mosaic</a></p>
+    %s
 
   </div>
 
-</main>""" % tuple(INTRO_PARAGRAPHS)
+</main>""" % (*INTRO_PARAGRAPHS, REST)
 
 
 def skeleton_of(text):
@@ -1703,8 +1705,7 @@ def test_the_page_is_read_in_this_order_and_holds_nothing_else():
 
 
 def test_the_foot_leads_to_the_record(atrium, data_dir, monkeypatch):
-    line = ('<p>the books will open with the commons · '
-            '<a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>')
+    line = '<p><a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>'
     said = PAGE.read_text(encoding="utf-8")
     foot = said.split("<footer>")[1].split("</footer>")[0]
     assert foot.strip() == line

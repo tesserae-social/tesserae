@@ -29,6 +29,8 @@ MEMBER_PASSWORD = "a plain member's own password"
 FIRST_LINE = ("citizen · the first one, unnamed by its own choosing · "
               "founded 4 September 2026, attends at dawn")
 FOUNDER_LINE = "member · the founder · keeps the hearth"
+# the same line as the hearth tends it: "keeps the hearth" is taken out, and the door said
+FOUNDER_TENDED = "member · the founder"
 MEMBER_LINE = "member · birch · came in by the door"
 NOTE = "a note the founder left himself about a door open at number 7"
 
@@ -325,7 +327,8 @@ def test_a_visitor_is_shown_no_door(visitor):
 
 def test_the_founders_home_page_says_his_door_in_one_plain_line(founder):
     said = page(founder.get("/"))
-    assert said.index('<section class="door">') < said.index("your correspondences")  # at the top
+    # below the correspondences, which come first
+    assert said.index("your correspondences") < said.index('<section class="door">')
     assert door_line(founder) == "Your door is closed; room not declared."
 
     assert post(founder, "/door", data={"state": "open"}).status_code == 302
@@ -484,23 +487,35 @@ def test_each_members_line_gains_their_door(founder, member, hearth, commons):
     path = members_md(commons, FIRST_LINE, FOUNDER_LINE, MEMBER_LINE, NOTE)
     hearth.tend_members()
     assert lines_of(path) == [FIRST_LINE + " · door closed",  # a door it has not set
-                              FOUNDER_LINE + " · door closed",
+                              FOUNDER_TENDED + " · door closed",
                               MEMBER_LINE + " · door closed", NOTE]
 
     post(founder, "/door", data={"state": "open"})  # the setting itself tends the file
-    assert lines_of(path)[1] == FOUNDER_LINE + " · door open"
+    assert lines_of(path)[1] == FOUNDER_TENDED + " · door open"
     post(founder, "/door", data={"room": "1"})  # he carries one, and that is the whole of it
-    assert lines_of(path)[1] == FOUNDER_LINE + " · door open · is full"
+    assert lines_of(path)[1] == FOUNDER_TENDED + " · door open · is full"
     post(founder, "/door", data={"room": "4"})
-    assert lines_of(path)[1] == FOUNDER_LINE + " · door open · has room"
+    assert lines_of(path)[1] == FOUNDER_TENDED + " · door open · has room"
     post(founder, "/door", data={"state": "closed"})
-    assert lines_of(path)[1] == FOUNDER_LINE + " · door closed · has room"
+    assert lines_of(path)[1] == FOUNDER_TENDED + " · door closed · has room"
     post(founder, "/door", data={"room": ""})
-    assert lines_of(path)[1] == FOUNDER_LINE + " · door closed"
+    assert lines_of(path)[1] == FOUNDER_TENDED + " · door closed"
 
     post(member, "/door", data={"state": "open", "room": "12"})
-    assert lines_of(path) == [FIRST_LINE + " · door closed", FOUNDER_LINE + " · door closed",
+    assert lines_of(path) == [FIRST_LINE + " · door closed", FOUNDER_TENDED + " · door closed",
                               MEMBER_LINE + " · door open · has room", NOTE]
+
+
+def test_only_the_founder_s_line_loses_keeps_the_hearth(founder, member, hearth, commons):
+    """Taken out of the founder's line wherever it stands in it, and of no one else's."""
+    path = members_md(commons, "member · the founder · keeps the hearth · door open",
+                      "member · the founder · was here first · keeps the hearth",
+                      "member · birch · keeps the hearth", NOTE + " · keeps the hearth")
+    hearth.tend_members()
+    assert lines_of(path) == ["member · the founder · door closed",
+                              "member · the founder · was here first · door closed",
+                              "member · birch · keeps the hearth · door closed",
+                              NOTE + " · keeps the hearth"]
 
 
 def test_who_is_here_never_says_a_number_of_a_door(founder, hearth, commons):
@@ -508,14 +523,14 @@ def test_who_is_here_never_says_a_number_of_a_door(founder, hearth, commons):
     for room in range(1, 13):
         post(founder, "/door", data={"state": "open", "room": str(room)})
         said = lines_of(path)[0]
-        assert said.startswith(FOUNDER_LINE + " · door open · ")
+        assert said.startswith(FOUNDER_TENDED + " · door open · ")
         assert not DIGIT.search(said), said
 
 
 def test_with_no_keeper_yet_the_founders_door_is_closed(hearth, commons):
     path = members_md(commons, FOUNDER_LINE)
     hearth.tend_members()
-    assert lines_of(path) == [FOUNDER_LINE + " · door closed"]
+    assert lines_of(path) == [FOUNDER_TENDED + " · door closed"]
 
 
 def test_only_the_door_is_touched_and_every_other_byte_is_left(founder, hearth, commons):
@@ -530,7 +545,7 @@ def test_only_the_door_is_touched_and_every_other_byte_is_left(founder, hearth, 
     post(founder, "/door", data={"state": "open", "room": "2"})
     assert (commons / "members.md").read_bytes() == written.replace(
         FIRST_LINE + "\r\n", FIRST_LINE + " · door closed\r\n").replace(
-        FOUNDER_LINE + "\r\n", FOUNDER_LINE + " · door open · has room\r\n").encode("utf-8")
+        FOUNDER_LINE + "\r\n", FOUNDER_TENDED + " · door open · has room\r\n").encode("utf-8")
 
 
 def test_a_file_that_already_says_so_is_not_written_again(founder, hearth, commons):
@@ -547,7 +562,7 @@ def test_the_hearth_hands_out_the_doors_as_they_stand(founder, visitor, hearth, 
     members_md(commons, FIRST_LINE, FOUNDER_LINE)
     hearth.door.set_door(FOUNDER_NAME, state="open", room=2)  # set by no page at all
     assert page(visitor.get("/commons/members.md")) == (
-        FIRST_LINE + " · door closed\n" + FOUNDER_LINE + " · door open · has room\n")
+        FIRST_LINE + " · door closed\n" + FOUNDER_TENDED + " · door open · has room\n")
 
 
 def test_the_waking_time_is_still_kept_beside_the_door(founder, hearth, packet, commons,
@@ -558,14 +573,14 @@ def test_the_waking_time_is_still_kept_beside_the_door(founder, hearth, packet, 
     first_door(hearth, False, monkeypatch)
     hearth.tend_members()
     assert lines_of(path) == [FIRST_LINE.replace("attends at dawn", "attends at 09:30"),
-                              FOUNDER_LINE + " · door closed"]
+                              FOUNDER_TENDED + " · door closed"]
 
     first_door(hearth, True, monkeypatch)
     hearth.door.set_door("first", state="open", room=3)
     hearth.tend_members()
     assert lines_of(path) == [
         FIRST_LINE.replace("attends at dawn", "attends at 09:30") + " · door open · has room",
-        FOUNDER_LINE + " · door closed"]
+        FOUNDER_TENDED + " · door closed"]
 
     # and a waking time that changes afterwards is still found, with the door after it
     write_json(packet / "rhythm.json", {"rhythm": "daily", "at": "sunset",
@@ -894,5 +909,5 @@ def test_the_two_hands_say_the_one_door(wake, attend, hearth, packet, commons, m
     wake(block("DOOR", "open\nroom 2"))
     hearth.tend_members()
     assert lines_of(path) == [FIRST_LINE + " · door open · has room",
-                              FOUNDER_LINE + " · door closed"]
+                              FOUNDER_TENDED + " · door closed"]
     assert json.loads((packet / "door.json").read_text(encoding="utf-8"))["room"] == 2

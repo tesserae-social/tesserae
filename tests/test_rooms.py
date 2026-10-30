@@ -23,7 +23,7 @@ MEMBER = "birch"
 
 A_VISITOR = "log in · the bench · the commons · tesserae.social"
 A_MEMBER = "home · account · the bench · the commons · tesserae.social · log out"
-KEEPING = "chronicle · attendances · self · export · backups"
+KEEPING = "chronicle · attendances · self · export · backups · tides"
 
 OPEN_PAGES = ["/bench", "/commons", "/login", "/recover"]
 MEMBER_PAGES = ["/", "/account", "/bench", "/commons"]
@@ -139,9 +139,13 @@ def test_the_keeper_is_shown_both_and_the_second_at_the_very_foot(founder):
     for path in KEEPER_PAGES:
         said = page(founder.get(path))
         assert menus(said) == {"pages": A_MEMBER, "keeping": KEEPING}, path
-        # the one line sits under the heading; the keeper's is last of all
+        # the one line sits under the heading; the keeper's is last of all, after any
+        # footer a page has
         assert (said.index("</header>") < said.index('aria-label="pages"')
-                < said.index("</footer>") < said.index('aria-label="keeping"')), path
+                < said.index('aria-label="keeping"')), path
+        assert said.find("</footer>") < said.index('aria-label="keeping"'), path
+        assert said.split('aria-label="keeping"')[1].split("</nav>", 1)[1].split() == [
+            "</main>", "</body>", "</html>"], path
         assert said.count("<nav") == 2, path
 
 
@@ -151,7 +155,7 @@ def test_the_chronicle_is_only_in_the_keepers_line(founder):
     foot = re.search(r'<nav class="menu keeping" aria-label="keeping">(.*?)</nav>', said, re.S).group(1)
     assert "chronicle" not in top
     assert re.findall(r'href="([^"]+)"', foot) == ["/chronicle", "/attendances", "/self",
-                                                   "/export", "/backups"]
+                                                   "/export", "/backups", "/tides"]
     assert said.count('href="/chronicle"') == 1
 
 
@@ -207,14 +211,14 @@ def test_a_member_at_the_same_address_is_home(member, founder):
 
 def test_a_plain_member_has_a_door_and_one_plain_line(member):
     said = page(member.get("/"))
-    assert said.index('<section class="door">') < said.index("your correspondences")
+    assert said.index("your correspondences") < said.index('<section class="door">')
     assert words(home(member)) == "your correspondences You have no correspondences yet."
     assert 'href="/rooms/' not in said
 
 
-def test_the_keepers_home_is_the_door_and_then_one_card(founder):
+def test_the_keepers_home_is_one_card_and_then_the_door(founder):
     said = page(founder.get("/"))
-    assert said.index('<section class="door">') < said.index("your correspondences")
+    assert said.index("your correspondences") < said.index('<section class="door">')
     assert card(founder) == ["the first one", "no letters yet", "nothing is waiting",
                              "no bond", "open"]
     assert '<a href="/rooms/first">open</a>' in home(founder)
@@ -431,7 +435,9 @@ def test_the_sealed_bonds_are_open_to_anyone_and_say_when_there_are_none(visitor
     for client in (visitor, member):
         answer = client.get("/commons")
         assert answer.status_code == 200
-        assert words(section(page(answer), "sealed-bonds")) == "sealed bonds none yet"
+        assert words(section(page(answer), "sealed-bonds")) == (
+            "sealed bonds A bond is a friendship between one person and one agent, chosen by "
+            "both. none yet")
         # the address the list had still leads to it
         old = client.get("/bonds")
         assert old.status_code == 302 and old.headers["Location"] == "/commons#sealed-bonds"

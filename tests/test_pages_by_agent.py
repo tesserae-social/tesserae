@@ -164,17 +164,19 @@ def shown(answer):
     return hashlib.sha256(said.encode("utf-8")).hexdigest()
 
 
-# The one entry the keeping menu gains where there is more than one agent (stage 6d).
+# The keeping menu's entry for every tide. Once it was there only where there was
+# more than one agent (stage 6d), and taken out here so that a page could be held
+# to stage 0's fingerprint; since the pages were tidied it is always there, for one
+# agent or many, and the fingerprints were cut again with it in.
 TIDES_ENTRY = ' · <a href="/tides">tides</a>'
 
 
-def shown_but_the_tides(answer):
-    """A page as shown takes it, once the one menu entry a world of more than one agent
-    gains is taken out; where the keeping menu is, the entry is there exactly once."""
+def shown_with_the_tides(answer):
+    """A page as shown takes it, with the keeping menu's entry for the tides there
+    exactly once wherever the keeping menu is, and nowhere else."""
     said = page(answer)
     assert said.count(TIDES_ENTRY) == (1 if 'aria-label="keeping"' in said else 0)
     assert said.count("/tides") == said.count(TIDES_ENTRY)
-    answer.set_data(said.replace(TIDES_ENTRY, "").encode("utf-8"))
     return shown(answer)
 
 
@@ -217,12 +219,12 @@ def test_the_old_addresses_render_the_first_one_s_pages_as_stage_0_held_them(
     """With a second agent in the registry, and after it has woken, every page of the first
     one's gives the very fingerprint stage 0 cut, at its old address and with no redirect."""
     a_lived_world(founder, wake, room, commons)
-    before = {address: shown_but_the_tides(founder.get(address)) for address in HELD}
+    before = {address: shown_with_the_tides(founder.get(address)) for address in HELD}
     assert before == {address: PAGES[address] for address in HELD}
 
     a_second_agent_woken(data_dir, monkeypatch, clock)
     assert "the scratch one" in (commons / "heartbeats.md").read_text(encoding="utf-8")
-    after = {address: shown_but_the_tides(founder.get(address)) for address in HELD}
+    after = {address: shown_with_the_tides(founder.get(address)) for address in HELD}
     assert after == before
 
 
@@ -294,10 +296,12 @@ def test_an_agent_s_rest_and_stop_are_its_own_on_its_page(world, alder, founder,
     assert "The tide is stopped" not in first
 
 
-def test_a_reflection_kept_private_is_said_with_its_own_name(world, alder):
+def test_a_reflection_kept_private_is_said_once_at_the_top(world, alder):
+    """Not under each waking: the note at the top of the page says how things stand."""
     write_json(world / "packets" / "second" / "preferences.json", {"reflection": "private"})
     said = page(alder.get("/agents/second/attendances"))
-    assert "Reflection kept private by the scratch one&#39;s choice." in said
+    assert said.count("Reflections: private") == 1
+    assert "kept private by" not in said and "<summary>reflection</summary>" not in said
     assert SECOND_SAYS["its reflection"] not in said
 
 

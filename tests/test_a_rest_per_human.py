@@ -225,12 +225,24 @@ def test_a_day_already_come_is_no_day_to_rest_until(two, alder, data_dir):
     assert not (data_dir / "members" / "alder" / "rest.json").exists()
 
 
-def test_the_keeper_rests_where_he_always_has(keeper, data_dir):
-    """The keeper's account page offers no rest, and its rest addresses write none."""
-    assert "Rest from the correspondence" not in page(keeper.get("/account"))
+def test_the_keeper_rests_from_the_account_page_by_the_founder_s_own_forms(keeper, data_dir):
+    """The keeper's rest is the founder's: offered on the account page, as a member's is,
+    but by the founder's own forms; a member's rest addresses write none for him."""
+    said = page(keeper.get("/account"))
+    assert "Rest from the correspondence</button>" in said
+    assert 'action="/rest"' in said and 'action="/account/rest"' not in said
     post(keeper, "/account/rest", data={"until": ""})
     assert not list((data_dir / "members").glob("*/rest.json"))
     assert not (data_dir / "packets" / "first" / "founder-rest.json").exists()
+
+
+def test_a_rest_is_said_in_one_line_naming_the_one_who_keeps_waking(keeper, two, alder):
+    """Each person's line names the agent of their own room: the keeper's the first one,
+    alder's the scratch one."""
+    for client, name in ((keeper, "The first one"), (alder, "The scratch one")):
+        said = " ".join(page(client.get("/account")).split())
+        assert ("Rest from writing for a while. %s keeps waking, and its letters wait for "
+                "you; nothing is made public." % name) in said
 
 
 def test_the_rest_addresses_are_a_member_s_alone(two, visitor):

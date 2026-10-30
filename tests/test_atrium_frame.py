@@ -469,12 +469,13 @@ def test_the_front_page_shows_the_last_year_and_the_way_to_the_whole(measured, n
     assert sum(1 for tile in tiles if tile["kind"] == "empty") == 52
 
     rest, column = said["rest"], said["column"]
-    assert said["restSays"] == '<a href="/mosaic.html">the whole mosaic</a>'
+    assert said["restSays"] == ("One tile for each day's events. Hover a tile to read it. · "
+                                '<a href="/mosaic.html">the whole mosaic</a>')
     assert rest["top"] >= max(tile["bottom"] for tile in tiles)     # after the last tile
     assert rest["top"] >= column["bottom"]
-    # one quiet line, in the column's own measure
+    # one quiet line, in the column's own measure; on a phone its words may wrap
     assert rest["left"] == column["left"] and rest["width"] == column["width"]
-    assert rest["height"] < 30
+    assert rest["height"] < (30 if width >= 768 else 80)
 
 
 # ---- the whole mosaic's own page ------------------------------------------

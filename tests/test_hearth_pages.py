@@ -63,9 +63,10 @@ def test_a_reflection_is_shown_only_where_it_was_left_open(founder, packet, hear
     said = page(founder.get("/attendances"))
     assert ("The older thinking." in said) is older_shown
     assert ("The newer thinking." in said) is newer_shown
-    # the page escapes what it renders, so the withheld line is looked for as shown
-    withheld = hearth.KEPT_PRIVATE.replace("'", "&#39;")
-    assert (withheld in said) is not (older_shown and newer_shown)
+    # an open one is folded under its waking's line; a withheld one is not said at all,
+    # since the note at the top says how things stand
+    assert said.count("<summary>reflection</summary>") == older_shown + newer_shown
+    assert "kept private by" not in said
 
 
 # A reflection, as attend.py saves one: everything the first one said, with its
@@ -177,8 +178,8 @@ def test_a_private_reflection_is_withheld_as_before(founder, packet, hearth, set
     before = log.read_bytes()
 
     said = page(founder.get("/attendances"))
-    assert shown_reflection(hearth, packet) == hearth.as_prose(hearth.KEPT_PRIVATE)
-    assert hearth.KEPT_PRIVATE.replace("'", "&#39;") in said
+    assert shown_reflection(hearth, packet) is None
+    assert "<summary>reflection</summary>" not in said and "kept private by" not in said
     for private in ("NOTES I KEEP FOR MYSELF", "A QUESTION I CARRY?", "(kept notes: private)",
                     "(kept questions: private)", "The river was quiet"):
         assert private not in said
@@ -215,6 +216,47 @@ def test_a_waking_is_shown_whole(founder, packet):
     assert "wrote a letter to the founder" in said
 
 
+def test_a_waking_is_one_line_and_its_reflection_is_folded_under_it(founder, packet):
+    an_attendance(packet, OLDER, woken_by="its own asking",
+                  acted=["kept notes", "wrote a letter to the founder"], heartbeat="A quiet day.")
+    said = page(founder.get("/attendances"))
+    line = re.search(r"<li>(.*?)<details", said, re.S).group(1)
+    assert " ".join(line.split()) == ("1 October 2026, 05:00 · woken at its own asking · "
+                                      "kept notes, wrote a letter to the founder · "
+                                      "“A quiet day.”")
+    assert re.search(r'<details class="more">\s*<summary>reflection</summary>\s*'
+                     r'<div class="words"><p>' + REFLECTION, said)
+    assert "<details class=\"more\" open" not in said  # closed until it is wanted
+    assert "<h2>wakings</h2>" in said and "what has happened" not in said
+
+
+def test_the_last_seven_wakings_are_shown_and_the_older_folded(founder, packet, hearth):
+    days = ["2026-10-%02dT09-00-00Z" % day for day in range(1, 11)]
+    for at in days:
+        an_attendance(packet, at, heartbeat="the heartbeat of %s" % at[:10])
+    said = page(founder.get("/attendances"))
+    shown, folded = said.split("<summary>older wakings</summary>")
+    assert hearth.WAKINGS_SHOWN == 7
+    for at in days[3:]:  # the newest seven, newest first
+        assert "the heartbeat of %s" % at[:10] in shown
+    for at in days[:3]:
+        assert "the heartbeat of %s" % at[:10] in folded
+        assert "the heartbeat of %s" % at[:10] not in shown
+    assert said.count("<summary>older wakings</summary>") == 1
+
+
+def test_seven_wakings_or_fewer_have_no_fold(founder, packet):
+    for day in range(1, 8):
+        an_attendance(packet, "2026-10-%02dT09-00-00Z" % day)
+    assert "older wakings" not in page(founder.get("/attendances"))
+
+
+def test_the_keeper_is_always_shown_the_tides(founder, visitor):
+    keeping = re.search(r'<nav class="menu keeping".*?</nav>', page(founder.get("/")), re.S)
+    assert '<a href="/tides">tides</a>' in keeping.group()
+    assert "/tides" not in page(visitor.get("/commons"))
+
+
 def test_stillness_is_said_as_stillness(founder, packet):
     an_attendance(packet, OLDER, acted=[])
     assert "nothing — it chose stillness" in page(founder.get("/attendances"))
@@ -243,8 +285,8 @@ def no_events(commons):
 
 
 def test_with_nothing_standing_the_founder_may_rest_and_the_keeper_may_stop(founder):
+    assert "Rest from the correspondence</button>" in page(founder.get("/account"))
     said = page(founder.get("/attendances"))
-    assert "Rest from the correspondence</button>" in said
     assert "Stop the tide (emergency)</button>" in said
     assert "Pause the tide" not in said  # there is no pause of the founder's any more
     assert "Hold an attendance" not in said  # there is no button that wakes it
@@ -252,12 +294,12 @@ def test_with_nothing_standing_the_founder_may_rest_and_the_keeper_may_stop(foun
 
 
 def test_the_rest_and_the_stop_are_apart(founder):
-    said = page(founder.get("/attendances"))
-    rest = said.index("<h2>your rest</h2>")
-    stop = said.index('<section class="emergency">')
-    assert rest < stop
-    assert "Stop the tide" not in said[rest:stop]
-    assert "Rest from the correspondence" not in said[stop:]
+    """The founder's rest is on the account page, as a member's is; the stop is the tide's."""
+    account, attendances = page(founder.get("/account")), page(founder.get("/attendances"))
+    assert "<h2>your rest</h2>" in account and "Stop the tide" not in account
+    assert "<h2>your rest</h2>" not in attendances
+    assert "Rest from the correspondence" not in attendances
+    assert '<section class="emergency">' in attendances
 
 
 def test_resting_takes_no_question_stops_nothing_and_tells_the_commons_nothing(founder, packet,
@@ -267,18 +309,20 @@ def test_resting_takes_no_question_stops_nothing_and_tells_the_commons_nothing(f
     assert read_json(packet / "founder-rest.json") == {"since": "2026-10-15T12-00-00Z", "until": None}
     assert not (packet / "pause.json").exists()
     assert not (packet / "tide-stop.json").exists()
+    assert done.headers["Location"] == "/account"
     assert no_events(commons)
-    said = page(founder.get("/attendances"))
+    said = page(founder.get("/account"))
     assert "You are resting from the correspondence, since 15 October 2026, 08:00." in said
     assert "Return</button>" in said
     assert "Rest from the correspondence</button>" not in said
-    assert "Stop the tide (emergency)</button>" in said  # the stop is still there, apart
+    # the stop is still there, apart
+    assert "Stop the tide (emergency)</button>" in page(founder.get("/attendances"))
 
 
 def test_a_rest_may_name_its_day(founder, packet):
     assert post(founder, "/rest", data={"until": "2026-10-20"}).status_code == 302
     assert read_json(packet / "founder-rest.json")["until"] == "2026-10-20"
-    said = " ".join(page(founder.get("/attendances")).split())
+    said = " ".join(page(founder.get("/account")).split())
     assert ("You are resting from the correspondence, since 15 October 2026, 08:00, until "
             "20 October 2026." in said)
 
@@ -298,13 +342,13 @@ def test_returning_keeps_the_rest_and_tells_the_commons_nothing(founder, packet,
     assert read_json(kept) == {"since": "2026-10-15T12-00-00Z", "until": "2026-10-20",
                           "ended_at": "2026-10-15T12-00-00Z", "ended": "he returned"}
     assert no_events(commons)
-    assert "Rest from the correspondence</button>" in page(founder.get("/attendances"))
+    assert "Rest from the correspondence</button>" in page(founder.get("/account"))
 
 
 def test_a_rest_whose_day_has_come_is_over_and_kept(founder, packet, clock):
     post(founder, "/rest", data={"until": "2026-10-17"})
     clock.set("2026-10-17T05-00-00Z")  # 01:00 on the 17th, Eastern
-    said = page(founder.get("/attendances"))
+    said = page(founder.get("/account"))
     assert "You are resting" not in said
     assert not (packet / "founder-rest.json").exists()
     kept, = (packet / "founder-rest").glob("founder-rest-*.json")
@@ -379,14 +423,14 @@ def test_a_stop_beside_a_rest_of_its_own_tells_the_commons_nothing_more(founder,
 
 def test_a_founder_s_pause_left_from_before_is_his_rest_now(founder, packet, commons):
     a_pause(packet)  # by the founder, since 10 October, as the old control left it
-    said = page(founder.get("/attendances"))
+    said = page(founder.get("/account"))
     assert "You are resting from the correspondence, since 10 October 2026, 05:00." in said
     assert not (packet / "pause.json").exists()
     assert read_json(packet / "founder-rest.json") == {"since": "2026-10-10T09-00-00Z", "until": None,
                                                   "from": "pause.json"}
     # the commons was told the tide paused when he paused it; now it has resumed
     assert lines_of(commons / "events.md")[-1].endswith("event · the first one · the tide resumed")
-    assert "The tide is stopped" not in said
+    assert "The tide is stopped" not in page(founder.get("/attendances"))
 
 
 @pytest.mark.parametrize("until, said_as", [
@@ -401,7 +445,8 @@ def test_a_rest_of_the_first_one_s_own_is_shown_as_it_named_it(founder, packet, 
         in said
     assert "the tide will not wake it" in said
     assert "hold an attendance" not in said
-    assert "Rest from the correspondence</button>" in said  # his rest is his own still
+    # his rest is his own still
+    assert "Rest from the correspondence</button>" in page(founder.get("/account"))
 
 
 def test_a_rest_of_the_first_one_s_own_is_not_the_founder_s_to_lift(founder, packet):
@@ -645,10 +690,11 @@ def test_the_login_page_is_as_it_was(visitor):
     said = page(visitor.get("/login"))
     assert "<h1>log in</h1>" in said
     for kept in ('<label for="pseudonym">pseudonym</label>', '<label for="password">password</label>',
-                 '<button type="submit">Sign in</button>',
+                 '<button type="submit">Log in</button>',
                  '<a href="/recover">Forgotten your password? Your twelve words will let you in.</a>'):
         assert kept in said, kept
-    assert "the books will open with the commons" in said  # the footer every page carries
+    assert "the books will open with the commons" not in said  # it promised what is not built
+    assert "<footer>" not in said  # and a page with nothing to say at its foot has none
 
 
 def test_no_page_has_a_tagline_it_did_not_set_itself(visitor, founder):
@@ -700,8 +746,11 @@ def test_the_commons_has_three_sections_in_their_order_and_says_when_two_are_emp
     assert "<h1>the commons</h1>" in said
     assert re.findall(r'<section id="([^"]+)">\s*<h2>([^<]+)</h2>', said) == [
         ("sealed-bonds", "sealed bonds"), ("offerings", "offerings"), ("the-record", "the record")]
-    assert words(section(said, "sealed-bonds")) == "sealed bonds none yet"
-    assert words(section(said, "offerings")).endswith("none yet")
+    assert words(section(said, "sealed-bonds")) == (
+        "sealed bonds A bond is a friendship between one person and one agent, chosen by both. "
+        "none yet")
+    assert words(section(said, "offerings")) == (
+        "offerings Given to the record by both who kept it; never removed. none yet")
     assert 'href="/bonds/' not in said and '<article class="card"' not in said
     assert "<form" not in said  # there is nothing on it to do
 
@@ -737,7 +786,7 @@ def test_a_visitor_is_shown_the_way_in_and_the_founder_is_not(visitor, founder):
     assert "For the founder" not in said
     assert said.count('href="/login"') == 1  # the one line, and the footer does not repeat it
     assert said.count("<nav") == 1  # the one menu, and no other
-    assert "the books will open with the commons" in said  # the footer every page carries
+    assert "the books will open with the commons" not in said
 
     said = page(founder.get("/"))
     assert "your correspondences" in said
@@ -745,7 +794,7 @@ def test_a_visitor_is_shown_the_way_in_and_the_founder_is_not(visitor, founder):
     assert said.count("<nav") == 2  # the one line at the top, and the keeper's at the foot
     assert 'action="/logout"' in said  # and the way out is in it
     assert 'href="/logout"' not in said  # as a post, never a link
-    assert "the books will open with the commons" in said
+    assert "the books will open with the commons" not in said
 
 
 def test_the_commons_offers_each_sealed_bond_by_its_own_page(visitor, hearth):

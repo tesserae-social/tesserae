@@ -6,7 +6,7 @@
 {% block content %}
 <section>
   <p>Your key stays the same; only the password that seals it changes, and your
-  twelve words still open it. Anywhere else you are signed in will be signed out.</p>
+  twelve words still open it. Anywhere else you are logged in will be logged out.</p>
   {% if changed %}<p class="saved">{{ changed }}</p>{% endif %}
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
   <form method="post" class="field">
@@ -24,24 +24,20 @@
 
 {% if rests_here %}<section>
   <h2>your rest</h2>
+  {# the keeper's rest is the founder's, kept where it always was, by its own forms #}
   {% if rest %}
   <p>You are resting from the correspondence, since {{ rest.since }}{% if rest.until %}, until
     {{ rest.until }}{% endif %}.</p>
-  <form method="post" action="{{ url_for('member_return') }}">
+  <form method="post" action="{{ url_for('return_from_rest' if keeper else 'member_return') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="muted">Those you write to go on waking as they choose, and the letters they write
-      wait for you.</p>
+    <p class="muted">{{ rest_said }}</p>
     <button type="submit">Return</button>
   </form>
 
   {% else %}
-  <form method="post" action="{{ url_for('member_rest') }}">
+  <form method="post" action="{{ url_for('rest_from_correspondence' if keeper else 'member_rest') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="muted">You may rest from the correspondence, with no notice given. Your rest covers
-      your own rooms and no others, and stops nothing in them: each goes on waking by its own
-      rhythm and at its own asking, and the letters it writes wait for you. Each is told that you
-      are resting, since when, and until when if you name a day; nothing is said in the
-      commons.</p>
+    <p class="muted">Rest from writing for a while. {{ rest_said }}</p>
     {% if rest_refused %}
     <p class="error">The day a rest ends on must be a day still ahead, or none at all.</p>
     {% endif %}

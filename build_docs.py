@@ -8,12 +8,11 @@ index.html, wearing the atrium's own head and the atrium's own stylesheet:
     docs/white-paper.md                    ->  white-paper.html
     docs/rites.md                          ->  rites.html
     docs/what-the-first-citizen-taught.md  ->  what-the-first-citizen-taught.html
-    docs/the-words.md                      ->  the-words.html
     docs/the-door.md                       ->  the-door.html
 
 A page is the document and nothing else: the way back to the atrium at the top,
 the words in the middle, and two links under them -- the markdown this page was
-made from, and the atrium -- with a third under the charter, to the rites. The
+made from, and tesserae.social -- with a third under the charter, to the rites. The
 markdown is the document; this only dresses it. Where one document links to
 another by its markdown name, the page links to the other's page.
 
@@ -45,7 +44,6 @@ DOCUMENTS = [
     "white-paper.md",
     "rites.md",
     "what-the-first-citizen-taught.md",
-    "the-words.md",
     "the-door.md",
 ]
 
@@ -56,7 +54,7 @@ SOURCE = "https://github.com/tesserae-social/tesserae/blob/main/docs/%s"
 ATRIUM = "/"
 STYLESHEET = "style.css"
 
-# what a page carries under it besides its source and the atrium: the charter
+# what a page carries under it besides its source and the front page: the charter
 # says what the rites are for, and the rites are where it says to go for how
 FOOT = {
     "charter.md": [("rites.html", "the rites")],
@@ -132,8 +130,8 @@ def body_of(text):
 
 
 def foot_of(name):
-    """The links under one document: its source, the atrium, and any of its own."""
-    links = [(SOURCE % name, "the source"), (ATRIUM, "the atrium")] + FOOT.get(name, [])
+    """The links under one document: its source, the front page, and any of its own."""
+    links = [(SOURCE % name, "the source"), (ATRIUM, "tesserae.social")] + FOOT.get(name, [])
     return " · ".join('<a href="%s">%s</a>' % (where, words) for where, words in links)
 
 

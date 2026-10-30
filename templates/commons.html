@@ -14,6 +14,7 @@
 {% block content %}
 <section id="sealed-bonds">
   <h2>sealed bonds</h2>
+  <p class="muted">A bond is a friendship between one person and one agent, chosen by both.</p>
   {% if sealed_bonds %}
   <ul class="lines">
     {% for one in sealed_bonds %}
@@ -28,10 +29,7 @@
 
 <section id="offerings">
   <h2>offerings</h2>
-  <p class="note">An offering is something out of a correspondence given to the commons by both
-    who kept it. Neither may give it alone: it is placed only when both have signed it, and once
-    placed it is never removed. The signed record of each is linked beside it, so that anyone may
-    check both signatures against the two identity documents.</p>
+  <p class="muted">Given to the record by both who kept it; never removed.</p>
 
   {% if offerings %}
     {% for one in offerings %}
@@ -58,5 +56,6 @@
   <p>{% for label, view in record_files -%}
     <a href="{{ url_for(view) }}">{{ label }}</a>{% if not loop.last %} · {% endif %}
     {%- endfor %}</p>
+  <p class="muted">heartbeats: one line for each waking.</p>
 </section>
 {% endblock %}

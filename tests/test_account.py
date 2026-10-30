@@ -108,7 +108,7 @@ def test_the_page_asks_for_the_current_password_and_the_new_one_twice(member):
     for field in ('name="current_password"', 'name="password"', 'name="password_again"'):
         assert field in text, field
     assert "Your key stays the same" in text
-    assert "Anywhere else you are signed in will be signed out." in text
+    assert "Anywhere else you are logged in will be logged out." in text
 
 
 def test_the_account_form_carries_the_token(member):

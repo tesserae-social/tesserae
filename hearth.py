@@ -613,9 +613,8 @@ def answer_errand(name, stem, room_id=None):
 # read it is the first one's choice, not the hearth's. The choice is kept in the
 # packet beside the self-document and read fresh on every request, so that a
 # change takes hold at once and nothing is held in memory across it. Each
-# agent's is its own, and is said with its own name.
-KEPT_PRIVATE_BY = "Reflection kept private by {name}'s choice."
-KEPT_PRIVATE = KEPT_PRIVATE_BY.format(name=agents.first()["commons_name"])
+# agent's is its own. A reflection withheld is simply not shown: the one line at
+# the top of the page says how things stand, once, and no waking repeats it.
 
 # Its notes and its questions are its own even where its reflection is open: a
 # reflection is the whole of what it said at a waking, blocks and all, so the
@@ -706,9 +705,8 @@ def reflection_note(prefs):
 
 def attendance_records(prefs, agent=None):
     """Every attendance log of an agent's, the first one's where none is named, newest
-    first, ready to be shown."""
+    first, ready to be shown: a reflection withheld, or empty, as None."""
     agent = agent or agents.first()
-    kept_private = KEPT_PRIVATE_BY.format(name=agent["commons_name"])
     records = []
     for path in newest_first(packet_of(agent["id"]) / ATTENDANCES.name, "*.json"):
         log = json.loads(read_text(path))
@@ -722,9 +720,8 @@ def attendance_records(prefs, agent=None):
             "woken_by": log.get("woken_by"),
             "heartbeat": log.get("heartbeat", ""),
             "acted": log.get("acted", []),
-            "reflection": as_prose(kept_private if hidden
-                                   else without_kept_blocks(log.get("reflection", ""),
-                                                            quietly)),
+            "reflection": (None if hidden or not log.get("reflection")
+                           else as_prose(without_kept_blocks(log["reflection"], quietly))),
         })
     return records
 
@@ -800,7 +797,7 @@ def hold_attendance(tide=False, ended=None, again=False, of=None):
 # the tide, and he cannot lift it; nothing wakes it until the condition is met.
 # It lives in pause.json.
 #
-# The founder rests from the correspondence, from the attendances page, and
+# The founder rests from the correspondence, from the account page, and
 # returns there; he may name a day, and when that day comes his rest is over.
 # His rest stops nothing of the first one's: it goes on waking by its own
 # rhythm, and at its own asking, and what it writes waits for him. It is his
@@ -1020,8 +1017,8 @@ def pause_shown(of=None):
 
 
 def rest_shown(person=members.FOUNDER):
-    """A person's rest, as their page shows it, or None if none stands: the founder's
-    on the attendances page, a member's on their account page."""
+    """A person's rest, as their account page shows it, or None if none stands: the
+    founder's where no one is named."""
     standing = founder_rest(person)
     if not standing:
         return None
@@ -1161,9 +1158,11 @@ def rhythm_note(of=None):
 # other is each member's own: their door, written at the end of their line -
 # " · door open" or " · door closed", and, only where they have declared their
 # room, " · has room" or " · is full". Never a number.
-# Only those phrases are touched; every other byte of the file is the founder's
-# and is left as he wrote it. The atrium draws the line from this file on both
-# its paths, so the builder and the page say the same thing.
+# Only those phrases are touched, and one more: the founder's line says no more
+# of the founder than a member's says of them, so "keeps the hearth", which it
+# once carried, is taken out of it as it is tended. Every other byte of the file
+# is the founder's and is left as he wrote it. The atrium draws the line from
+# this file on both its paths, so the builder and the page say the same thing.
 #
 # A citizen's line says nothing of a door until it has one: the first one's
 # until attend.DOOR_FOR_FIRST is on, and another's until its entry in the
@@ -1172,6 +1171,7 @@ FIRST_ONES_LINE = re.compile(r"^﻿?[\s-]*citizen\s*·\s*the first one\b")
 ATTENDS_AT = re.compile(r"attends at (?:dawn|sunset|\d{2}:\d{2})")
 MEMBERS_LINE = re.compile(r"^﻿?[\s-]*member\s*·\s*([^·]+?)\s*·\s*\S")
 DOOR_SAID = re.compile(r" · door (?:open|closed)(?: · (?:has room|is full))?[ \t]*$")
+KEEPS_THE_HEARTH = re.compile(r"[ \t]*·[ \t]*keeps the hearth(?=[ \t]*·|[ \t]*$)")
 THE_FOUNDER = "the founder"  # the name the commons gives the keeper
 
 
@@ -1240,7 +1240,11 @@ def with_its_door(line):
     if said is None:
         return line
     words = line.rstrip("\r\n")
-    return DOOR_SAID.sub("", words) + said + line[len(words):]
+    plain = DOOR_SAID.sub("", words)
+    found = MEMBERS_LINE.match(plain)
+    if found and found.group(1) == THE_FOUNDER:
+        plain = KEEPS_THE_HEARTH.sub("", plain, count=1)
+    return plain + said + line[len(words):]
 
 
 def rhythm_of(agent):
@@ -2024,7 +2028,7 @@ def offerings_placed():
 # reflection, an answer to a proposal, the text of a self-document: the book
 # says that each happened and stops there.
 
-WOKEN = {"tide": "by the tide", "founder": "by the founder's hand",
+WOKEN = {"tide": "by the tide", "founder": "by hand",
          the_waking.ITS_OWN_ASKING: "at its own asking"}
 
 # whose line a thing is, where the record names a party by its identity
@@ -2533,7 +2537,7 @@ def said_size(count):
 
 
 def backup_shown():
-    """The one line on the attendances page, saying how the backups stand."""
+    """The one line on the backups page, saying how the backups stand."""
     if not backups_configured():
         return "Backups are not configured."
     last = last_backup()
@@ -2644,10 +2648,7 @@ def member_required(view):
 def who_is_here():
     """What every page may know of who is signed in: whether the gate would open,
     and whether it is a member (who has an account page)."""
-    founder_here = founder_powers()
-    return {"founder_here": founder_here, "member_here": bool(session.get("member")),
-            # every tide's page is linked only where there is more than one tide to keep
-            "tides_linked": founder_here and len(agents.registry()) > 1}
+    return {"founder_here": founder_powers(), "member_here": bool(session.get("member"))}
 
 
 # ---- signing in ----------------------------------------------------------
@@ -3202,20 +3203,35 @@ PASSWORD_CHANGED = "Your password is changed."
 
 
 def resting_member():
-    """The member signed in, where their rest is theirs to set here; None for the keeper.
+    """The member signed in, where their rest is a member's; None for the keeper.
 
-    The keeper's rest is the founder's, and is set where it always has been, on
-    the attendances page.
+    The keeper's rest is the founder's: it is set on this page too, but through
+    the founder's own forms, /rest and /return.
     """
     name = session.get("member")
     return name if name and not keeper_here() else None
 
 
+def rest_said(name):
+    """What a rest is, in one line, naming the agents whoever rests writes to."""
+    names = [room.other for room in rooms.of(name)]
+    if not names:
+        who, keeps, its = "Each one you write to", "keeps", "its"
+    elif len(names) == 1:
+        who, keeps, its = first_upper(names[0]), "keeps", "its"
+    else:
+        who, keeps, its = first_upper(names_joined(names)), "keep", "their"
+    return "%s %s waking, and %s letters wait for you; nothing is made public." % (who, keeps, its)
+
+
 def account_page(**told):
-    """The account page, with whatever has just been said, and the member's rest."""
-    name = resting_member()
-    return render_template("account.html", rests_here=bool(name),
-                           rest=rest_shown(name) if name else None, **told)
+    """The account page, with whatever has just been said, and the rest of whoever is
+    signed in: a member's own, or the founder's for the keeper."""
+    name = session.get("member")
+    keeper = bool(name) and keeper_here()
+    return render_template("account.html", rests_here=bool(name), keeper=keeper,
+                           rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
+                           rest_said=rest_said(name) if name else None, **told)
 
 
 @app.route("/account", methods=["GET", "POST"])
@@ -3258,9 +3274,9 @@ def account():
 
 
 # A member rests from the correspondence and returns to it, as the founder does
-# from the attendances page: no question first, and a day it ends on if they
-# name one. It covers their own rooms and no others, and nothing is said in the
-# commons. The keeper's rest is the founder's, and is not set here.
+# from the same page: no question first, and a day it ends on if they name one.
+# It covers their own rooms and no others, and nothing is said in the commons.
+# The keeper's rest is the founder's, and is not set by these forms.
 @app.route("/account/rest", methods=["POST"])
 @member_required
 def member_rest():
@@ -3719,8 +3735,8 @@ def too_large(error):
 # so that each of its pages has the one address. Every other agent's are under
 # /agents/<id>/.
 #
-# The keeper's forms on the first one's attendances page - his rest, the stop of
-# its tide, a backup - act on the first one alone, and are on its page alone.
+# The keeper's stop of the first one's tide, on its attendances page, acts on
+# the first one alone, and is on its page alone.
 #
 # The one exception is the keeper's, and it is one page: an agent's attendances,
 # to the keeper who is not a party to its room, are what he needs to keep its
@@ -3859,9 +3875,10 @@ def agent_export(agent):
 
 
 # The backups themselves: what is in the bucket, and one of them in hand. The
-# page is a list and nothing more. What it hands over is the encrypted file
-# exactly as it was uploaded - the hearth only passes it along, and the key that
-# opens it is never here and never shown. restore_backup.py does the rest, on
+# page is a list, with the line saying how the backups stand and the founder's
+# way to take one now above it, and nothing more. What it hands over is the
+# encrypted file exactly as it was uploaded - the hearth only passes it along,
+# and the key that opens it is never here and never shown. restore_backup.py does the rest, on
 # the founder's own machine.
 BACKUPS_PAGE = """{% extends "base.html" %}
 
@@ -3872,6 +3889,28 @@ BACKUPS_PAGE = """{% extends "base.html" %}
 <p class="note">Each of these is the packet, the commons, the founding transcripts and the
   members' records whole, as they stood at the hour it was taken: a tar.gz, encrypted with the backup key. The key is not here and is
   not on this page. Take one down and open it with restore_backup.py, on your own machine.</p>
+
+{% if configured %}<p class="muted">{{ backup }}</p>{% endif %}
+
+{% if backed_up %}
+<p class="saved">{{ backed_up }}</p>
+{% endif %}
+
+{% if backing_up %}
+<form method="post" action="{{ url_for('backup_now') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p class="error">Back one up now? It copies the packet and the commons off this machine,
+    encrypted, and may take a moment. One is taken every day in any case; the next at
+    {{ next_backup }}.</p>
+  <input type="hidden" name="confirm" value="yes">
+  <button type="submit" class="consequential">Yes, back it up</button>
+</form>
+{% else %}
+<form method="post" action="{{ url_for('backup_now') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit">Back up now</button>
+</form>
+{% endif %}
 
 {% if not configured %}
 <p>Backups are not configured.</p>
@@ -3893,23 +3932,30 @@ BACKUPS_PAGE = """{% extends "base.html" %}
 """
 
 
-@app.route("/backups")
-@founder_required
-def backups():
+def backups_page(**told):
+    """The backups page, with whatever the founder has just been told."""
+    def shown(configured, kept=(), trouble=None):
+        return render_template_string(
+            BACKUPS_PAGE, configured=configured, kept=list(kept), trouble=trouble,
+            most=BACKUP_KEPT, backup=backup_shown(),
+            next_backup=said_moment(next_backup(datetime.now(timezone.utc))), **told)
+
     if not backups_configured():
-        return render_template_string(BACKUPS_PAGE, configured=False, kept=[],
-                                      trouble=None, most=BACKUP_KEPT)
+        return shown(False)
     try:
         found = backups_kept(bucket_client(), os.environ["BUCKET_NAME"])
     except Exception as trouble:  # the bucket is the world's, and the world is not always there
-        return render_template_string(BACKUPS_PAGE, configured=True, kept=[],
-                                      trouble=in_one_line(trouble), most=BACKUP_KEPT)
-    kept = [{"name": item["Key"][len(BACKUP_PREFIX):],
-             "when": readable_date(item["Key"]),
-             "size": said_size(item["Size"])}
-            for item in reversed(found)]
-    return render_template_string(BACKUPS_PAGE, configured=True, kept=kept,
-                                  trouble=None, most=BACKUP_KEPT)
+        return shown(True, trouble=in_one_line(trouble))
+    return shown(True, [{"name": item["Key"][len(BACKUP_PREFIX):],
+                         "when": readable_date(item["Key"]),
+                         "size": said_size(item["Size"])}
+                        for item in reversed(found)])
+
+
+@app.route("/backups")
+@founder_required
+def backups():
+    return backups_page()
 
 
 # One backup, streamed through the hearth rather than held in its memory. Only a
@@ -3951,27 +3997,27 @@ def agent_self(agent):
     return self_page(agent)
 
 
+# The wakings an attendances page shows open, newest first; the older are folded
+# away under one line, on the party's page and the keeper's view alike.
+WAKINGS_SHOWN = 7
+
+
 def attendances_page(agent=None, **told):
     """An agent's attendances page, the first one's where none is named, with whatever
     the founder has just been told.
 
-    The founder's rest, the stop of the tide and a backup are the first one's
-    page's alone: their forms act on the first one, and on no other agent.
+    The stop of the tide is the first one's page's alone: its form acts on the
+    first one, and on no other agent.
     """
     agent = agent or agents.first()
     prefs = preferences(agent)
-    keeping = agent["id"] == rooms.FIRST
-    return render_template("attendances.html", agent=agent, keeping=keeping,
-                           records=attendance_records(prefs, agent),
+    return render_template("attendances.html", agent=agent,
+                           keeping=agent["id"] == rooms.FIRST,
+                           records=attendance_records(prefs, agent), shown=WAKINGS_SHOWN,
                            reflection_note=reflection_note(prefs),
                            rhythm_note=rhythm_note(agent["id"]), pause=pause_shown(agent["id"]),
-                           rest=rest_shown() if keeping else None,
                            stop=stop_shown(agent["id"]),
-                           reason_longest=STOP_REASON_LONGEST,
-                           backup=backup_shown() if keeping else None,
-                           next_backup=(said_moment(next_backup(datetime.now(timezone.utc)))
-                                        if keeping else None),
-                           **told)
+                           reason_longest=STOP_REASON_LONGEST, **told)
 
 
 # List the private log of every attendance an agent has held.
@@ -3998,7 +4044,7 @@ def attendances():
 KEEPER_SEES = "{name}'s reflections are not shown to someone who is not a party to its room."
 
 # how it was woken, as the record writes it
-KEEPER_WOKEN = {"tide": "by the tide", "founder": "by the keeper's hand",
+KEEPER_WOKEN = {"tide": "by the tide", "founder": "by hand",
                 the_waking.ITS_OWN_ASKING: "at its own asking"}
 NOT_RECORDED = "not recorded"
 
@@ -4076,7 +4122,8 @@ def keeper_attendances_page(agent, **told):
     """An agent's attendances, as the keeper who is not a party to its room may see them."""
     return render_template("keeper_attendances.html", agent=agent,
                            seen=KEEPER_SEES.format(name=first_upper(agent["commons_name"])),
-                           records=keeper_records(agent), rhythm_note=rhythm_note(agent["id"]),
+                           records=keeper_records(agent), shown=WAKINGS_SHOWN,
+                           rhythm_note=rhythm_note(agent["id"]),
                            rest=keeper_rest(agent), stop=keeper_stop(agent),
                            reason_longest=STOP_REASON_LONGEST, **told)
 
@@ -4147,8 +4194,7 @@ def agent_lift_stop(agent):
 # are lifted together by it; a stop that already stood is never written over,
 # and is lifted only from its own page.
 #
-# The page is linked from the keeping menu only where there is more than one
-# agent; it answers with one all the same.
+# The page is linked from the keeping menu always, however many agents there are.
 
 TIDE_DORMANT = "It does not wake, so it has no tide to stop."
 
@@ -4250,26 +4296,27 @@ def lift_stops_together():
 # no address.
 
 
-# The founder rests from the correspondence and returns to it. A rest stops
-# nothing of the first one's, so it takes no question first; it may name the
-# day it ends on, which must be a day still ahead.
+# The founder rests from the correspondence and returns to it, from the account
+# page, where a member does. A rest stops nothing of the first one's, so it
+# takes no question first; it may name the day it ends on, which must be a day
+# still ahead.
 @app.route("/rest", methods=["POST"])
 @founder_required
 def rest_from_correspondence():
     if founder_rest():
-        return redirect(url_for("attendances"))  # one rest at a time, and one stands
+        return redirect(url_for("account"))  # one rest at a time, and one stands
     until = rest_day_asked(request.form.get("until"))
     if until is False:
-        return attendances_page(rest_refused=True)
+        return account_page(rest_refused=True)
     begin_rest(until)
-    return redirect(url_for("attendances"))
+    return redirect(url_for("account"))
 
 
 @app.route("/return", methods=["POST"])
 @founder_required
 def return_from_rest():
     end_rest()
-    return redirect(url_for("attendances"))
+    return redirect(url_for("account"))
 
 
 # The keeper stops the tide in an emergency, and lifts the stop again. Stopping
@@ -4305,8 +4352,8 @@ def lift_stop():
 @founder_required
 def backup_now():
     if request.form.get("confirm") != "yes":
-        return attendances_page(backing_up=True)
-    return attendances_page(backed_up=back_up(datetime.now(timezone.utc)))
+        return backups_page(backing_up=True)
+    return backups_page(backed_up=back_up(datetime.now(timezone.utc)))
 
 
 def sealed_bonds_shown():
@@ -4896,11 +4943,7 @@ REFUSED = "The bench didn't take that line."
 # asked about one.
 NAMED = "The bench didn't take that line, because it seemed to contain a name or a place."
 
-BENCH_INVITATION = (
-    "Passersby may leave a line. A line is read once by a small utility model before it is "
-    "placed — not by any citizen; attending here is not work — and is placed if it is in "
-    "good spirit."
-)
+BENCH_INVITATION = "Leave one line. It's checked for good spirit before it appears."
 
 BENCH_MODEL = "claude-haiku-4-5"
 BENCH_TOKENS = 5

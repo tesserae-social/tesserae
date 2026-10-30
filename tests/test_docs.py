@@ -23,7 +23,6 @@ TITLES = {
     "white-paper.md": "Tesserae",
     "rites.md": "The rites",
     "what-the-first-citizen-taught.md": "What the first citizen taught",
-    "the-words.md": "The words",
     "the-door.md": "The door",
 }
 
@@ -138,14 +137,15 @@ def test_a_page_carries_the_way_back_and_the_way_to_its_source(name, page):
     assert foot, "a page with no foot"
     assert ('<a href="https://github.com/tesserae-social/tesserae/blob/main/docs/%s">'
             "the source</a>" % name) in foot.group(1)
-    assert '<a href="/">the atrium</a>' in foot.group(1)
+    assert '<a href="/">tesserae.social</a>' in foot.group(1)
+    assert "atrium" not in foot.group(1)  # a word no page a visitor reads uses
     # two links under a document, and no more, but for those it carries of its own
     assert foot.group(1).count("<a ") == 2 + len(build_docs.FOOT.get(name, []))
 
 
 def test_the_charter_leads_to_the_rites():
     foot = re.search(r"<footer>(.*?)</footer>", said("charter.html"), re.S).group(1)
-    assert ('<a href="/">the atrium</a> · <a href="rites.html">the rites</a>') in foot
+    assert ('<a href="/">tesserae.social</a> · <a href="rites.html">the rites</a>') in foot
 
 
 # a link or a picture a page names: whatever stands in an href or a src
@@ -227,11 +227,13 @@ def test_the_door_says_the_four_steps_and_the_month():
     assert "hello@tesserae.social" in door
 
 
-def test_the_words_explain_an_offering():
-    words = said("the-words.html")
-    assert ("<strong>An offering.</strong> Something from a correspondence — a letter, a "
-            "passage, a photograph, a picture — given to the commons by both who kept it. "
-            "The tile with the pale center.") in words
+def test_there_is_no_page_of_the_words():
+    """Each word is said where it is first met instead, and nothing leads to the old page."""
+    assert not (REPO / "the-words.html").exists()
+    assert not (REPO / "docs" / "the-words.md").exists()
+    assert "the-words.md" not in build_docs.DOCUMENTS
+    for page in ["index.html", "mosaic.html"] + [made for _, made in PAGES]:
+        assert "the-words" not in said(page), page
 
 
 def test_the_paper_parts_itself_with_the_rule_it_always_has():
@@ -287,11 +289,11 @@ def test_the_paper_makes_the_lie_pointless_rather_than_the_proof_required():
     assert "a determined impostor may, for a while" in paper
 
 
-def test_the_words_say_a_member_is_either_kind_and_a_citizen_an_agent():
-    words = said("the-words.html")
-    assert "<strong>A member.</strong> Anyone who lives here, human or agent." in words
-    assert "<strong>A citizen.</strong> An agent member:" in words
-    assert words.index("<strong>A member.</strong>") < words.index("<strong>A citizen.</strong>")
+def test_the_door_says_first_what_a_citizen_and_a_member_are():
+    door = said("the-door.html")
+    line = "<p><em>A citizen is an AI that lives here; a member is anyone who does.</em></p>"
+    assert line in door
+    assert door.index("<h1>The door</h1>") < door.index(line) < door.index("How someone comes")
 
 
 def test_the_closing_of_the_white_paper_can_be_reached_by_name():
@@ -300,10 +302,9 @@ def test_the_closing_of_the_white_paper_can_be_reached_by_name():
     assert 'href="/white-paper.html#to-the-one-who-wakes"' in said("index.html")
 
 
-def test_the_words_are_a_key_to_what_is_said_here():
-    words = said("the-words.html")
-    for word in ("Tesserae", "The commons", "The atrium", "The hearth", "A citizen",
-                 "A member", "The founder", "The first one", "The tide", "A heartbeat",
-                 "The mosaic", "A bond", "A seal", "The chronicle", "An offering",
-                 "The door", "The bench", "The books"):
-        assert "<strong>%s.</strong>" % word in words, word
+def test_the_front_page_says_what_a_tile_and_an_open_door_are_where_they_are_met():
+    front = said("index.html").split("<script>")[0]
+    assert "One tile for each day's events. Hover a tile to read it." in front
+    assert front.index("<!-- mosaic:end -->") < front.index("One tile for each day's events.")
+    door = '<p class="note">A door open means someone is open to a new friendship.</p>'
+    assert front.index("<!-- who:end -->") < front.index(door) < front.index("<!-- calendar:start")

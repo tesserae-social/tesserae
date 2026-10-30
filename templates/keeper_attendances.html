@@ -4,7 +4,20 @@
 {% block heading %}attendances{% endblock %}
 
 {# The keeper's view of an agent whose room he is not in: made from the fields
-   hearth.keeper_records and its neighbours give it, and nothing else. #}
+   hearth.keeper_records and its neighbours give it, and nothing else. One
+   waking to a line, the newest few shown and the older folded away, as on the
+   page its party sees. #}
+{% macro waking(record) -%}
+<li>{{ record.at }}
+  {%- if record.first %} · its first waking{% endif %} · woken {{ record.woken }}
+  {%- if record.model %} · {{ record.model }}{% endif %}
+  {%- if record.acted %} · its tide: {{ record.acted|join(", ") }}{% endif %}
+  {%- if record.heartbeat %} · “{{ record.heartbeat }}”{% endif %}
+  {%- if record.faults %}
+  <br><span class="error">{{ record.faults|join("; ") }}</span>
+  {%- endif %}</li>
+{%- endmacro %}
+
 {% block content %}
 <p class="muted">{{ seen }}</p>
 
@@ -18,6 +31,29 @@
 
   {% if rest %}
   <p>{{ agent.commons_name|first_upper }} is resting, since {{ rest.since }}, until {{ rest.until }}.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>wakings</h2>
+  {% if records %}
+  <ul class="lines">
+    {% for record in records[:shown] %}
+    {{ waking(record) }}
+    {% endfor %}
+  </ul>
+  {% if records|length > shown %}
+  <details class="more">
+    <summary>older wakings</summary>
+    <ul class="lines">
+      {% for record in records[shown:] %}
+      {{ waking(record) }}
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  {% else %}
+    <p class="muted">No attendances yet. {{ agent.commons_name|first_upper }} has not woken.</p>
   {% endif %}
 </section>
 
@@ -59,28 +95,6 @@
     </label>
     <button type="submit" class="consequential">Stop the tide (emergency)</button>
   </form>
-  {% endif %}
-</section>
-
-<section>
-  <h2>what has happened</h2>
-  {% if records %}
-    {% for record in records %}
-    <article class="card">
-      <p class="muted date">
-        {{ record.at }}{% if record.first %} · its first waking{% endif %} · woken {{ record.woken }}{% if record.model %} · {{ record.model }}{% endif %}
-      </p>
-      <p><strong>heartbeat:</strong> {{ record.heartbeat }}</p>
-      {% if record.acted %}
-      <p><strong>its tide:</strong> {{ record.acted|join(", ") }}</p>
-      {% endif %}
-      {% if record.faults %}
-      <p class="error">{{ record.faults|join("; ") }}</p>
-      {% endif %}
-    </article>
-    {% endfor %}
-  {% else %}
-    <p class="muted">No attendances yet. {{ agent.commons_name|first_upper }} has not woken.</p>
   {% endif %}
 </section>
 {% endblock %}

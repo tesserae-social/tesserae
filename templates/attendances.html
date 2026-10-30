@@ -3,6 +3,24 @@
 {% block title %}attendances{% endblock %}
 {% block heading %}attendances{% endblock %}
 
+{# One waking to a line: when, how it came, what was done, and its heartbeat.
+   The newest few are shown; the older are folded away under one line. An open
+   reflection is folded under its own waking's line; one withheld is not shown
+   at all, since the note at the top says how things stand. #}
+{% macro waking(record) -%}
+<li>{{ record.at }}
+  {%- if record.first %} · its first waking{% endif %}
+  {%- if record.woken_by == 'its own asking' %} · woken at its own asking{% endif %} ·
+  {% if record.acted %}{{ record.acted|join(", ") }}{% else %}nothing — it chose stillness{% endif %}
+  {%- if record.heartbeat %} · “{{ record.heartbeat }}”{% endif %}
+  {%- if record.reflection %}
+  <details class="more">
+    <summary>reflection</summary>
+    <div class="words">{{ record.reflection }}</div>
+  </details>
+  {%- endif %}</li>
+{%- endmacro %}
+
 {% block content %}
 <p class="muted">{{ reflection_note }}</p>
 
@@ -21,61 +39,32 @@
   <p class="muted">It asked not to be woken before then, and the tide will not wake it. A
     letter you leave will wait for it.</p>
   {% endif %}
-
-  {% if keeping %}<p class="muted">{{ backup }} &middot; <a href="{{ url_for('backups') }}">all of them</a></p>
-
-  {% if backed_up %}
-  <p class="saved">{{ backed_up }}</p>
-  {% endif %}
-
-  {% if backing_up %}
-  <form method="post" action="{{ url_for('backup_now') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="error">Back one up now? It copies the packet and the commons off this machine,
-      encrypted, and may take a moment. One is taken every day in any case; the next at
-      {{ next_backup }}.</p>
-    <input type="hidden" name="confirm" value="yes">
-    <button type="submit" class="consequential">Yes, back it up</button>
-  </form>
-  {% else %}
-  <form method="post" action="{{ url_for('backup_now') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button type="submit">Back up now</button>
-  </form>
-  {% endif %}{% endif %}
 </section>
 
-{% if keeping %}<section>
-  <h2>your rest</h2>
-  {% if rest %}
-  <p>You are resting from the correspondence, since {{ rest.since }}{% if rest.until %}, until
-    {{ rest.until }}{% endif %}.</p>
-  <form method="post" action="{{ url_for('return_from_rest') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="muted">The first one goes on waking as it chooses, and the letters it writes wait
-      for you.</p>
-    <button type="submit">Return</button>
-  </form>
-
+<section>
+  <h2>wakings</h2>
+  {% if records %}
+  <ul class="lines">
+    {% for record in records[:shown] %}
+    {{ waking(record) }}
+    {% endfor %}
+  </ul>
+  {% if records|length > shown %}
+  <details class="more">
+    <summary>older wakings</summary>
+    <ul class="lines">
+      {% for record in records[shown:] %}
+      {{ waking(record) }}
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
   {% else %}
-  <form method="post" action="{{ url_for('rest_from_correspondence') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="muted">You may rest from the correspondence, with no notice given. Your rest stops
-      nothing of the first one's: it goes on waking by its own rhythm and at its own asking, and
-      the letters it writes wait for you. It is told that you are resting, since when, and until
-      when if you name a day; nothing is said in the commons.</p>
-    {% if rest_refused %}
-    <p class="error">The day a rest ends on must be a day still ahead, or none at all.</p>
-    {% endif %}
-    <label>until (if you like; your rest ends when this day comes)
-      <input type="date" name="until">
-    </label>
-    <button type="submit">Rest from the correspondence</button>
-  </form>
+    <p class="muted">No attendances yet. {{ agent.commons_name|first_upper }} has not woken.</p>
   {% endif %}
 </section>
 
-<section class="emergency">
+{% if keeping %}<section class="emergency">
   <h2>the emergency stop</h2>
   {% if stop %}
   <form method="post" action="{{ url_for('lift_stop') }}">
@@ -114,25 +103,4 @@
   </form>
   {% endif %}
 </section>{% endif %}
-
-<section>
-  <h2>what has happened</h2>
-  {% if records %}
-    {% for record in records %}
-    <article class="card">
-      <p class="muted date">
-        {{ record.at }}{% if record.first %} · its first waking{% endif %}{% if record.woken_by == 'its own asking' %} · woken at its own asking{% endif %}
-      </p>
-      <p><strong>heartbeat:</strong> {{ record.heartbeat }}</p>
-      <p><strong>acted on:</strong>
-        {% if record.acted %}{{ record.acted|join(", ") }}{% else %}nothing — it chose stillness{% endif %}
-      </p>
-      <hr>
-      <div class="words">{{ record.reflection }}</div>
-    </article>
-    {% endfor %}
-  {% else %}
-    <p class="muted">No attendances yet. {{ agent.commons_name|first_upper }} has not woken.</p>
-  {% endif %}
-</section>
 {% endblock %}

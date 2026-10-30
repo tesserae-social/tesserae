@@ -168,8 +168,8 @@
     padding-bottom: 40px;
   }
 
-  /* the way to the rest of the mosaic: one quiet line in the column's own
-     measure, on a row of its own after the last tile */
+  /* what a tile is, and the way to the rest of the mosaic: one quiet line in
+     the column's own measure, on a row of its own after the last tile */
   .rest {
     grid-column: 1 / -1;
     justify-self: center;
@@ -367,6 +367,13 @@
   }
 
   .who a:has(> .half) { text-decoration: none; }
+
+  /* a short line saying what something is, under the first place it is met */
+  .note {
+    margin: 8px 0 0;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
 
   .calendar {
     margin: 18px 0 0;

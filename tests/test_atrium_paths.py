@@ -306,7 +306,6 @@ def test_both_paths_leave_the_menu_and_the_question_alone(atrium, data_dir, monk
         assert re.findall(r'<a href="([^"]*)">(.*?)</a>', menu.search(said).group()) == [
             ("/charter.html", "the charter"),
             ("/white-paper.html", "the white paper"),
-            ("/the-words.html", "the words"),
             ("https://hearth.tesserae.social", "the hearth"),
             ("https://hearth.tesserae.social/bench", "leave a line"),
             ("/the-door.html", "ask to join")]
@@ -493,7 +492,8 @@ def test_both_paths_leave_the_way_to_the_whole_mosaic_after_the_last_tile(atrium
     built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
     for said in (built, drawn):
         after = GAP.sub(" ", said.split("<!-- mosaic:end -->")[1].split("</main>")[0]).strip()
-        assert after == '<p class="rest"><a href="/mosaic.html">the whole mosaic</a></p> </div>'
+        assert after == ('<p class="rest">One tile for each day\'s events. Hover a tile to read '
+                         'it. · <a href="/mosaic.html">the whole mosaic</a></p> </div>')
         assert said.split("<script>")[0].count("mosaic.html") == 1
     assert main_of(drawn) == main_of(built)
 
@@ -789,14 +789,15 @@ def test_both_paths_draw_the_doors_the_hearth_writes(atrium, hearth, data_dir, m
     a_record(data_dir)
     hearth.door.set_door("first", state="open", room=3)
     hearth.tend_members()
+    # the hearth's tending takes "keeps the hearth" out of the founder's line
     assert (data_dir / "commons" / "members.md").read_text(encoding="utf-8") == (
         "citizen · the first one, unnamed by its own choosing · attends at dawn"
         " · door open · has room\n"
-        "member · the founder · keeps the hearth · door closed\n")
+        "member · the founder · door closed\n")
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     assert here["who"] == there["who"]
     assert '<span class="fact">attends at dawn · door open · has room</span>' in here["who"]
-    assert '<span class="fact">keeps the hearth · door closed</span>' in here["who"]
+    assert '<span class="fact">door closed</span>' in here["who"]
     assert not re.search(r"\d", re.sub(r"<[^>]*>", "", here["who"]))
 
 
@@ -815,7 +816,7 @@ def test_both_paths_draw_a_door_the_first_one_has_never_set(atrium, hearth, data
     assert (data_dir / "commons" / "members.md").read_text(encoding="utf-8") == (
         "citizen · the first one, unnamed by its own choosing · "
         "founded 4 September 2026, attends at dawn · door closed\n"
-        "member · the founder · keeps the hearth · door closed\n")
+        "member · the founder · door closed\n")
     assert not (data_dir / "packets" / "first" / "door.json").exists()  # saying it makes none
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     assert here["who"] == there["who"]

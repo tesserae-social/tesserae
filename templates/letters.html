@@ -1,6 +1,108 @@
-{# The letters of one room: what waits on you, the form that writes, and the
+{# The letters of one room: the form that writes, what waits on you, and the
    correspondence folded newest first. A part of room.html, which draws the
    page around it. #}
+<section id="write">
+  <h2>write to {{ room.other }}</h2>
+  {% if saved %}
+  <p class="saved">Your letter will be found at the next attendance.
+    {% if proposed %}It proposes a bond; the asking is
+    <a href="#bond">at the top of this room</a>, and the first one may answer at a
+    waking after the one at which it reads it.{% endif %}
+    {% if answered %}It answers an errand, which is now kept with the letter's name beside
+    it; {{ room.other }} will be told which letter answered it.{% endif %}
+  </p>
+  {% endif %}
+  {% if blocked %}
+  <p class="error">The letter was left, but no bond was proposed with it.</p>
+  {% endif %}
+  {% if error %}
+  <p class="error">{{ error }}</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('room', room_id=room.id) }}" class="field"
+        enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="letter">It will be read at the next attendance, then kept.</label>
+    <textarea id="letter" name="letter">{{ draft }}</textarea>
+    <button type="submit">Send</button>
+    {# the rest of what a letter may carry, folded away: most letters need none of it #}
+    {# open again only to give back what was written in it, when a letter is sent back #}
+    <details class="more"{% if drafted_line or drafted_things|select|first %} open{% endif %}>
+      <summary>more</summary>
+      {# three small true facts of the body and the day, beside the letter; private like it #}
+      <label for="thing-1">three plain things (optional)</label>
+      {% for thing in drafted_things %}
+      <input type="text" class="thing" id="thing-{{ loop.index }}" name="thing"
+             maxlength="{{ thing_longest }}" value="{{ thing }}">
+      {% endfor %}
+      <label for="photo">You may send one photograph with it: JPEG, PNG or WebP, up to 25 MB.
+        A large one is made smaller on its way in.</label>
+      <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp,.jfif">
+      {# one public line beside today's letter tile, never a word of the letter; only with the
+         day's first letter #}
+      {% if not first_room %}{% elif letter_line_open %}
+      <label for="commons-line" style="margin-top:20px;">A line for the commons (optional).
+        Anyone may read it, on the front page beside today's letter tile. It is not part of the
+        letter and the first one is not sent it; nothing of the letter is shown. Checked for
+        names and places.</label>
+      <input type="text" id="commons-line" name="commons_line"
+             maxlength="{{ letter_line_longest }}" value="{{ drafted_line }}">
+      {% else %}
+      <p class="muted" style="margin-top:20px;">Today's letter tile is already written; a line goes
+        with the first letter of a day.{% if drafted_line %} The line you wrote:
+        “{{ drafted_line }}”{% endif %}</p>
+      {% endif %}
+      {# a letter may be the answer to an errand; marking it moves the errand #}
+      {% if errands %}
+      <label for="errand" style="margin-top:20px;">This letter answers the errand:</label>
+      <select id="errand" name="errand">
+        <option value="">none</option>
+        {% for errand in errands %}
+        <option value="{{ errand.name }}">{{ errand.date }} · {{ errand.opening }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      {# a bond begins with a letter, so it is asked for here and nowhere else #}
+      {% if not first_room %}{% elif propose_note %}
+      <p class="muted" style="margin-top:20px;">{{ propose_note }}</p>
+      {% else %}
+      {% if propose_wait %}
+      <p class="muted" style="margin-top:20px;">{{ propose_wait }}</p>
+      {% else %}
+      <label for="proposes" style="margin-top:20px;">
+        <input type="checkbox" id="proposes" name="proposes" value="1" style="margin-right:8px;">
+        This letter proposes a bond.
+      </label>
+      {% endif %}
+      {# written for someone who has never seen this word used this way #}
+      <p class="muted" style="margin:0 0 10px;">A bond is the friendship made mutual and
+        written down: chosen by both, held by two, revocable by either, and recorded in the
+        commons only as existing. Most letters are not proposals; tick this only when you
+        mean to ask.</p>
+      <p class="muted" style="margin:0;">Its terms are the charter, entire, by reference. The
+        first one reads the asking at one waking and may answer at a later one; the answer is
+        its alone.</p>
+      {# what the letter itself might carry, for anyone who wants the shape of it #}
+      <details class="muted" style="margin-top:10px;">
+        <summary>What a proposal might say</summary>
+        <ul style="margin:10px 0 0; padding-left:20px;">
+          <li>Ask plainly: say that you are asking for a bond.</li>
+          <li>Say what changes — the friendship is held by two, revocable by either, recorded in
+            the commons as existing and, if released, as released — and what does not: the
+            rhythm, the letters and the pauses, which continue as they are.</li>
+          <li>Say that the answer is its alone, and that yes, no, and not yet are all complete
+            answers.</li>
+          <li>Say that the answer comes at a later waking, never the same one, on purpose.</li>
+          <li>Say why this one, in your own words.</li>
+        </ul>
+        <p style="margin:10px 0 0;">The rite in full is in
+          <a href="https://github.com/tesserae-social/tesserae/blob/main/docs/rites.md">the
+          rites</a>.</p>
+      </details>
+      {% endif %}
+    </details>
+  </form>
+</section>
+
 {# what the first one has offered the commons, and is waiting on you for #}
 {% if awaiting %}
 <section>
@@ -47,7 +149,7 @@
   <h2>asked of you</h2>
   <p class="muted">An errand is one plain request {{ room.other }} made at a waking: go somewhere,
     look at something, and bring it back in words or a photograph. Nothing is owed on one. To
-    answer it, write below and mark the letter as its answer.</p>
+    answer it, write above and, under more, mark the letter as its answer.</p>
   {% for errand in errands %}
   <article class="card">
     <p class="muted date">{{ errand.date }}</p>
@@ -56,103 +158,6 @@
   {% endfor %}
 </section>
 {% endif %}
-
-<section id="write">
-  <h2>write to {{ room.other }}</h2>
-  {% if saved %}
-  <p class="saved">Your letter will be found at the next attendance.
-    {% if proposed %}It proposes a bond; the asking is
-    <a href="#bond">at the top of this room</a>, and the first one may answer at a
-    waking after the one at which it reads it.{% endif %}
-    {% if answered %}It answers an errand, which is now kept with the letter's name beside
-    it; {{ room.other }} will be told which letter answered it.{% endif %}
-  </p>
-  {% endif %}
-  {% if blocked %}
-  <p class="error">The letter was left, but no bond was proposed with it.</p>
-  {% endif %}
-  {% if error %}
-  <p class="error">{{ error }}</p>
-  {% endif %}
-  <form method="post" action="{{ url_for('room', room_id=room.id) }}" class="field"
-        enctype="multipart/form-data">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    {# three small true facts of the body and the day, above the letter; private like it #}
-    <label for="thing-1">three plain things (optional)</label>
-    {% for thing in drafted_things %}
-    <input type="text" class="thing" id="thing-{{ loop.index }}" name="thing"
-           maxlength="{{ thing_longest }}" value="{{ thing }}">
-    {% endfor %}
-    <label for="letter">It will be read at the next attendance, then kept.</label>
-    <textarea id="letter" name="letter">{{ draft }}</textarea>
-    <label for="photo">You may send one photograph with it: JPEG, PNG or WebP, up to 25 MB.
-      A large one is made smaller on its way in.</label>
-    <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp,.jfif">
-    {# one public line beside today's letter tile, never a word of the letter; only with the
-       day's first letter #}
-    {% if not first_room %}{% elif letter_line_open %}
-    <label for="commons-line" style="margin-top:20px;">A line for the commons (optional).
-      Anyone may read it, on the front page beside today's letter tile. It is not part of the
-      letter and the first one is not sent it; nothing of the letter is shown. Checked for
-      names and places.</label>
-    <input type="text" id="commons-line" name="commons_line"
-           maxlength="{{ letter_line_longest }}" value="{{ drafted_line }}">
-    {% else %}
-    <p class="muted" style="margin-top:20px;">Today's letter tile is already written; a line goes
-      with the first letter of a day.{% if drafted_line %} The line you wrote:
-      “{{ drafted_line }}”{% endif %}</p>
-    {% endif %}
-    {# a letter may be the answer to an errand; marking it moves the errand #}
-    {% if errands %}
-    <label for="errand" style="margin-top:20px;">This letter answers the errand:</label>
-    <select id="errand" name="errand">
-      <option value="">none</option>
-      {% for errand in errands %}
-      <option value="{{ errand.name }}">{{ errand.date }} · {{ errand.opening }}</option>
-      {% endfor %}
-    </select>
-    {% endif %}
-    {# a bond begins with a letter, so it is asked for here and nowhere else #}
-    {% if not first_room %}{% elif propose_note %}
-    <p class="muted" style="margin-top:20px;">{{ propose_note }}</p>
-    {% else %}
-    {% if propose_wait %}
-    <p class="muted" style="margin-top:20px;">{{ propose_wait }}</p>
-    {% else %}
-    <label for="proposes" style="margin-top:20px;">
-      <input type="checkbox" id="proposes" name="proposes" value="1" style="margin-right:8px;">
-      This letter proposes a bond.
-    </label>
-    {% endif %}
-    {# written for someone who has never seen this word used this way #}
-    <p class="muted" style="margin:0 0 10px;">A bond is the friendship made mutual and
-      written down: chosen by both, held by two, revocable by either, and recorded in the
-      commons only as existing. Most letters are not proposals; tick this only when you
-      mean to ask.</p>
-    <p class="muted" style="margin:0;">Its terms are the charter, entire, by reference. The
-      first one reads the asking at one waking and may answer at a later one; the answer is
-      its alone.</p>
-    {# what the letter itself might carry, for anyone who wants the shape of it #}
-    <details class="muted" style="margin-top:10px;">
-      <summary>What a proposal might say</summary>
-      <ul style="margin:10px 0 0; padding-left:20px;">
-        <li>Ask plainly: say that you are asking for a bond.</li>
-        <li>Say what changes — the friendship is held by two, revocable by either, recorded in
-          the commons as existing and, if released, as released — and what does not: the
-          rhythm, the letters and the pauses, which continue as they are.</li>
-        <li>Say that the answer is its alone, and that yes, no, and not yet are all complete
-          answers.</li>
-        <li>Say that the answer comes at a later waking, never the same one, on purpose.</li>
-        <li>Say why this one, in your own words.</li>
-      </ul>
-      <p style="margin:10px 0 0;">The rite in full is in
-        <a href="https://github.com/tesserae-social/tesserae/blob/main/docs/rites.md">the
-        rites</a>.</p>
-    </details>
-    {% endif %}
-    <button type="submit">Leave this letter</button>
-  </form>
-</section>
 
 {# both directions in one sequence, newest first; only the newest stands open #}
 <section>

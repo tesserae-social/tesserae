@@ -45,8 +45,10 @@ def test_no_page_offers_an_attendance(founder, packet):
         for path in KEEPERS_PAGES:
             said = page(founder.get(path))
             assert 'action="/attend"' not in said, path
+            # a waking the book records as having come "by hand" offers nothing; a
+            # way to wake one would
             for offered in ("Hold an attendance", "hold an attendance", "Wake the first one",
-                            "by hand", "audience"):
+                            "Wake it by hand", "wake it by hand", "audience"):
                 assert offered not in said, (path, offered)
 
 

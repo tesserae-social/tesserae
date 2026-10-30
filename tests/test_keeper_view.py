@@ -22,7 +22,7 @@ import pytest
 from conftest import page, post, write, write_json
 from test_first_one_fingerprints import PAGES, a_lived_world
 from test_pages_by_agent import (OLD, a_second_room, agent_pages, alder, ask,  # noqa: F401
-                                 hazel, hearth, scratch_registry, shown_but_the_tides, zipped)
+                                 hazel, hearth, scratch_registry, shown_with_the_tides, zipped)
 from test_rooms_for_any_agent import as_refused, member_vaults, tree_hash  # noqa: F401
 
 # Words planted in the scratch one's record, none of which the keeper may ever be shown.
@@ -121,8 +121,10 @@ def planted(hearth, founder, alder, hazel, data_dir, packet):
 # ---- what the keeper is shown --------------------------------------------------
 
 def content(said):
-    """What a page says, between the menu at its top and its foot."""
-    return said.split('aria-label="pages">')[1].split("</nav>", 1)[1].split("<footer>")[0]
+    """What a page says, between the menu at its top and its foot, or the keeper's menu
+    where it has no foot."""
+    return (said.split('aria-label="pages">')[1].split("</nav>", 1)[1].split("<footer>")[0]
+            .split('<nav class="menu keeping"')[0])
 
 
 def keeper_view(founder):
@@ -136,17 +138,18 @@ def test_the_keeper_sees_each_waking_by_the_allow_list(planted, founder):
     assert ("The scratch one&#39;s reflections are not shown to someone who is not a party "
             "to its room.") in said
     assert said.count("reflections are not shown") == 1
-    # each waking: its moment, how it was woken, whether it was the first, the model
-    assert "22 October 2026, 05:00 · its first waking · woken by the tide · %s" % MODEL in said
-    assert "24 October 2026, 05:00 · woken at its own asking · %s" % MODEL in said
+    # each waking, one line: its moment, whether it was the first, how it was woken,
+    # the model, only the acts that are its tide's own, and the line the commons was
+    # shown - where it was its own words, those
+    flat = " ".join(said.split())
+    assert ("<li>22 October 2026, 05:00 · its first waking · woken by the tide · %s · "
+            "its tide: %s · “%s” <br>" % (MODEL, ", ".join(ALLOWED_ACTS), SHOWN_LINE)) in flat
+    assert ("<li>24 October 2026, 05:00 · woken at its own asking · %s · "
+            "“attended; chose stillness”</li>" % MODEL) in flat
     # a moment that cannot be read is the one in the record's name; who woke it, unsaid
-    assert "23 October 2026, 05:00 · woken not recorded\n" in said
-    # the line the commons was shown, and where it was its own words, those
-    assert "<strong>heartbeat:</strong> " + SHOWN_LINE in said
-    assert "<strong>heartbeat:</strong> " + OWN_LINE in said
-    # only the acts that are its tide's own, and its faults
-    assert "<strong>its tide:</strong> " + ", ".join(ALLOWED_ACTS) in said
-    assert said.count("<strong>its tide:</strong>") == 1
+    assert "<li>23 October 2026, 05:00 · woken not recorded · “%s”</li>" % OWN_LINE in flat
+    assert said.count("its tide:") == 1
+    # its faults
     assert ("cut off at its length limit; its waking time could not be read; "
             "its door could not be read") in said
     assert said.count("could not be read") == 2
@@ -316,9 +319,9 @@ def test_the_first_one_s_pages_hold_stage_0_s_fingerprints_beside_the_keeper_s_v
         hearth, founder, wake, room, commons, data_dir, packet):
     a_lived_world(founder, wake, room, commons)
     a_planted_record(data_dir, packet)
-    assert {address: shown_but_the_tides(founder.get(address)) for address in HELD} == {
+    assert {address: shown_with_the_tides(founder.get(address)) for address in HELD} == {
         address: PAGES[address] for address in HELD}
     post(founder, "/agents/second/stop-tide", data={"reason": "a test", "confirm": "yes"})
     post(founder, "/agents/second/lift-stop")
-    assert {address: shown_but_the_tides(founder.get(address)) for address in HELD} == {
+    assert {address: shown_with_the_tides(founder.get(address)) for address in HELD} == {
         address: PAGES[address] for address in HELD}

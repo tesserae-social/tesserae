@@ -73,20 +73,38 @@ ON_DISK_AFTER = {
 }
 
 # The founder's pages, one by one.
+#
+# Nine of them cut again on 29 October 2026, in the change that tidied the
+# pages (the proposal "page-tidy"), and for nothing else. Every page of the
+# founder's lost the footer "the books will open with the commons", gained
+# "tides" in the keeping menu, which is now always shown to the keeper, and
+# carries the few lines of style for the new folds: so /, /rooms/first, /self,
+# /attendances, /chronicle, /export and /commons moved for that alone, /self
+# with nothing else. Besides it: home shows its correspondences above the door;
+# the room puts the letter and Send first, and folds the three plain things,
+# the photograph, the commons line, the errand and the proposal under "more";
+# the attendances page shows each waking as one line under "wakings", its open
+# reflection folded beneath it, and has lost the founder's rest (now on
+# /account) and the backup line and button (now on /backups); the commons
+# says in one line what a bond and an offering are, and what heartbeats are;
+# the chronicle, in the page and in /chronicle.md, says a waking came "by
+# hand" where it said "by the founder's hand"; and members.md, as the hearth
+# tends it, no longer says the founder "keeps the hearth". /letters and /bonds
+# did not move; nor did the files, the export, the backup, the tide or the atrium.
 PAGES = {
-    "/": "d505c81bf897524969b50d42429f86e960ca07450218813f423c3425e6e504b7",
-    "/rooms/first": "91da7678063af91724daf58f888ca7e53631721db261cc7d24a19712cf9abf91",
+    "/": "925d4ec3afae5a9508572fc09c8c07a5d036f3972613fc41752c3d0913ea251a",
+    "/rooms/first": "3ea9002ecb7c77cf176bd26d27e432ba81f31c106c00ea51b89436b76c3963e2",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
-    "/self": "7469b536cd9bcec5fd1c2f4af96f8cc83b46af3a483e65d297cf4d42f9181827",
-    "/attendances": "70dd00c425711d69d5c4e3e2d099df66da781c6ee632a73ee8eb8a0d66b354da",
-    "/chronicle": "fa4c42fb302692c4fac4944d2fbc980db1616bb9a2a337858a5d525e0176f2e4",
-    "/chronicle.md": "49bb61d245f5156ab4fb1e65c6013fca1957c88dd2553b5195787b366dc5aaf8",
-    "/export": "c2ebf240f636d879c67566c15fbcb31442f0263926d3972b8d323cd4822cccc6",
+    "/self": "1928b59fb94d956343af81e83cca7684f483c1396fd3b7d7f5e78e9125747b3e",
+    "/attendances": "7ef5f02df77ac522c078c2ac264de2198ce76f0d8a35460e50cdb20eb29b175f",
+    "/chronicle": "7a4ba8cec6bdda76a213081227f2e15ea9cd6d781b0d076159e13ebe8d404e94",
+    "/chronicle.md": "b01c01d1d7036c50fce3b8f0f3fd17b3bca6dccee3bc225bbeb31d33ac6e7557",
+    "/export": "380bc2af3a56aa1e2c7e146bec4881f73b06c26d6fb3f3bdc19ac1af8e4430a5",
     "/bonds": "4ecf5344ca11116214ba9d0243bdce15ceca1e370c53cf6ce0fc022d3b4ab13b",
-    "/commons": "6ff6a1542c55f2c76972452392c302058d12c5728f71a0db9e6cca1edc5bd166",
+    "/commons": "a981fcb8ccc392294b948ab231a4621728fb1a0563e9694f5439c8e96260c58e",
     "/commons/heartbeats.md": "043eff1fb82359c2b8ac53bd434fec07ffba4b79cc7e1021953550441033713d",
     "/commons/events.md": "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
-    "/commons/members.md": "92041edacc757b290dad9f334ee5dc2eed4a82b92cd767535119900ef9f7f706",
+    "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
 }
 
 # The export: every name inside it, and the bytes under each.

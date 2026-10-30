@@ -345,10 +345,11 @@ def test_the_page_says_a_change_that_is_waiting(hearth, packet, clock):
 # ---- who is here ---------------------------------------------------------
 
 # each line ends with its door, as the hearth keeps it there: the first one's too,
-# since its door was switched on, and closed while it has set none
+# since its door was switched on, and closed while it has set none; and the
+# founder's says nothing more of him than his door
 FIRST = ("citizen · the first one, unnamed by its own choosing · founded 4 September 2026, "
          "attends at %s · door closed")
-FOUNDER = "member · the founder · keeps the hearth · door closed"
+FOUNDER = "member · the founder · door closed"
 
 
 def members(commons, at="dawn"):

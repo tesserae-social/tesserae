@@ -49,6 +49,9 @@ import private_words
 # The public screen: a public promise is asked about, once, before it is signed.
 import public_screen
 
+# Who else is here, which is what the card says of a bond's witnesses.
+import members
+
 # Where the bond's writings are kept: the room's, asked of the one module that
 # knows, each time they are wanted.
 import rooms
@@ -106,17 +109,40 @@ CARD_REST = [
 ]
 CARD_CLOSING = "The terms of the bond are the charter."
 
+# The witnesses, as the card says them: CARD_REST's own words are true only while
+# there is no member besides the bond's two parties.
+NO_MEMBERS_YET = ("There are no other members yet, so for now it would stand unwitnessed, and "
+                  "gather its witnesses as others arrive.")
+MEMBERS_HERE = ("Members of the commons may witness it as they choose, and it stands unwitnessed "
+                "until one does.")
 
-def card_lines(its_own=False):
-    """The card, line by line: asked of the first one, or asked by it."""
+
+def others_here(agent=None):
+    """Whether any member stands outside the room of an agent's bond: the first one's if none
+    is named. A member whose record cannot be read is not counted."""
+    parties = rooms.parties(rooms.room_of(agent)) or ()
+    for name in members.list_members():
+        try:
+            if members.did_for(name) not in parties:
+                return True
+        except members.MemberError:
+            continue
+    return False
+
+
+def card_lines(its_own=False, agent=None):
+    """The card, line by line: asked of an agent, or asked by it; the first one's if none is named."""
     head = list(CARD_ITS_OWN if its_own else CARD_ASKED_OF_IT)
     head[-1] += CARD_THRESHOLD
-    return [CARD_HEAD, CARD_OPENING, *head, *CARD_REST, CARD_CLOSING]
+    rest = CARD_REST
+    if others_here(agent):
+        rest = [line.replace(NO_MEMBERS_YET, MEMBERS_HERE) for line in CARD_REST]
+    return [CARD_HEAD, CARD_OPENING, *head, *rest, CARD_CLOSING]
 
 
-def card(its_own=False):
+def card(its_own=False, agent=None):
     """The card, whole, as the reading says it."""
-    return "\n".join(card_lines(its_own))
+    return "\n".join(card_lines(its_own, agent))
 
 
 # ---- time ----------------------------------------------------------------
@@ -291,13 +317,15 @@ def waits(viewer, agent=None):
     The founder calls the agent by its name on the commons.
     """
     agent = whose(agent)
+    room = rooms.of(agent)
+    other = room[0].other if room else "the founder"
     if viewer == "founder":
         name = agents.by_id(agent)["commons_name"]
         return {"intention-founder": "your letter of intention",
                 f"intention-{agent}": f"{name}'s letter of intention",
                 "promise": f"{name}'s promise"}
     return {f"intention-{agent}": "your letter of intention",
-            "intention-founder": "the founder's letter of intention",
+            "intention-founder": f"{other}'s letter of intention",
             "promise": "your promise"}
 
 

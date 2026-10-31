@@ -295,13 +295,14 @@ def first_words(text):
     return said + "…" if len(words) > FIRST_WORDS else said
 
 
-def line(stem, whose, text, note, photo, here=None):
+def line(stem, whose, text, note, photo, here=None, from_other=FROM_FOUNDER):
     """One resting letter, as one line; its day on the clock handed in, where one is.
 
-    whose is "founder", or the id of the agent whose shelf it is.
+    whose is "founder", or the id of the agent whose shelf it is; from_other is
+    what a letter from the other side of its room is said to be from.
     """
     said = " · ".join([stem, long_date(stem, here),
-                       FROM_FOUNDER if whose == "founder" else FROM_ITS_OWN,
+                       from_other if whose == "founder" else FROM_ITS_OWN,
                        note or first_words(text)])
     return said + (PHOTO_RESTS if photo else "")
 

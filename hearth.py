@@ -3980,9 +3980,11 @@ def backup_file(name):
 # Show an agent's self-document, which only it may change.
 def self_page(agent):
     kept = packet_of(agent["id"]) / SELF_DOC.name
-    text = read_text(kept) if kept.exists() else ""
+    # a later agent may close it from its person, by its own <<SHOWN>> (attend.py)
+    closed = preferences(agent).get("self") == "closed"
+    text = read_text(kept) if kept.exists() and not closed else ""
     return render_template("self.html", agent=agent, document=as_prose(text),
-                           missing=not kept.exists())
+                           missing=not kept.exists(), closed=closed)
 
 
 @app.route("/self")

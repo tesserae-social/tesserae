@@ -15,6 +15,7 @@ in a scratch registry and a scratch DATA_DIR. hazel is a member in no room.
 """
 
 import base64
+import hashlib
 import json
 import sys
 
@@ -254,7 +255,8 @@ def test_the_rest_addresses_are_a_member_s_alone(two, visitor):
 
 
 def test_a_member_s_rest_never_reaches_the_first_one(two, alder, hazel, keeper, wake, room,
-                                                     data_dir):
+                                                     data_dir, attend):
+    """With members in the world the card says so; with that line put back, not one byte moved."""
     a_letter_from_the_founder(keeper, room)
     before = first_one_s(data_dir)
     for member in (alder, hazel):
@@ -263,7 +265,10 @@ def test_a_member_s_rest_never_reaches_the_first_one(two, alder, hazel, keeper, 
     turn = wake()
     assert "alder" not in sent(turn) and "hazel" not in sent(turn)
     assert "is resting from the correspondence" not in turn.opening
-    assert fingerprint_of_reading(turn) == READING_NOW
+    said = json.dumps(turn.asked[-1], sort_keys=True, ensure_ascii=False, default=str)
+    assert attend.threshold.MEMBERS_HERE in said and "no other members yet" not in said
+    put_back = said.replace(attend.threshold.MEMBERS_HERE, attend.threshold.NO_MEMBERS_YET)
+    assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == READING_NOW
     assert "alder" not in page(keeper.get("/rooms/first"))
 
 

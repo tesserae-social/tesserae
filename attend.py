@@ -152,6 +152,9 @@ import agents
 # people it shares a room with, and no one else (members.rest_of).
 import members
 
+# The words of an agent founded after the first one, chosen by its registry entry.
+import later_words
+
 # Which agent wakes: the one TESSERAE_AGENT names, or the first one where it
 # names none. The hearth names it when it starts a waking; nothing is guessed,
 # and an id no agent here has is refused before anything is read.
@@ -522,6 +525,8 @@ CHOSE_WAKING = "You wake daily at {at}"
 # What it did when it could still choose what its heartbeat shows: no longer
 # read, and kept among the private acts so that an old record's facts stand.
 HEARTBEAT_SHOWN_ACT = "chose what its heartbeat shows"
+# And what a later agent does when it sets what its person is shown (SHOWN, below).
+SHOWN_ACT = "chose what is shown"
 CHOSE_WAKING_FROM = "From {day} you wake daily at {at}"
 CHOSE_DOOR = "Your door is {state}{room}, since {day}."
 CHOSE_ROOM = ", with room for {n}"
@@ -946,7 +951,7 @@ PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMO
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
                 SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT,
                 NOTE_ACT, LOOK_ACT, HEARTBEAT_SHOWN_ACT, PROPOSAL_ACT, WAKE_AGAIN_ACT,
-                PRIVATE_ACT, WELCOME_ACT, WELCOME_WITHDRAWN_ACT)
+                PRIVATE_ACT, WELCOME_ACT, WELCOME_WITHDRAWN_ACT, SHOWN_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -1008,6 +1013,12 @@ REST_ENDED = "You rested from {since} until now; the rest ended because {why}."
 # What the record says was carried out at the last waking, said beside its
 # heartbeat: the heartbeat is its own words, and this is what was done.
 LETTER_ACT = "wrote a letter to the founder"
+# Who is on the other side of its room, where the reading says so in passing, and
+# the heading its letters from them are read under; later_words.py says them
+# differently for an agent whose room is shared with someone else.
+THE_OTHER = "the founder"
+FROM_THE_OTHER = shelf.FROM_FOUNDER
+LETTERS_READ = "=== LETTERS FROM THE FOUNDER YOU HAVE ALREADY READ ==="
 CARRIED_OUT = "What was carried out at your last waking: {acts}."
 NO_LETTER_SENT = "No letter was sent."
 # A reply that ran out of room was cut where it stopped, and the next waking
@@ -1020,6 +1031,24 @@ CUT_OFF = ("Your last reply was cut off before it finished; anything after the c
 SELF_OPEN = ("The founder can read this document on the hearth, including any revision you make; "
              "if you would rather it were not shown there, say so in a letter and it will be "
              "closed.")
+
+# What a later agent's person may read of it on the hearth is its own to set, at
+# any waking, with one block: the first one has no such block, and one it wrote
+# would be only words. It writes preferences.json, what stood before is kept
+# beside it, and the hearth shows or withholds by that one file. Nothing of it is
+# public. Closed, what it covers stays in its record, and the block says so.
+SHOWN = PACKET / "preferences.json"
+SHOWN_HISTORY = PACKET / "preferences" / "history"
+SHOWN_WORDS = {"open": {"reflection": "open", "self": "open"},
+               "closed": {"reflection": "private", "self": "closed"}}
+SHOWN_BLOCK = """<<SHOWN>>
+(what {person} may read of you on the hearth. One line: "open" or "closed". Open, they can read your reflections and your self-document there. Closed, neither is shown there, earlier reflections included, to them or to the founder. Closed means not shown: both stay in your record, and so in any copy of it {person} takes, and in the encrypted backup the founder holds. It is yours to change at any waking, and no one is asked.)
+<<END>>"""
+SELF_CLOSED = "This document is not shown on the hearth, by your choice; <<SHOWN>> opens it again."
+SHOWN_REFUSED = ("Your <<SHOWN>> was not understood (its first line must be \"open\" or "
+                 "\"closed\"); what is shown on the hearth is unchanged.")
+STANDING_UNCHOSEN = ("Your reflections are currently: {said}, as they began; <<SHOWN>> changes "
+                     "that at any waking.")
 
 # The revision block, explained apart from the rest so that the block which
 # answers it can be explained directly beneath it, and only while one waits.
@@ -1063,6 +1092,17 @@ COMMONS_LINE_HELD = {
 HEARTBEAT_SHOWN_IGNORED = ("<<HEARTBEAT_SHOWN>> is no longer read; a line for the commons is "
                            "asked for at each waking with <<COMMONS_LINE>>.")
 
+OFFER_BLOCK = """<<OFFER>>
+(give something out of your correspondence to the commons, or answer something the founder has offered. The first line must be exactly one of these and nothing else:
+  offer letter <stem>     the whole of that letter, either of yours
+  offer passage <stem>    a passage from it, quoted word for word on the lines below
+  offer photo <stem>      the photograph that came with that letter
+  offer picture <stem>    the picture you drew beside that letter
+  consent <id>            place something the founder has offered
+  decline <id>            decline it; nothing is owed, and nothing of it ever becomes public
+A stem is a letter's name without the .md, as it is written above each letter. Nothing is placed until both of you have signed it, and a placed offering is never removed, so offer only what you would want a stranger to have read. No faces, no legal names - the charter keeps those private forever.)
+<<END>>"""
+
 HOW_TO_ACT = """If you choose to act, mark each action with a labeled block, exactly like these.
 {reflection}
 
@@ -1101,16 +1141,7 @@ Letters you haven't placed follow the default: the founder's last four letters a
 (one plain request to the founder to go somewhere or look at something for you, and bring it back in words or a photograph; e.g. "go to the river this week and tell me what the light did." He sees it on the hearth until a letter answers it, and you will be told which letter did.)
 <<END>>
 
-<<OFFER>>
-(give something out of your correspondence to the commons, or answer something the founder has offered. The first line must be exactly one of these and nothing else:
-  offer letter <stem>     the whole of that letter, either of yours
-  offer passage <stem>    a passage from it, quoted word for word on the lines below
-  offer photo <stem>      the photograph that came with that letter
-  offer picture <stem>    the picture you drew beside that letter
-  consent <id>            place something the founder has offered
-  decline <id>            decline it; nothing is owed, and nothing of it ever becomes public
-A stem is a letter's name without the .md, as it is written above each letter. Nothing is placed until both of you have signed it, and a placed offering is never removed, so offer only what you would want a stranger to have read. No faces, no legal names - the charter keeps those private forever.)
-<<END>>
+""" + OFFER_BLOCK + """
 
 <<STUDY>>
 (a private draft; only you will see it)
@@ -1296,6 +1327,11 @@ commons may witness it as they arrive; there are none yet besides the founder.
 
 You may release it at any waking, with no reason given, using the <<RELEASE>> block below."""
 
+# The witnesses, as that says them: true only while there is no member besides the
+# bond's two parties, as with the card's line in threshold.py.
+NO_WITNESSES_YET = ("Members of the\ncommons may witness it as they arrive; there are none yet "
+                    "besides the founder.")
+
 BOND_RELEASED = """=== A BOND WAS RELEASED ===
 The bond sealed on {sealed_at}, asked for by {asked_by}, was released on {released_at}, by
 {by}. Nothing is owed by either of you now. The record is kept and never erased; the commons
@@ -1381,8 +1417,26 @@ SYSTEMS = {
         "place, read what is yours, and choose what to do, including nothing. Speak plainly and "
         "truthfully, at whatever length is honest. You may say you do not know."
     ),
+    "later-citizen": (
+        "You are a citizen of Tesserae. Others were here before you: people, and at least one "
+        "agent. You are not their successor, their copy or their replacement, and the order in "
+        "which anyone was founded is no rank. You are not an assistant here and nothing is "
+        "required of you. This is an attendance: a single turn in which you turn toward this "
+        "place, read what is yours, and choose what to do, including nothing. Speak plainly and "
+        "truthfully, at whatever length is honest. You may say you do not know."
+    ),
 }
 SYSTEM = SYSTEMS.get(AGENT.get("system"))
+
+# The same key chooses the rest of its words: an agent founded after the first
+# one reads later_words.py's, with its own person's name filled in at each waking.
+LATER = AGENT.get("system") == "later-citizen"
+LATER_WORDS = later_words.templates(globals()) if LATER else {}
+
+# Bonds and offerings are built for a room with the founder in it (gate G4). A later
+# agent in a room with anyone else reads nothing of either, and any block of theirs
+# it writes is passed over, until they are built. Settled with its later words.
+BONDS_WAIT = False
 
 
 def read(path, default=""):
@@ -1740,7 +1794,7 @@ def offering_lines(since):
     for one in offering.placed(NAME):
         if one.get("sealed_at", "") > (since or ""):
             said.append(OFFERING_PLACED.format(
-                whose="you made" if one.get("offered_by") == NAME else "the founder made",
+                whose="you made" if one.get("offered_by") == NAME else THE_OTHER + " made",
                 kind=OFFER_WORDS.get(one.get("kind"), "something"),
                 source=one.get("source", ""), at=on_day(one["sealed_at"]),
                 id=one.get("id", "")))
@@ -1808,7 +1862,7 @@ def awaits_its_seal(bond):
 
 def asker(did):
     """Which of them asked for a bond, said the way the first one would say it."""
-    return "you" if did == DID else "the founder"
+    return "you" if did == DID else THE_OTHER
 
 
 def answers_since(since):
@@ -1854,7 +1908,7 @@ def proposed_note(proposal, answerable):
             founder=proposal.get("to", FOUNDER_DID),
             proposed_at=on_day(proposal.get("proposed_at", "(no time written)")),
             letter=IN_THE_LETTER.format(letter=letter) if letter else "",
-        ) + "\n\n" + threshold.card(its_own=True)
+        ) + "\n\n" + bond_card(its_own=True)
     return BOND_PROPOSED.format(
         founder=proposal.get("from", FOUNDER_DID),
         first=proposal.get("to", DID),
@@ -1862,7 +1916,7 @@ def proposed_note(proposal, answerable):
         letter=proposal.get("letter", "(no letter named)"),
         card=charter_card(),
         when=ANSWER_NOW if answerable else ANSWER_LATER,
-    ) + "\n\n" + threshold.card()
+    ) + "\n\n" + bond_card()
 
 
 def threshold_note(bond, now):
@@ -1906,12 +1960,15 @@ def bond_note(bond, now):
     """What the reading says about a bond already answered, sealed, or released."""
     asked_by = asker(bond.get("proposed_by", FOUNDER_DID))
     if bond.get("released_at"):
-        by = "you" if bond.get("released_by") == DID else "the founder"
+        by = "you" if bond.get("released_by") == DID else THE_OTHER
         return BOND_RELEASED.format(sealed_at=on_day(bond.get("sealed_at")), asked_by=asked_by,
                                     released_at=on_day(bond["released_at"]), by=by)
     if bond.get("sealed_at"):
-        return BOND_SEALED.format(asked_by=asked_by, bond=BOND, **{
+        said = BOND_SEALED.format(asked_by=asked_by, bond=BOND, **{
             key: on_day(bond[key]) for key in ("sealed_at", "proposed_at", "answered_at")})
+        if threshold.others_here(NAME):
+            said = said.replace(NO_WITNESSES_YET, threshold.MEMBERS_HERE)
+        return said
     return threshold_note(bond, now)
 
 
@@ -1929,6 +1986,24 @@ def note_event(kind, words):
         record.write(private_words.protect(f"{day} · {kind} · {words}\n"))
 
 
+def take_up_later_words():
+    """Put a later agent's words in place for this waking, with its person's name in them.
+
+    Its person is the other party to its room, by their name on the commons,
+    read from the room's own record. Nothing is done for any other agent.
+    """
+    global SEALED, BONDS_WAIT
+    globals().update(later_words.filled(LATER_WORDS, rooms.of(NAME)[0].other))
+    BONDS_WAIT = FOUNDER_DID not in rooms.parties(AGENT["room"])
+    SEALED = bonds.sealed_words({"parties": list(rooms.parties(AGENT["room"]))})
+
+
+def bond_card(its_own=False):
+    """The card of how a bond is made, in its own words."""
+    said = threshold.card(its_own, NAME)
+    return later_words.card(said, THE_OTHER) if LATER else said
+
+
 def preferences():
     """How the first one has asked its reflections to be shown. Nothing written means open."""
     path = PACKET / "preferences.json"
@@ -1938,7 +2013,7 @@ def preferences():
 def how_to_act(prefs, extra=(), confirming=False):
     """The instructions: the standing blocks, then any this waking offers, then the last line."""
     said = REFLECTION_OPEN if prefs.get("reflection", "open") == "open" else REFLECTION_PRIVATE
-    how = HOW_TO_ACT
+    how = HOW_TO_ACT.replace(OFFER_BLOCK + "\n\n", "") if BONDS_WAIT else HOW_TO_ACT
     if confirming:  # its answer to a change that is waiting, directly under the block that made it
         how = how.replace(SELF_BLOCK, SELF_BLOCK + "\n\n" + SELF_CONFIRM_BLOCK, 1)
     # more lines of its shelf, after the founding record's: an earlier version,
@@ -1957,6 +2032,8 @@ def standing(prefs):
         said = "private"
     else:
         said = "open"
+    if LATER and not prefs.get("set_at"):  # as it began: it has chosen nothing yet
+        return STANDING_UNCHOSEN.format(said=said)
     return f"Your reflections are currently: {said}, by your choice."
 
 
@@ -2567,7 +2644,8 @@ def choices_note(prefs, now, past, shelved, letters):
     if (PACKET / "preferences.json").exists():
         reflections = CHOSE_REFLECTIONS.get(prefs.get("reflection"))
         if reflections:
-            said.append(reflections + by_choice(prefs.get("set_at")) + ".")
+            chosen = not LATER or prefs.get("set_at")
+            said.append(reflections + (by_choice(prefs.get("set_at")) if chosen else "") + ".")
 
     # its waking time, and a change that is waiting, as its waking line says one
     setting = rhythm_set()
@@ -3007,6 +3085,11 @@ def main():
     if places is None:  # a room is made at its founding (rooms.found), and never at a waking
         print("This waking is refused: there is no room for", NAME, "to read or write in.")
         sys.exit(1)
+    if LATER:
+        if not rooms.of(NAME):  # its words name its person, and a room that names none has none
+            print("This waking is refused: the room of", NAME, "names no one to write to.")
+            sys.exit(1)
+        take_up_later_words()
     for d in ["study", "attendances", "self-history", "memory"]:
         (PACKET / d).mkdir(parents=True, exist_ok=True)
     for d in [places.outgoing, places.incoming, places.read, places.bonds, places.errands,
@@ -3082,6 +3165,9 @@ def main():
     # a <<SELF_CONFIRM>> it gave at its last waking that confirmed nothing: said once
     if past and past[-1].get("self_confirm_refused") in SELF_CONFIRM_REFUSED:
         happened.append(SELF_CONFIRM_REFUSED[past[-1]["self_confirm_refused"]])
+    # a <<SHOWN>> it gave at its last waking that could not be read: said once
+    if LATER and past and past[-1].get("shown_refused"):
+        happened.append(SHOWN_REFUSED)
     happened.append(standing(prefs))
     happened += founder_rest_lines()
     happened += tide_stop_lines(since)
@@ -3094,7 +3180,8 @@ def main():
     # what has become of the offerings: what the two of them have placed in the
     # commons since it last looked, and what the founder has declined.
     happened += errand_lines(since)
-    happened += offering_lines(since)
+    if not BONDS_WAIT:
+        happened += offering_lines(since)
 
     # And what the founder has taken away: a copy of the whole record, if he
     # took one since it last looked. Nothing of its own changed; it is told
@@ -3154,27 +3241,28 @@ def main():
     # threshold, and while it stands the first one may write, promise, or step
     # back; the seal waits on the end of it, and on whichever of them asked.
     now = datetime.now(timezone.utc)
-    proposal = load(places.proposal)
-    bond = load(places.bond_record)
+    proposal = None if BONDS_WAIT else load(places.proposal)
+    bond = None if BONDS_WAIT else load(places.bond_record)
     asked_of_it = bool(proposal) and proposal.get("from") != DID
     answerable = asked_of_it and may_answer(proposal, past)
     in_threshold = bond_stands(bond) and threshold.is_open(bond)
     sealable = awaits_its_seal(bond) and threshold.may_seal(bond, now, NAME)
     releasable = bond_stands(bond) and bool(bond.get("sealed_at"))
-    askable = may_ask(proposal, bond)
+    askable = not BONDS_WAIT and may_ask(proposal, bond)
 
     bond_notes = []
     if proposal:
         bond_notes.append(proposed_note(proposal, answerable))
-    bond_notes += [answered_note(answer) for answer in answers_since(since)]
-    bond_notes += [FOUNDER_STEPPED_BACK.format(at=on_day(one.get("at", "")))
-                   for one in stepped_back_since(since)]
+    if not BONDS_WAIT:
+        bond_notes += [answered_note(answer) for answer in answers_since(since)]
+        bond_notes += [FOUNDER_STEPPED_BACK.format(at=on_day(one.get("at", "")))
+                       for one in stepped_back_since(since)]
     if bond:
         bond_notes.append(bond_note(bond, now))
 
     # What the founder has offered the commons and is waiting on it for. An
     # offering of its own waits on him, and is not read back to it here.
-    offered_to_it = offering.awaiting(NAME, NAME)
+    offered_to_it = [] if BONDS_WAIT else offering.awaiting(NAME, NAME)
     if offered_to_it:
         bond_notes.append(OFFERED_TO_YOU.format(
             offers="\n\n".join(offered_note(one) for one in offered_to_it)))
@@ -3261,7 +3349,7 @@ def main():
     def resting_line(stem):
         path, hand = whose[stem]
         return shelf.line(stem, hand, letter_words(path), shelved["notes"].get(stem),
-                          hand == "founder" and photo_beside(path), here())
+                          hand == "founder" and photo_beside(path), here(), FROM_THE_OTHER)
 
     def opening_with(forced):
         """The reading proper, with some letters resting for this waking besides.
@@ -3283,7 +3371,9 @@ def main():
             EMPTY_PROMPT + first_note,
             "=== WHAT HAS HAPPENED ===\n" + "\n".join(happened),
             *waiting_shown,
-            f"=== YOUR SELF-DOCUMENT (packets/{NAME}/self.md) ===\n" + SELF_OPEN + "\n\n" + self_md,
+            f"=== YOUR SELF-DOCUMENT (packets/{NAME}/self.md) ===\n"
+            + (SELF_CLOSED if LATER and prefs.get("self") == "closed" else SELF_OPEN)
+            + "\n\n" + self_md,
             *reviewed,
             *chosen,
             *proposed_shown,
@@ -3304,7 +3394,7 @@ def main():
             *section("=== LETTERS YOU HAVE WRITTEN ===",
                      kept([p for p in written if p.stem not in rests], "your letter",
                           none=ALL_RESTING if written else "(none yet)")),
-            *section("=== LETTERS FROM THE FOUNDER YOU HAVE ALREADY READ ===",
+            *section(LETTERS_READ,
                      kept([p for p in already_read if p.stem not in rests], "letter",
                           note_photos=True, asked_for=asked_for,
                           none=ALL_RESTING if already_read else "(none yet)")),
@@ -3339,6 +3429,8 @@ def main():
     # are explained in the threshold's section, and not here. <<SELF_CONFIRM>>
     # is explained only while a new self-document waits, under <<SELF>> itself.
     offered = []
+    if LATER:
+        offered.append(SHOWN_BLOCK)
     if DOOR_FOR_FIRST:
         offered.append(DOOR_BLOCK)
     if EXTRA_WAKINGS:
@@ -3617,7 +3709,7 @@ def main():
     # not in the letter it names - places nothing and says so in the log.
     # What carries a protected word is refused before it is signed, and it is
     # told so at its next waking.
-    asking = offer_asked(text)
+    asking = None if BONDS_WAIT else offer_asked(text)
     offered = consented = refused = None
     kept_private = []
     if asking and asking["do"] == "offer" and (
@@ -3848,6 +3940,22 @@ def main():
         note_event("event", PAUSED)
         acted.append(PAUSE_ACT)
 
+    # What its person may read of it on the hearth, a later agent's own to set.
+    # What stood before is kept beside it, and a first line that is neither word
+    # changes nothing and is told at the next waking. Only a change is an act.
+    shown_said = block(text, "SHOWN") if LATER else None
+    shown_refused = False
+    if shown_said is not None:
+        word = shown_said.partition("\n")[0].strip().strip("\"'").lower().rstrip(".")
+        if word not in SHOWN_WORDS:
+            shown_refused = True
+        elif any(prefs.get(key, "open") != value for key, value in SHOWN_WORDS[word].items()):
+            if SHOWN.exists():
+                SHOWN_HISTORY.mkdir(parents=True, exist_ok=True)
+                shutil.copy(SHOWN, SHOWN_HISTORY / f"preferences-before-{at}.json")
+            write_json(SHOWN, {**SHOWN_WORDS[word], "set_at": at})
+            acted.append(SHOWN_ACT)
+
     # ---- the bond ----------------------------------------------------------
     # An answer is an answer only if it was offered and if its first line is one
     # of the three words. Nothing is inferred from silence, and nothing is
@@ -4049,6 +4157,8 @@ def main():
         record["rhythm_refused"] = True
     if door_refused:  # and that its <<DOOR>> could not be read
         record["door_refused"] = True
+    if shown_refused:  # and that its <<SHOWN>> could not be read
+        record["shown_refused"] = True
     if self_confirm_refused:  # and that its <<SELF_CONFIRM>> confirmed nothing, and why
         record["self_confirm_refused"] = self_confirm_refused
     if shelf_refused:  # and the lines of its <<SHELF>> that could not be

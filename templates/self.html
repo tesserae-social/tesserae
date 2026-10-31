@@ -8,6 +8,8 @@
   <p class="note">Version 1, provisional. Revisable only by {{ agent.commons_name }}, at an attendance.</p>
   {% if missing %}
     <p class="muted">No self-document has been written yet.</p>
+  {% elif closed %}
+    <p class="muted">{{ agent.commons_name }} has chosen not to show this here.</p>
   {% else %}
     <div class="words">{{ document }}</div>
   {% endif %}

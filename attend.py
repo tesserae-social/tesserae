@@ -584,6 +584,12 @@ BACKSTOP = ("This reading would have been too large to read, so these letters, t
 # reply that asked to look also opened a block, the attendance says so, as
 # "blocks_beside_look", and the next reading tells it, once, that it was not kept.
 LONGER_WAKING = "longer_waking" in FEATURES
+# What a waking cost, kept privately in its attendance from 31 October 2026: one
+# entry of these four counts per request as "usage", and their sums as
+# "usage_total". Numbers only, and only where a reply carries them. It is never
+# read back to the agent; usage_report.py reads it on the host, and no page does.
+USAGE_COUNTS = ("input_tokens", "output_tokens",
+                "cache_creation_input_tokens", "cache_read_input_tokens")
 LOOKS_MOST = 5
 LOOK_ACT = "looked things up"
 LOOKING_UP = """=== LOOKING THINGS UP ===
@@ -3006,9 +3012,25 @@ def words_said(reply):
                    if getattr(part, "type", "text") == "text")
 
 
+def usage_of(reply):
+    """What one reply says it cost, as a list of one entry; no entry if it says nothing."""
+    usage = getattr(reply, "usage", None)
+    if usage is None:
+        return []
+    counts = {count: getattr(usage, count, None) for count in USAGE_COUNTS}
+    # the API may give no number for a cache count; where it gives none, none was used
+    return [{count: said if type(said) is int else 0 for count, said in counts.items()}]
+
+
+def usage_total(spent):
+    """The four counts summed over a waking's requests."""
+    return {count: sum(entry[count] for entry in spent) for count in USAGE_COUNTS}
+
+
 def longer_waking(client, reading, record):
-    """The waking as a short exchange: its last reply, what it looked at, the rounds, and
-    whether a reply that asked to look also opened a block, which was not kept.
+    """The waking as a short exchange: its last reply, what it looked at, the rounds,
+    whether a reply that asked to look also opened a block, which was not kept, and
+    what each request cost.
 
     Each request is the whole exchange so far. The reading carries a cache mark
     on its last block, and the newest results carry another, so that a round
@@ -3019,7 +3041,7 @@ def longer_waking(client, reading, record):
     """
     marked = {"cache_control": {"type": "ephemeral"}}
     exchange = [{"role": "user", "content": [*reading[:-1], {**reading[-1], **marked}]}]
-    looked, used, rounds, beside = [], 0, 0, False
+    looked, used, rounds, beside, spent = [], 0, 0, False, []
     while True:
         rounds += 1
         closed = used >= LOOKS_MOST
@@ -3034,9 +3056,10 @@ def longer_waking(client, reading, record):
             **({"tool_choice": {"type": "none"}} if closed else {}),
             messages=sent,
         )
+        spent += usage_of(reply)
         asks = [part for part in reply.content if getattr(part, "type", None) == "tool_use"]
         if closed or getattr(reply, "stop_reason", None) != "tool_use" or not asks:
-            return reply, looked, rounds, beside
+            return reply, looked, rounds, beside, spent
         # a block opened beside a look is only words, and it is told so next time
         beside = beside or any(
             found and found.group(1) != "END"
@@ -3477,7 +3500,7 @@ def main():
     looked, rounds, beside = [], None, False
     if LONGER_WAKING:
         # a letter that has only just arrived is its own too, and may be opened
-        resp, looked, rounds, beside = longer_waking(client, reading, {
+        resp, looked, rounds, beside, spent = longer_waking(client, reading, {
             "letters": {**whose, **{p.stem: (p, "founder") for p, _ in incoming}},
             "versions": versions, "said_of": said_of if LOOKING_BACK else {},
             "named": named, "founding": founding,
@@ -3491,6 +3514,7 @@ def main():
             messages=[{"role": "user", "content": reading}],
         )
         text = resp.content[0].text
+        spent = usage_of(resp)
     at = stamp()
     sk = SigningKey(base64.b64decode(read(KEYS / "private.key").strip()))
 
@@ -4192,6 +4216,9 @@ def main():
         record["rounds"] = rounds
     if beside:  # that a block was written beside a look and not kept; told at the next waking
         record["blocks_beside_look"] = True
+    if spent:  # what each request cost, in numbers only, where the API said; read back nowhere
+        record["usage"] = spent
+        record["usage_total"] = usage_total(spent)
     record = signed(record, sk)
     log_path = PACKET / "attendances" / f"attendance-{at}.json"
     log_path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")

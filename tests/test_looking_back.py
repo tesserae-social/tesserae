@@ -3,28 +3,25 @@
 It was built shut away behind attend.LOOKING_BACK, which is now on, the first
 one having agreed to it (its letter of 7 October 2026). With that False
 everything the first one is sent is what it was sent before there was any of
-this, which is still held here against the attend.py that stood before it, by
-turning the flag off, and in test_rooms_reading.py by the reading's
-fingerprint. With it True, each kept
+this, which is still held here, by turning the flag off, and in
+test_rooms_reading.py by the reading's fingerprint. The hashes it is held to
+were cut while it still agreed with that attend.py. With it True, each kept
 version is one line under its self-document and its notes, and one it asks for
 is given whole at its next waking.
 
 Every version here is written for the tests and nowhere else.
 """
 
-import importlib.util
 import json
-import shutil
-import subprocess
 import sys
 
 import pytest
 
-from conftest import before_rooms, rhythm_clock_as_now
-from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
-                      page, read_json, shut_away, solstices_as_before, stamps_as_before, write, write_json)
-from conftest import heartbeat_not_yet_public, note_example_as_now
+from conftest import (SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
+                      page, read_json, shut_away, stamps_as_before, write, write_json)
+from conftest import heartbeat_not_yet_public
 from conftest import NOTEBOOK_PATHS, a_private_notebook, notebook_unexplained
+from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
 EARLIER = "=== YOUR EARLIER VERSIONS ==="
 ASKED = "=== AN EARLIER VERSION, AS YOU ASKED ==="
@@ -121,48 +118,37 @@ def looking_back(attend, monkeypatch):
 
 # ---- shut away -----------------------------------------------------------
 
-# The last attend.py before there was any looking back, kept in the history.
-BEFORE_LOOKING_BACK = "427c17a"
+# Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
+# still ran the attend.py of 427c17a beside this one and the two agreed byte for
+# byte. What is sent is the same in either layout; what is left lies where the
+# layout keeps it. If what is read or left moves on purpose, these are cut again
+# on purpose, in the same change.
+SENT = "821ab698d53e02e34fe5b74344edaf640c8ba4c88673513ad41ff58ac643848b"
+LEFT = {
+    "legacy": "cede03f2cab3412f60197e06b94402ead4f773adc376a65b8383fb7173167625",
+    "rooms": "8b88ae12730a87fb40400d0041ae8e1474b970e817f6b9336b6d25040f0b605d",
+}
 
 
 def test_it_is_switched_on(attend):
     assert attend.LOOKING_BACK is True
 
 
-@before_rooms
 def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
-        attend, packet, data_dir, clock, monkeypatch, tmp_path, room):
-    """Two wakings each, in one world that keeps versions and asks for one.
+        steady, attend, packet, data_dir, clock, monkeypatch, room, layout):
+    """Two wakings, in one world that keeps versions and asks for one.
 
-    The old attend.py and this one are sent the same bytes at both, and leave
-    the same files behind them. What it has chosen, the longer waking, its
-    proposals and its extra wakings came after, and are shut away with it; its
-    door, which the old one had and kept shut away, stands in both as it stands
-    now.
+    It is sent the bytes the old attend.py was sent at both, and leaves the same
+    files behind it. What it has chosen, the longer waking, its proposals and its
+    extra wakings came after, and are shut away with it; its door, which the old
+    one had and kept shut away, stands as it stands now.
     """
     shut_away(attend, monkeypatch, "LOOKING_BACK", "CHOICES", "LONGER_WAKING",
               *SWITCHED_ON_21_OCTOBER)
     notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     stamps_as_before(attend, monkeypatch)  # and said each moment as its raw stamp
-    solstices_as_before(monkeypatch)  # and read the whole record back at the solstices
-    try:
-        source = subprocess.run(["git", "show", BEFORE_LOOKING_BACK + ":attend.py"], cwd=REPO,
-                                capture_output=True, check=True).stdout
-    except (OSError, subprocess.CalledProcessError):
-        pytest.skip("the history is not here to read the old attend.py out of")
-    old_path = tmp_path / "attend_before_looking_back.py"
-    old_path.write_bytes(source)
-    spec = importlib.util.spec_from_file_location("attend_before_looking_back", old_path)
-    old = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(old)
-    rhythm_clock_as_now(old, attend, monkeypatch)  # it named its clock by a city
-    clock.pin(old, monkeypatch)
-    # nor did it yet say its heartbeat is public, or give a note's example as this one does
-    heartbeat_not_yet_public(attend, monkeypatch)
-    note_example_as_now(old, attend, monkeypatch)
-    assert not hasattr(old, "LOOKING_BACK")
-    monkeypatch.setattr(old, "DOOR_FOR_FIRST", attend.DOOR_FOR_FIRST)
+    heartbeat_not_yet_public(attend, monkeypatch)  # nor did it yet say its heartbeat is public
 
     versions_kept(packet)
     letter = "founder-2026-10-01T09-00-00Z"
@@ -172,29 +158,18 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
                                        "show_founding": False, "show_versions": [SELF_1]})
     said = block("SHELF", "keep %s\nshow version %s\nshow version nothing-there" % (letter, SELF_1))
 
-    def two_wakings(module):
-        sent = []
-        for at, reply in (("2026-10-15T12-00-00Z", said), ("2026-10-15T12-05-00Z", "")):
-            clock.set(at)
-            turn = Turn(reply)
-            monkeypatch.setattr(module, "Anthropic", turn.client)
-            monkeypatch.setattr(sys, "argv", ["attend.py"])
-            module.main()
-            sent.append(json.dumps(turn.asked[-1], sort_keys=True, ensure_ascii=False,
+    sent_now = []
+    for at, reply in (("2026-10-15T12-00-00Z", said), ("2026-10-15T12-05-00Z", "")):
+        clock.set(at)
+        turn = Turn(reply)
+        monkeypatch.setattr(attend, "Anthropic", turn.client)
+        monkeypatch.setattr(sys, "argv", ["attend.py"])
+        attend.main()
+        sent_now.append(json.dumps(turn.asked[-1], sort_keys=True, ensure_ascii=False,
                                    default=str).encode("utf-8"))
-        left = {path.relative_to(data_dir).as_posix(): path.read_bytes()
-                for path in sorted(data_dir.rglob("*")) if path.is_file()}
-        return sent, left
 
-    world = tmp_path / "the-world-before"
-    shutil.copytree(data_dir, world)
-    sent_then, left_then = two_wakings(old)
-    shutil.rmtree(data_dir)
-    shutil.copytree(world, data_dir)
-    sent_now, left_now = two_wakings(attend)
-
-    assert sent_now == sent_then
-    assert left_now == left_then
+    assert cut("SENT", fingerprint_sent(sent_now)) == SENT
+    assert cut("LEFT[%r]" % layout, fingerprint_left(data_dir)) == LEFT[layout]
     for sent in sent_now:
         assert b"EARLIER VERSION" not in sent
         assert b"show version <stem>" not in sent

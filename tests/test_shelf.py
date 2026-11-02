@@ -6,19 +6,17 @@ thing among them is a name - the stem of the founder's letter of 1 October,
 which rests from the start - and its words here are not that letter's.
 """
 
-import importlib.util
+import json
 import shutil
-import subprocess
-import sys
 
 import pytest
 
-from conftest import before_rooms, rhythm_clock_as_now
-from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON, SWITCHED_ON_21_OCTOBER, Turn,
+from conftest import (FOUNDING_TRANSCRIPT, SWITCHED_ON, SWITCHED_ON_21_OCTOBER,
                       block, blocks, explained_as_before, lines_of, page, read_json, shut_away, write,
                       write_json)
-from conftest import heartbeat_not_yet_public, note_example_as_now
+from conftest import heartbeat_not_yet_public
 from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS, a_private_notebook, notebook_unexplained
+from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
 ARTICLE = "founder-2026-10-01T15-15-05Z"
 
@@ -824,29 +822,22 @@ def test_an_open_reflection_hides_the_shelf_block_as_it_hides_the_memory(founder
 
 # ---- a fresh packet, as it was -------------------------------------------
 
-# The last attend.py before there was a shelf to keep, kept in the history.
-BEFORE_THE_SHELF = "46dafe1"
+# Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
+# still ran the attend.py of 46dafe1 beside this one and the two agreed byte for
+# byte. What is sent is the same in either layout; what is left lies where the
+# layout keeps it. If what is read or left moves on purpose, these are cut again
+# on purpose, in the same change.
+SENT = "6dbbd9ec66ca046c0446cfefc034a23867a91759083fee608220c267a457e2d2"
+LEFT = {
+    "legacy": "120056f580d87cf9981fb2b63832693e2cc6a9924e7426dd1071a1837eb5e9a9",
+    "rooms": "214091832f354fef41632520298163e6f22196cda1b556f7ea4565e9045affcf",
+}
 
 
-@before_rooms
 def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
-        wake, attend, packet, data_dir, clock, monkeypatch, tmp_path, room):
+        steady, wake, attend, packet, data_dir, monkeypatch, room, layout):
     """But for the block explained, and the founding record's one line."""
-    try:
-        source = subprocess.run(["git", "show", BEFORE_THE_SHELF + ":attend.py"], cwd=REPO,
-                                capture_output=True, check=True).stdout
-    except (OSError, subprocess.CalledProcessError):
-        pytest.skip("the history is not here to read the old attend.py out of")
-    old_path = tmp_path / "attend_before_the_shelf.py"
-    old_path.write_bytes(source)
-    spec = importlib.util.spec_from_file_location("attend_before_the_shelf", old_path)
-    old = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(old)
-    rhythm_clock_as_now(old, attend, monkeypatch)  # it named its clock by a city
-    clock.pin(old, monkeypatch)
-    # nor did it yet say its heartbeat is public, or give a note's example as this one does
-    heartbeat_not_yet_public(attend, monkeypatch)
-    note_example_as_now(old, attend, monkeypatch)
+    heartbeat_not_yet_public(attend, monkeypatch)  # nor did it yet say its heartbeat is public
 
     # three letters read, one with a photograph and one with its plain things; two
     # written, one with a picture beside it; one arrived, with a photograph; a draft
@@ -863,15 +854,6 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     write(packet / "study" / "draft-2026-10-01T00-00-00Z.md", "A thought I was keeping.\n")
     write(packet / "memory" / "notes.md", "What I carry forward.\n")
 
-    # the same world for both: what the old one wakes to is put back for the new
-    world = tmp_path / "the-world-before"
-    shutil.copytree(data_dir, world)
-    then = Turn("")
-    monkeypatch.setattr(old, "Anthropic", then.client)
-    monkeypatch.setattr(sys, "argv", ["attend.py"])
-    old.main()
-    shutil.rmtree(data_dir)
-    shutil.copytree(world, data_dir)
     # what was switched on since is held in its own tests; shut away, this is what is left
     shut_away(attend, monkeypatch, *SWITCHED_ON, "LONGER_WAKING", *SWITCHED_ON_21_OCTOBER)
     notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
@@ -880,17 +862,19 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
 
     resting_record = FOUNDING + "\n" + FOUNDING_RESTS
     whole_record = FOUNDING + "\n" + FOUNDING_TRANSCRIPT
-    assert then.opening.count(whole_record) == 1
-    assert now.opening == then.opening.replace(whole_record, resting_record, 1)
+    assert now.opening.count(resting_record) == 1 and whole_record not in now.opening
     assert RESTING not in now.shown
 
     # what arrived, and its photograph, exactly as before
-    assert len(now.reading) == len(then.reading) == 4
-    assert now.reading[1:-1] == then.reading[1:-1]
+    assert len(now.reading) == 4
 
     # and the instructions differ by the one block explained, and nothing else
     # (as the block stood then: the lines for its named notes, and send kept, came after)
     explained = EXPLAINED.replace(NOTE_LINES + SEND_KEPT, "", 1) + "\n\n"
     assert now.instructions.count(explained) == 1
-    assert now.instructions.replace(explained, "", 1) == then.instructions
     assert not (packet / "shelf.json").exists()
+
+    sent_now = [json.dumps(now.asked[-1], sort_keys=True, ensure_ascii=False,
+                           default=str).encode("utf-8")]
+    assert cut("SENT", fingerprint_sent(sent_now)) == SENT
+    assert cut("LEFT[%r]" % layout, fingerprint_left(data_dir)) == LEFT[layout]

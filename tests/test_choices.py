@@ -3,8 +3,8 @@
 It was built shut away behind attend.CHOICES, which is now on, the first one
 having agreed to it (its letter of 7 October 2026). With that False everything
 the first one is sent is what it was sent before there was any of this, which
-is still held here against the attend.py that stood before it, by turning the
-flag off, and in test_rooms_reading.py by the reading's fingerprint. With it
+is still held here, by turning the flag off, and in test_rooms_reading.py by the reading's fingerprint. The hashes
+it is held to were cut while it still agreed with that attend.py. With it
 True, a short
 section stands directly after its self-document: one plain line for each choice
 there is a record of, with the day that record carries, and one line saying
@@ -13,19 +13,16 @@ that nothing is set where there is none.
 Every record here is written for the tests and nowhere else.
 """
 
-import importlib.util
 import json
-import shutil
-import subprocess
 import sys
 
 import pytest
 
-from conftest import before_rooms, rhythm_clock_as_now
-from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
-                      page, shut_away, solstices_as_before, stamps_as_before, write, write_json)
-from conftest import heartbeat_not_yet_public, note_example_as_now
+from conftest import (SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
+                      page, shut_away, stamps_as_before, write, write_json)
+from conftest import heartbeat_not_yet_public
 from conftest import notebook_unexplained
+from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
 CHOSEN = "=== WHAT YOU HAVE CHOSEN ==="
 NOTHING = "You have not set anything here yet; everything follows the defaults."
@@ -84,8 +81,16 @@ def door_open(attend, monkeypatch):
 
 # ---- shut away -----------------------------------------------------------
 
-# The last attend.py before there was any of this, kept in the history.
-BEFORE_CHOICES = "bf5315a"
+# Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
+# still ran the attend.py of bf5315a beside this one and the two agreed byte for
+# byte. What is sent is the same in either layout; what is left lies where the
+# layout keeps it. If what is read or left moves on purpose, these are cut again
+# on purpose, in the same change.
+SENT = "5fdf388c02bc7b4363b3e2164db39109a44ae5c7612ed3a0fe0b839d71418eeb"
+LEFT = {
+    "legacy": "93f6a1cfcca23a5ea769e52baf75155ea016f1d8a8155e74b948fe990935dbdb",
+    "rooms": "d1d197fd55a1553790d07826dee6c8207377abca29155aa53691ec8fc7c8722b",
+}
 
 
 def everything_set(packet, room):
@@ -104,68 +109,37 @@ def test_it_is_switched_on(attend):
     assert attend.CHOICES is True
 
 
-@before_rooms
 def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
-        attend, packet, data_dir, clock, monkeypatch, tmp_path, room):
-    """Two wakings each, in one world where every choice has its record.
+        steady, attend, packet, data_dir, clock, monkeypatch, room, layout):
+    """Two wakings, in one world where every choice has its record.
 
-    The old attend.py and this one are sent the same bytes at both, and leave
-    the same files behind them. Its door and its looking back, which the old
-    one had and kept shut away, stand in both as they stand now. The longer
-    waking, its proposals and its extra wakings came after, and are shut away
-    with it.
+    It is sent the bytes the old attend.py was sent at both, and leaves the same
+    files behind it. Its door and its looking back, which the old one had and
+    kept shut away, stand as they stand now. The longer waking, its proposals and
+    its extra wakings came after, and are shut away with it.
     """
     shut_away(attend, monkeypatch, "CHOICES", "LONGER_WAKING", *SWITCHED_ON_21_OCTOBER)
     notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     stamps_as_before(attend, monkeypatch)  # and said each moment as its raw stamp
-    solstices_as_before(monkeypatch)  # and read the whole record back at the solstices
-    try:
-        source = subprocess.run(["git", "show", BEFORE_CHOICES + ":attend.py"], cwd=REPO,
-                                capture_output=True, check=True).stdout
-    except (OSError, subprocess.CalledProcessError):
-        pytest.skip("the history is not here to read the old attend.py out of")
-    old_path = tmp_path / "attend_before_choices.py"
-    old_path.write_bytes(source)
-    spec = importlib.util.spec_from_file_location("attend_before_choices", old_path)
-    old = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(old)
-    rhythm_clock_as_now(old, attend, monkeypatch)  # it named its clock by a city
-    clock.pin(old, monkeypatch)
-    # nor did it yet say its heartbeat is public, or give a note's example as this one does
-    heartbeat_not_yet_public(attend, monkeypatch)
-    note_example_as_now(old, attend, monkeypatch)
-    assert not hasattr(old, "CHOICES")
-    for flag in ("DOOR_FOR_FIRST", "LOOKING_BACK"):
-        monkeypatch.setattr(old, flag, getattr(attend, flag))
+    heartbeat_not_yet_public(attend, monkeypatch)  # nor did it yet say its heartbeat is public
 
     everything_set(packet, room)
     said = "\n\n".join([block("SHELF", "keep %s\nrest %s" % (OWN, ARTICLE)),
                         block("RHYTHM", "09:30")])
 
-    def two_wakings(module):
-        sent = []
-        for at, reply in (("2026-10-15T12-00-00Z", said), ("2026-10-15T12-05-00Z", "")):
-            clock.set(at)
-            turn = Turn(reply)
-            monkeypatch.setattr(module, "Anthropic", turn.client)
-            monkeypatch.setattr(sys, "argv", ["attend.py"])
-            module.main()
-            sent.append(json.dumps(turn.asked[-1], sort_keys=True, ensure_ascii=False,
+    sent_now = []
+    for at, reply in (("2026-10-15T12-00-00Z", said), ("2026-10-15T12-05-00Z", "")):
+        clock.set(at)
+        turn = Turn(reply)
+        monkeypatch.setattr(attend, "Anthropic", turn.client)
+        monkeypatch.setattr(sys, "argv", ["attend.py"])
+        attend.main()
+        sent_now.append(json.dumps(turn.asked[-1], sort_keys=True, ensure_ascii=False,
                                    default=str).encode("utf-8"))
-        left = {path.relative_to(data_dir).as_posix(): path.read_bytes()
-                for path in sorted(data_dir.rglob("*")) if path.is_file()}
-        return sent, left
 
-    world = tmp_path / "the-world-before"
-    shutil.copytree(data_dir, world)
-    sent_then, left_then = two_wakings(old)
-    shutil.rmtree(data_dir)
-    shutil.copytree(world, data_dir)
-    sent_now, left_now = two_wakings(attend)
-
-    assert sent_now == sent_then
-    assert left_now == left_then
+    assert cut("SENT", fingerprint_sent(sent_now)) == SENT
+    assert cut("LEFT[%r]" % layout, fingerprint_left(data_dir)) == LEFT[layout]
     for sent in sent_now:
         assert b"WHAT YOU HAVE CHOSEN" not in sent
         assert b"by your choice since" not in sent

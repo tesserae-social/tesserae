@@ -12,7 +12,7 @@ Three rules hold across the whole suite, and this file is where they are kept:
     keys/, commons/ and transcripts/ are never read and never written.
   * Both layouts are tested. While a room may be kept in the first one's packet
     or in a folder of its own (rooms.py), the whole suite is run once in each:
-    pytest --layout=legacy, the default, and pytest --layout=rooms. A test
+    pytest --layout=rooms, the default, and pytest --layout=legacy. A test
     writes a room's letters, errands, bond and offerings through the room
     fixture, and is given the same world either way.
   * Both registries are tested. The registry of agents (agents.py) is the
@@ -35,7 +35,7 @@ import subprocess
 import sys
 import threading
 from contextlib import contextmanager
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -259,7 +259,7 @@ REGISTRIES = ("file", "absent")
 
 
 def pytest_addoption(parser):
-    parser.addoption("--layout", choices=LAYOUTS, default="legacy",
+    parser.addoption("--layout", choices=LAYOUTS, default="rooms",
                      help="where the room is kept: in the packet (legacy) or a folder of its own")
     parser.addoption("--agents", choices=REGISTRIES, default="file",
                      help="whether the registry is read from agents.json, or as if it were absent")
@@ -367,12 +367,6 @@ def on_disk(data, name):
 
 
 ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
-
-
-# An attend.py committed before the rooms knows only the packet. A test that
-# holds today's reading to one of those is held where both can read it: in the
-# old layout, in either run.
-before_rooms = pytest.mark.parametrize("layout", ["legacy"])
 
 
 @pytest.fixture
@@ -845,23 +839,6 @@ def stamps_as_before(module, monkeypatch):
             monkeypatch.setattr(module, name, SAID_ON_A_DAY.sub(r" at {\1}", said))
             put_back += 1
     assert put_back  # there are such sentences, or this is undoing nothing
-
-
-def solstices_as_before(monkeypatch):
-    """Give shelf.py back, for one test, the reckoning an older attend.py asks it for.
-
-    Before the reading was kept at each turning of the season it was kept at
-    the two solstices, and an attend.py from then asks for it by that name.
-    """
-    import shelf
-
-    def solstice_due(today, last_attended):
-        days = [date(year, month, 21) for year in (today.year - 1, today.year)
-                for month in (6, 12)]
-        return (last_attended is not None
-                and last_attended < max(one for one in days if one <= today))
-
-    monkeypatch.setattr(shelf, "solstice_due", solstice_due, raising=False)
 
 
 # ---- its private notebook, which no address serves ----------------------

@@ -3,7 +3,7 @@
 Built shut away behind attend.EXTRA_WAKINGS, and switched on once it had agreed
 (its letter of 21 October 2026). Shut away, the first one is sent
 byte for byte what the attend.py committed before them sends it, and the same
-files are left - held here against that committed attend.py, with a
+files are left - held here by hashes cut while the two agreed, with a
 <<WAKE_AGAIN>> block written at each waking and an asking already waiting in the
 packet, and in test_rooms_reading.py by the reading's fingerprint, which did not
 move - and the tide keeps no waking but the daily one.
@@ -19,9 +19,7 @@ picture alone is kept there too. Either is sent at a later waking by "send kept
 Nothing of it is public.
 """
 
-import importlib.util
 import json
-import shutil
 import subprocess
 import sys
 from datetime import date, datetime, timezone
@@ -29,13 +27,21 @@ from datetime import date, datetime, timezone
 import pytest
 
 import waking
-from conftest import before_rooms, rhythm_clock_as_now
-from conftest import (REPO, SWITCHED_ON_21_OCTOBER, Turn, block, blocks, page, read_json,
+from conftest import (SWITCHED_ON_21_OCTOBER, Turn, block, blocks, page, read_json,
                       shut_away, write, write_json)
 from conftest import notebook_unexplained
+from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
-# The last attend.py before there were any extra wakings, kept in the history.
-BEFORE_EXTRA_WAKINGS = "64d97e2"
+# Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
+# still ran the attend.py of 64d97e2 beside this one and the two agreed byte for
+# byte. What is sent is the same in either layout; what is left lies where the
+# layout keeps it. If what is read or left moves on purpose, these are cut again
+# on purpose, in the same change.
+SENT = "2207fad731986a7f4da7ebf859575b090db9d817b3c5f6ede37e68d802aadc83"
+LEFT = {
+    "legacy": "2f48ecb4f317a947dfd6874fdcc32c083019de37557bdf153025f75cddbae409",
+    "rooms": "a5debc5d4908d0d687613140285e0e7e36f2d6cbf378175502668edca52fd292",
+}
 
 EXPLAINED = """<<WAKE_AGAIN>>
 (to be woken once more later today: one line, a time such as 19:30, or "sunset". At most one extra waking a day, and not from an extra waking. One exchange still goes out each day: a letter or picture written at an extra waking, after something has already gone today, is kept in your study for your next waking. A pause of yours always comes first.)
@@ -77,11 +83,6 @@ def waiting_in(packet):
 
 def kept_in(packet):
     return [read_json(path) for path in sorted((packet / "wake-again").glob("wake-again-*.json"))]
-
-
-def left_in(data_dir):
-    return {path.relative_to(data_dir).as_posix(): path.read_bytes()
-            for path in sorted(data_dir.rglob("*")) if path.is_file()}
 
 
 def as_sent(asked):
@@ -135,26 +136,12 @@ def test_shut_away_a_block_is_only_words(off, wake, attend, packet):
     assert latest(packet)["woken_by"] == "founder"
 
 
-@before_rooms
 def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_does(
-        attend, data_dir, packet, clock, monkeypatch, tmp_path, room):
-    """Three wakings each, in one world: the committed attend.py, and this one shut away."""
+        steady, attend, data_dir, packet, clock, monkeypatch, room, layout):
+    """Three wakings, in one world: this one shut away, as the committed attend.py was."""
     # and its proposals, which the committed one had only shut away, shut away with it
     shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
     notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
-    try:
-        source = subprocess.run(["git", "show", BEFORE_EXTRA_WAKINGS + ":attend.py"], cwd=REPO,
-                                capture_output=True, check=True).stdout
-    except (OSError, subprocess.CalledProcessError):
-        pytest.skip("the history is not here to read the committed attend.py out of")
-    old_path = tmp_path / "attend_before_extra_wakings.py"
-    old_path.write_bytes(source)
-    spec = importlib.util.spec_from_file_location("attend_before_extra_wakings", old_path)
-    old = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(old)
-    rhythm_clock_as_now(old, attend, monkeypatch)  # it named its clock by a city
-    clock.pin(old, monkeypatch)
-    assert not hasattr(old, "EXTRA_WAKINGS")
 
     write(room / "letters" / "incoming" / "founder-2026-10-15T08-00-00Z.md", "A new letter.\n")
     # even an asking already waiting, and one the tide let go, change nothing
@@ -165,30 +152,20 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
     said = blocks("I read it.", block("LETTER", "Dear founder,"), again("19:30"),
                   again("sunset"), again("07:00"), again("not a time"))
 
-    def three_wakings(module):
-        sent = []
-        for at, reply, flags in (("2026-10-15T12-00-00Z", said, ["--tide"]),
-                                 ("2026-10-15T12-05-00Z", said, ["--again"]),
-                                 ("2026-10-15T12-10-00Z", "", [])):
-            clock.set(at)
-            turn = Turn(reply, stop_reason="end_turn")
-            monkeypatch.setattr(module, "Anthropic", turn.client)
-            monkeypatch.setattr(sys, "argv", ["attend.py", *flags])
-            module.main()
-            assert len(turn.asked) == 1
-            sent.append(as_sent(turn.asked[0]))
-        return sent, left_in(data_dir)
+    sent_now = []
+    for at, reply, flags in (("2026-10-15T12-00-00Z", said, ["--tide"]),
+                             ("2026-10-15T12-05-00Z", said, ["--again"]),
+                             ("2026-10-15T12-10-00Z", "", [])):
+        clock.set(at)
+        turn = Turn(reply, stop_reason="end_turn")
+        monkeypatch.setattr(attend, "Anthropic", turn.client)
+        monkeypatch.setattr(sys, "argv", ["attend.py", *flags])
+        attend.main()
+        assert len(turn.asked) == 1
+        sent_now.append(as_sent(turn.asked[0]))
 
-    before = tmp_path / "the-world-before"
-    shutil.copytree(data_dir, before)
-    sent_then, left_then = three_wakings(old)
-    shutil.rmtree(data_dir)
-    shutil.copytree(before, data_dir)
-    sent_now, left_now = three_wakings(attend)
-
-    assert sent_now == sent_then
-    assert left_now == left_then
-    assert any("attendances/" in name for name in left_now)  # and it is not an empty likeness
+    assert cut("SENT", fingerprint_sent(sent_now)) == SENT
+    assert cut("LEFT[%r]" % layout, fingerprint_left(data_dir)) == LEFT[layout]
 
 
 # ---- asking --------------------------------------------------------------

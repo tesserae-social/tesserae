@@ -222,6 +222,22 @@ def cut(name, value):
     return value
 
 
+def fingerprint_sent(sent):
+    """Every request of some wakings, each as its bytes, in the order sent."""
+    return digest(("request %d" % n, asked) for n, asked in enumerate(sent, 1))
+
+
+def fingerprint_left(data_dir):
+    """Every file some wakings left, by its place on the disk and its bytes.
+
+    All of DATA_DIR but transcripts/, which no waking writes and where the
+    first one's founding record is to move (rooms step 5, stage 5e).
+    """
+    return digest((name, data_dir.joinpath(name).read_bytes()) for name in sorted(
+        path.relative_to(data_dir).as_posix() for path in data_dir.rglob("*")
+        if path.is_file() and path.relative_to(data_dir).parts[0] != "transcripts"))
+
+
 # ---- the waking ----------------------------------------------------------
 
 def test_the_waking_leaves_the_same_files(steady, founder, wake, room, commons, data_dir, layout):

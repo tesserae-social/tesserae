@@ -27,14 +27,11 @@ from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent,
 
 # Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
 # still ran the attend.py of 6f72732 beside this one and the two agreed byte for
-# byte. What is sent is the same in either layout; what is left lies where the
-# layout keeps it. If what is read or left moves on purpose, these are cut again
-# on purpose, in the same change.
+# byte. What is left is held as the room is kept now, in rooms/first/; the
+# value for the old packet layout went in stage 5c. If what is read or left
+# moves on purpose, these are cut again on purpose, in the same change.
 SENT = "11efc0833ee7526d6059acddf18d993b5499d39eb15cdfd6c7841714ae729b6a"
-LEFT = {
-    "legacy": "78f1d7956660e4b6be622007d9ca5423de16dccc0ce9cf3b9fb609895095de0c",
-    "rooms": "2f014be39cea6b8970cd40de6d5ffd500c850d7140e95d50c9b7e4240196045d",
-}
+LEFT = "2f014be39cea6b8970cd40de6d5ffd500c850d7140e95d50c9b7e4240196045d"
 
 EXPLAINED = """<<PROPOSAL>>
 (a proposal for how this place might change, for the founder to consider. First line: a short title. Then the proposal itself, up to about a page, ending with a line that begins "In a sentence:". He answers yes, not now, or let's talk, with his own words, and your reading tells you what became of it. One may wait for his answer at a time. Proposals are private between the two of you.)
@@ -122,7 +119,7 @@ def test_shut_away_a_block_is_only_words(off, wake, attend, packet):
 
 
 def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_does(
-        steady, attend, data_dir, packet, clock, monkeypatch, room, layout):
+        steady, attend, data_dir, packet, clock, monkeypatch, room):
     """Two wakings, in one world: this one shut away, as the committed attend.py was."""
     # and its extra wakings, which came after the committed one, shut away with it
     shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
@@ -144,7 +141,7 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
         sent_now.append(as_sent(turn.asked[0]))
 
     assert cut("SENT", fingerprint_sent(sent_now)) == SENT
-    assert cut("LEFT[%r]" % layout, fingerprint_left(data_dir)) == LEFT[layout]
+    assert cut("LEFT", fingerprint_left(data_dir)) == LEFT
 
 
 def test_shut_away_the_room_shows_none_and_answers_none(founder, hearth_off, packet):

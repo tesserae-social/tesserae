@@ -26,3 +26,6 @@ transcripts/
 
 # The first one's packet — its private self, provisional and its own to revise
 packets/first/
+
+# The rooms, each a correspondence between an agent and its person - private
+rooms/

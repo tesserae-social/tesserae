@@ -83,14 +83,11 @@ def door_open(attend, monkeypatch):
 
 # Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
 # still ran the attend.py of bf5315a beside this one and the two agreed byte for
-# byte. What is sent is the same in either layout; what is left lies where the
-# layout keeps it. If what is read or left moves on purpose, these are cut again
-# on purpose, in the same change.
+# byte. What is left is held as the room is kept now, in rooms/first/; the
+# value for the old packet layout went in stage 5c. If what is read or left
+# moves on purpose, these are cut again on purpose, in the same change.
 SENT = "5fdf388c02bc7b4363b3e2164db39109a44ae5c7612ed3a0fe0b839d71418eeb"
-LEFT = {
-    "legacy": "93f6a1cfcca23a5ea769e52baf75155ea016f1d8a8155e74b948fe990935dbdb",
-    "rooms": "d1d197fd55a1553790d07826dee6c8207377abca29155aa53691ec8fc7c8722b",
-}
+LEFT = "d1d197fd55a1553790d07826dee6c8207377abca29155aa53691ec8fc7c8722b"
 
 
 def everything_set(packet, room):
@@ -110,7 +107,7 @@ def test_it_is_switched_on(attend):
 
 
 def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
-        steady, attend, packet, data_dir, clock, monkeypatch, room, layout):
+        steady, attend, packet, data_dir, clock, monkeypatch, room):
     """Two wakings, in one world where every choice has its record.
 
     It is sent the bytes the old attend.py was sent at both, and leaves the same
@@ -139,7 +136,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
                                    default=str).encode("utf-8"))
 
     assert cut("SENT", fingerprint_sent(sent_now)) == SENT
-    assert cut("LEFT[%r]" % layout, fingerprint_left(data_dir)) == LEFT[layout]
+    assert cut("LEFT", fingerprint_left(data_dir)) == LEFT
     for sent in sent_now:
         assert b"WHAT YOU HAVE CHOSEN" not in sent
         assert b"by your choice since" not in sent

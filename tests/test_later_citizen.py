@@ -478,15 +478,15 @@ def the_first_one_s_world(founder, room):
 
 
 def test_the_first_one_reads_what_it_read_with_no_member_in_the_world(
-        founder, wake, room, data_dir, layout):
+        founder, wake, room, data_dir):
     the_first_one_s_world(founder, room)
     files, on_disk = fingerprint_of_files(data_dir), fingerprint_of_files(data_dir, as_copied=False)
     assert (files, fingerprint_of_reading(wake())) == (PACKET_BEFORE, READING_NOW)
-    assert on_disk == (PACKET_IN_ROOMS if layout == "rooms" else PACKET_BEFORE)
+    assert on_disk == PACKET_IN_ROOMS
 
 
 def test_the_first_one_reads_what_it_read_with_a_member_in_the_world(
-        founder, wake, room, data_dir, layout, attend):
+        founder, wake, room, data_dir, attend):
     """The one line that becomes true is the card's: with it put back, not one byte moved."""
     the_first_one_s_world(founder, room)
     a_member(data_dir, HAZEL)
@@ -497,7 +497,7 @@ def test_the_first_one_reads_what_it_read_with_a_member_in_the_world(
     put_back = sent.replace(attend.threshold.MEMBERS_HERE, attend.threshold.NO_MEMBERS_YET)
     assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == READING_NOW
     assert files == PACKET_BEFORE
-    assert on_disk == (PACKET_IN_ROOMS if layout == "rooms" else PACKET_BEFORE)
+    assert on_disk == PACKET_IN_ROOMS
 
 
 # ---- the witnesses of a sealed bond --------------------------------------

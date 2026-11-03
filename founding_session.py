@@ -14,7 +14,7 @@ End the conversation by typing:  /end
 
 The transcript is written to DATA_DIR/transcripts/<agent>/, the one folder that
 agent's wakings read their founding from (attend.founding_transcript). DATA_DIR
-must be said, every time: without it the session refuses, as move_into_rooms.py
+must be said, every time: without it the session refuses, as found_room.py
 does, rather than write into wherever it happens to be run from.
 
 It has no without_private step. Every word either party says is recorded

@@ -4,10 +4,9 @@
 Usage:  python restore_backup.py <file.tar.gz.enc> <path to backup.key> <output dir>
 
 A backup is the packet, the commons, the founding transcripts and the members'
-records whole, as they stood at the hour it was taken - and rooms/, once a room
-has been moved into a folder of its own (move_into_rooms.py), its room.json with
-it, so that what comes out is a DATA_DIR that works: a tar.gz, encrypted with
-the backup key. This
+records whole, as they stood at the hour it was taken - and rooms/, each room
+with its room.json, so that what comes out is a DATA_DIR that works: a tar.gz,
+encrypted with the backup key. This
 decrypts one, unpacks it into a directory of your choosing, and prints what came
 out. It refuses to unpack into a directory that already has anything in it, so
 that a restore can never write over a record you still want.
@@ -53,11 +52,26 @@ Then:
 
     python restore_backup.py tesserae-<stamp>.tar.gz.enc backup.key restored/
 
+A backup from before the move into rooms
+----------------------------------------
+A backup taken before the first one's room was moved into rooms/first/ holds
+the room in the packet, under packets/first/letters/ and beside it, and has
+no rooms/. This restores it all the same, but today's code finds no room in
+what comes out. To read it as a DATA_DIR, check out the last code that knew
+both layouts, the tag rooms-both-layouts:
+
+    git checkout rooms-both-layouts
+
+The host was moved at 2026-10-23T00:16Z. Every backup named up to and including
+tesserae-2026-10-23T00-15-19Z is in the old layout and needs that tag's code;
+every backup from tesserae-2026-10-23T13-00-00Z onward is in the rooms layout
+and is read by today's code.
+
 Leaving the private notebooks out
 ---------------------------------
 A backup holds every private notebook in it whole, packets/<who>/private/. To
-restore one for something that has no need of them - a rehearsal of the rooms
-move, say - add --without-private:
+restore one for something that has no need of them - a rehearsal, say - add
+--without-private:
 
     python restore_backup.py tesserae-<stamp>.tar.gz.enc backup.key restored/ --without-private
 

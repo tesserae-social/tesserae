@@ -17,3 +17,6 @@ tests
 # repository; neither is any part of the hearth, which never reads from them.
 .github
 record
+
+# The rooms, each a correspondence kept between an agent and its person.
+rooms

@@ -111,7 +111,7 @@ def test_the_first_one_is_the_one_woken(named, attend):
                 attend.PROPOSALS, attend.EXTRA_WAKINGS, attend.WELCOME_LETTER, attend.CHOICES))
 
 
-def test_the_first_one_reads_what_it_read(named, founder, wake, attend, room, data_dir, layout):
+def test_the_first_one_reads_what_it_read(named, founder, wake, attend, room, data_dir):
     """READING_NOW and the packet's fingerprint, as test_rooms_reading cuts them."""
     a_small_world(room)
     answer = post(founder, "/rooms/first", content_type="multipart/form-data", data={
@@ -123,7 +123,7 @@ def test_the_first_one_reads_what_it_read(named, founder, wake, attend, room, da
     on_disk = fingerprint_of_files(data_dir, as_copied=False)
     reading = fingerprint_of_reading(wake())
     assert (files, reading) == (PACKET_BEFORE, READING_NOW)
-    assert on_disk == (PACKET_IN_ROOMS if layout == "rooms" else PACKET_BEFORE)
+    assert on_disk == PACKET_IN_ROOMS
 
 
 def test_the_first_one_s_founding_is_the_earliest(named, attend, commons):

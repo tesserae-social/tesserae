@@ -13,14 +13,14 @@ is the one hand that makes a room, and it makes it whole or refuses. Its
 folders are made first and room.json last, written beside its place and then
 put there, since room.json being there is what makes the folder a room. Nothing
 is made where anything of the room is on the disk already, nor for the first
-one, whose room was made long ago and is moved by move_into_rooms.py, nor with
+one, whose room was made long ago, nor with
 an agent, or no one, as the person it is shared with.
 
 It is run by hand, once, at a founding, and by nothing on the hearth:
 
     DATA_DIR=/data python found_room.py <agent id> <the person's DID>
 
-DATA_DIR must be said, as move_into_rooms.py and founding_session.py ask.
+DATA_DIR must be said, as founding_session.py asks.
 """
 
 import json

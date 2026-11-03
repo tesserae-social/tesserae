@@ -2206,10 +2206,9 @@ def chronicle_text(lines):
 # into the record.
 #
 # The room the first one shares with the founder - its letters, errands, bond
-# and offerings - goes in where it always went, under packets/first/, whether
-# it is kept in the packet still or has been moved into a folder of its own
-# (rooms.py): a copy says the same names and the same bytes either way, and
-# room.json, which only says the room has been moved, is not among them.
+# and offerings - goes in under packets/first/, the names they had before the
+# room was given a folder of its own (rooms.py): a copy says the same names and
+# the same bytes it always did, and room.json is not among them.
 #
 # Its founding transcript goes in too, under transcripts/, and only the one
 # its wakings read (attend.founding_transcript, asked for the first one's), never
@@ -2284,16 +2283,13 @@ EXPORT_TAKEN_BY = "export taken by %s"  # a person who is not the founder, by th
 
 
 def as_before_rooms(found, agent=None):
-    """An agent's packet files, with its room's put back among them under the names they had there.
+    """An agent's packet files, with its room's put among them under the names a copy gives them.
 
-    Where the room is still kept in the packet, that is what was found. Where it
-    has a folder of its own, the room's folders are read from there, and
-    anything left under those names in the packet is not the room's and is
-    passed over: what the room keeps is in one place at a time.
+    The room's folders are read from its own folder, and anything left under
+    those names in the packet is not the room's and is passed over: what the
+    room keeps is in one place only.
     """
     agent = agent or agents.first()
-    if not rooms.moved(agent["room"]):
-        return found
     home = DATA / rooms.ROOMS / agent["room"]
     kept = [(path, name) for path, name in found if name.split("/")[2] not in rooms.ROOM_FOLDERS]
     for folder in rooms.ROOM_FOLDERS:

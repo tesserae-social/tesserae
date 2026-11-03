@@ -10,11 +10,9 @@ Three rules hold across the whole suite, and this file is where they are kept:
     temporary directory: throwaway keys cut by cut_keys.py itself, a synthetic
     founding line in events.md, a synthetic packet. The repository's packets/,
     keys/, commons/ and transcripts/ are never read and never written.
-  * Both layouts are tested. While a room may be kept in the first one's packet
-    or in a folder of its own (rooms.py), the whole suite is run once in each:
-    pytest --layout=rooms, the default, and pytest --layout=legacy. A test
-    writes a room's letters, errands, bond and offerings through the room
-    fixture, and is given the same world either way.
+  * A room is kept in a folder of its own, rooms/<room>/, and is a room only
+    where its room.json is (rooms.py). A test writes the first one's letters,
+    errands, bond and offerings through the room fixture, rooms/first/.
   * Both registries are tested. The registry of agents (agents.py) is the
     committed agents.json, or, with no file there, the first one alone, and the
     two must be one: pytest --agents=file, the default, reads the file, and
@@ -250,17 +248,13 @@ def did_public_key(document):
     return document["verificationMethod"][0]["publicKeyBase64"]
 
 
-# ---- the layout ----------------------------------------------------------
-
-LAYOUTS = ("legacy", "rooms")
+# ---- the registry --------------------------------------------------------
 
 # Whether the registry of agents is read from its file, or as if there were none.
 REGISTRIES = ("file", "absent")
 
 
 def pytest_addoption(parser):
-    parser.addoption("--layout", choices=LAYOUTS, default="rooms",
-                     help="where the room is kept: in the packet (legacy) or a folder of its own")
     parser.addoption("--agents", choices=REGISTRIES, default="file",
                      help="whether the registry is read from agents.json, or as if it were absent")
 
@@ -277,14 +271,8 @@ def pytest_configure(config):
         assert not agents.FILE.exists()
 
 
-@pytest.fixture(scope="session")
-def layout(request):
-    """Where this run keeps the room: "legacy", in the packet, or "rooms", in its own folder."""
-    return request.config.getoption("--layout")
-
-
 def make_room(data):
-    """The room in a folder of its own, as move_into_rooms.py leaves it: room.json is the sign."""
+    """The first one's room in a folder of its own: room.json is the sign."""
     import bonds
     home = data / "rooms" / "first"
     home.mkdir(parents=True, exist_ok=True)
@@ -324,11 +312,11 @@ def pytest_terminal_summary(terminalreporter):
 # ---- a data directory of its own -----------------------------------------
 
 @pytest.fixture
-def data_dir(tmp_path, keys_cut, layout):
+def data_dir(tmp_path, keys_cut):
     """A whole living world, thrown away when the test ends."""
     data = tmp_path / "data"
     packet = data / "packets" / "first"
-    room = make_room(data) if layout == "rooms" else packet
+    room = make_room(data)
     for folder in ("study", "attendances", "self-history", "memory"):
         (packet / folder).mkdir(parents=True, exist_ok=True)
     for folder in ("letters/outgoing", "letters/incoming", "letters/read", "bonds", "offerings"):
@@ -370,9 +358,9 @@ ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
 
 
 @pytest.fixture
-def room(data_dir, layout):
-    """Where the room's letters, errands, bond and offerings are kept in this run's layout."""
-    return data_dir / "rooms" / "first" if layout == "rooms" else data_dir / "packets" / "first"
+def room(data_dir):
+    """Where the first one's letters, errands, bond and offerings are kept."""
+    return data_dir / "rooms" / "first"
 
 
 @pytest.fixture

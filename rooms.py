@@ -30,22 +30,12 @@ A room's things are kept in a folder of its own:
     DATA_DIR/rooms/<room>/bonds                 the asking, the answers, the bond
     DATA_DIR/rooms/<room>/offerings             what either has offered the commons
 
-and the folder is a room only where its room.json is. The first one's room alone
-was kept another way before that, and may be still: in the first one's packet,
-
-    DATA_DIR/packets/first/letters/...          and errands, bonds, offerings,
-                                                exactly as above
-
-until it is moved into a folder of its own (move_into_rooms.py). Both are read
-while both may be on a disk: its own folder is taken only where its room.json
-is, so that the move takes effect at the one moment that file appears, and is
-undone at the one moment it goes; and while it is in the packet, who is in it
-is what record() says, since there is no room.json to say it. Every other
-agent's room is in a folder of its own from the day it is founded (found_room.py
-makes it), and never in a packet. Nothing is moved by this module, and nothing
-is written by it at all. What stays in a packet whichever way
-the room is kept - an agent's self, its notebook, its proposals, its pause - is
-the agent's own, and not the room's.
+and the folder is a room only where its room.json is: with no room.json there
+is no room, the first one's no less than any other's, and nothing stands in for
+it. Every agent's room is in a folder of its own from the day it is founded
+(found_room.py makes a later one's), and never in a packet. Nothing is written
+by this module at all. What stays in a packet - an agent's self, its notebook,
+its proposals, its pause - is the agent's own, and not the room's.
 
 Where a room's things are kept is known here and nowhere else. The hearth, an
 agent's waking, offering.py, threshold.py and the backfill of letter tiles each
@@ -77,17 +67,15 @@ DATA = Path(os.environ.get("DATA_DIR", REPO))
 # member can take, so an agent and a pseudonym never meet - door.py leans on the same.
 FIRST = agents.first()["id"]
 
-# The first one's room, and the name its bond has always gone by.
+# The first one's room.
 FIRST_ROOM = agents.first()["room"]
-FIRST_BOND = agents.first()["bond"]
 
-# Where rooms are kept once each has a folder of its own, and the record that
-# says a folder there is a room: until it is there, the room is the packet's.
+# Where rooms are kept, each in a folder of its own, and the record that says a
+# folder there is a room: until it is there, there is no room.
 ROOMS = "rooms"
 ROOM_RECORD = "room.json"
 
-# What a room keeps, by the folders it keeps them in: these are what move from
-# the packet into the room's own folder, whole, and nothing else does.
+# What a room keeps, by the folders it keeps them in.
 ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
 
 Room = namedtuple("Room", "id mine parties other bond")
@@ -96,7 +84,7 @@ Room = namedtuple("Room", "id mine parties other bond")
 class Places(namedtuple("Places", "home incoming read outgoing errands bonds offerings")):
     """Where one room's things are kept, by the names the folders have on disk.
 
-    home is the folder the room's folders are in: its own, or the packet's.
+    home is the folder the room's folders are in: its own, under rooms/.
 
     And a few places inside those folders, which every hand that reaches them
     must name the same way.
@@ -126,13 +114,9 @@ class Places(namedtuple("Places", "home incoming read outgoing errands bonds off
 
     @property
     def bond(self):
-        """The name the room's bond goes by: its agent's, where the room has a folder of its own.
-
-        A room still kept in the packet is the first one's, as only its ever was.
-        """
-        agent = next((one for one in agents.registry() if self.home == DATA / ROOMS / one["room"]),
-                     None)
-        return agent["bond"] if agent else FIRST_BOND
+        """The name the room's bond goes by: its agent's, as the registry says it."""
+        return next(one["bond"] for one in agents.registry()
+                    if self.home == DATA / ROOMS / one["room"])
 
 
 def is_keeper(who):
@@ -214,30 +198,23 @@ def find(room_id, who):
 
 
 def record_of(room_id):
-    """Where a room's own record is, or would be once it has a folder of its own."""
+    """Where a room's own record is, or would be once it is founded."""
     return DATA / ROOMS / room_id / ROOM_RECORD
 
 
-def moved(room_id):
-    """Whether a room is kept in a folder of its own: whether its room.json is there."""
+def founded(room_id):
+    """Whether a room is there at all: whether its room.json is."""
     return record_of(room_id).is_file()
 
 
 def record(room_id, person=None):
     """What a room's room.json says, or None for a room no agent founded here has.
 
-    The first one's is made from what is known of it, and never read from it:
-    the founder and the first one. This is what move_into_rooms.py writes, and
-    the one place it is said. Another agent's is made from the person it is
-    shared with, by DID, where one is handed in - that is what found_room.py writes -
-    and is otherwise what its room.json says. The parties are named by DID and
-    never by a pseudonym, since the file goes wherever the room is copied.
+    It is made from the person the room is shared with, by DID, where one is
+    handed in - that is what found_room.py writes - and is otherwise what its
+    room.json says. The parties are named by DID and never by a pseudonym, since
+    the file goes wherever the room is copied.
     """
-    if room_id == FIRST_ROOM:
-        if person not in (None, bonds.FOUNDER_DID):
-            return None
-        return {"id": FIRST_ROOM, "bond": FIRST_BOND,
-                "parties": [bonds.FOUNDER_DID, bonds.FIRST_DID]}
     agent = agent_of(room_id)
     if agent is None:
         return None
@@ -252,16 +229,13 @@ def record(room_id, person=None):
 def parties(room_id):
     """A room's two parties, by DID, as its room.json says them; None for no room.
 
-    The first one's room, while it is kept in the packet, has no room.json, and
-    its two are record()'s. A room.json that cannot be read, that is another
-    room's, or that does not name its agent and one other beside it, is no room
-    at all: a room is never opened by accident.
+    A room with no room.json, or whose room.json cannot be read, is another
+    room's, or does not name its agent and one other beside it, is no room at
+    all: a room is never opened by accident, the first one's no more than any.
     """
     agent = agent_of(room_id)
-    if agent is None:
+    if agent is None or not founded(room_id):
         return None
-    if not moved(room_id):
-        return tuple(record(room_id)["parties"]) if room_id == FIRST_ROOM else None
     try:
         held = json.loads(record_of(room_id).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -289,16 +263,13 @@ def places(room_id):
     """Where a room's things are kept, or None for a room there is not.
 
     Worked out each time it is asked, never kept from an earlier asking: in its
-    own folder where its room.json is, and in the packet where it is not. Only
-    the first one's room was ever kept in a packet: any other agent's is in a
-    folder of its own from the day it is founded, and is not there until then.
+    own folder where its room.json is, and nowhere where it is not. Every
+    agent's room is in a folder of its own from the day it is founded, and is
+    not there until then.
     """
-    if room_id == FIRST_ROOM:
-        home = DATA / ROOMS / room_id if moved(room_id) else DATA / "packets" / FIRST
-    else:
-        if agent_of(room_id) is None or not moved(room_id):
-            return None
-        home = DATA / ROOMS / room_id
+    if agent_of(room_id) is None or not founded(room_id):
+        return None
+    home = DATA / ROOMS / room_id
     letters = home / "letters"
     return Places(home, letters / "incoming", letters / "read", letters / "outgoing",
                   home / "errands", home / "bonds", home / "offerings")

@@ -62,15 +62,13 @@ from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 # the sun as it was watched from before all put back, every one of them gives
 # exactly what it was cut as; the tide and the atrium did not move at all.
 
-# The files after the waking, as a copy names them: the same in either layout.
+# The files after the waking, as a copy names them.
 FILES_AFTER = "d933ffcd5df858c262fd564f2d16e499b602a9ca7ae8b203f8a7d6556ffc9e1c"
 
-# The same files as they lie on the disk, room.json and the room's own folder
-# included where the room has one.
-ON_DISK_AFTER = {
-    "legacy": "d933ffcd5df858c262fd564f2d16e499b602a9ca7ae8b203f8a7d6556ffc9e1c",
-    "rooms": "6987bedae9a437771493db366ff9c9ab85fe1141c1640369d3a7e0d7170430c2",
-}
+# The same files as they lie on the disk, the room's own folder and its
+# room.json included. (In the old packet layout, gone since stage 5c, this was
+# FILES_AFTER itself.)
+ON_DISK_AFTER = "6987bedae9a437771493db366ff9c9ab85fe1141c1640369d3a7e0d7170430c2"
 
 # The founder's pages, one by one.
 #
@@ -116,11 +114,10 @@ PAGES = {
 # The export: every name inside it, and the bytes under each.
 EXPORT = "9a65068126d23ff71d59524f6d14cab6c271b5177c0768f9d76484f30096e717"
 
-# The backup, as the disk keeps it: so it differs with the layout.
-BACKUP = {
-    "legacy": "5ad8f218604b455f5d8bbfaffd33aec2265616ff2ff5a32516121a157bca29ba",
-    "rooms": "2d11a8951cc184f967b95858ef7dfae7e944190e08714d60b82d5db5d283e39a",
-}
+# The backup, as the disk keeps it, rooms/ and all. (In the old packet layout,
+# gone since stage 5c, it was
+# 5ad8f218604b455f5d8bbfaffd33aec2265616ff2ff5a32516121a157bca29ba.)
+BACKUP = "2d11a8951cc184f967b95858ef7dfae7e944190e08714d60b82d5db5d283e39a"
 
 # The tide over its few dawns: tide.log, what it ran, and the events it wrote.
 # Cut again on 27 October 2026, in stage 6a-ii, when the lines an agent's tide
@@ -240,12 +237,12 @@ def fingerprint_left(data_dir):
 
 # ---- the waking ----------------------------------------------------------
 
-def test_the_waking_leaves_the_same_files(steady, founder, wake, room, commons, data_dir, layout):
+def test_the_waking_leaves_the_same_files(steady, founder, wake, room, commons, data_dir):
     a_lived_world(founder, wake, room, commons)
     files = cut("FILES_AFTER", fingerprint_of_files(data_dir))
-    on_disk = cut("ON_DISK_AFTER[%r]" % layout, fingerprint_of_files(data_dir, as_copied=False))
+    on_disk = cut("ON_DISK_AFTER", fingerprint_of_files(data_dir, as_copied=False))
     assert files == FILES_AFTER
-    assert on_disk == ON_DISK_AFTER[layout]
+    assert on_disk == ON_DISK_AFTER
 
 
 def test_the_commons_is_told_the_same_words(steady, founder, wake, room, commons):
@@ -281,7 +278,7 @@ def test_the_export_holds_the_same_things(steady, founder, wake, room, commons):
     assert cut("EXPORT", digest(held)) == EXPORT
 
 
-def test_the_backup_holds_the_same_things(steady, founder, wake, room, commons, hearth, layout):
+def test_the_backup_holds_the_same_things(steady, founder, wake, room, commons, hearth):
     a_lived_world(founder, wake, room, commons)
     held = []
     with tarfile.open(fileobj=io.BytesIO(hearth.backup_archive()), mode="r:gz") as bundle:
@@ -290,7 +287,7 @@ def test_the_backup_holds_the_same_things(steady, founder, wake, room, commons, 
                 held.append((member.name, b""))  # sealed afresh each session: the name only
             else:
                 held.append((member.name, bundle.extractfile(member).read()))
-    assert cut("BACKUP[%r]" % layout, digest(held)) == BACKUP[layout]
+    assert cut("BACKUP", digest(held)) == BACKUP
 
 
 # ---- the tide ------------------------------------------------------------

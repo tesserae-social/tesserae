@@ -120,14 +120,11 @@ def looking_back(attend, monkeypatch):
 
 # Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
 # still ran the attend.py of 427c17a beside this one and the two agreed byte for
-# byte. What is sent is the same in either layout; what is left lies where the
-# layout keeps it. If what is read or left moves on purpose, these are cut again
-# on purpose, in the same change.
+# byte. What is left is held as the room is kept now, in rooms/first/; the
+# value for the old packet layout went in stage 5c. If what is read or left
+# moves on purpose, these are cut again on purpose, in the same change.
 SENT = "821ab698d53e02e34fe5b74344edaf640c8ba4c88673513ad41ff58ac643848b"
-LEFT = {
-    "legacy": "cede03f2cab3412f60197e06b94402ead4f773adc376a65b8383fb7173167625",
-    "rooms": "8b88ae12730a87fb40400d0041ae8e1474b970e817f6b9336b6d25040f0b605d",
-}
+LEFT = "8b88ae12730a87fb40400d0041ae8e1474b970e817f6b9336b6d25040f0b605d"
 
 
 def test_it_is_switched_on(attend):
@@ -135,7 +132,7 @@ def test_it_is_switched_on(attend):
 
 
 def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
-        steady, attend, packet, data_dir, clock, monkeypatch, room, layout):
+        steady, attend, packet, data_dir, clock, monkeypatch, room):
     """Two wakings, in one world that keeps versions and asks for one.
 
     It is sent the bytes the old attend.py was sent at both, and leaves the same
@@ -169,7 +166,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
                                    default=str).encode("utf-8"))
 
     assert cut("SENT", fingerprint_sent(sent_now)) == SENT
-    assert cut("LEFT[%r]" % layout, fingerprint_left(data_dir)) == LEFT[layout]
+    assert cut("LEFT", fingerprint_left(data_dir)) == LEFT
     for sent in sent_now:
         assert b"EARLIER VERSION" not in sent
         assert b"show version <stem>" not in sent

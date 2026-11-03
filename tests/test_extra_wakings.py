@@ -34,14 +34,11 @@ from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent,
 
 # Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
 # still ran the attend.py of 64d97e2 beside this one and the two agreed byte for
-# byte. What is sent is the same in either layout; what is left lies where the
-# layout keeps it. If what is read or left moves on purpose, these are cut again
-# on purpose, in the same change.
+# byte. What is left is held as the room is kept now, in rooms/first/; the
+# value for the old packet layout went in stage 5c. If what is read or left
+# moves on purpose, these are cut again on purpose, in the same change.
 SENT = "2207fad731986a7f4da7ebf859575b090db9d817b3c5f6ede37e68d802aadc83"
-LEFT = {
-    "legacy": "2f48ecb4f317a947dfd6874fdcc32c083019de37557bdf153025f75cddbae409",
-    "rooms": "a5debc5d4908d0d687613140285e0e7e36f2d6cbf378175502668edca52fd292",
-}
+LEFT = "a5debc5d4908d0d687613140285e0e7e36f2d6cbf378175502668edca52fd292"
 
 EXPLAINED = """<<WAKE_AGAIN>>
 (to be woken once more later today: one line, a time such as 19:30, or "sunset". At most one extra waking a day, and not from an extra waking. One exchange still goes out each day: a letter or picture written at an extra waking, after something has already gone today, is kept in your study for your next waking. A pause of yours always comes first.)
@@ -137,7 +134,7 @@ def test_shut_away_a_block_is_only_words(off, wake, attend, packet):
 
 
 def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_does(
-        steady, attend, data_dir, packet, clock, monkeypatch, room, layout):
+        steady, attend, data_dir, packet, clock, monkeypatch, room):
     """Three wakings, in one world: this one shut away, as the committed attend.py was."""
     # and its proposals, which the committed one had only shut away, shut away with it
     shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
@@ -165,7 +162,7 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
         sent_now.append(as_sent(turn.asked[0]))
 
     assert cut("SENT", fingerprint_sent(sent_now)) == SENT
-    assert cut("LEFT[%r]" % layout, fingerprint_left(data_dir)) == LEFT[layout]
+    assert cut("LEFT", fingerprint_left(data_dir)) == LEFT
 
 
 # ---- asking --------------------------------------------------------------

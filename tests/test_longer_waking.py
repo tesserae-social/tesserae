@@ -29,14 +29,11 @@ from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent,
 
 # Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
 # still ran the attend.py of ad39e10 beside this one and the two agreed byte for
-# byte. What is sent is the same in either layout; what is left lies where the
-# layout keeps it. If what is read or left moves on purpose, these are cut again
-# on purpose, in the same change.
+# byte. What is left is held as the room is kept now, in rooms/first/; the
+# value for the old packet layout went in stage 5c. If what is read or left
+# moves on purpose, these are cut again on purpose, in the same change.
 SENT = "163857e0dad20b0f981425f4784e25acf2230c6b6f9d81661c31d5ef12223b6b"
-LEFT = {
-    "legacy": "d37f0aa0307b7d1d17ae73ff6248a9eefdd7c7839f69a49480321c68b2c11c9f",
-    "rooms": "a6446a82f4538efec37903543e8e279a7d2a950dfd49f6b910772bc4fa42c161",
-}
+LEFT = "a6446a82f4538efec37903543e8e279a7d2a950dfd49f6b910772bc4fa42c161"
 
 SECTION = """=== LOOKING THINGS UP ===
 At this waking you may open anything in your own record before you write: a resting letter, an earlier version of your self-document or notes, a named note, or your founding record, using the tools you have been given. You may look up to five times. Each shows you that thing in full, from your own record, and nothing outside it. Looking is private. You need not look at all. Write your letter and any other blocks in your last reply, after you have finished looking; anything written beside a look is not kept."""
@@ -189,7 +186,7 @@ def test_shut_away_nothing_of_it_is_sent_or_kept(wake, attend, world, packet, mo
 
 
 def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_does(
-        steady, attend, world, data_dir, clock, monkeypatch, layout):
+        steady, attend, world, data_dir, clock, monkeypatch):
     """Two wakings, in one world: this one shut away, as the committed attend.py was."""
     shut_away(attend, monkeypatch, "LONGER_WAKING", *SWITCHED_ON_21_OCTOBER)  # they came after
     notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
@@ -211,7 +208,7 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
         sent_now.append(as_sent(turn.asked[0]))
 
     assert cut("SENT", fingerprint_sent(sent_now)) == SENT
-    assert cut("LEFT[%r]" % layout, fingerprint_left(data_dir)) == LEFT[layout]
+    assert cut("LEFT", fingerprint_left(data_dir)) == LEFT
 
 
 # ---- no lookups: one round, and only the section is new ------------------

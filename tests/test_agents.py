@@ -105,7 +105,10 @@ def test_bonds(derived):
 
 def test_rooms(derived):
     rooms = derived["rooms"]
-    assert (rooms.FIRST, rooms.FIRST_ROOM, rooms.FIRST_BOND) == ("first", "first", "founder-first")
+    assert (rooms.FIRST, rooms.FIRST_ROOM) == ("first", "first")
+    # and its bond's name is the registry's, as every room's is: there is no other
+    assert not hasattr(rooms, "FIRST_BOND")
+    assert rooms.agent_of(rooms.FIRST_ROOM)["bond"] == "founder-first"
 
 
 def test_door(derived, data_dir):

@@ -482,34 +482,78 @@ def test_a_plain_member_and_a_stranger_have_no_room(member, hearth):
         assert rooms.find("first", who) is None, who
 
 
-def test_the_room_is_kept_where_this_layout_keeps_it(hearth, room):
+def test_the_room_is_kept_in_a_folder_of_its_own(hearth, room, data_dir):
     kept = hearth.rooms.places("first")
     assert kept == (room, room / "letters" / "incoming", room / "letters" / "read",
                     room / "letters" / "outgoing", room / "errands", room / "bonds",
                     room / "offerings")
-    assert kept.home == room
+    assert kept.home == room == data_dir / "rooms" / "first"
     assert hearth.rooms.places("elsewhere") is None
 
 
-def test_the_room_is_the_packet_s_until_its_room_json_is_there_and_again_once_it_is_gone(
-        hearth, data_dir, packet):
-    """The one sign the room has a folder of its own is its room.json: not the folder alone."""
+def test_no_room_json_no_room(hearth, data_dir, packet):
+    """The one sign a folder is a room is its room.json: not the folder alone, and not the packet.
+
+    The first one's is no exception. Without it there is no room to be had, and
+    nothing in the packet under a room's folders' names stands in for one.
+    """
     rooms = hearth.rooms
     home = data_dir / "rooms" / "first"
     record = home / "room.json"
-    record.unlink(missing_ok=True)  # in whichever layout this run was given
-    assert rooms.places("first").home == packet and not rooms.moved("first")
+    held = record.read_bytes()
+    said = rooms.record("first")
 
-    (home / "letters" / "incoming").mkdir(parents=True, exist_ok=True)  # a folder, half made
-    assert rooms.places("first").home == packet
-
-    record.write_text(json.dumps(rooms.record("first")) + "\n", encoding="utf-8")
-    assert rooms.moved("first")
-    assert rooms.places("first").home == home
-    assert rooms.places("first").bond_record == home / "bonds" / "founder-first.json"
+    def no_room():
+        assert not rooms.founded("first")
+        assert rooms.places("first") is None
+        assert rooms.parties("first") is None
+        assert rooms.record("first") is None
+        assert rooms.of("first") == [] and rooms.of(FOUNDER_NAME) == []
+        assert rooms.find("first", "first") is None and rooms.find("first", FOUNDER_NAME) is None
 
     record.unlink()
-    assert rooms.places("first").home == packet
+    no_room()
+    write(packet / "letters" / "incoming" / "founder-2026-10-15T08-00-00Z.md", "A letter.\n")
+    (packet / "bonds").mkdir(parents=True, exist_ok=True)  # the packet's old names, filled
+    no_room()
+    assert (home / "letters" / "incoming").is_dir()  # the folder, all but its room.json
+    no_room()
+
+    record.write_bytes(held)
+    assert rooms.founded("first") and rooms.record("first") == said
+    assert rooms.places("first").home == home
+    assert rooms.places("first").bond_record == home / "bonds" / "founder-first.json"
+    assert rooms.parties("first") == tuple(said["parties"])
+
+    record.unlink()
+    no_room()
+
+
+def test_a_founder_with_no_room_is_given_no_room_by_accident(hearth, founder, data_dir, packet):
+    """The keeper whose room has lost its room.json is in no room, and nothing makes one.
+
+    No page they open and no letter they try to leave writes a room.json, makes
+    a room's folder, or puts a letter in the packet where a room used to be kept.
+    """
+    home = data_dir / "rooms" / "first"
+    (home / "room.json").unlink()
+    before = sorted(path.relative_to(data_dir).as_posix() for path in data_dir.rglob("*"))
+
+    assert hearth.rooms.of(FOUNDER_NAME) == []
+    # one in no room at all is sent to the door, as room_required sends anyone with none
+    answer = founder.get("/rooms/first")
+    assert (answer.status_code, answer.headers.get("Location")) == (302, "/login")
+    answer = post(founder, "/rooms/first", content_type="multipart/form-data", data={
+        "letter": "Is anyone there?\n", "thing": ["", "", ""]})
+    assert (answer.status_code, answer.headers.get("Location")) == (302, "/login")
+
+    after = sorted(path.relative_to(data_dir).as_posix() for path in data_dir.rglob("*"))
+    made = [name for name in set(after) - set(before)
+            if name.startswith(("rooms/", "packets/first/letters", "packets/first/errands",
+                                "packets/first/bonds", "packets/first/offerings"))]
+    assert made == [], made
+    assert not (home / "room.json").exists()
+    assert not any((packet / folder).exists() for folder in ROOM_FOLDERS)
 
 
 def test_room_json_says_what_the_room_is_by_did_and_agrees_with_who_is_in_it(hearth, founder):
@@ -594,20 +638,17 @@ def test_where_a_room_is_kept_is_worked_out_each_time_it_is_asked(
         hearth, attend, data_dir, room, tmp_path, monkeypatch):
     """Nothing keeps a room's place from an earlier asking: told another, every hand follows."""
     elsewhere = tmp_path / "elsewhere"
-    moved = elsewhere / "packets" / "first"
     for module in (hearth, attend):  # each was loaded with its own rooms, as at a waking
         monkeypatch.setattr(module.rooms, "DATA", elsewhere)
-    assert hearth.room_places().incoming == moved / "letters" / "incoming"
-    assert hearth.picture_folders() == (moved / "letters" / "outgoing",)
-    assert attend.room_places().bond_record == moved / "bonds" / "founder-first.json"
-    assert attend.offering.kept().offerings == moved / "offerings"
-    assert attend.threshold.kept().bonds == moved / "bonds"
+    # told a place with no room in it, no hand finds one there
+    assert hearth.room_places() is None and attend.room_places() is None
+    assert attend.offering.kept() is None and attend.threshold.kept() is None
 
     for module in (hearth, attend):
         monkeypatch.setattr(module.rooms, "DATA", data_dir)
     assert attend.room_places().proposal == room / "bonds" / "proposal.json"
 
-    # and told the room has moved, by its room.json, every hand follows that too
+    # and told a place that has the room, by its room.json, every hand follows that too
     home = elsewhere / "rooms" / "first"
     write(home / "room.json", "{}\n")
     for module in (hearth, attend):
@@ -633,5 +674,5 @@ def test_a_waking_run_by_hand_reads_its_packet_and_its_room_from_one_place(
     here = Path(REPO).resolve()
     assert attend.DATA == attend.rooms.DATA == here
     assert attend.PACKET == here / "packets" / "first"
-    assert attend.room_places().home == attend.PACKET
-    assert attend.room_places().incoming == attend.PACKET / "letters" / "incoming"
+    assert attend.rooms.record_of("first") == here / "rooms" / "first" / "room.json"
+    assert attend.room_places() == attend.rooms.places("first")

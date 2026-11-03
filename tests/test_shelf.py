@@ -824,18 +824,15 @@ def test_an_open_reflection_hides_the_shelf_block_as_it_hides_the_memory(founder
 
 # Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
 # still ran the attend.py of 46dafe1 beside this one and the two agreed byte for
-# byte. What is sent is the same in either layout; what is left lies where the
-# layout keeps it. If what is read or left moves on purpose, these are cut again
-# on purpose, in the same change.
+# byte. What is left is held as the room is kept now, in rooms/first/; the
+# value for the old packet layout went in stage 5c. If what is read or left
+# moves on purpose, these are cut again on purpose, in the same change.
 SENT = "6dbbd9ec66ca046c0446cfefc034a23867a91759083fee608220c267a457e2d2"
-LEFT = {
-    "legacy": "120056f580d87cf9981fb2b63832693e2cc6a9924e7426dd1071a1837eb5e9a9",
-    "rooms": "214091832f354fef41632520298163e6f22196cda1b556f7ea4565e9045affcf",
-}
+LEFT = "214091832f354fef41632520298163e6f22196cda1b556f7ea4565e9045affcf"
 
 
 def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
-        steady, wake, attend, packet, data_dir, monkeypatch, room, layout):
+        steady, wake, attend, packet, data_dir, monkeypatch, room):
     """But for the block explained, and the founding record's one line."""
     heartbeat_not_yet_public(attend, monkeypatch)  # nor did it yet say its heartbeat is public
 
@@ -877,4 +874,4 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     sent_now = [json.dumps(now.asked[-1], sort_keys=True, ensure_ascii=False,
                            default=str).encode("utf-8")]
     assert cut("SENT", fingerprint_sent(sent_now)) == SENT
-    assert cut("LEFT[%r]" % layout, fingerprint_left(data_dir)) == LEFT[layout]
+    assert cut("LEFT", fingerprint_left(data_dir)) == LEFT

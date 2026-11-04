@@ -9,7 +9,7 @@ The reading and the packet as they stood before a waking are held already, in
 test_rooms_reading.py. These are the rest of it, each taken on one small fixed
 world after one waking with the model stubbed and the clock pinned:
 
-  * the files the waking left, as a copy names them and as they lie on the disk;
+  * the files the waking left, as they lie on the disk;
   * its heartbeat line and the commons' events, word for word;
   * the founder's pages - the hearth, the room, the letters, its self-document,
     the attendances, the chronicle, the export page, the bonds and the commons -
@@ -62,12 +62,12 @@ from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 # the sun as it was watched from before all put back, every one of them gives
 # exactly what it was cut as; the tide and the atrium did not move at all.
 
-# The files after the waking, as a copy names them.
-FILES_AFTER = "d933ffcd5df858c262fd564f2d16e499b602a9ca7ae8b203f8a7d6556ffc9e1c"
-
-# The same files as they lie on the disk, the room's own folder and its
-# room.json included. (In the old packet layout, gone since stage 5c, this was
-# FILES_AFTER itself.)
+# The files after the waking, as they lie on the disk, the room's own folder and
+# its room.json included. Beside it was FILES_AFTER, the same files as a copy
+# named them until stage 5f, the room's under packets/first/ and no room.json
+# (d933ffcd5df858c262fd564f2d16e499b602a9ca7ae8b203f8a7d6556ffc9e1c; in the old
+# packet layout, gone since stage 5c, it was this one too). It went when a copy
+# came to name the room's files as they are kept.
 ON_DISK_AFTER = "6987bedae9a437771493db366ff9c9ab85fe1141c1640369d3a7e0d7170430c2"
 
 # The founder's pages, one by one.
@@ -112,7 +112,15 @@ PAGES = {
 }
 
 # The export: every name inside it, and the bytes under each.
-EXPORT = "9a65068126d23ff71d59524f6d14cab6c271b5177c0768f9d76484f30096e717"
+#
+# Cut again on 3 November 2026, in stage 5f of rooms step 5, when a copy came to
+# name the room's files as they are kept, under rooms/first/, and to carry the
+# room's room.json, and for nothing else. With each rooms/first/X named
+# packets/first/X again, rooms/first/room.json taken out, and the packet's files
+# and the room's sorted together again by name, the same run gives exactly the
+# fingerprint held before, 9a65068126d23ff71d59524f6d14cab6c271b5177c0768f9d76484f30096e717.
+# Not one file's bytes moved.
+EXPORT = "a0ca127f859230513ba5baa6497936c2036efeff5a7ac9c4ae240955986ed94b"
 
 # The backup, as the disk keeps it, rooms/ and all. (In the old packet layout,
 # gone since stage 5c, it was
@@ -239,10 +247,7 @@ def fingerprint_left(data_dir):
 
 def test_the_waking_leaves_the_same_files(steady, founder, wake, room, commons, data_dir):
     a_lived_world(founder, wake, room, commons)
-    files = cut("FILES_AFTER", fingerprint_of_files(data_dir))
-    on_disk = cut("ON_DISK_AFTER", fingerprint_of_files(data_dir, as_copied=False))
-    assert files == FILES_AFTER
-    assert on_disk == ON_DISK_AFTER
+    assert cut("ON_DISK_AFTER", fingerprint_of_files(data_dir)) == ON_DISK_AFTER
 
 
 def test_the_commons_is_told_the_same_words(steady, founder, wake, room, commons):

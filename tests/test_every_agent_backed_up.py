@@ -105,7 +105,7 @@ def copy(hearth, agent=None):
 
 def test_with_the_first_one_alone_the_trees_are_today_s(hearth):
     assert hearth.BACKUP_TREES == FIRST_ONE_S_BACKUP_TREES
-    assert hearth.EXPORT_TREES == ("packets/first", "commons", "bonds")
+    assert hearth.EXPORT_TREES == ("packets/first", "rooms/first", "commons", "bonds")
     assert hearth.LEFT_OUT == ("packets/first/private",)
     assert hearth.PACKET_TREE == "packets/first"
 
@@ -175,14 +175,15 @@ def test_the_second_one_s_copy_holds_its_own_record(world, with_second):
     held = dict(copy(hearth, SECOND))
     for name, kept in [
             ("packets/second/self.md", "packets/second/self.md"),
-            # its room, under its packet's names, as the first one's is given
-            ("packets/second/letters/outgoing/letter-2026-10-21T09-00-00Z.md",
+            # its room, under the names it is kept under, as the first one's is given
+            ("rooms/second/letters/outgoing/letter-2026-10-21T09-00-00Z.md",
              "rooms/second/letters/outgoing/letter-2026-10-21T09-00-00Z.md"),
+            ("rooms/second/room.json", "rooms/second/room.json"),
             ("transcripts/second/founding-2026-10-20T09-00-00Z.md",
              "transcripts/second/founding-2026-10-20T09-00-00Z.md"),
             ("bonds/witnesses/founder-second.json", "bonds/witnesses/founder-second.json")]:
         assert held[name] == (world / kept).read_bytes(), name
-    assert "packets/second/room.json" not in held
+    assert not [name for name in held if name.startswith("packets/second/letters")]
     assert "commons/members.md" in held  # the commons, which is everyone's
 
 
@@ -190,7 +191,8 @@ def test_the_second_one_s_copy_holds_nothing_of_the_first_one_s(world, with_seco
     hearth = with_second(world)
     held = copy(hearth, SECOND)
     for name, _ in held:
-        assert name.startswith(("packets/second/", "commons/", "bonds/", "transcripts/second/")), name
+        assert name.startswith(("packets/second/", "rooms/second/", "commons/", "bonds/",
+                                "transcripts/second/")), name
         assert "/private/" not in name and not name.startswith("keys/"), name
     assert "bonds/witnesses/founder-first.json" not in dict(held)
     for words in (FIRST_PRIVATE, FIRST_MARK.strip().encode("utf-8"),

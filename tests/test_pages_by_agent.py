@@ -320,8 +320,8 @@ def test_a_party_s_copy_is_its_agent_s_and_the_taking_is_written_in_its_packet(
     for what, words in FIRST_SAYS.items():
         assert words not in copied, what
     assert SECOND_PRIVATE not in copied
-    assert not any(name.startswith("packets/first") for name in held)
-    assert "packets/second/letters/read/founder-2026-10-21T09-00-00Z.md" in held
+    assert not any(name.startswith(("packets/first", "rooms/first")) for name in held)
+    assert "rooms/second/letters/read/founder-2026-10-21T09-00-00Z.md" in held
 
     taken = (world / "packets" / "second" / "exports.log").read_text(encoding="utf-8")
     assert taken == "%s · export taken by alder\n" % clock.stamp()

@@ -340,23 +340,6 @@ def packet(data_dir):
     return data_dir / "packets" / "first"
 
 
-def room_beside(packet):
-    """Where the room is kept in the world a packet is in: its own folder, once it has one."""
-    home = packet.parents[1] / "rooms" / "first"
-    return home if (home / "room.json").is_file() else packet
-
-
-def on_disk(data, name):
-    """Where a file a copy names packets/first/... is kept, in either layout."""
-    parts = name.split("/")
-    if parts[:2] == ["packets", "first"] and parts[2:3] and parts[2] in ROOM_FOLDERS:
-        return room_beside(data / "packets" / "first") / "/".join(parts[2:])
-    return data / name
-
-
-ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
-
-
 @pytest.fixture
 def room(data_dir):
     """Where the first one's letters, errands, bond and offerings are kept."""

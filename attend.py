@@ -19,7 +19,9 @@ Usage:  python attend.py            (a normal attendance)
         python attend.py --rest-ended "<why>"   (the first waking after a rest of its own)
         python attend.py --again    (an extra waking, at its own asking; see EXTRA_WAKINGS)
 
-Files it may act on (all inside its packet, packets/<id>/, which is private):
+Files it may act on (inside its packet, packets/<id>/, which is private, but for its
+room's letters/, errands/, bonds/ and offerings/, which are kept in its room's own
+folder, rooms/<room>/, beside the room's room.json; see rooms.py):
   self.md                 its self-document (prior versions kept in self-history/)
   self-proposal.json      a new self-document it has written and not yet confirmed: it
                           takes effect only if it says yes at a later waking, and is
@@ -39,19 +41,22 @@ Files it may act on (all inside its packet, packets/<id>/, which is private):
                           names in memory/notes/names.json)
   questions.md            questions it carries forward, one per line (prior lists kept in
                           questions/history/)
-  letters/outgoing/       letters to the founder, and any picture drawn beside one
-  letters/incoming/       letters from the founder, read at attendance, then moved to letters/read/
-  errands/                one plain request to the founder, waiting for a letter to answer it;
-                          an answered one is moved to errands/answered/, never erased
+  letters/outgoing/       in its room: letters to the founder, and any picture drawn beside one
+  letters/incoming/       in its room: letters from the founder, read at attendance, then moved
+                          to letters/read/
+  errands/                in its room: one plain request to the founder, waiting for a letter
+                          to answer it; an answered one is moved to errands/answered/, never
+                          erased
   proposals/              its proposals for how this place might change, each waiting for
                           the founder's answer and then keeping it; see proposals.py. Shut
                           away behind PROPOSALS below until it is turned on
   attendances/            a signed private log of every attendance
-  bonds/                  a proposed bond, its signed answer, and the bond's own record; and,
-                          between a yes and the seal, the threshold: each version of the two
-                          letters of intention and of its promise, signed; see threshold.py
-  offerings/              something out of the correspondence offered to the commons, waiting
-                          for the other party's signature; see offering.py
+  bonds/                  in its room: a proposed bond, its signed answer, and the bond's own
+                          record; and, between a yes and the seal, the threshold: each version
+                          of the two letters of intention and of its promise, signed; see
+                          threshold.py
+  offerings/              in its room: something out of the correspondence offered to the
+                          commons, waiting for the other party's signature; see offering.py
   pause.json              a standing rest of its own, set at a waking, that stops the tide
   founder-rest.json       the founder's rest from the correspondence, which stops nothing of
                           its wakings; it is told of it while it stands. Each rest once it is

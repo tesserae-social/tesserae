@@ -5,7 +5,7 @@ Stage 3 of the work that lets the tide wake more than one agent (the proposal
 TESSERAE_AGENT, and everything of its own - its packet, key, DID, room, bond,
 name on the commons, founding transcript and the words it is woken with - is
 read from its entry in the registry. Unset, it is the first one, and the first
-one reads byte for byte what it read before (READING_NOW, PACKET_BEFORE).
+one reads byte for byte what it read before (READING_NOW, PACKET_IN_ROOMS).
 
 The second agent here is made only in a scratch registry and a scratch DATA_DIR,
 with its own keys and its own room. Its words to be woken with are a fake for
@@ -23,7 +23,7 @@ from nacl.signing import SigningKey
 import agents
 from conftest import (FOUNDING_LINE, WORD_LINE, Turn, a_private_notebook, block, blocks, load,
                       post, read_json, write, write_json)
-from test_rooms_reading import (ERRAND, PACKET_BEFORE, PACKET_IN_ROOMS, READING_NOW,
+from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_NOW,
                                 a_small_world, fingerprint_of_files, fingerprint_of_reading)
 
 SECOND = {"id": "second", "did": "did:web:tesserae.social:ids:second",
@@ -120,10 +120,8 @@ def test_the_first_one_reads_what_it_read(named, founder, wake, attend, room, da
         "errand": ERRAND, "proposes": "1"})
     assert answer.status_code == 302
     files = fingerprint_of_files(data_dir)
-    on_disk = fingerprint_of_files(data_dir, as_copied=False)
     reading = fingerprint_of_reading(wake())
-    assert (files, reading) == (PACKET_BEFORE, READING_NOW)
-    assert on_disk == PACKET_IN_ROOMS
+    assert (files, reading) == (PACKET_IN_ROOMS, READING_NOW)
 
 
 def test_the_first_one_s_founding_is_the_earliest(named, attend, commons):

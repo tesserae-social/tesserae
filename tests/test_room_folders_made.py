@@ -3,8 +3,8 @@
 A backup keeps no empty folder, and a room the first one has never asked an
 errand or made an offering in has no errands/ or offerings/ at all: so nothing
 may wait on one being there. Each test here starts from a room with none of its
-four folders - letters, errands, bonds, offerings - in whichever layout the
-suite is run in, and has one hand write into it: the hearth, the first one's
+four folders - letters, errands, bonds, offerings - in its own folder,
+rooms/first/, and has one hand write into it: the hearth, the first one's
 waking (attend.py), offering.py through the hearth, threshold.py, and what reads
 the letters for their tiles.
 """
@@ -20,7 +20,7 @@ READ_LETTER = "founder-2026-10-01T09-00-00Z"
 
 
 def bare(room):
-    """The room with none of its folders: room.json, where it has one, stays."""
+    """The room with none of its folders: its room.json stays."""
     for folder in ROOM_FOLDERS:
         shutil.rmtree(room / folder, ignore_errors=True)
     assert not [folder for folder in ROOM_FOLDERS if (room / folder).exists()]

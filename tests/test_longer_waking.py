@@ -24,7 +24,7 @@ import pytest
 from conftest import (FOUNDING_TRANSCRIPT, SWITCHED_ON_21_OCTOBER, Turn, block, blocks,
                       lines_of, page, read_json, shut_away, write, write_json)
 from conftest import heartbeat_not_yet_public
-from conftest import notebook_unexplained, room_beside
+from conftest import notebook_unexplained
 from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
 # Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
@@ -186,13 +186,13 @@ def test_shut_away_nothing_of_it_is_sent_or_kept(wake, attend, world, packet, mo
 
 
 def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_does(
-        steady, attend, world, data_dir, clock, monkeypatch):
+        steady, attend, world, room, data_dir, clock, monkeypatch):
     """Two wakings, in one world: this one shut away, as the committed attend.py was."""
     shut_away(attend, monkeypatch, "LONGER_WAKING", *SWITCHED_ON_21_OCTOBER)  # they came after
     notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
     heartbeat_not_yet_public(attend, monkeypatch)  # nor did it yet say its heartbeat is public
 
-    write(room_beside(world) / "letters" / "incoming" / "founder-2026-10-15T08-00-00Z.md",
+    write(room / "letters" / "incoming" / "founder-2026-10-15T08-00-00Z.md",
           "A new letter.\n")
     said = blocks("I read it.", block("LETTER", "Dear founder,"), block("MEMORY", "A note."),
                   block("SHELF", "show %s\nshow version %s" % (OLD, SELF_1)))
@@ -328,19 +328,19 @@ def test_with_no_founding_record_there_is_none_to_find(longer, world, data_dir):
 
 
 def test_a_photograph_that_came_with_a_letter_is_shown_again_as_the_shelf_shows_one(
-        longer, world, attend):
+        longer, world, attend, room):
     turn = longer(look(("read_letter", {"stem": PICTURED})), "")
     (result,) = turn.results
     words, photo = result["content"]
     assert words["text"] == ("From your own record: %s\n\nHere is the river.\n\n"
                              "A photograph came with this letter:" % PICTURED)
-    assert photo == attend.seen(room_beside(world) / "letters" / "read" / (PICTURED + ".jpg"))
+    assert photo == attend.seen(room / "letters" / "read" / (PICTURED + ".jpg"))
     assert turn.photos == []  # it rests, so the reading itself showed none
 
 
-def test_a_letter_that_has_only_just_arrived_may_be_opened_too(longer, world):
+def test_a_letter_that_has_only_just_arrived_may_be_opened_too(longer, world, room):
     new = "founder-2026-10-15T08-00-00Z"
-    write(room_beside(world) / "letters" / "incoming" / (new + ".md"), "A new letter.\n")
+    write(room / "letters" / "incoming" / (new + ".md"), "A new letter.\n")
     turn = longer(look(("read_letter", {"stem": new})), "")
     assert turn.given == ["From your own record: %s\n\nA new letter." % new]
 

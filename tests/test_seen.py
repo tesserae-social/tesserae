@@ -1,8 +1,8 @@
 """What a member has seen: the card's "a new letter" goes once the room is opened.
 
 How far a member has read in each room is kept with them, in
-members/<pseudonym>/seen.json, and never in the room: so it is the same in
-either layout, and the move into rooms does not know of it.
+members/<pseudonym>/seen.json, and never in the room's folder, rooms/<room>/:
+nothing done to a room's files touches it.
 """
 
 import json

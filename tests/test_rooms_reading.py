@@ -257,11 +257,12 @@ packet. That moved no word of what is read, and none of the readings was cut
 again: while both layouts were known (up to the tag rooms-both-layouts), every
 fingerprint here was held in the packet, in its own folder, and in a world built
 in the packet and then moved. Only its own folder is known now (stage 5c).
-PACKET_BEFORE is taken through the names a copy gives the room's files
-(packets/first/..., as the export gives them), and holds as it was cut. Beside
-it is the one fingerprint cut for the move, of the files as they lie on the
-disk: PACKET_IN_ROOMS, the same files with the room's under rooms/first/ and its
-room.json beside them.
+The files are held as they lie on the disk: PACKET_IN_ROOMS, the one
+fingerprint cut for the move, with the room's under rooms/first/ and its
+room.json beside them. Until a copy came to name the room's files as they are
+kept (stage 5f), PACKET_BEFORE held the same files through the names a copy
+gave them then, under packets/first/ and without room.json; it held as it was
+cut until it went.
 
 All eleven earlier readings are still held. With its letter of welcome shut
 away again (conftest.welcome_not_yet_offered), the reading is exactly the one
@@ -305,8 +306,9 @@ from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, expl
 # block's explanation came to name its clock as Eastern time and no city; each
 # is the reading it was cut as, with that one sentence as it is now.
 
-# cut on the tree before the rooms, by leaving the letter at /letters
-PACKET_BEFORE = "06d48d0fffb5f5e2e3148baf5351f004cf22011db7a730df2ab259822cdc2e68"
+# cut on the tree before the rooms, by leaving the letter at /letters, as
+# PACKET_BEFORE (06d48d0fffb5f5e2e3148baf5351f004cf22011db7a730df2ab259822cdc2e68),
+# which named the room's files as a copy did before stage 5f; and then
 
 # cut on the tree that gave the room a folder of its own, the same way: the same
 # files, as they lie on the disk once the room is in rooms/first/ with its room.json
@@ -369,8 +371,6 @@ READING_NOW = "ab0bf382e71f234df3f5b5cd9aba8b304d1ee2e52f53a4d01694a77249611d32"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
-ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
-
 
 def a_small_world(room):
     write(room / "letters" / "read" / "founder-2026-10-01T09-00-00Z.md",
@@ -380,23 +380,16 @@ def a_small_world(room):
     write(room / "errands" / ERRAND, "Go down to the lake and tell me what colour it is.\n")
 
 
-def fingerprint_of_files(data_dir, as_copied=True):
+def fingerprint_of_files(data_dir):
     """Every file the first one could be shown, by its place and its bytes.
 
-    Its place is the name a copy gives it (hearth.as_before_rooms): a file of
-    the room's is named under packets/first/ wherever it is kept, and room.json,
-    which only says where that is, is not among them. Or, not as_copied, the
-    place it has on the disk, the room's own folder and its room.json included.
+    Its place is the one it has on the disk, the room's own folder and its
+    room.json included.
     """
-    home = data_dir / "rooms" / "first"
     said = hashlib.sha256()
-    for tree in ("packets", "commons") + (() if as_copied else ("rooms",)):
+    for tree in ("packets", "commons", "rooms"):
         found = [(path, path.relative_to(data_dir).as_posix())
                  for path in (data_dir / tree).rglob("*") if path.is_file()]
-        if as_copied and tree == "packets" and (home / "room.json").is_file():
-            found += [(path, "packets/first/" + path.relative_to(home).as_posix())
-                      for folder in ROOM_FOLDERS for path in (home / folder).rglob("*")
-                      if path.is_file()]
         # tree by tree, each in the order its names sort on the disk
         for path, name in sorted(found, key=lambda one: data_dir / one[1]):
             said.update(name.encode("utf-8") + b"\0")
@@ -491,8 +484,6 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
     assert answer.status_code == 302
 
     files = fingerprint_of_files(data_dir)
-    on_disk = fingerprint_of_files(data_dir, as_copied=False)
     reading = fingerprint_of_reading(wake())
-    print("\nPACKET_BEFORE = %r\nON_DISK = %r\nREADING = %r" % (files, on_disk, reading))
-    assert (files, reading) == (PACKET_BEFORE, as_cut)
-    assert on_disk == PACKET_IN_ROOMS
+    print("\nPACKET_IN_ROOMS = %r\nREADING = %r" % (files, reading))
+    assert (files, reading) == (PACKET_IN_ROOMS, as_cut)

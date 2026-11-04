@@ -2206,9 +2206,9 @@ def chronicle_text(lines):
 # into the record.
 #
 # The room the first one shares with the founder - its letters, errands, bond
-# and offerings - goes in under packets/first/, the names they had before the
-# room was given a folder of its own (rooms.py): a copy says the same names and
-# the same bytes it always did, and room.json is not among them.
+# and offerings - goes in whole, under rooms/first/, the names they are kept
+# under (rooms.py), and its room.json with them, which says who the two in it
+# are, by DID: the copy goes to one of those two.
 #
 # Its founding transcript goes in too, under transcripts/, and only the one
 # its wakings read (attend.founding_transcript, asked for the first one's), never
@@ -2216,8 +2216,8 @@ def chronicle_text(lines):
 # the first one's record.
 #
 # Every agent founded here (agents.py) has a copy of the same shape, its own:
-# its packet, its own private notebook left out, its room under the packet's
-# names, the commons, and its own founding transcript. Of bonds/, a copy leaves
+# its packet, its own private notebook left out, its room under rooms/, the
+# commons, and its own founding transcript. Of bonds/, a copy leaves
 # out the witnesses' marks on any other agent's bond. What is shared by all is
 # the commons, which is public; nothing else of another agent's is in it.
 
@@ -2227,9 +2227,14 @@ def packet_tree(agent):
     return "packets/" + agent["id"]
 
 
+def room_tree(agent):
+    """Where an agent's room is kept, under DATA_DIR."""
+    return rooms.ROOMS + "/" + agent["room"]
+
+
 def export_trees(agent):
     """The trees an agent's copy holds."""
-    return (packet_tree(agent), "commons", "bonds")
+    return (packet_tree(agent), room_tree(agent), "commons", "bonds")
 
 
 def left_out(agent):
@@ -2263,12 +2268,16 @@ TRANSCRIPTS = "transcripts"
 # that an earlier one already holds is not added again, so nothing is in the
 # archive twice; its transcripts are, today, under transcripts/ whole, and its
 # room under rooms/.
+#
+# The first one's trees are written out here, and not taken from a copy's: a
+# copy names its own room, rooms/first, and the backup holds rooms/ whole, so a
+# backup built from a copy's trees would hold the room twice.
 
 
 def backup_trees():
     """Today's trees, in today's order, and each further agent's appended after them."""
-    trees = list(EXPORT_TREES + ("rooms", "members", "keys/first", "private-words.txt",
-                                 TRANSCRIPTS))
+    trees = [PACKET_TREE, "commons", "bonds", rooms.ROOMS, "members", "keys/first",
+             "private-words.txt", TRANSCRIPTS]
     for agent in agents.registry()[1:]:
         for tree in (packet_tree(agent), "keys/" + agent["id"], TRANSCRIPTS + "/" + agent["id"]):
             if not any(tree == held or tree.startswith(held + "/") for held in trees):
@@ -2282,39 +2291,18 @@ EXPORT_TAKEN = "export taken by the founder"
 EXPORT_TAKEN_BY = "export taken by %s"  # a person who is not the founder, by their commons name
 
 
-def as_before_rooms(found, agent=None):
-    """An agent's packet files, with its room's put among them under the names a copy gives them.
-
-    The room's folders are read from its own folder, and anything left under
-    those names in the packet is not the room's and is passed over: what the
-    room keeps is in one place only.
-    """
-    agent = agent or agents.first()
-    home = DATA / rooms.ROOMS / agent["room"]
-    kept = [(path, name) for path, name in found if name.split("/")[2] not in rooms.ROOM_FOLDERS]
-    for folder in rooms.ROOM_FOLDERS:
-        for path in (home / folder).rglob("*"):
-            kept.append((path, packet_tree(agent) + "/" + path.relative_to(home).as_posix()))
-    return kept
-
-
-def export_files(trees=EXPORT_TREES, left_out=LEFT_OUT, as_kept=False):
-    """Every file a copy holds, each with the name it takes inside the zip.
+def export_files(trees=EXPORT_TREES, left_out=LEFT_OUT):
+    """Every file a copy holds, each with the name it takes inside the zip: its name on disk.
 
     A tree is a folder, and everything under it; or one file, kept as itself.
     Whatever is left out - a file, or a folder and everything under it - is not
-    among them. An agent's room is given under its packet's names
-    (as_before_rooms), unless what is asked for is the disk as it is kept, as a
-    backup asks.
+    among them.
     """
-    packets = {packet_tree(agent): agent for agent in agents.registry()}
     for tree in trees:
         if (DATA / tree).is_file():
             yield DATA / tree, tree
             continue
         found = [(path, path.relative_to(DATA).as_posix()) for path in (DATA / tree).rglob("*")]
-        if tree in packets and not as_kept:
-            found = as_before_rooms(found, packets[tree])
         # in the order of the names, as they would sort on the disk
         for path, name in sorted(found, key=lambda one: DATA / one[1]):
             if path.is_file() and not any(name == out or name.startswith(out + "/")
@@ -2414,7 +2402,7 @@ def backup_archive():
     """
     holder = io.BytesIO()
     with ATTEND_LOCK, tarfile.open(fileobj=holder, mode="w:gz") as bundle:
-        for path, name in export_files(BACKUP_TREES, left_out=(), as_kept=True):
+        for path, name in export_files(BACKUP_TREES, left_out=()):
             bundle.add(path, arcname=name)
     return holder.getvalue()
 

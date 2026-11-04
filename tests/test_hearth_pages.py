@@ -8,7 +8,7 @@ import pytest
 
 from conftest import (FOUNDER_NAME, PASSWORD, REPO, lines_of, load, page, post, read_json, token,
                       write, write_json)
-from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS, a_private_notebook, room_beside
+from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS, a_private_notebook
 
 REFLECTION = "What I thought about at this waking."
 OLDER = "2026-10-01T09-00-00Z"
@@ -475,7 +475,7 @@ def test_a_self_document_not_yet_written(founder, packet):
 
 def a_whole_life(packet, commons):
     """One of everything the book knows how to say."""
-    room = room_beside(packet)
+    room = packet.parents[1] / "rooms" / "first"  # where its room is kept
     write(commons / "events.md",
           "2026-09-02 · word · the word was published\n"
           "2026-09-04 · founding · the first one was founded\n"

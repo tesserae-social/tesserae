@@ -75,9 +75,6 @@ FIRST_ROOM = agents.first()["room"]
 ROOMS = "rooms"
 ROOM_RECORD = "room.json"
 
-# What a room keeps, by the folders it keeps them in.
-ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
-
 Room = namedtuple("Room", "id mine parties other bond")
 
 

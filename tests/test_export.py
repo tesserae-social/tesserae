@@ -6,7 +6,7 @@ import io
 import shutil
 import zipfile
 
-from conftest import ROOM_FOLDERS, lines_of, on_disk, page, post, room_beside, write, write_json
+from conftest import lines_of, page, post, write, write_json
 
 SENTENCE = ("Everything that is yours and the first one's, as it stands: the first one's "
             "packet and the commons, with the founder's letters and the bond and offering "
@@ -25,13 +25,9 @@ PICTURE = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="4" height="4"></
 def a_whole_world(packet, commons):
     """One file of every kind the two of them keep, so that a copy is checked
     against the whole of what there is rather than against a corner of it.
-    The room's own files go wherever this world keeps the room.
+    The room's own files go in its own folder, rooms/first/, beside its room.json.
     """
-    room = room_beside(packet)
-
-    def kept(where):
-        return (room if where.split("/")[0] in ROOM_FOLDERS else packet) / where
-
+    room = packet.parents[1] / "rooms" / "first"
     for where, text in [
         ("self.md", "# The first one\n"),
         ("self-history/self-2026-10-01T09-00-00Z.md", "# The first one, before\n"),
@@ -40,6 +36,14 @@ def a_whole_world(packet, commons):
         ("questions.md", "What is the light doing?\n"),
         ("questions/history/questions-before-2026-10-01T09-00-00Z.md", "An older question?\n"),
         ("study/draft-2026-10-02T09-00-00Z.md", "A draft, my own.\n"),
+        ("tide.log", "2026-10-07T11-00-00Z · the tide came\n"),
+        # its private notebook, which the backup holds and a copy never does
+        ("private/entry-2026-10-13T09-00-00Z.md", "A FAKE ENTRY OF MY OWN, FOR THE TESTS.\n"),
+        ("private/from-study-draft-2026-10-01T09-00-00Z.md", "A FAKE DRAFT, MOVED IN.\n"),
+    ]:
+        write(packet / where, text)
+
+    for where, text in [
         ("letters/outgoing/letter-2026-10-03T09-00-00Z.md", "Dear founder,\n"),
         ("letters/outgoing/letter-2026-10-03T09-00-00Z.svg", PICTURE),
         ("letters/incoming/founder-2026-10-04T09-00-00Z.md", "A letter not yet read.\n"),
@@ -47,12 +51,8 @@ def a_whole_world(packet, commons):
         ("letters/read/founder-2026-10-05T09-00-00Z.jpg", "not really a photograph"),
         ("errands/errand-2026-10-06T09-00-00Z.md", "Go to the river.\n"),
         ("errands/answered/errand-2026-10-01T09-00-00Z.md", "Go to the bridge.\n"),
-        ("tide.log", "2026-10-07T11-00-00Z · the tide came\n"),
-        # its private notebook, which the backup holds and a copy never does
-        ("private/entry-2026-10-13T09-00-00Z.md", "A FAKE ENTRY OF MY OWN, FOR THE TESTS.\n"),
-        ("private/from-study-draft-2026-10-01T09-00-00Z.md", "A FAKE DRAFT, MOVED IN.\n"),
     ]:
-        write(kept(where), text)
+        write(room / where, text)
 
     for where, data in [
         ("intentions.json", {"intentions": ["to read the record"]}),
@@ -62,13 +62,17 @@ def a_whole_world(packet, commons):
         ("rhythm.json", {"rhythm": "daily", "at": "dawn"}),
         ("pause.json", {"by": "first", "since": "2026-10-08T09-00-00Z"}),
         ("attendances/attendance-2026-10-09T09-00-00Z.json", {"name": "first", "acted": []}),
+        ("private/moved.json", {"from-study-draft-2026-10-01T09-00-00Z": "2026-10-12T09-00-00Z"}),
+    ]:
+        write_json(packet / where, data)
+
+    for where, data in [
         ("bonds/founder-first.json", {"terms": "the charter"}),
         ("offerings/offering-2026-10-10T09-00-00Z.json", {"kind": "letter"}),
         ("errands/answered/errand-2026-10-01T09-00-00Z.json",
          {"answered_by": "letter-2026-10-02T09-00-00Z"}),
-        ("private/moved.json", {"from-study-draft-2026-10-01T09-00-00Z": "2026-10-12T09-00-00Z"}),
     ]:
-        write_json(kept(where), data)
+        write_json(room / where, data)
 
     for where, text in [
         ("heartbeats.md", "2026-10-09 · first · attended\n"),
@@ -96,17 +100,6 @@ def files_under(root, prefix):
     """Every file under a tree, named as a copy would name it."""
     return {prefix + path.relative_to(root).as_posix()
             for path in root.rglob("*") if path.is_file()}
-
-
-def packet_as_copied(packet):
-    """Every file of the packet and its room, named as a copy names them: under packets/first/."""
-    named = files_under(packet, "packets/first/")
-    room = room_beside(packet)
-    if room != packet:
-        named |= {"packets/first/" + path.relative_to(room).as_posix()
-                  for folder in ROOM_FOLDERS for path in (room / folder).rglob("*")
-                  if path.is_file()}
-    return named
 
 
 def taken(founder):
@@ -145,11 +138,14 @@ def test_looking_at_the_page_takes_nothing(founder, packet):
 
 # ---- what is in a copy ---------------------------------------------------
 
-def test_the_copy_holds_the_packet_and_the_commons_whole(founder, packet, commons):
+def test_the_copy_holds_the_packet_its_room_and_the_commons_whole(founder, packet, room,
+                                                                    commons):
     a_whole_world(packet, commons)
     _, bundle = taken(founder)
 
-    expected = packet_as_copied(packet) | files_under(commons, "commons/")
+    expected = (files_under(packet, "packets/first/") | files_under(room, "rooms/first/")
+                | files_under(commons, "commons/"))
+    assert "rooms/first/room.json" in expected  # who the two in it are, by DID
     expected |= {"packets/first/exports.log"}  # the copy records its own taking
     expected |= {FOUNDING}  # and its founding, as its wakings read it
     # but for its private notebook, which no copy carries (see test_private_notebook.py)
@@ -158,10 +154,10 @@ def test_the_copy_holds_the_packet_and_the_commons_whole(founder, packet, common
 
     # and what is in it is the file itself, byte for byte, not a summary of it
     for name in ("packets/first/self.md", "commons/members.md",
-                 "packets/first/letters/outgoing/letter-2026-10-03T09-00-00Z.svg",
-                 "packets/first/questions.md",
+                 "rooms/first/letters/outgoing/letter-2026-10-03T09-00-00Z.svg",
+                 "rooms/first/room.json", "packets/first/questions.md",
                  "packets/first/questions/history/questions-before-2026-10-01T09-00-00Z.md"):
-        assert bundle.read(name) == on_disk(packet.parents[1], name).read_bytes(), name
+        assert bundle.read(name) == (packet.parents[1] / name).read_bytes(), name
 
 
 def test_nothing_outside_its_record_is_in_the_copy(founder, packet, commons, data_dir):
@@ -172,7 +168,8 @@ def test_nothing_outside_its_record_is_in_the_copy(founder, packet, commons, dat
 
     inside = set(taken(founder)[1].namelist())
     for name in inside:
-        assert name.startswith(("packets/first/", "commons/")) or name == FOUNDING, name
+        assert name.startswith(("packets/first/", "rooms/first/", "commons/")) \
+            or name == FOUNDING, name
     assert not [name for name in inside if "key" in name or name.endswith(".env")]
     assert "keys/first/private.key" not in inside
     assert "ids/first/did.json" not in inside

@@ -95,9 +95,18 @@ ON_DISK_AFTER = "6987bedae9a437771493db366ff9c9ab85fe1141c1640369d3a7e0d7170430c
 # open errands, "asked of you" - as it stood before the tidy-up; only the
 # optional extras stay folded under "more". This world has an open errand, so
 # the room moved for that alone; no other page did.
+#
+# /rooms/first cut again on 5 November 2026, in the change that built the quiet
+# lines (the first one's letter of 4 November), and for nothing else: one muted
+# line, "A few words is enough. Weeks get full.", directly above the three plain
+# things, under "more". With that line taken out it gives exactly the fingerprint
+# it was cut as before (ROOM_BEFORE_QUIET, held below). No other page moved:
+# /account, where a person says how they write, is not among these.
+ROOM_BEFORE_QUIET = "5aca4f845053d255d8669653b0b884f633ac0af49ae537518aec459c65357206"
+FEW_WORDS = '      <p class="muted">A few words is enough. Weeks get full.</p>\n'
 PAGES = {
     "/": "925d4ec3afae5a9508572fc09c8c07a5d036f3972613fc41752c3d0913ea251a",
-    "/rooms/first": "5aca4f845053d255d8669653b0b884f633ac0af49ae537518aec459c65357206",
+    "/rooms/first": "90c92b891865ff2bbcb64198eb5faf733bfca7dd19d0e40b8a243ce3651b6ba8",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
     "/self": "1928b59fb94d956343af81e83cca7684f483c1396fd3b7d7f5e78e9125747b3e",
     "/attendances": "7ef5f02df77ac522c078c2ac264de2198ce76f0d8a35460e50cdb20eb29b175f",
@@ -270,6 +279,17 @@ def test_the_founder_is_shown_the_same_page(steady, founder, wake, room, commons
              + FORM_TOKEN.sub(r"\1\2", page(answer)))
     assert cut("PAGES[%r]" % address, hashlib.sha256(shown.encode("utf-8")).hexdigest()) \
         == PAGES[address]
+
+
+def test_the_room_with_its_few_words_taken_out_is_the_room_before(
+        steady, founder, wake, room, commons):
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get("/rooms/first")
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert shown.count(FEW_WORDS) == 1
+    put_back = shown.replace(FEW_WORDS, "")
+    assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == ROOM_BEFORE_QUIET
 
 
 # ---- what is copied ------------------------------------------------------

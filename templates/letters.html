@@ -85,6 +85,7 @@
     <details class="more"{% if drafted_line or drafted_things|select|first %} open{% endif %}>
       <summary>more</summary>
       {# three small true facts of the body and the day, beside the letter; private like it #}
+      <p class="muted">A few words is enough. Weeks get full.</p>
       <label for="thing-1">three plain things (optional)</label>
       {% for thing in drafted_things %}
       <input type="text" class="thing" id="thing-{{ loop.index }}" name="thing"

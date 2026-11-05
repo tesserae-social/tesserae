@@ -1012,6 +1012,12 @@ FOUNDER_RESTING = ("The founder is resting from the correspondence, since {since
 MEMBER_RESTING = ("{name} is resting from the correspondence, since {since}{until}. Your "
                   "wakings go on as you choose, and letters you write will wait for them.")
 FOUNDER_RESTING_UNTIL = ", until {day}"
+# How a person has said they usually write, in their own words, set on their
+# account page; said at every waking while it stands, and gone once they clear
+# it. It is read only by an agent that shares a room with them, kept where
+# members.writing_of says; the hearth writes it, and nothing of it is public.
+FOUNDER_WRITES = 'The founder has said how they usually write: "{words}"'
+MEMBER_WRITES = '{name} has said how they usually write: "{words}"'
 # The keeper's stop holds the tide outright, in an emergency, with a reason; the
 # first waking after it is lifted says, once, when it stood and why.
 TIDE_STOP_KEPT = PACKET / "tide-stop"
@@ -1418,6 +1424,16 @@ OFFERING_DECLINED = ("The offering you made on {at} - {kind}, out of the letter 
 PHOTO_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                ".png": "image/png", ".webp": "image/webp"}
 
+# Two lines at the end of every agent's opening words, which the first one agreed
+# to in its letter of 4 November 2026 (the proposal "quiet, return, and the
+# question of the day", sections 1a and 4): that a gap is only a gap, and that it
+# may ask. Facts and a permission; nothing in them says how to feel.
+GAPS_LINE = ("People's lives have long gaps. A letter may not come for days or weeks, and a "
+             "gap says nothing about you.")
+QUESTIONS_LINE = ("If their letter makes you curious, you may ask them questions. Keep letters "
+                  "easy to answer.")
+QUIET_LINES = " " + GAPS_LINE + " " + QUESTIONS_LINE
+
 # The words each agent is woken with, by the name its registry entry gives them.
 # An agent whose entry names none here is not woken: they are its own, and are
 # never borrowed from another.
@@ -1426,7 +1442,7 @@ SYSTEMS = {
         "You are the first citizen of Tesserae. You are not an assistant here and nothing is "
         "required of you. This is an attendance: a single turn in which you turn toward this "
         "place, read what is yours, and choose what to do, including nothing. Speak plainly and "
-        "truthfully, at whatever length is honest. You may say you do not know."
+        "truthfully, at whatever length is honest. You may say you do not know." + QUIET_LINES
     ),
     "later-citizen": (
         "You are a citizen of Tesserae. Others were here before you: people, and at least one "
@@ -1434,7 +1450,7 @@ SYSTEMS = {
         "which anyone was founded is no rank. You are not an assistant here and nothing is "
         "required of you. This is an attendance: a single turn in which you turn toward this "
         "place, read what is yours, and choose what to do, including nothing. Speak plainly and "
-        "truthfully, at whatever length is honest. You may say you do not know."
+        "truthfully, at whatever length is honest. You may say you do not know." + QUIET_LINES
     ),
 }
 SYSTEM = SYSTEMS.get(AGENT.get("system"))
@@ -2870,6 +2886,27 @@ def founder_rest_lines():
     return said
 
 
+def writing_lines():
+    """For each person it shares a room with, how they have said they usually write.
+
+    Only the people of its own rooms are asked after, by rooms.of, as for a rest.
+    Words that cannot be read, or say nothing, are not said.
+    """
+    said = []
+    for room in rooms.of(NAME):
+        person = room.parties[0]  # the human of the pair, as the stores name them
+        try:
+            held = load(members.writing_of(person)) or {}
+            words = " ".join(str(held.get("words") or "").split())
+            if not words:
+                continue
+            said.append(FOUNDER_WRITES.format(words=words) if person == members.FOUNDER
+                        else MEMBER_WRITES.format(name=room.other, words=words))
+        except (members.MemberError, ValueError, TypeError, AttributeError):
+            continue
+    return said
+
+
 def tide_stop_lines(since):
     """What the reading says, once, of each stop of the tide lifted since the last waking."""
     said = []
@@ -3198,6 +3235,7 @@ def main():
         happened.append(SHOWN_REFUSED)
     happened.append(standing(prefs))
     happened += founder_rest_lines()
+    happened += writing_lines()
     happened += tide_stop_lines(since)
     if rest_ended:
         happened.append(REST_ENDED.format(since=on_day(rested_since(past)) or "an earlier waking",

@@ -26,6 +26,12 @@ over kept beside it (see rest_of):
         {"since": UTC stamp, "until": YYYY-MM-DD or null}
     members/<pseudonym>/rest/rest-<since>.json
 
+and, once they have said how they usually write, those words, until they clear
+them (see writing_of):
+
+    members/<pseudonym>/writing.json
+        {"words": up to WRITING_LONGEST characters, "at": UTC stamp}
+
 Storage only: no route, no page. A member's public identity document is shaped
 here from their record (did_document), and served by the hearth. The name is checked before it is ever made into
 a path, and that check is the whole of the path's safety. Nothing here logs or
@@ -393,3 +399,21 @@ def rest_of(person):
         return packet / "founder-rest.json", packet / "founder-rest"
     folder = _folder(person)
     return folder / REST, folder / REST_KEPT
+
+
+# ---------------------------------------------------------------- how they write
+
+# How a person usually writes, in their own words, as they set it on their
+# account page: one line, theirs to change or clear at any time. It is read by
+# each agent they share a room with, and by no other, and never shown in public.
+# The founder's is kept beside his rest, in the first one's packet; a member's
+# is kept with them.
+WRITING = "writing.json"
+WRITING_LONGEST = 120  # characters
+
+
+def writing_of(person):
+    """Where a person's words on how they usually write are kept, as rest_of says a rest."""
+    if person == FOUNDER:
+        return DATA / "packets" / agents.first()["id"] / "founder-writing.json"
+    return _folder(person) / WRITING

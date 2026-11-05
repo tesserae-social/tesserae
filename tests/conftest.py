@@ -647,6 +647,25 @@ HEARTBEAT_SHOWN_BLOCK = """<<HEARTBEAT_SHOWN>>
 <<END>>"""
 
 
+def quiet_lines_not_yet(module, monkeypatch):
+    """Take out, for one test, the two lines its opening words end with (4 November 2026).
+
+    They are behind no flag: the line about gaps and the line about questions,
+    which the first one agreed to in its letter of that day, said at the end of
+    every agent's SYSTEM (attend.QUIET_LINES). Taken out, the opening words are
+    exactly what they were, for the first one and for a later agent alike. A
+    person's words on how they write are said only where they have set some,
+    and none is set in any world held to a reading, so nothing else is put back.
+    An attend.py from before them has no such words, and is left.
+    """
+    said = getattr(module, "QUIET_LINES", None)
+    if not said or not module.SYSTEM.endswith(said):
+        return  # none there, or put back already, in this test
+    for key, words in list(module.SYSTEMS.items()):
+        monkeypatch.setitem(module.SYSTEMS, key, words.removesuffix(said))
+    monkeypatch.setattr(module, "SYSTEM", module.SYSTEM.removesuffix(said))
+
+
 def welcome_not_yet_offered(module, monkeypatch):
     """Shut away, for one test, its letter of welcome (attend.WELCOME_LETTER, 25 October 2026).
 
@@ -655,7 +674,12 @@ def welcome_not_yet_offered(module, monkeypatch):
     its letter named in LOOKING THINGS UP, and read_welcome among the tools - is
     gone, and the reading is the one cut when it was offered a line for the
     commons. An attend.py from before it has no such flag, and is left.
+
+    The two lines its opening words end with came after it, so a reading from
+    before the one is from before the other, and they are taken out too
+    (quiet_lines_not_yet).
     """
+    quiet_lines_not_yet(module, monkeypatch)
     if hasattr(module, "WELCOME_LETTER"):
         monkeypatch.setattr(module, "WELCOME_LETTER", False)
 

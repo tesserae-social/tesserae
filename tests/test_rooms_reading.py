@@ -251,6 +251,21 @@ change, to America/New_York, which keeps the same hours as the zone it named
 before on every day since 2006; and where its dawns are watched from is now the
 host's to say (waking.watched_from). Neither moves a fingerprint here.
 
+And a thirteenth time, in the change that built the quiet lines, which it agreed
+to in its letter of 4 November 2026 (the proposal "quiet, return, and the
+question of the day", sections 1, 2 and 4). They are behind no flag, and at a
+waking where no one has said how they write, as in this small world, they change
+what is sent in exactly one way, and READING_NOW was cut again for it:
+
+  * the system words, which now end, after "You may say you do not know.", with
+    the line about gaps and the line about questions (attend.QUIET_LINES).
+
+No block of the reading moved, no word of any other changed, and no file of its
+packet. What else it may be told - once the founder has said on his account
+page how he usually writes, one line under WHAT HAS HAPPENED, directly after
+the line of his rest where one stands - is not in this small world, and is held
+below, by setting it and clearing it again.
+
 Then the room was given a folder of its own (rooms phase A): its letters,
 errands, bond and offerings are kept in DATA_DIR/rooms/first/ rather than in the
 packet. That moved no word of what is read, and none of the readings was cut
@@ -264,9 +279,11 @@ kept (stage 5f), PACKET_BEFORE held the same files through the names a copy
 gave them then, under packets/first/ and without room.json; it held as it was
 cut until it went.
 
-All eleven earlier readings are still held. With its letter of welcome shut
-away again (conftest.welcome_not_yet_offered), the reading is exactly the one
-cut when it was offered a line for the commons; with its heartbeat explained as
+All twelve earlier readings are still held. With the quiet lines taken out
+again (conftest.quiet_lines_not_yet), the reading is exactly the one cut when
+its letter of welcome was built; with its letter of welcome shut away as well
+(conftest.welcome_not_yet_offered, which takes the quiet lines out too), the
+reading is exactly the one cut when it was offered a line for the commons; with its heartbeat explained as
 it was before its line for the commons as well
 (conftest.commons_line_not_yet_offered, which shuts its letter of welcome away
 too), the reading is exactly the one cut when its private notebook was built; with what
@@ -299,8 +316,8 @@ import pytest
 from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, explained_as_before,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
-                      notebook_unexplained, post, shut_away, stamps_as_before,
-                      welcome_not_yet_offered, write)
+                      notebook_unexplained, post, quiet_lines_not_yet, shut_away,
+                      stamps_as_before, welcome_not_yet_offered, write)
 
 # Every reading below was cut again on 25 October 2026, when the <<RHYTHM>>
 # block's explanation came to name its clock as Eastern time and no city; each
@@ -367,7 +384,12 @@ READING_COMMONS_LINE = "5061cf190f6edd4e29d8061e01938c9dbfac6ac0216d39a5e676f7c7
 # cut again on the tree that built its letter of welcome, the same way: the
 # reading above, with <<WELCOME>> explained after <<PROPOSAL>>, its letter named
 # in LOOKING THINGS UP, and the request carrying read_welcome
-READING_NOW = "ab0bf382e71f234df3f5b5cd9aba8b304d1ee2e52f53a4d01694a77249611d32"
+READING_WELCOME = "ab0bf382e71f234df3f5b5cd9aba8b304d1ee2e52f53a4d01694a77249611d32"
+
+# cut again on the tree that built the quiet lines (4 November 2026), the same
+# way: the reading above, with its opening words ending in the line about gaps
+# and the line about questions (attend.QUIET_LINES)
+READING_NOW = "9065dff29e5a75eb5f57c0502b0d45f068eeed634ed155c8e66b6c7b544fab45"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -433,7 +455,8 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "its proposals", READING_HEARTBEAT_SHOWN),
     (False, "its notebook", READING_PROPOSALS),
     (False, "its line for the commons", READING_NOTEBOOK),
-    (False, "its letter of welcome", READING_COMMONS_LINE), (False, None, READING_NOW)],
+    (False, "its letter of welcome", READING_COMMONS_LINE),
+    (False, "the quiet lines", READING_WELCOME), (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
          "its named notes explained, each moment still a stamp",
@@ -443,31 +466,39 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "its own words private, its proposals and extra wakings shut away",
          "its proposals and extra wakings on, its notebook not yet",
          "its notebook explained, its line for the commons not yet",
-         "its line for the commons offered, its letter of welcome not yet", "as it reads now"])
+         "its line for the commons offered, its letter of welcome not yet",
+         "its letter of welcome offered, the quiet lines not yet", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
     if shut:
         shut_away(attend, monkeypatch)
-    if as_before:  # none cut before had its letter of welcome
+    if as_before:  # none cut before had the quiet lines
+        quiet_lines_not_yet(attend, monkeypatch)
+    if as_before and as_before != "the quiet lines":  # nor, before that, its letter of welcome
         welcome_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before != "its letter of welcome":  # nor was offered a line for the commons
+    if as_before and as_before not in ("the quiet lines",
+                                       "its letter of welcome"):  # nor was offered a line for the commons
         commons_line_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before not in ("its letter of welcome",
+    if as_before and as_before not in ("the quiet lines", "its letter of welcome",
                                        "its line for the commons"):  # nor had its private notebook
         notebook_unexplained(attend, monkeypatch)
-    if as_before and as_before not in ("its letter of welcome", "its line for the commons",
+    if as_before and as_before not in ("the quiet lines", "its letter of welcome",
+                                       "its line for the commons",
                                        "its notebook"):  # nor, before that, its proposals
         shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
     if as_before == "its own words":  # the one before that said its heartbeat is public
         heartbeat_words_not_yet_private(attend, monkeypatch)
     elif as_before and as_before not in ("its proposals", "its notebook", "its line for the commons",
-                                         "its letter of welcome"):  # and none before that said so at all
+                                         "its letter of welcome",
+                                         "the quiet lines"):  # and none before that said so at all
         heartbeat_not_yet_public(attend, monkeypatch)
-    if as_before and as_before not in ("its letter of welcome", "its line for the commons",
+    if as_before and as_before not in ("the quiet lines", "its letter of welcome",
+                                       "its line for the commons",
                                        "its notebook", "its proposals",
                                        "the heartbeat", "its own words"):  # one request
         shut_away(attend, monkeypatch, "LONGER_WAKING")
-    if as_before and as_before not in ("its letter of welcome", "its line for the commons",
+    if as_before and as_before not in ("the quiet lines", "its letter of welcome",
+                                       "its line for the commons",
                                        "its notebook", "its proposals",
                                        "the heartbeat", "its own words",
                                        "the longer waking"):  # and a stamp
@@ -487,3 +518,50 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
     reading = fingerprint_of_reading(wake())
     print("\nPACKET_IN_ROOMS = %r\nREADING = %r" % (files, reading))
     assert (files, reading) == (PACKET_IN_ROOMS, as_cut)
+
+
+# ---- how the founder writes ------------------------------------------------
+
+WRITES = "I usually write on weekends."
+
+
+def test_the_way_he_writes_is_one_line_and_gone_when_cleared(
+        founder, wake, attend, room, data_dir):
+    """Set on /account, it is one line under WHAT HAS HAPPENED; cleared, the reading is READING_NOW."""
+    a_small_world(room)
+    answer = post(founder, "/rooms/first", content_type="multipart/form-data", data={
+        "letter": "The lake was grey this morning, and then it was not.\n\nI am asking.",
+        "thing": ["cold hands", "", "a heron on the far bank"],
+        "errand": ERRAND, "proposes": "1"})
+    assert answer.status_code == 302
+    assert post(founder, "/account/writing", data={"writing": "  I usually write\n on weekends. "}
+                ).status_code == 302
+    kept = data_dir / "packets" / "first" / "founder-writing.json"
+    assert json.loads(kept.read_text(encoding="utf-8"))["words"] == WRITES
+
+    asked = json.dumps(wake().asked[-1], sort_keys=True, ensure_ascii=False, default=str)
+    line = attend.FOUNDER_WRITES.format(words=WRITES)
+    assert line == 'The founder has said how they usually write: "I usually write on weekends."'
+    said = json.loads(asked)["messages"][-1]["content"]
+    said = "\n".join(part.get("text", "") for part in said) if isinstance(said, list) else said
+    happened = said.partition("=== WHAT HAS HAPPENED ===")[2].partition("\n=== ")[0]
+    assert happened.count(line) == 1
+    # the line, and the line break before it, are the whole of the difference
+    put_back = asked.replace(json.dumps("\n" + line, ensure_ascii=False)[1:-1], "", 1)
+    assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == READING_NOW
+
+    # cleared, it is gone from the disk and from the reading
+    assert post(founder, "/account/writing", data={"writing": WRITES, "clear": "1"}
+                ).status_code == 302
+    assert not kept.exists()
+
+
+def test_the_way_he_writes_may_be_120_characters_and_no_more(founder, data_dir):
+    kept = data_dir / "packets" / "first" / "founder-writing.json"
+    answer = post(founder, "/account/writing", data={"writing": "w" * 121})
+    assert answer.status_code == 200 and b"up to 120 characters" in answer.data
+    assert not kept.exists()
+    assert post(founder, "/account/writing", data={"writing": "w" * 120}).status_code == 302
+    assert json.loads(kept.read_text(encoding="utf-8"))["words"] == "w" * 120
+    assert post(founder, "/account/writing", data={"writing": "   "}).status_code == 302
+    assert not kept.exists()

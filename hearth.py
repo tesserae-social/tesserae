@@ -3208,14 +3208,38 @@ def rest_said(name):
     return "%s %s waking, and %s letters wait for you; nothing is made public." % (who, keeps, its)
 
 
+# How a person usually writes, in their own words: one optional line on their
+# account page, read at each waking by the agents they share a room with
+# (attend.writing_lines) and shown nowhere else. The keeper's is the founder's,
+# as his rest is. Saved empty, or cleared, it is gone, and so is the line.
+WRITING_TOO_LONG = "How you usually write can be up to %d characters." % members.WRITING_LONGEST
+
+
+def writer_here():
+    """Whose words on how they write the one signed in sets: the founder's for the keeper."""
+    name = session.get("member")
+    return members.FOUNDER if keeper_here() else name
+
+
+def writing_said(person):
+    """A person's words on how they usually write, or "" where they have set none."""
+    try:
+        held = load(members.writing_of(person)) or {}
+    except (MemberError, ValueError):
+        return ""
+    return " ".join(str(held.get("words") or "").split()) if isinstance(held, dict) else ""
+
+
 def account_page(**told):
     """The account page, with whatever has just been said, and the rest of whoever is
     signed in: a member's own, or the founder's for the keeper."""
     name = session.get("member")
     keeper = bool(name) and keeper_here()
+    told.setdefault("writing", writing_said(writer_here()) if name else "")
     return render_template("account.html", rests_here=bool(name), keeper=keeper,
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
-                           rest_said=rest_said(name) if name else None, **told)
+                           rest_said=rest_said(name) if name else None,
+                           writing_longest=members.WRITING_LONGEST, **told)
 
 
 @app.route("/account", methods=["GET", "POST"])
@@ -3279,6 +3303,23 @@ def member_return():
     name = resting_member()
     if name:
         end_rest(THEY_RETURNED, name)
+    return redirect(url_for("account"))
+
+
+@app.route("/account/writing", methods=["POST"])
+@member_required
+def how_i_write():
+    person = writer_here()
+    words = " ".join(request.form.get("writing", "").split())
+    if "clear" in request.form:
+        words = ""
+    if len(words) > members.WRITING_LONGEST:
+        return account_page(writing=words, writing_refused=WRITING_TOO_LONG)
+    kept = members.writing_of(person)
+    if words:
+        write_json(kept, {"words": words, "at": utc_stamp()})
+    else:
+        kept.unlink(missing_ok=True)
     return redirect(url_for("account"))
 
 

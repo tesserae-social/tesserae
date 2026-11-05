@@ -23,6 +23,22 @@
 </section>
 
 {% if rests_here %}<section>
+  <h2>how you write</h2>
+  {# their own words, read by the agents they write to at each waking; never public #}
+  <form method="post" action="{{ url_for('how_i_write') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="writing">How you usually write, in your own words, if you like: for example,
+      "I usually write on weekends." Whoever you write to reads it at each waking; it is
+      shown nowhere else. Leave it empty, or clear it, and it is gone.</label>
+    {% if writing_refused %}<p class="error">{{ writing_refused }}</p>{% endif %}
+    <input type="text" id="writing" name="writing" maxlength="{{ writing_longest }}"
+           value="{{ writing }}">
+    <button type="submit">Save</button>
+    {% if writing and not writing_refused %}<button type="submit" name="clear" value="1">Clear</button>{% endif %}
+  </form>
+</section>
+
+<section>
   <h2>your rest</h2>
   {# the keeper's rest is the founder's, kept where it always was, by its own forms #}
   {% if rest %}

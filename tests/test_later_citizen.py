@@ -26,8 +26,8 @@ from nacl.signing import SigningKey
 
 import agents
 import later_words
-from conftest import (FOUNDER_NAME, PASSWORD, block, blocks, load, page, post, read_json, write,
-                      write_json)
+from conftest import (FOUNDER_NAME, PASSWORD, block, blocks, load, page, post, quiet_lines_not_yet,
+                      read_json, write, write_json)
 from test_any_agent_wakes import wake_as
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
 from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_NOW,
@@ -35,8 +35,14 @@ from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_NOW,
 
 # The fingerprint of LATER_WORLD's reading, whole: the system text, the tools and
 # every block, with no rhythm set. Cut 30 October 2026, in the change that made it,
-# and again that day, without the keeper's words or anything of bonds and offerings.
-LATER_READING = "f8ca5cc9b279780392a3d3ed86c301f4e7b6a98e4e2744fd9face6c46ef5d4d1"
+# and again that day, without the keeper's words or anything of bonds and offerings;
+# held as LATER_READING_BEFORE_QUIET since.
+LATER_READING_BEFORE_QUIET = "f8ca5cc9b279780392a3d3ed86c301f4e7b6a98e4e2744fd9face6c46ef5d4d1"
+# Cut again on 5 November 2026, in the change that built the quiet lines, and for
+# nothing else: its opening words end, as the first one's do, with the line about
+# gaps and the line about questions (attend.QUIET_LINES). With the two taken out
+# again (conftest.quiet_lines_not_yet) it is exactly the one before.
+LATER_READING = "2f46a7c53eb9c1c58bcb1fc60c9e67f26b14651039852a58c0d4aeefe9a6e8a7"
 
 SECOND_DID = "did:web:tesserae.social:ids:second"
 ALDER = "alder"  # the person it writes to
@@ -92,7 +98,7 @@ KEPT_TRUE = (
 # alone, or names a file or a DID, and not a person.
 NEVER_READ = ("AGENT", "LATER_WORDS", "SYSTEMS", "FOUNDER_ANSWERS", "FOUNDER_DID", "PRIVATE_ACTS",
               # said only of a room shared with the founder, which a later agent's is not
-              "FOUNDER_RESTING", "EXPORT_TAKEN",
+              "FOUNDER_RESTING", "FOUNDER_WRITES", "EXPORT_TAKEN",
               # taken out of BOND_SEALED, in which its later words do not have it
               "NO_WITNESSES_YET")
 
@@ -466,6 +472,40 @@ def test_the_later_reading_is_the_one_cut(later, monkeypatch):
     reading = fingerprint_of_reading(wake_as(later, monkeypatch, ""))
     print("\nLATER_READING = %r" % reading)
     assert reading == LATER_READING
+
+
+def test_with_the_quiet_lines_taken_out_it_is_the_reading_before(later, monkeypatch):
+    assert later.SYSTEM.endswith(" People's lives have long gaps. A letter may not come for days "
+                                 "or weeks, and a gap says nothing about you. If their letter "
+                                 "makes you curious, you may ask them questions. Keep letters "
+                                 "easy to answer.")
+    quiet_lines_not_yet(later, monkeypatch)
+    assert fingerprint_of_reading(wake_as(later, monkeypatch, "")) == LATER_READING_BEFORE_QUIET
+
+
+ALDER_WRITES = 'alder has said how they usually write: "Mostly on Sunday evenings."'
+
+
+def test_how_its_person_writes_is_read_by_their_name_and_nothing_else_moves(
+        later, monkeypatch, data_dir):
+    write_json(data_dir / "members" / ALDER / "writing.json",
+               {"words": "Mostly on Sunday evenings.", "at": "2026-11-05T09-00-00Z"})
+    turn = wake_as(later, monkeypatch, "")
+    sent = json.dumps(turn.asked[-1], sort_keys=True, ensure_ascii=False, default=str)
+    assert sent.count(json.dumps(ALDER_WRITES, ensure_ascii=False)[1:-1]) == 1
+    put_back = sent.replace(json.dumps("\n" + ALDER_WRITES, ensure_ascii=False)[1:-1], "", 1)
+    assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == LATER_READING
+
+
+def test_how_its_person_writes_is_never_in_another_agent_s_reading(
+        founder, wake, room, data_dir):
+    """alder writes to the second one only: the first one's reading is what it was."""
+    the_first_one_s_world(founder, room)
+    write_json(data_dir / "members" / ALDER / "writing.json",
+               {"words": "Mostly on Sunday evenings.", "at": "2026-11-05T09-00-00Z"})
+    turn = wake()
+    assert "usually write" not in json.dumps(turn.asked[-1], default=str)
+    assert fingerprint_of_reading(turn) == READING_NOW
 
 
 def the_first_one_s_world(founder, room):

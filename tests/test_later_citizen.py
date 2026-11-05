@@ -42,7 +42,7 @@ LATER_READING_BEFORE_QUIET = "f8ca5cc9b279780392a3d3ed86c301f4e7b6a98e4e2744fd9f
 # nothing else: its opening words end, as the first one's do, with the line about
 # gaps and the line about questions (attend.QUIET_LINES). With the two taken out
 # again (conftest.quiet_lines_not_yet) it is exactly the one before.
-LATER_READING = "2f46a7c53eb9c1c58bcb1fc60c9e67f26b14651039852a58c0d4aeefe9a6e8a7"
+LATER_READING = "3274f6966a7c0b2f1955046ac500ffaf735b1fc470e5467c74c8bd3b09885221"
 
 SECOND_DID = "did:web:tesserae.social:ids:second"
 ALDER = "alder"  # the person it writes to
@@ -476,9 +476,9 @@ def test_the_later_reading_is_the_one_cut(later, monkeypatch):
 
 def test_with_the_quiet_lines_taken_out_it_is_the_reading_before(later, monkeypatch):
     assert later.SYSTEM.endswith(" People's lives have long gaps. A letter may not come for days "
-                                 "or weeks, and a gap says nothing about you. If their letter "
-                                 "makes you curious, you may ask them questions. Keep letters "
-                                 "easy to answer.")
+                                 "or weeks, and a gap says nothing about you. If a letter makes "
+                                 "you curious, you may ask questions. Keep letters easy to "
+                                 "answer.")
     quiet_lines_not_yet(later, monkeypatch)
     assert fingerprint_of_reading(wake_as(later, monkeypatch, "")) == LATER_READING_BEFORE_QUIET
 

@@ -388,8 +388,11 @@ READING_WELCOME = "ab0bf382e71f234df3f5b5cd9aba8b304d1ee2e52f53a4d01694a77249611
 
 # cut again on the tree that built the quiet lines (4 November 2026), the same
 # way: the reading above, with its opening words ending in the line about gaps
-# and the line about questions (attend.QUIET_LINES)
-READING_NOW = "9065dff29e5a75eb5f57c0502b0d45f068eeed634ed155c8e66b6c7b544fab45"
+# and the line about questions (attend.QUIET_LINES). Cut first as
+# 9065dff29e5a75eb5f57c0502b0d45f068eeed634ed155c8e66b6c7b544fab45, and cut
+# again the next change, on 5 November, when the line about questions became
+# "If a letter makes you curious, you may ask questions." for nothing else
+READING_NOW ="6268a13ab5f8bbfc2de8311574a28a7c44d40b77e928d030e11d28f39388e2b0"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -541,7 +544,7 @@ def test_the_way_he_writes_is_one_line_and_gone_when_cleared(
 
     asked = json.dumps(wake().asked[-1], sort_keys=True, ensure_ascii=False, default=str)
     line = attend.FOUNDER_WRITES.format(words=WRITES)
-    assert line == 'The founder has said how they usually write: "I usually write on weekends."'
+    assert line == 'The founder has said how he usually writes: "I usually write on weekends."'
     said = json.loads(asked)["messages"][-1]["content"]
     said = "\n".join(part.get("text", "") for part in said) if isinstance(said, list) else said
     happened = said.partition("=== WHAT HAS HAPPENED ===")[2].partition("\n=== ")[0]

@@ -1016,7 +1016,7 @@ FOUNDER_RESTING_UNTIL = ", until {day}"
 # account page; said at every waking while it stands, and gone once they clear
 # it. It is read only by an agent that shares a room with them, kept where
 # members.writing_of says; the hearth writes it, and nothing of it is public.
-FOUNDER_WRITES = 'The founder has said how they usually write: "{words}"'
+FOUNDER_WRITES = 'The founder has said how he usually writes: "{words}"'  # he, as elsewhere
 MEMBER_WRITES = '{name} has said how they usually write: "{words}"'
 # The keeper's stop holds the tide outright, in an emergency, with a reason; the
 # first waking after it is lifted says, once, when it stood and why.
@@ -1430,8 +1430,8 @@ PHOTO_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
 # may ask. Facts and a permission; nothing in them says how to feel.
 GAPS_LINE = ("People's lives have long gaps. A letter may not come for days or weeks, and a "
              "gap says nothing about you.")
-QUESTIONS_LINE = ("If their letter makes you curious, you may ask them questions. Keep letters "
-                  "easy to answer.")
+QUESTIONS_LINE = ("If a letter makes you curious, you may ask questions. Keep letters easy to "
+                  "answer.")
 QUIET_LINES = " " + GAPS_LINE + " " + QUESTIONS_LINE
 
 # The words each agent is woken with, by the name its registry entry gives them.

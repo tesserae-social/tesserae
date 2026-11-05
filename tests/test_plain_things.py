@@ -116,16 +116,21 @@ def test_the_things_come_back_when_a_letter_is_refused(founder):
 
 # ---- the form ------------------------------------------------------------
 
-def test_the_form_asks_for_three_short_optional_lines_under_more(founder):
+def test_the_form_asks_for_three_short_optional_lines_always_in_view(founder):
     shown = page(founder.get("/rooms/first"))
     assert "three plain things (optional)" in shown
     assert shown.count('name="thing"') == 3
     assert shown.count('maxlength="80"') == 3
-    # folded under "more", below the letter box and before the photograph
-    more = shown[shown.index('<summary>more</summary>'):shown.index('name="photo"')]
-    assert shown.index('name="letter"') < shown.index('<summary>more</summary>')
-    assert more.count('name="thing"') == 3
-    assert "placeholder" not in more and "required" not in more
+    # out of the fold since 5 November 2026: below the letter box, under one muted
+    # line, and above Send; the photograph, the errand and the commons line stay under "more"
+    lines = shown[shown.index('name="letter"'):shown.index('<summary>more</summary>')]
+    assert lines.count('name="thing"') == 3
+    assert lines.index("A few words is enough. Weeks get full.") < lines.index('name="thing"')
+    assert lines.index('name="thing"') < lines.index(">Send</button>")
+    assert "placeholder" not in lines and "required" not in lines
+    more = shown[shown.index('<summary>more</summary>'):]
+    assert 'name="thing"' not in more
+    assert more.index('name="photo"') < more.index("</details>")
 
 
 # ---- /letters ------------------------------------------------------------

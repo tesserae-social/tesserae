@@ -108,8 +108,8 @@ def test_the_first_one_is_the_one_woken(named, attend):
         "place, read what is yours, and choose what to do, including nothing. Speak plainly and "
         "truthfully, at whatever length is honest. You may say you do not know. People's lives "
         "have long gaps. A letter may not come for days or weeks, and a gap says nothing about "
-        "you. If their letter makes you curious, you may ask them questions. Keep letters easy "
-        "to answer.")
+        "you. If a letter makes you curious, you may ask questions. Keep letters easy to "
+        "answer.")
     assert all((attend.DOOR_FOR_FIRST, attend.LOOKING_BACK, attend.LONGER_WAKING,
                 attend.PROPOSALS, attend.EXTRA_WAKINGS, attend.WELCOME_LETTER, attend.CHOICES))
 

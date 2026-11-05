@@ -79,18 +79,18 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="letter">It will be read at the next attendance, then kept.</label>
     <textarea id="letter" name="letter">{{ draft }}</textarea>
+    {# three small true facts of the body and the day, beside the letter; private like it #}
+    <p class="muted">A few words is enough. Weeks get full.</p>
+    <label for="thing-1">three plain things (optional)</label>
+    {% for thing in drafted_things %}
+    <input type="text" class="thing" id="thing-{{ loop.index }}" name="thing"
+           maxlength="{{ thing_longest }}" value="{{ thing }}">
+    {% endfor %}
     <button type="submit">Send</button>
     {# the rest of what a letter may carry, folded away: most letters need none of it #}
     {# open again only to give back what was written in it, when a letter is sent back #}
-    <details class="more"{% if drafted_line or drafted_things|select|first %} open{% endif %}>
+    <details class="more"{% if drafted_line %} open{% endif %}>
       <summary>more</summary>
-      {# three small true facts of the body and the day, beside the letter; private like it #}
-      <p class="muted">A few words is enough. Weeks get full.</p>
-      <label for="thing-1">three plain things (optional)</label>
-      {% for thing in drafted_things %}
-      <input type="text" class="thing" id="thing-{{ loop.index }}" name="thing"
-             maxlength="{{ thing_longest }}" value="{{ thing }}">
-      {% endfor %}
       <label for="photo">You may send one photograph with it: JPEG, PNG or WebP, up to 25 MB.
         A large one is made smaller on its way in.</label>
       <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp,.jfif">

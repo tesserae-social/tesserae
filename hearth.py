@@ -103,6 +103,10 @@ import vault
 from members import MemberError
 from vault import VaultError
 
+# The few emails the hearth sends a person, and the links in them that work once.
+import mail
+import tokens
+
 # When the first one is woken each day is its own to set, at a waking; the tide
 # here keeps it. Both work through the one module.
 import waking
@@ -3239,6 +3243,7 @@ def account_page(**told):
     return render_template("account.html", rests_here=bool(name), keeper=keeper,
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
                            rest_said=rest_said(name) if name else None,
+                           email=email_shown(name) if name else None,
                            writing_longest=members.WRITING_LONGEST, **told)
 
 
@@ -3279,6 +3284,143 @@ def account():
         note_miss(counted, now)
         return account_page(error=NOT_THE_PASSWORD)
     return account_page()
+
+
+# ---- a person's email address ---------------------------------------------
+
+# A person adds their email address on this page, and confirms it by a link sent
+# to it (proposals/invitations-design.md, section 3). The address is a personal
+# detail, and no page shows it in full, the owner's own included, and none is
+# ever handed to a template whole. This page alone shows its owner their own
+# confirmed address, partly hidden - the name's first letter, three dots, then
+# the whole domain, as n•••@gmail.com, whatever the name's length (the
+# founder, 8 November) - and no other page shows it in any form; else it says
+# whether one is kept, and since when it was confirmed. The current password is asked for, so that a sign-in left open
+# cannot send someone's links elsewhere, and it is counted with the login page's
+# tries. What the page says after a link is asked for is the one sentence,
+# whoever holds the address: one already held by someone else is told so in an
+# email to it, and on no page.
+#
+# The link opens a page with one button, and the address is kept only when it is
+# pressed: some mail services open every link in a message before its reader
+# does, and a link that confirmed on being opened would be spent by them.
+EMAIL_SENT = "A link is on its way to that address."
+EMAIL_NOT_SENT = "The email couldn't be sent just now. Try again later."
+EMAIL_CONFIRMED = "Your email address is confirmed."
+LINK_NOT_OPEN = "This link is no longer open."
+
+# Pages a token is carried on: kept out of every cache, out of the address any
+# link on them hands on, and out of every index.
+TOKEN_PAGES = frozenset({"confirm_email"})
+
+
+@app.after_request
+def keep_tokens_close(answer):
+    if request.endpoint in TOKEN_PAGES:
+        answer.headers["Cache-Control"] = "no-store"
+        answer.headers["Referrer-Policy"] = "no-referrer"
+        answer.headers["X-Robots-Tag"] = "noindex"
+    return answer
+
+
+def email_shown(name):
+    """What the account page says of a person's address: never the address itself, and
+    only once it is confirmed, the address partly hidden."""
+    try:
+        held = members.email_of(name)
+    except MemberError:
+        held = None
+    waiting = tokens.waiting("confirm", name)
+    confirmed = moment_kept(held.get("confirmed_at")) if held else None
+    return {"kept": bool(held), "confirmed": confirmed,
+            "masked": address_masked(held["address"]) if confirmed else None,
+            "waiting": moment_kept(waiting.get("made_at")) if waiting else None}
+
+
+def address_masked(address):
+    """An address partly hidden, for its owner's eyes on this page only: the name's
+    first letter, three dots whatever its length, then the whole domain."""
+    name, _, domain = address.rpartition("@")
+    return "%s•••@%s" % (name[:1], domain)
+
+
+def moment_kept(stamp):
+    """A UTC stamp as a stored record keeps one, said as its day on the Eastern clock."""
+    try:
+        when = datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+    return long_day(on_the_clock(when))
+
+
+@app.route("/account/email", methods=["POST"])
+@member_required
+def account_email():
+    name = session.get("member")
+    now = datetime.now(timezone.utc)
+    counted = tries_counted(name, now)
+    if locked_out(counted, now):
+        return account_page(email_error=NOT_THE_PASSWORD)
+    try:
+        address = members.email_address(request.form.get("address", ""))
+    except MemberError as reason:
+        return account_page(email_error=str(reason))
+    if member_opens(name, request.form.get("email_password", "")) is None:
+        note_miss(counted, now)
+        return account_page(email_error=NOT_THE_PASSWORD)
+    forget_misses(counted[0])
+
+    holder = members.member_by_email(address)
+    if holder is not None and holder != name:
+        outcome = mail.send_in_use(address)
+    else:
+        link = tokens.issue("confirm", name, tokens.LIFETIMES["confirm"], address=address)
+        outcome = mail.send_confirm(address, link)
+        kept = members.email_of(name)
+        if outcome == mail.SENT and kept and kept["address"] != address:
+            mail.send_changing(kept["address"])
+    if outcome != mail.SENT:
+        return account_page(email_error=EMAIL_NOT_SENT)
+    return account_page(email_sent=EMAIL_SENT)
+
+
+CONFIRM_PAGE = """{% extends "base.html" %}
+{% block title %}your email address{% endblock %}
+{% block heading %}your email address{% endblock %}
+{% block content %}
+<section>
+  {% if note %}<p>{{ note }}</p>
+  {% else %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>Press the button to confirm this address for your account on Tesserae.</p>
+    <button type="submit">Confirm this address</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
+"""
+
+
+@app.route("/email/confirm/<token>", methods=["GET", "POST"])
+def confirm_email(token):
+    if request.method == "GET":
+        if tokens.peek("confirm", token) is None:
+            return render_template_string(CONFIRM_PAGE, note=LINK_NOT_OPEN), 410
+        return render_template_string(CONFIRM_PAGE, note=None)
+    held = tokens.take("confirm", token)
+    if held is None:
+        return render_template_string(CONFIRM_PAGE, note=LINK_NOT_OPEN), 410
+    try:
+        members.set_email(held.get("name"), held.get("address"), confirmed_at=utc_iso())
+    except MemberError:  # gone, or the address taken since the link was sent
+        return render_template_string(CONFIRM_PAGE, note=LINK_NOT_OPEN), 410
+    return render_template_string(CONFIRM_PAGE, note=EMAIL_CONFIRMED)
+
+
+def utc_iso():
+    """This moment, as the members' store keeps one."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # A member rests from the correspondence and returns to it, as the founder does

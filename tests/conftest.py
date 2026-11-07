@@ -6,6 +6,9 @@ Three rules hold across the whole suite, and this file is where they are kept:
     and every socket is closed off besides, so a call that slipped past a stub
     fails loudly instead of quietly going out. astral is pure arithmetic and runs
     for real.
+  * No email, ever. The Resend key is taken out of the environment, the way an
+    email goes is a fake that keeps each message (the outbox fixture), and the
+    real post to Resend refuses if it is ever reached.
   * Nothing real is touched. Every test is handed its own DATA_DIR under pytest's
     temporary directory: throwaway keys cut by cut_keys.py itself, a synthetic
     founding line in events.md, a synthetic packet. The repository's packets/,
@@ -96,6 +99,47 @@ def no_network(monkeypatch):
     monkeypatch.setattr(socket.socket, "connect", refuse)
     monkeypatch.setattr(socket.socket, "connect_ex", refuse)
     monkeypatch.setattr(socket, "create_connection", refuse)
+
+
+# ---- no email, ever ------------------------------------------------------
+
+class SentEmail(RuntimeError):
+    """Raised if anything in a test reaches the real way an email is sent."""
+
+
+class Outbox:
+    """The way an email goes, stubbed: every message is kept here, and none goes.
+
+    says is what the sending gives back, "sent" unless a test says otherwise. The
+    real transport is kept beside it, as real, for the one test that builds the
+    request Resend would be sent, against a stubbed opener.
+    """
+
+    def __init__(self):
+        self.says = "sent"
+        self.sent = []
+
+    def __call__(self, message):
+        self.sent.append(dict(message))
+        return self.says
+
+
+@pytest.fixture(autouse=True)
+def outbox(monkeypatch):
+    """Three guards, so that no test ever sends an email: no key in the environment; a
+    fake in place of the transport; and the real post to Resend made to refuse."""
+    import mail
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    stub = Outbox()
+    stub.real_transport = mail.TRANSPORT
+    stub.real_post = mail.post_to_resend
+    monkeypatch.setattr(mail, "TRANSPORT", stub)
+
+    def refuse(*args, **kwargs):
+        raise SentEmail("a test reached the real way an email is sent")
+
+    monkeypatch.setattr(mail, "post_to_resend", refuse)
+    return stub
 
 
 class Screen:
@@ -402,6 +446,7 @@ def load(name):
     sys.modules.pop("door", None)  # it keeps each door under DATA_DIR, and reads members
     sys.modules.pop("rooms", None)  # it finds a room's place under DATA_DIR, and reads members
     sys.modules.pop("private_words", None)  # it keeps its list under DATA_DIR
+    sys.modules.pop("tokens", None)  # it keeps each link that works once under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 

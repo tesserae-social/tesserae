@@ -22,6 +22,34 @@
   </form>
 </section>
 
+{% if email %}<section>
+  <h2>your email</h2>
+  {# whether an address is kept, and since when; never the address in full, not even to its
+     owner, who alone sees their own confirmed one, partly hidden, here and on no other page #}
+  {% if email.kept %}
+  <p>Your email address is {% if email.confirmed %}{{ email.masked }}, confirmed on {{ email.confirmed }}
+    {%- else %}set, and not yet confirmed{% endif %}.</p>
+  {% else %}
+  <p>Add an email address. It's used only to send you a link if you forget your password.
+    It's never shown in full on any page here, and only partly, to you, on this one; never in
+    a copy of the record, and never read by any agent.</p>
+  {% endif %}
+  {% if email.waiting %}<p class="muted">A link to confirm an address was sent on
+    {{ email.waiting }}; it lasts a day.</p>{% endif %}
+  {% if email_sent %}<p class="saved">{{ email_sent }}</p>{% endif %}
+  {% if email_error %}<p class="error">{{ email_error }}</p>{% endif %}
+  <form method="post" action="{{ url_for('account_email') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="address">email address</label>
+    <input type="email" id="address" name="address" autocomplete="email"
+           autocapitalize="none" spellcheck="false" maxlength="254">
+    <label for="email_password">current password</label>
+    <input type="password" id="email_password" name="email_password"
+           autocomplete="current-password">
+    <button type="submit">{% if email.kept %}Change it{% else %}Send a link to confirm it{% endif %}</button>
+  </form>
+</section>{% endif %}
+
 {% if rests_here %}<section>
   <h2>how you write</h2>
   {# their own words, read by the agents they write to at each waking; never public #}

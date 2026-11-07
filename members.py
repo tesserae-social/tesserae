@@ -32,6 +32,12 @@ them (see writing_of):
     members/<pseudonym>/writing.json
         {"words": up to WRITING_LONGEST characters, "at": UTC stamp}
 
+and, once they have confirmed one, their email address (see email_of), which is
+never shown in full, never copied out and never read by any agent:
+
+    members/<pseudonym>/email.json
+        {"address": ..., "set_at": UTC stamp, "confirmed_at": UTC stamp or null}
+
 Storage only: no route, no page. A member's public identity document is shaped
 here from their record (did_document), and served by the hearth. The name is checked before it is ever made into
 a path, and that check is the whole of the path's safety. Nothing here logs or
@@ -417,3 +423,70 @@ def writing_of(person):
     if person == FOUNDER:
         return DATA / "packets" / agents.first()["id"] / "founder-writing.json"
     return _folder(person) / WRITING
+
+
+# ---------------------------------------------------------------- an email address
+
+# A person's email address is a personal detail. It is kept beside their record,
+# never in it, and never in the first one's packet - the founder's included,
+# which is kept with grout's record like anyone's - so that no copy, no reading
+# and no page carries it: it goes only where members/ goes, which is the
+# encrypted backup. It is used only for the links the hearth emails. No two
+# people hold the same address. The hearth writes it once a link sent to it has
+# been opened; nothing here shows or logs it.
+EMAIL = "email.json"
+EMAIL_LONGEST = 254
+EMAIL_SHAPE = re.compile(r"[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+")
+NOT_AN_ADDRESS = "That doesn't look like an email address."
+
+
+def email_address(text):
+    """An address as it is kept: trimmed and lowercased. MemberError if it is no address."""
+    if not isinstance(text, str):
+        raise MemberError(NOT_AN_ADDRESS)
+    address = text.strip().lower()
+    if len(address) > EMAIL_LONGEST or not EMAIL_SHAPE.fullmatch(address):
+        raise MemberError(NOT_AN_ADDRESS)
+    return address
+
+
+def email_of(pseudonym):
+    """What is kept of a person's address, {"address", "set_at", "confirmed_at"}, or None."""
+    try:
+        held = json.loads((_folder(pseudonym) / EMAIL).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(held, dict) or not isinstance(held.get("address"), str):
+        return None
+    return held
+
+
+def member_by_email(address):
+    """The pseudonym of the person holding this address, or None."""
+    try:
+        wanted = email_address(address)
+    except MemberError:
+        return None
+    for name in list_members():
+        held = email_of(name)
+        if held and held["address"] == wanted:
+            return name
+    return None
+
+
+def set_email(pseudonym, address, confirmed_at=None, now=None):
+    """Keep a person's address, in place of any they had, and give back what is kept.
+
+    Refuses a name no one has, an address that is no address, and one another
+    person holds.
+    """
+    folder = _folder(pseudonym)
+    if not (folder / RECORD).is_file():
+        raise MemberError("there is no member by that name")
+    address = email_address(address)
+    holder = member_by_email(address)
+    if holder is not None and holder != pseudonym:
+        raise MemberError("that address is already in use")
+    held = {"address": address, "set_at": _stamp(now), "confirmed_at": confirmed_at}
+    _write_json(folder / EMAIL, held)
+    return held

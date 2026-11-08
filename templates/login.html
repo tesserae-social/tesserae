@@ -16,6 +16,7 @@
     <input type="password" id="password" name="password" autocomplete="current-password" autofocus>
     <button type="submit">Log in</button>
   </form>
-  <p class="muted"><a href="{{ url_for('recover') }}">Forgotten your password? Your twelve words will let you in.</a></p>
+  <p class="muted">Forgotten your password? <a href="{{ url_for('forgot') }}">We can email you a link.</a></p>
+  <p class="muted"><a href="{{ url_for('recover') }}">If you have twelve words, they will let you in.</a></p>
 </section>
 {% endblock %}

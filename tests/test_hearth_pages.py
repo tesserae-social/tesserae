@@ -691,7 +691,8 @@ def test_the_login_page_is_as_it_was(visitor):
     assert "<h1>log in</h1>" in said
     for kept in ('<label for="pseudonym">pseudonym</label>', '<label for="password">password</label>',
                  '<button type="submit">Log in</button>',
-                 '<a href="/recover">Forgotten your password? Your twelve words will let you in.</a>'):
+                 'Forgotten your password? <a href="/forgot">We can email you a link.</a>',
+                 '<a href="/recover">If you have twelve words, they will let you in.</a>'):
         assert kept in said, kept
     assert "the books will open with the commons" not in said  # it promised what is not built
     assert "<footer>" not in said  # and a page with nothing to say at its foot has none

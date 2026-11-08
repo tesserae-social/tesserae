@@ -214,3 +214,39 @@ def send_changing(to, now=None):
 
 def send_in_use(to, now=None):
     return send(IN_USE, to, IN_USE_SUBJECT, IN_USE_TEXT, now)
+
+RESET = "reset"
+RESET_SUBJECT = "Choose a new password for Tesserae"
+RESET_TEXT = """A new password was asked for the account on Tesserae that uses this address. Your name there is {name}. To choose one, open this link within an hour; it works once:
+
+{link}
+
+If you didn't ask, ignore this email; your password stays as it is."""
+
+# The keeper's key is the founder's own, behind the founder's identity, and an
+# email never cuts him a new one: what is sent him is the way to his twelve words.
+RESET_KEEPER = "reset-keeper"
+RESET_KEEPER_SUBJECT = "Your password on Tesserae"
+RESET_KEEPER_TEXT = """A new password was asked for the account on Tesserae that uses this address. That account opens with its twelve words, not by email: use them at {link}.
+
+If you didn't ask, ignore this email; nothing has changed."""
+
+CHANGED = "changed"
+CHANGED_SUBJECT = "Your password on Tesserae was changed"
+CHANGED_TEXT = ("The password for {name} on Tesserae was changed on {day}. "
+                "If that wasn't you, choose a new one at {link}.")
+
+
+def send_reset(to, name, token, now=None):
+    return send(RESET, to, RESET_SUBJECT,
+                RESET_TEXT.format(name=name, link=link("/reset/" + token)), now)
+
+
+def send_reset_keeper(to, now=None):
+    return send(RESET_KEEPER, to, RESET_KEEPER_SUBJECT,
+                RESET_KEEPER_TEXT.format(link=link("/recover")), now)
+
+
+def send_changed(to, name, day, now=None):
+    return send(CHANGED, to, CHANGED_SUBJECT,
+                CHANGED_TEXT.format(name=name, day=day, link=link("/forgot")), now)

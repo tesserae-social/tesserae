@@ -5,7 +5,8 @@ sha256 of its token, never by the token itself:
 
     tokens/<kind>-<sha256 hex>.json
         {"kind": ..., "name": pseudonym, "made_at": UTC stamp, "expires_at": UTC stamp,
-         and whatever the kind keeps beside it: "address" for a confirmation}
+         and whatever the kind keeps beside it: "address" for a confirmation,
+         "seal" for a reset - the fingerprint of the vault it was asked against}
 
 A token is taken when it is used, and is gone. One that has expired is let go
 whenever the folder is next written, and a new one of a kind for a person lets
@@ -32,7 +33,7 @@ REPO = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("DATA_DIR", REPO))
 TOKENS = DATA / "tokens"
 
-KINDS = ("confirm",)
+KINDS = ("confirm", "reset")
 TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")  # what secrets.token_urlsafe(32) gives
 STAMP = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -155,4 +156,4 @@ def waiting(kind, name, now=None):
     return None
 
 
-LIFETIMES = {"confirm": timedelta(days=1)}
+LIFETIMES = {"confirm": timedelta(days=1), "reset": timedelta(hours=1)}

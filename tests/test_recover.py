@@ -115,8 +115,7 @@ def test_the_page_asks_for_the_name_the_words_and_the_new_password_twice(visitor
 
 def test_the_login_page_points_to_it(visitor):
     said = page(visitor.get("/login"))
-    assert 'href="/recover"' in said
-    assert "Forgotten your password? Your twelve words will let you in." in said
+    assert '<a href="/recover">If you have twelve words, they will let you in.</a>' in said
 
 
 def test_the_recover_form_carries_the_token(visitor):

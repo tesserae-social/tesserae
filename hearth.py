@@ -3313,7 +3313,7 @@ LINK_NOT_OPEN = "This link is no longer open."
 # link on them hands on to another site, and out of every index. The policy is
 # same-origin and not no-referrer: under no-referrer a browser names the Origin
 # of the page's own button as "null", and the hearth refuses a post from nowhere.
-TOKEN_PAGES = frozenset({"confirm_email"})
+TOKEN_PAGES = frozenset({"confirm_email", "reset_password"})
 
 
 @app.after_request
@@ -3423,6 +3423,207 @@ def confirm_email(token):
 def utc_iso():
     """This moment, as the members' store keeps one."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# ---- a password forgotten, and a link by email ------------------------------
+
+# A person who has forgotten their password gives their commons name or their
+# email address, and the page says one sentence whatever came of it: whether
+# anyone holds that name or address, whether they have an address kept, whether
+# an email went, and whether a limit was reached are all told by email or not at
+# all (proposals/invitations-design.md, section 4).
+#
+# A member is sent a link that works once, within an hour. A member who joins
+# has no twelve words, so a forgotten password cannot open their old key again:
+# choosing a new password by the link cuts them a new key, and the old one is
+# written into their key history. The link holds the vault's fingerprint as it
+# was when asked for, so a password changed since leaves it shut.
+#
+# The keeper is never sent a link. His key is the founder's own, behind the
+# founder's identity and everything signed by it, and a new one would cut him
+# off from it: his email points him to his twelve words, at /recover.
+#
+# Asking is counted in memory, and a deploy forgets it: five asks an hour from
+# one address (hashed with the day, as the bench keeps it), three emails an hour
+# to one person. Past either, nothing is sent and the page says its one line.
+# Nothing here writes down or prints an address, a name asked for, or a link.
+FORGOT_SAID = ("If that name or address belongs to someone here who has added an email "
+               "address, a link is on its way to it. It works once, within an hour.")
+RESET_SAID = ("Choosing a new password this way gives your account a new key. What you "
+              "signed before stays signed by the old one, and your letters and friendships "
+              "are just as they were.")
+
+FORGOT_FROM_AN_ADDRESS = 5
+FORGOT_TO_A_PERSON = 3
+FORGOT_WINDOW = timedelta(hours=1)
+
+FORGOT_ASKED = {}
+FORGOT_LOCK = threading.Lock()
+RESETTING = threading.Lock()  # one new key at a time, so a link is spent by one request
+
+
+def forgot_allowed(key, limit, now):
+    """Whether one more is allowed under this count within the hour; counts it if so."""
+    with FORGOT_LOCK:
+        for held_key, times in list(FORGOT_ASKED.items()):  # what has gone quiet is let go
+            if not any(now - at < FORGOT_WINDOW for at in times):
+                del FORGOT_ASKED[held_key]
+        times = [at for at in FORGOT_ASKED.get(key, []) if now - at < FORGOT_WINDOW]
+        if len(times) >= limit:
+            FORGOT_ASKED[key] = times
+            return False
+        FORGOT_ASKED[key] = times + [now]
+        return True
+
+
+def whose_asked(given):
+    """The member a name or an address given on /forgot belongs to, or None."""
+    given = given.strip().lower()
+    if not given or len(given) > members.EMAIL_LONGEST:
+        return None
+    if "@" in given:
+        return members.member_by_email(given)
+    return given if member_record(given) else None
+
+
+def confirmed_address(name):
+    """A person's address, if they have one kept and confirmed; else None."""
+    try:
+        held = members.email_of(name)
+    except MemberError:
+        return None
+    return held["address"] if held and held.get("confirmed_at") else None
+
+
+def send_for_forgotten(name, now):
+    """Whatever is to be emailed for a forgotten password, to this person, if anything."""
+    record = member_record(name)
+    address = confirmed_address(name) if record else None
+    if address is None or record.get("role") not in members.ROLES:
+        return
+    if not forgot_allowed(("person", name), FORGOT_TO_A_PERSON, now):
+        return
+    if record["role"] == "keeper":
+        mail.send_reset_keeper(address)
+        return
+    seal = vault.fingerprint(record.get("vault"))
+    if seal is None:
+        return
+    link = tokens.issue("reset", name, tokens.LIFETIMES["reset"], seal=seal)
+    mail.send_reset(address, name, link)
+
+
+@app.route("/forgot", methods=["GET", "POST"])
+def forgot():
+    if request.method == "POST":
+        now = datetime.now(timezone.utc)
+        asking = ("address", visitor_key(now.strftime("%Y-%m-%d")))
+        if forgot_allowed(asking, FORGOT_FROM_AN_ADDRESS, now):
+            name = whose_asked(request.form.get("given", ""))
+            if name is not None:
+                send_for_forgotten(name, now)
+        return render_template_string(FORGOT_PAGE, said=FORGOT_SAID)
+    return render_template_string(FORGOT_PAGE, said=None)
+
+
+def reset_open(held):
+    """The member a live reset token is for, with their record, while it may still be
+    used: a member, not the keeper, whose vault is sealed as it was when it was asked."""
+    if not held:
+        return None, None
+    name = held.get("name")
+    record = member_record(name) if isinstance(name, str) else None
+    if not record or record.get("role") != "member":
+        return None, None
+    seal = vault.fingerprint(record.get("vault"))
+    if not seal or not isinstance(held.get("seal"), str) \
+            or not hmac.compare_digest(seal, held["seal"]):
+        return None, None
+    return name, record
+
+
+def reset_shut():
+    return render_template_string(RESET_PAGE, note=LINK_NOT_OPEN), 410
+
+
+@app.route("/reset/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    if request.method == "GET":
+        name, _ = reset_open(tokens.peek("reset", token))
+        return reset_shut() if name is None else render_template_string(RESET_PAGE, note=None)
+
+    password = request.form.get("password", "")
+    again = request.form.get("password_again", "")
+    if reset_open(tokens.peek("reset", token))[0] is None:
+        return reset_shut()
+    if password != again:  # the person's own slip: the link stays open for another try
+        return render_template_string(RESET_PAGE, note=None, error=PASSWORDS_DIFFER)
+    try:
+        vault.check_password(password)
+    except VaultError as reason:
+        return render_template_string(RESET_PAGE, note=None,
+                                      error=str(reason).capitalize() + ".")
+
+    with RESETTING:
+        name, _ = reset_open(tokens.take("reset", token))  # the link is gone from here on
+        if name is None:
+            return reset_shut()
+        sealed, _, _ = vault.make_vault(password)  # a member has no words; these go unseen
+        try:
+            record = members.replace_vault(name, sealed)
+        except MemberError:
+            return reset_shut()
+    address = confirmed_address(name)
+    if address:
+        mail.send_changed(address, name, long_day(on_the_clock(datetime.now(timezone.utc))))
+    return sign_in_member(name, record)
+
+
+FORGOT_PAGE = """{% extends "base.html" %}
+{% block title %}a forgotten password{% endblock %}
+{% block heading %}a forgotten password{% endblock %}
+{% block content %}
+<section>
+  {% if said %}<p>{{ said }}</p>
+  {% else %}
+  <p>Give your commons name or your email address. If you have added an email address on
+  your account page, a link to choose a new password is sent to it.</p>
+  <form method="post" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="given">your commons name or email address</label>
+    <input type="text" id="given" name="given" autocomplete="username"
+           autocapitalize="none" spellcheck="false" maxlength="254" autofocus>
+    <button type="submit">Send me a link</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
+{% block footer %}
+<p><a href="{{ url_for('login') }}">log in</a></p>
+{% endblock %}
+"""
+
+RESET_PAGE = """{% extends "base.html" %}
+{% block title %}a new password{% endblock %}
+{% block heading %}a new password{% endblock %}
+{% block content %}
+<section>
+  {% if note %}<p>{{ note }}</p>
+  {% else %}
+  <p>""" + RESET_SAID + """</p>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="password">new password</label>
+    <input type="password" id="password" name="password" autocomplete="new-password" autofocus>
+    <label for="password_again">new password again</label>
+    <input type="password" id="password_again" name="password_again" autocomplete="new-password">
+    <button type="submit">Choose the new password</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
+"""
 
 
 # A member rests from the correspondence and returns to it, as the founder does

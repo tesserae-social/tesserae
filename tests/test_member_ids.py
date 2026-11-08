@@ -118,6 +118,78 @@ def test_it_follows_a_change_of_key(people, visitor):
     assert after["id"] == before["id"]
 
 
+def key_of(method):
+    return base64.b64decode(method["publicKeyBase64"]).hex()
+
+
+def test_a_replaced_key_stays_in_the_document_marked_as_past(people, visitor, data_dir):
+    first_key = people.members.load_member(MEMBER)["verify_key"]
+    sealed, _, second_key = vault.make_vault("a new password for a new key")
+    people.members.replace_vault(MEMBER, sealed)
+    [history] = json.loads((data_dir / "members" / MEMBER / "key-history.json").read_text(
+        encoding="utf-8"))
+    _, document = document_of(visitor, MEMBER)
+    did = "did:web:hearth.tesserae.social:ids:" + MEMBER
+    assert set(document) == {"@context", "id", "verificationMethod", "assertionMethod"}
+    current, past = document["verificationMethod"]
+    assert current == {"id": did + "#key-2", "type": "Ed25519VerificationKey2020",
+                       "controller": did, "publicKeyBase64": current["publicKeyBase64"]}
+    assert key_of(current) == second_key
+    assert past == {"id": did + "#key-1", "type": "Ed25519VerificationKey2020",
+                    "controller": did, "publicKeyBase64": past["publicKeyBase64"],
+                    "pastSince": history["at"]}
+    assert key_of(past) == first_key
+    assert document["assertionMethod"] == [did + "#key-2"]  # only the newest is for signing
+    assert did_public_key(document) == current["publicKeyBase64"]
+
+
+def test_every_past_key_is_kept_newest_first(people, visitor):
+    keys = [people.members.load_member(MEMBER)["verify_key"]]
+    for n in range(2):
+        sealed, _, key = vault.make_vault("new password number %d" % n)
+        people.members.replace_vault(MEMBER, sealed)
+        keys.append(key)
+    _, document = document_of(visitor, MEMBER)
+    methods = document["verificationMethod"]
+    assert [key_of(method) for method in methods] == keys[::-1]
+    assert [method["id"].rsplit("#", 1)[1] for method in methods] == ["key-3", "key-2", "key-1"]
+    assert ["pastSince" in method for method in methods] == [False, True, True]
+    assert methods[1]["pastSince"] >= methods[2]["pastSince"]
+    assert document["assertionMethod"] == [methods[0]["id"]]
+
+
+def test_the_same_key_sealed_again_changes_nothing_in_the_document(people, visitor):
+    answer, _ = document_of(visitor, MEMBER)
+    before = answer.get_data()
+    record = people.members.load_member(MEMBER)
+    people.members.replace_vault(MEMBER, vault.change_password(
+        record["vault"], MEMBER_PASSWORD, "the same key under a new password"))
+    answer, _ = document_of(visitor, MEMBER)
+    assert answer.get_data() == before
+
+
+def test_a_document_with_past_keys_holds_nothing_else_of_the_record(people, visitor):
+    from datetime import datetime, timedelta, timezone
+    sealed, _, _ = vault.make_vault("a new password for a new key")
+    people.members.replace_vault(MEMBER, sealed, now=datetime.now(timezone.utc) + timedelta(days=1))
+    answer, _ = document_of(visitor, MEMBER)
+    body = page(answer)
+    record = people.members.load_member(MEMBER)
+    for word in ("vault", "arrived", "vouched", "role", "old_key", "new_key", "history",
+                 record["arrived_at"], record["verify_key"], KEEPER):
+        assert word not in body, word
+
+
+def test_the_keeper_has_no_document_here_after_a_new_key_either(people, visitor):
+    before = whole(visitor.get(UNKNOWN))
+    founders = (REPO / "ids" / "founder" / "did.json").read_bytes()
+    sealed, _, _ = vault.make_vault("a new key for the keeper, which no route ever cuts")
+    people.members.replace_vault(KEEPER, sealed)
+    assert people.members.did_document(KEEPER) is None
+    assert whole(visitor.get("/ids/%s/did.json" % KEEPER)) == before
+    assert (REPO / "ids" / "founder" / "did.json").read_bytes() == founders
+
+
 # ---- no document ---------------------------------------------------------
 
 UNKNOWN = "/ids/nobody-here/did.json"

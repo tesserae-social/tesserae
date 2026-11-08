@@ -236,8 +236,19 @@ def did_document(pseudonym):
     """A member's public identity document, or None for anyone who has no such document.
 
     The same shape as the documents under ids/, and nothing more of the record
-    than the key: no vault, no day of arrival, no vouchers, no role. The keeper,
-    a name no one has, and a name no one could have all come back as None alike.
+    than its keys: no vault, no day of arrival, no vouchers, no role. The keeper,
+    a name no one has, and a name no one could have all come back as None alike;
+    the keeper's document is the founder's, under ids/, and nothing here touches it.
+
+    A member whose key has been replaced - by choosing a new password through an
+    emailed link, which cuts a new key - keeps every key they ever signed with in
+    their document, so that whatever they signed before still holds against their
+    identity. Each key is numbered in the order it was cut (#key-1 the first),
+    the current one first in the list; each past one says when it stopped being
+    current ("pastSince", as the key history keeps the moment), and the document
+    then names the current one alone under "assertionMethod", the one key to sign
+    with now. A member who has only ever had one key has the plain document, as
+    before.
     """
     try:
         record = load_member(pseudonym)
@@ -249,18 +260,58 @@ def did_document(pseudonym):
     if not isinstance(key, str) or not VERIFY_KEY.fullmatch(key):
         return None
     did = HEARTH_DID + pseudonym
-    return {
+
+    def method(number, held, past_since=None):
+        shaped = {
+            "id": "%s#key-%d" % (did, number),
+            "type": "Ed25519VerificationKey2020",
+            "controller": did,
+            "publicKeyBase64": base64.b64encode(bytes.fromhex(held)).decode("ascii"),
+        }
+        if past_since is not None:
+            shaped["pastSince"] = past_since
+        return shaped
+
+    past = _past_keys(pseudonym, key)
+    current = method(len(past) + 1, key)
+    document = {
         "@context": ["https://www.w3.org/ns/did/v1"],
         "id": did,
-        "verificationMethod": [
-            {
-                "id": did + "#key-1",
-                "type": "Ed25519VerificationKey2020",
-                "controller": did,
-                "publicKeyBase64": base64.b64encode(bytes.fromhex(key)).decode("ascii"),
-            }
-        ],
+        "verificationMethod": [current] + [method(number, held, since) for number, (held, since)
+                                           in reversed(list(enumerate(past, 1)))],
     }
+    if past:
+        document["assertionMethod"] = [current["id"]]
+    return document
+
+
+def _past_keys(pseudonym, current):
+    """The keys a member signed with before their current one, oldest first, each with
+    the moment it stopped being current: [(verify key hex, UTC stamp)].
+
+    Read from their key history, where each replacement of a key is one entry, in
+    order. An entry that cannot be read is passed over, and so is any key that is
+    the current one or is named twice: no key is shown as past that is not.
+    """
+    path = _folder(pseudonym) / KEY_HISTORY
+    try:
+        history = _read_json(path) if path.is_file() else []
+    except (MemberError, OSError, ValueError):
+        return []
+    if not isinstance(history, list):
+        return []
+    past, seen = [], {current}
+    for entry in history:
+        if not isinstance(entry, dict):
+            continue
+        old, at = entry.get("old_key"), entry.get("at")
+        if not isinstance(old, str) or not VERIFY_KEY.fullmatch(old) or not isinstance(at, str):
+            continue
+        if old in seen:
+            continue
+        seen.add(old)
+        past.append((old, at))
+    return past
 
 
 # ---------------------------------------------------------------- writing

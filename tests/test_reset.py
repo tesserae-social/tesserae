@@ -316,6 +316,50 @@ def test_every_other_session_of_the_member_ends(member, hearth, visitor, outbox)
     assert answer.status_code == 302 and answer.headers["Location"].endswith("/login")
 
 
+def test_a_signature_made_before_a_reset_still_verifies_after_it(member, visitor, outbox):
+    """A witness mark signed with the old key holds against the member's identity
+    document after the reset, by the key it was signed with, now marked as past;
+    the newest key is the one for signing, and the old mark does not hold against it."""
+    import base64
+    import witness
+
+    old_key = vault.unlock(member.members.load_member(MEMBER)["vault"], MEMBER_PASSWORD)
+    mark = {"v": 1, "bond_id": "a-bond", "bond_commitment": "0" * 64,
+            "witness_did": "did:web:hearth.tesserae.social:ids:" + MEMBER,
+            "witness_name": MEMBER, "at": "2026-10-15T12:00:00Z", "line": "I saw it sealed."}
+    mark["signature"] = base64.b64encode(old_key.sign(witness.payload(mark)).signature).decode()
+
+    def document():
+        answer = visitor.get("/ids/%s/did.json" % MEMBER)
+        assert answer.status_code == 200
+        return json.loads(page(answer))
+
+    def holding(doc):
+        return [method["id"] for method in doc["verificationMethod"]
+                if witness.holds(mark, base64.b64decode(method["publicKeyBase64"]))]
+
+    before = document()
+    assert holding(before) == [before["id"] + "#key-1"]
+
+    choose(visitor, sent_link(visitor, outbox))
+    after = document()
+    assert after["id"] == before["id"]
+    assert holding(after) == [after["id"] + "#key-1"]  # still held, by the old key
+    [old] = [m for m in after["verificationMethod"] if m["id"].endswith("#key-1")]
+    assert old["publicKeyBase64"] == before["verificationMethod"][0]["publicKeyBase64"]
+    assert "pastSince" in old
+    assert after["assertionMethod"] == [after["id"] + "#key-2"]
+    [current] = [m for m in after["verificationMethod"] if m["id"] in after["assertionMethod"]]
+    assert "pastSince" not in current
+    assert not witness.holds(mark, base64.b64decode(current["publicKeyBase64"]))
+    # and what the member signs from now on holds against the current key
+    new_key = vault.unlock(member.members.load_member(MEMBER)["vault"], NEW_PASSWORD)
+    fresh = dict(mark, at="2026-10-15T13:00:00Z")
+    fresh.pop("signature")
+    fresh["signature"] = base64.b64encode(new_key.sign(witness.payload(fresh)).signature).decode()
+    assert witness.holds(fresh, base64.b64decode(current["publicKeyBase64"]))
+
+
 def test_the_link_works_once(member, visitor, outbox, data_dir):
     link = sent_link(visitor, outbox)
     assert choose(visitor, link).status_code == 302

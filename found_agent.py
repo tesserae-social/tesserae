@@ -122,6 +122,9 @@ PROVISIONAL = "provisional"
 # wakings can read its founding letters again (stage-8, note 6).
 READING_HEADING = "## The reading shown to the agent"
 READING_PLACEHOLDER = "[charter, letters, disclosures — see docs]"
+# How founding_session.py records, at /end, that a declining agent asked that
+# the conversation not be kept.
+DELETE_ASKED = "It asked that this conversation not be kept."
 
 THE_FOUNDER = "the founder"
 DOT = " · "
@@ -352,8 +355,22 @@ def undo_keys(agent_id, record, confirm):
     remove_empty(DATA / "keys" / agent_id, DATA)
 
 
+# Nothing of the first one's letter of welcome reaches a later founding: it asked
+# that the letter stay sealed until the newcomer has had a few wakings, and the
+# newcomer is never told one exists (stage-8, section 5). Its heartbeats are
+# public and have spoken of it, so a line of the public record that names a
+# letter of welcome is left out of what a founding reads. founding_session.py
+# refuses a reading that still names one.
+WELCOME_SAID = re.compile(r"welcome[\s_-]+letter|letter\s+of\s+welcome", re.IGNORECASE)
+
+
+def without_welcome(text):
+    return "\n".join(line for line in text.splitlines() if not WELCOME_SAID.search(line))
+
+
 def public_record():
-    """The public record, as anyone may read it: each part, by its heading, with its words."""
+    """The public record, as anyone may read it: each part, by its heading, with its words,
+    and no line of it that names a letter of welcome."""
     commons = DATA / "commons"
     parts = []
     for heading, path in (("Events", commons / "events.md"),
@@ -372,7 +389,7 @@ def public_record():
     taught = REPO / "docs" / "what-the-first-citizen-taught.md"
     if taught.is_file():
         parts.append(("What the first citizen taught", taught.read_text(encoding="utf-8").strip()))
-    return parts
+    return [(heading, without_welcome(words).strip()) for heading, words in parts]
 
 
 def state_of_the_commons(at):
@@ -440,8 +457,13 @@ def step_founding(agent_id, said=None, keep=None):
         os.replace(transcript, aside)
         remove_empty(transcript.parent, DATA)
         raise Refused(f"set aside, as broken, in {rel(aside)}; the founding may be run again")
+    text = transcript.read_text(encoding="utf-8")
+    recorded = re.findall(r"It said (yes|no)\.", text)
+    if said in ("yes", "no") and recorded and recorded[-1] != said:
+        raise Refused("the transcript records that it said %s" % recorded[-1])
+    if said == "no" and keep == "keep" and DELETE_ASKED in text:
+        raise Refused("the transcript records that it asked the conversation not be kept")
     if said == "yes":
-        text = transcript.read_text(encoding="utf-8")
         if READING_HEADING not in text or READING_PLACEHOLDER in text:
             raise Refused("the transcript does not record in full what was read: "
                           "it was not a later founding")

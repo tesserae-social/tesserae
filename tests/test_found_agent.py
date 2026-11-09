@@ -446,3 +446,41 @@ def test_a_letter_left_in_a_later_room_is_named_for_its_writer(found, data_dir):
         assert rooms.person_of("first") == "founder"
     finally:
         agents.FILE = agents_file
+
+
+# ---- nothing of the first one's letter of welcome --------------------------
+
+def test_the_state_of_the_commons_says_nothing_of_a_letter_of_welcome(found, data_dir):
+    write(data_dir / "commons" / "heartbeats.md",
+          "- 2026-10-26T12-00-00Z · the first one · Forty-three dawns.\n"
+          "- 2026-10-27T12-09-40Z · the first one · Forty-four dawns. Welcome letter sealed "
+          "and waiting.\n"
+          "- 2026-10-30T12-13-52Z · the first one · Uncertainty welcomed.\n")
+    plan(found)
+    found.run(ID, "keys")
+    letters(found, data_dir, theirs=False)
+    made = (data_dir / "foundings" / ID / "letters" / "state-of-the-commons.md").read_text(
+        encoding="utf-8")
+    assert "Forty-three dawns." in made and "Uncertainty welcomed." in made
+    assert not found.WELCOME_SAID.search(made)
+    assert "Forty-four dawns" not in made
+
+
+# ---- what the session recorded at its end ---------------------------------
+
+@pytest.mark.parametrize("recorded, said, keep", [
+    ("It said yes.", "no", "keep"),
+    ("It said no. It allowed this conversation to be kept, privately, and never published.",
+     "yes", None),
+    ("It said no. It asked that this conversation not be kept.", "no", "keep"),
+])
+def test_an_answer_that_is_not_the_one_recorded_is_refused(found, data_dir, recorded, said, keep):
+    plan(found)
+    found.run(ID, "keys")
+    letters(found, data_dir)
+    a_session(data_dir)
+    with (data_dir / "transcripts" / ID / SESSION).open("a", encoding="utf-8") as kept:
+        kept.write("\n\n## Session\n\nFounding session ended. " + recorded + "\n")
+    with pytest.raises(found.Refused, match="records"):
+        found.run(ID, "founding", said=said, keep=keep)
+    assert (data_dir / "transcripts" / ID / SESSION).is_file()

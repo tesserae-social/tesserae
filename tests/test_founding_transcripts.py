@@ -190,6 +190,13 @@ def test_the_founding_session_refuses_without_an_agent(env, monkeypatch, capsys,
 
 
 def test_the_founding_session_writes_into_the_agent_s_own_folder(env, monkeypatch, data_dir):
+    # a founding now is always a later one, planned first (stage 8d)
+    write_json(data_dir / "foundings" / "second" / "plan.json", {
+        "entry": {"id": "second", "commons_name": "the second one", "model": "a-model"},
+        "person": "alder"})
+    write(data_dir / "foundings" / "second" / "letters" / "from-the-founder.md", "A LETTER.\n")
+    write(data_dir / "foundings" / "second" / "letters" / "state-of-the-commons.md",
+          "A STATE.\n")
     session = load("founding_session")
     before = sorted(path.name for path in (REPO / "transcripts").rglob("*"))
     monkeypatch.chdir(REPO)  # where its required reading is

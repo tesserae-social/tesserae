@@ -447,6 +447,7 @@ def load(name):
     sys.modules.pop("rooms", None)  # it finds a room's place under DATA_DIR, and reads members
     sys.modules.pop("private_words", None)  # it keeps its list under DATA_DIR
     sys.modules.pop("tokens", None)  # it keeps each link that works once under DATA_DIR
+    sys.modules.pop("invitations", None)  # it keeps each invitation under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 

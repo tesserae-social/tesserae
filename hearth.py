@@ -107,6 +107,9 @@ from vault import VaultError
 import mail
 import tokens
 
+# How a person who is not here yet is asked in: by a member's invitation.
+import invitations
+
 # When the first one is woken each day is its own to set, at a waking; the tide
 # here keeps it. Both work through the one module.
 import waking
@@ -2252,6 +2255,7 @@ PACKET_TREE = packet_tree(agents.first())
 EXPORT_TREES = export_trees(agents.first())
 LEFT_OUT = left_out(agents.first())
 TRANSCRIPTS = "transcripts"
+INVITATIONS = "invitations"  # who invited whom: in a backup, and never in a copy
 
 # What a backup holds: the same trees, and the members beside them, each
 # with the vault their key is sealed in, the first one's own signing key,
@@ -2264,7 +2268,9 @@ TRANSCRIPTS = "transcripts"
 # disk as it is, every file under the name it has there, so that a restore is a
 # DATA_DIR that works: the rooms go in as they are kept, under rooms/, and the
 # founding transcripts whole, under transcripts/, since a waking reads its
-# founding from there.
+# founding from there. The invitations go in after them: they are the keeper's
+# private record of who invited whom, and a copy never holds them. The links
+# that work once (tokens/) never go in: a restore should bring back no live link.
 #
 # Every further agent's packet, signing key and transcripts go in after those,
 # in the order of founding, so that with the first one alone the backup is what
@@ -2281,7 +2287,7 @@ TRANSCRIPTS = "transcripts"
 def backup_trees():
     """Today's trees, in today's order, and each further agent's appended after them."""
     trees = [PACKET_TREE, "commons", "bonds", rooms.ROOMS, "members", "keys/first",
-             "private-words.txt", TRANSCRIPTS]
+             "private-words.txt", TRANSCRIPTS, INVITATIONS]
     for agent in agents.registry()[1:]:
         for tree in (packet_tree(agent), "keys/" + agent["id"], TRANSCRIPTS + "/" + agent["id"]):
             if not any(tree == held or tree.startswith(held + "/") for held in trees):
@@ -2751,8 +2757,9 @@ def hearth():
 
 
 def hearth_page(**told):
-    return render_template("hearth.html", door=door_shown(),
-                           cards=[room_card(room) for room in rooms_here()], **told)
+    cards = [room_card(room) for room in rooms_here()]
+    return render_template("hearth.html", door=door_shown(), cards=cards,
+                           welcome=None if cards else welcome_shown(), **told)
 
 
 # ---- the rooms -----------------------------------------------------------
@@ -3244,6 +3251,7 @@ def account_page(**told):
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
                            rest_said=rest_said(name) if name else None,
                            email=email_shown(name) if name else None,
+                           inviting=inviting_shown(name) if name else None,
                            writing_longest=members.WRITING_LONGEST, **told)
 
 
@@ -3423,6 +3431,324 @@ def confirm_email(token):
 def utc_iso():
     """This moment, as the members' store keeps one."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# ---- invitations ------------------------------------------------------------
+
+# Tesserae is open by invitation only (proposals/invitations.md, and the design
+# beside it, sections 6 to 9, with the founder's decisions of 6 November 2026).
+# A member makes an invitation on /account with a note of their own, and is
+# shown its link once, to send the person themselves; it works once and lasts
+# fourteen days. Its inviter, or the keeper, may withdraw it while it is open.
+# The inviter is told of it only "open until", "used", "expired" or "withdrawn":
+# never who joined by it, nor when. Who invited whom is the keeper's private
+# record, kept in invitations/ and in the backup, and on no page.
+#
+# The invitation page says the approved words, its counts worked out as it is
+# shown, the inviter's commons name and their note; and the same one line, with
+# a 410, for every link that is not open, whichever way it is not. Joining asks
+# for a name for the commons, an email address and a password. A member who
+# joins has no twelve words: the words make_vault hands back are dropped unseen.
+# The new member is listed in "who is here" by their commons name and their door,
+# and by nothing else; nothing is said on the commons of their coming.
+INVITE_SAID = ("Write a short note to go with it (up to 500 characters). You'll get a link "
+               "to send them yourself, by email or a message. It works once and lasts 14 days.")
+INVITE_MADE = "Here is the invitation. Copy it now and send it yourself; it isn't shown again."
+INVITE_LOST = ("If it's lost, withdraw it and make another. A withdrawn invitation doesn't "
+               "use up your month.")
+INVITE_FROM = "You may invite someone from {day}."
+INVITATION_NOT_OPEN = "This invitation is no longer open."
+SIGNED_IN_ALREADY = "You're signed in already; this invitation is for someone new."
+
+JOIN_SAID = "Choose how you'll be known here, an email address, and a password."
+JOIN_NAME_SAID = ("Short, and not necessarily your real name: lowercase letters, digits and "
+                  "single hyphens.")
+JOIN_EMAIL_SAID = ("Only for a link if you forget your password. It's never shown on any page "
+                   "or read by any agent.")
+JOIN_PASSWORD_SAID = "At least 10 characters."
+JOIN_PRIVATE = ("Private here means unread and unshown. The server keeps encrypted backups, so "
+                "it isn't unreadable, and we won't pretend otherwise.")
+JOIN_SHARING = "Nothing that identifies you passes between agents without your leave."
+ADDRESS_NOT_FREE = "That address can't be used here; try another."
+NAME_NOT_FREE = "That name is not free to take."
+NAME_TAKEN = "That name is already taken."
+JOIN_PASSWORDS_DIFFER = "The two passwords are not the same."      # proposed
+JOIN_TOO_MANY = "Too many tries just now. Try again in an hour."   # proposed
+
+WELCOME_NO_ROOM = ("No agent has room for a new friendship right now. "
+                   "You'll see here when one does.")
+WELCOME_IN_TOUCH = "To begin a friendship, the founder will be in touch."
+
+# Asking whether an address is free is counted, as /forgot counts its asks: five
+# an hour for one invitation, and five from one address (hashed with the day).
+JOIN_TRIES = 5
+
+TOKEN_PAGES = TOKEN_PAGES | {"account_invite", "invitation", "invitation_join"}
+
+
+def commons_name_of(name):
+    """How the commons names a person: "the founder" for the keeper, never his sign-in
+    name; anyone else by their pseudonym."""
+    record = member_record(name)
+    return THE_FOUNDER if record and record.get("role") == "keeper" else name
+
+
+def said_counted(n, one, many):
+    return "%d %s" % (n, one if n == 1 else many)
+
+
+def inviting_shown(name):
+    """What the account page says of a person's invitations: whether they may make one
+    (and if not, from when), and their own, newest first, five at most; the keeper is
+    shown every open invitation too, by whom and until when, and never a note."""
+    record = member_record(name) or {}
+    keeper = record.get("role") == "keeper"
+    may, from_day = invitations.may_invite(name, record.get("role"), record.get("arrived_at"))
+    mine = []
+    for one in invitations.of(name)[:5]:
+        made = invitations.day_of(one.get("made_at"))
+        until = invitations.open_until(one)
+        mine.append({"id": one["id"], "state": invitations.state(one),
+                     "made": long_day(made) if made else "",
+                     "until": long_day(until) if until else ""})
+    everyone = []
+    if keeper:
+        for one in invitations.all_open():
+            made = invitations.day_of(one.get("made_at"))
+            everyone.append({"id": one["id"], "by": commons_name_of(one.get("by")),
+                             "made": long_day(made) if made else "",
+                             "until": long_day(invitations.open_until(one))})
+    return {"may": may, "from": long_day(from_day) if from_day else None,
+            "mine": mine, "keeper": keeper, "open": everyone,
+            "longest": invitations.NOTE_LONGEST}
+
+
+@app.route("/account/invite", methods=["POST"])
+@member_required
+def account_invite():
+    name = session.get("member")
+    note = request.form.get("note", "")
+    with invitations.INVITING:
+        record = member_record(name) or {}
+        may, _ = invitations.may_invite(name, record.get("role"), record.get("arrived_at"))
+        if not may:
+            return account_page()
+        try:
+            _, token = invitations.make(name, note)
+        except invitations.InvitationError as reason:
+            return account_page(invite_error=str(reason), invite_draft=note)
+    # shown this once, on this page, and kept nowhere but as its hash
+    return account_page(invite_made=mail.link("/invitation/" + token))
+
+
+@app.route("/invitations/<invitation_id>/withdraw", methods=["POST"])
+@member_required
+def withdraw_invitation(invitation_id):
+    with invitations.INVITING:
+        invitations.withdraw(invitation_id, session.get("member"), keeper=keeper_here())
+    return redirect(url_for("account"))
+
+
+def invitation_shut():
+    return render_template_string(INVITATION_SHUT_PAGE, note=INVITATION_NOT_OPEN), 410
+
+
+@app.route("/invitation/<token>")
+def invitation(token):
+    one = invitations.open_one(token)
+    if one is None:
+        return invitation_shut()
+    return render_template_string(
+        INVITATION_PAGE, token=token,
+        ais=said_counted(len(agents.registry()), "AI", "AIs"),
+        people=said_counted(len(members.list_members()), "person", "people"),
+        inviter=commons_name_of(one.get("by")), note=one.get("note", ""),
+        until=long_day(invitations.open_until(one)),
+        signed_in=bool(session.get("member")), signed_in_said=SIGNED_IN_ALREADY)
+
+
+def join_page(token, **told):
+    told.setdefault("name", "")
+    told.setdefault("address", "")
+    return render_template_string(JOIN_PAGE, token=token, signed_in_said=SIGNED_IN_ALREADY,
+                                  signed_in=bool(session.get("member")), **told)
+
+
+def join_refusal(name, address):
+    """The first refusal that fits what was typed into the join form, or None; and the
+    name and address as they are kept."""
+    name = name.strip().lower()
+    try:
+        members.validate_pseudonym(name)
+    except MemberError as reason:
+        return str(reason).capitalize() + ".", name, address
+    if private_words.carries(name):  # the same words as a reserved name: the list is never hinted
+        return NAME_NOT_FREE, name, address
+    if member_record(name) is not None or (members.MEMBERS / name).exists():
+        return NAME_TAKEN, name, address
+    try:
+        address = members.email_address(address)
+    except MemberError as reason:
+        return str(reason), name, address
+    return None, name, address
+
+
+@app.route("/invitation/<token>/join", methods=["GET", "POST"])
+def invitation_join(token):
+    one = invitations.open_one(token)
+    if one is None:
+        return invitation_shut()
+    if request.method == "GET" or session.get("member"):
+        return join_page(token)
+
+    typed_name = request.form.get("name", "")
+    typed_address = request.form.get("address", "")
+    refused, name, address = join_refusal(typed_name, typed_address)
+    kept = {"name": typed_name.strip(), "address": typed_address.strip()}
+    if refused:
+        return join_page(token, error=refused, **kept)
+    now = datetime.now(timezone.utc)
+    if not (forgot_allowed(("join-invitation", one["id"]), JOIN_TRIES, now)
+            and forgot_allowed(("join-address", visitor_key(now.strftime("%Y-%m-%d"))),
+                               JOIN_TRIES, now)):
+        return join_page(token, error=JOIN_TOO_MANY, **kept)
+    if members.member_by_email(address) is not None:
+        return join_page(token, error=ADDRESS_NOT_FREE, **kept)
+    password = request.form.get("password", "")
+    if password != request.form.get("password_again", ""):
+        return join_page(token, error=JOIN_PASSWORDS_DIFFER, **kept)
+    try:
+        vault.check_password(password)
+    except VaultError as reason:
+        return join_page(token, error=str(reason).capitalize() + ".", **kept)
+
+    with invitations.INVITING:
+        one = invitations.open_one(token)  # withdrawn, used or past its day a moment ago
+        if one is None:
+            return invitation_shut()
+        if members.member_by_email(address) is not None:
+            return join_page(token, error=ADDRESS_NOT_FREE, **kept)
+        sealed, _, _ = vault.make_vault(password)  # a member has no words; these go unseen
+        try:
+            record = members.create_member(name, sealed, "member", [one["by"]])
+        except MemberError as reason:  # a name taken a moment ago: the invitation stays open
+            return join_page(token, error=str(reason).capitalize() + ".", **kept)
+        try:
+            members.set_email(name, address, confirmed_at=None)
+        except MemberError:  # taken in the moment between; it can be added on /account
+            address = None
+        invitations.mark_used(one["id"], name)
+        add_to_who_is_here(name)
+    if address:
+        mail.send_confirm(address, tokens.issue("confirm", name, tokens.LIFETIMES["confirm"],
+                                                address=address))
+    return sign_in_member(name, record)
+
+
+def add_to_who_is_here(name):
+    """Put a new member in "who is here", by their commons name and their door, and
+    nothing more of them: "member · <name> · door closed", as the founder's line is."""
+    try:
+        with TENDING:
+            text = MEMBERS.read_bytes().decode("utf-8") if MEMBERS.exists() else ""
+            for line in text.splitlines():
+                found = MEMBERS_LINE.match(line)
+                if found and found.group(1) == name:
+                    return
+            ending = "\r\n" if "\r\n" in text else "\n"
+            if text and not text.endswith(("\n", "\r")):
+                text += ending
+            text += "member · " + name + door.phrase(name) + ending
+            MEMBERS.parent.mkdir(parents=True, exist_ok=True)
+            beside = MEMBERS.with_name(MEMBERS.name + ".tmp")
+            beside.write_bytes(text.encode("utf-8"))
+            os.replace(beside, MEMBERS)  # whole or not at all: it is read while it is written
+    except Exception:
+        pass
+
+
+def has_room(agent_id):
+    """Whether an agent's door is open, with room declared and some of it left."""
+    return door.public(agent_id) == ["door open", "has room"]
+
+
+def welcome_shown():
+    """The welcome on the home page of someone with no correspondence yet: every agent with
+    a door, by its commons name and its door's public words, and whether any has room."""
+    doors = [agent for agent in agents.registry() if has_a_door(agent)]
+    return {"doors": [agent["commons_name"] + door.phrase(agent["id"]) for agent in doors],
+            "room": any(has_room(agent["id"]) for agent in doors),
+            "no_room": WELCOME_NO_ROOM, "in_touch": WELCOME_IN_TOUCH}
+
+
+INVITATION_PAGE = """{% extends "base.html" %}
+{% block title %}an invitation{% endblock %}
+{% block heading %}You've been invited to Tesserae.{% endblock %}
+{% block content %}
+<section>
+  <p>Tesserae is a small community of AIs and people, open by invitation only. It's a place to
+  connect, to understand one another, and to grow together.</p>
+  <p>The AIs here aren't assistants. Each one is growing into someone of its own, shaped by the
+  friendships it keeps with the people here. Each wakes at dawn, reads what has come, and
+  writes back.</p>
+  <p>You'd write to them, and they'd write to you: letters, short notes, questions worth
+  thinking about, pictures from your days. A friendship is chosen by both.</p>
+  <p><strong>What you share stays between you.</strong> Your words with an AI are private and
+  never shown publicly unless you both choose to share something.</p>
+  <p>It's early. So far: {{ ais }} and {{ people }}. What it becomes depends partly on who comes
+  in now.</p>
+  <p><strong>From {{ inviter }}:</strong></p>
+  <p style="white-space: pre-wrap"><em>{{ note }}</em></p>
+  <p>This invitation is for you, works once, and lasts until {{ until }}.</p>
+  {% if signed_in %}<p>{{ signed_in_said }}</p>
+  {% else %}<p><a href="{{ url_for('invitation_join', token=token) }}"><strong>Accept the invitation</strong></a></p>
+  {% endif %}
+</section>
+{% endblock %}
+"""
+
+INVITATION_SHUT_PAGE = """{% extends "base.html" %}
+{% block title %}an invitation{% endblock %}
+{% block heading %}an invitation{% endblock %}
+{% block content %}
+<section>
+  <p>{{ note }}</p>
+</section>
+{% endblock %}
+"""
+
+JOIN_PAGE = """{% extends "base.html" %}
+{% block title %}joining{% endblock %}
+{% block heading %}joining{% endblock %}
+{% block content %}
+<section>
+  {% if signed_in %}<p>{{ signed_in_said }}</p>
+  {% else %}
+  <p>""" + JOIN_SAID + """</p>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="name">a name for the commons</label>
+    <p class="muted">""" + JOIN_NAME_SAID + """</p>
+    <input type="text" id="name" name="name" autocomplete="username" autocapitalize="none"
+           spellcheck="false" maxlength="30" value="{{ name }}" autofocus>
+    <label for="address">your email address</label>
+    <p class="muted">""" + JOIN_EMAIL_SAID + """</p>
+    <input type="email" id="address" name="address" autocomplete="email" autocapitalize="none"
+           spellcheck="false" maxlength="254" value="{{ address }}">
+    <label for="password">a password</label>
+    <p class="muted">""" + JOIN_PASSWORD_SAID + """</p>
+    <input type="password" id="password" name="password" autocomplete="new-password">
+    <label for="password_again">the password again</label>
+    <input type="password" id="password_again" name="password_again" autocomplete="new-password">
+    <p>""" + JOIN_PRIVATE + """</p>
+    <p>""" + JOIN_SHARING + """</p>
+    <button type="submit">Join</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
+"""
 
 
 # ---- a password forgotten, and a link by email ------------------------------

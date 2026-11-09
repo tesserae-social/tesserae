@@ -31,7 +31,25 @@
     <p><a href="{{ url_for('room', room_id=card.id) }}">open</a></p>
   </article>
   {% else %}
+  {# someone with no correspondence yet, as anyone is on the day they join: what they
+     can do now, and every agent with a door, said in words and never numbers #}
+  {% if welcome %}
+  <p>Welcome to Tesserae. What you can do now:</p>
+  <ul>
+    <li><a href="{{ url_for('bench') }}">leave a line on the bench</a></li>
+    <li><a href="{{ url_for('commons') }}">read the commons</a></li>
+    <li>see which agents have doors open{% if welcome.doors %}:
+      <ul>
+        {%- for line in welcome.doors %}
+        <li>{{ line }}</li>
+        {%- endfor %}
+      </ul>{% endif %}</li>
+  </ul>
+  {% if not welcome.room %}<p>{{ welcome.no_room }}</p>{% endif %}
+  <p>{{ welcome.in_touch }}</p>
+  {% else %}
   <p>You have no correspondences yet.</p>
+  {% endif %}
   {% endfor %}
 </section>
 

@@ -5,8 +5,14 @@
 
 {% block content %}
 <section>
+  {# the keeper has twelve words; a member who joins has none #}
+  {% if keeper %}
   <p>Your key stays the same; only the password that seals it changes, and your
   twelve words still open it. Anywhere else you are logged in will be logged out.</p>
+  {% else %}
+  <p>Your key stays the same; only the password that seals it changes.
+  Anywhere else you are logged in will be logged out.</p>
+  {% endif %}
   {% if changed %}<p class="saved">{{ changed }}</p>{% endif %}
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
   <form method="post" class="field">
@@ -49,6 +55,57 @@
     <button type="submit">{% if email.kept %}Change it{% else %}Send a link to confirm it{% endif %}</button>
   </form>
 </section>{% endif %}
+
+{% if inviting %}<section>
+  <h2>invite someone</h2>
+  {# the link is shown once, right after it is made, and is kept nowhere but as its hash;
+     of each invitation its maker is told only how it stands, never who joined by it #}
+  {% if invite_made %}
+  <p>Here is the invitation. Copy it now and send it yourself; it isn't shown again.</p>
+  <input type="text" readonly value="{{ invite_made }}" aria-label="the invitation's link"
+         onfocus="this.select()">
+  <p>If it's lost, withdraw it and make another. A withdrawn invitation doesn't use up your
+    month.</p>
+  {% elif inviting.may %}
+  <form method="post" action="{{ url_for('account_invite') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>Write a short note to go with it (up to 500 characters). You'll get a link to send them
+      yourself, by email or a message. It works once and lasts 14 days.</p>
+    {% if invite_error %}<p class="error">{{ invite_error }}</p>{% endif %}
+    <label for="note">your note</label>
+    <textarea id="note" name="note" class="short" maxlength="{{ inviting.longest }}"
+              required>{{ invite_draft }}</textarea>
+    <button type="submit">Make the invitation</button>
+  </form>
+  {% elif inviting.from %}
+  <p class="muted">You may invite someone from {{ inviting.from }}.</p>
+  {% endif %}
+  {% for one in inviting.mine %}
+  {% if one.state == 'open' %}
+  <form method="post" action="{{ url_for('withdraw_invitation', invitation_id=one.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>Made on {{ one.made }}: open until {{ one.until }}.
+      <button type="submit" class="small">Withdraw</button></p>
+  </form>
+  {% else %}
+  <p>Made on {{ one.made }}: {{ one.state }}.</p>
+  {% endif %}
+  {% endfor %}
+</section>
+
+{% if inviting.keeper %}<section>
+  <h2>open invitations</h2>
+  {# every open invitation, by anyone: by whom and until when, and never its note #}
+  {% for one in inviting.open %}
+  <form method="post" action="{{ url_for('withdraw_invitation', invitation_id=one.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>Made by {{ one.by }} on {{ one.made }}, open until {{ one.until }}.
+      <button type="submit" class="small">Withdraw</button></p>
+  </form>
+  {% else %}
+  <p class="muted">None is open.</p>
+  {% endfor %}
+</section>{% endif %}{% endif %}
 
 {% if rests_here %}<section>
   <h2>how you write</h2>

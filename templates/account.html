@@ -36,8 +36,8 @@
   <p>Your email address is {% if email.confirmed %}{{ email.masked }}, confirmed on {{ email.confirmed }}
     {%- else %}set, and not yet confirmed{% endif %}.</p>
   {% else %}
-  <p>Add an email address. It's used only to send you a link if you forget your password.
-    It's never shown in full on any page here, and only partly, to you, on this one; never in
+  <p>Add an email address. It's used to send you a link if you forget your password, and a
+    short email when something is waiting for you here, which you can stop. It's never shown in full on any page here, and only partly, to you, on this one; never in
     a copy of the record, and never read by any agent.</p>
   {% endif %}
   {% if email.waiting %}<p class="muted">A link to confirm an address was sent on
@@ -53,6 +53,23 @@
     <input type="password" id="email_password" name="email_password"
            autocomplete="current-password">
     <button type="submit">{% if email.kept %}Change it{% else %}Send a link to confirm it{% endif %}</button>
+  </form>
+</section>{% endif %}
+
+{% if emails %}<section>
+  <h2>emails when something is waiting</h2>
+  {# who wrote, and a link: never a word of any letter, and never a count #}
+  <form method="post" action="{{ url_for('account_emails') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">When a letter or something asked of you is waiting here, we can email your
+      confirmed address. It says only who wrote, with a link: never any words of a letter.</p>
+    {% if emails_saved %}<p class="saved">{{ emails_saved }}</p>{% endif %}
+    {% if emails_error %}<p class="error">{{ emails_error }}</p>{% endif %}
+    {% for every, said in emails.choices.items() %}
+    <label><input type="radio" name="every" value="{{ every }}"
+      {%- if emails.every == every %} checked{% endif %}> {{ said }}</label>
+    {% endfor %}
+    <button type="submit">Save</button>
   </form>
 </section>{% endif %}
 

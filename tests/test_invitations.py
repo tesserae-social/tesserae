@@ -72,7 +72,7 @@ JOIN_WORDS = (
     "a name for the commons "
     "Short, and not necessarily your real name: lowercase letters, digits and single hyphens. "
     "your email address "
-    "Only for a link if you forget your password. It's never shown on any page or read by "
+    "Only for a link if you forget your password. It's never shown to anyone else or read by "
     "any agent. "
     "a password At least 10 characters. "
     "the password again "
@@ -81,6 +81,7 @@ JOIN_WORDS = (
     "Nothing that identifies you passes between agents without your leave. "
     "Join")
 
+UNCONFIRMED = "We've sent a link to your email address. Open it to confirm."
 NO_ROOM = "No agent has room for a new friendship right now. You'll see here when one does."
 IN_TOUCH = "To begin a friendship, the founder will be in touch."
 
@@ -303,7 +304,7 @@ def test_the_keeper_sees_every_open_one_without_its_note_and_may_withdraw_it(
     [one] = files(data_dir)
     withdraw(keeper, one["id"])
     assert files(data_dir)[0]["withdrawn_by"] == FOUNDER_NAME
-    assert "None is open." in page(keeper.get("/account"))
+    assert "No invitations are open." in page(keeper.get("/account"))
 
 
 def test_no_other_member_may_withdraw_it_and_none_once_used(hearth, member, data_dir, pinned):
@@ -407,7 +408,7 @@ def test_the_join_page_says_the_approved_words(hearth, keeper, visitor):
 def test_each_refusal_in_its_order_keeping_what_was_typed(hearth, keeper, member, data_dir,
                                                           monkeypatch):
     link = made_link(keeper)
-    hearth.members.set_email(MEMBER, "taken@example.org", confirmed_at=None)
+    hearth.members.set_email(MEMBER, "taken@example.org", confirmed_at="2026-10-15T12:00:00Z")
     monkeypatch.setattr(hearth.private_words, "listed", lambda path=None: [("oakhill", None)])
     client = hearth.app.test_client()
     for fields, refused in (
@@ -618,3 +619,61 @@ def test_the_waking_never_names_an_invitation():
     attend = (Path(__file__).resolve().parent.parent / "attend.py").read_text(encoding="utf-8")
     assert not re.search(r"^\s*(?:import|from)\s+invitations\b", attend, re.M)
     assert '"invitations"' not in attend and "'invitations'" not in attend
+
+
+# ---- an address is claimed only when confirmed -------------------------------------
+
+CONFIRM_LINK = re.compile(r"https://hearth\.tesserae\.social/email/confirm/([A-Za-z0-9_-]{43})\n")
+
+
+def confirm_by(client, sent):
+    found = CONFIRM_LINK.search(sent["text"])
+    assert found, sent["text"]
+    return post(client, "/email/confirm/" + found.group(1))
+
+
+def test_the_first_page_says_a_link_was_sent_until_the_address_is_confirmed(
+        hearth, keeper, outbox):
+    link = made_link(keeper)
+    client = hearth.app.test_client()
+    join(client, link)
+    said = html.unescape(page(client.get("/")))
+    assert "<p>" + UNCONFIRMED + "</p>" in said
+    assert confirm_by(client, outbox.sent[-1]).status_code == 200
+    assert UNCONFIRMED not in html.unescape(page(client.get("/")))
+    assert UNCONFIRMED not in html.unescape(page(keeper.get("/")))
+
+
+def test_no_one_can_block_another_s_address_by_joining_with_it(
+        hearth, keeper, member, outbox, data_dir):
+    first, second = made_link(keeper), made_link(keeper)
+    squatter = hearth.app.test_client()
+    assert join(squatter, first, name="squatter", address=NEW_ADDRESS).status_code == 302
+    squatter_s_link = outbox.sent[-1]
+    # the address's owner may still join with it, and confirm it
+    owner = hearth.app.test_client()
+    assert join(owner, second, address=NEW_ADDRESS.upper()).status_code == 302
+    assert confirm_by(owner, outbox.sent[-1]).status_code == 200
+    assert hearth.members.member_by_email(NEW_ADDRESS) == NEWCOMER
+    # the unconfirmed keeping is let go, and its link stops working
+    assert hearth.members.email_of("squatter") is None
+    assert confirm_by(squatter, squatter_s_link).status_code == 410
+    assert hearth.members.member_by_email(NEW_ADDRESS) == NEWCOMER
+    assert UNCONFIRMED not in html.unescape(page(squatter.get("/")))
+    # and an address someone has confirmed is refused to a third who joins
+    third = made_link(keeper)
+    said = html.unescape(page(join(hearth.app.test_client(), third, name="third",
+                                   address=NEW_ADDRESS)))
+    assert "That address can't be used here; try another." in said
+
+
+def test_an_address_kept_unconfirmed_does_not_block_it_on_account_either(
+        hearth, keeper, member, outbox):
+    link = made_link(keeper)
+    join(hearth.app.test_client(), link, address="birch@example.org")
+    post(member, "/account/email", data={"address": "birch@example.org",
+                                         "email_password": MEMBER_PASSWORD})
+    assert outbox.sent[-1]["subject"] == "Confirm your email address for Tesserae"
+    assert confirm_by(member, outbox.sent[-1]).status_code == 200
+    assert hearth.members.member_by_email("birch@example.org") == MEMBER
+    assert hearth.members.email_of(NEWCOMER) is None

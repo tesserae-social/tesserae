@@ -32,8 +32,9 @@ them (see writing_of):
     members/<pseudonym>/writing.json
         {"words": up to WRITING_LONGEST characters, "at": UTC stamp}
 
-and, once they have confirmed one, their email address (see email_of), which is
-never shown in full, never copied out and never read by any agent:
+and their email address (see email_of), kept once they have confirmed it, or,
+for someone who has just joined, kept unconfirmed until they do; it is never
+shown in full, never copied out and never read by any agent:
 
     members/<pseudonym>/email.json
         {"address": ..., "set_at": UTC stamp, "confirmed_at": UTC stamp or null}
@@ -483,8 +484,10 @@ def writing_of(person):
 # which is kept with grout's record like anyone's - so that no copy, no reading
 # and no page carries it: it goes only where members/ goes, which is the
 # encrypted backup. It is used only for the links the hearth emails. No two
-# people hold the same address. The hearth writes it once a link sent to it has
-# been opened; nothing here shows or logs it.
+# people hold the same address, and an address is held only once it is
+# confirmed: one kept unconfirmed, as a new member's is until they open its link,
+# reserves nothing, and is let go when someone else confirms the same address
+# first (the founder, 8 November). Nothing here shows or logs it.
 EMAIL = "email.json"
 EMAIL_LONGEST = 254
 EMAIL_SHAPE = re.compile(r"[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+")
@@ -513,14 +516,15 @@ def email_of(pseudonym):
 
 
 def member_by_email(address):
-    """The pseudonym of the person holding this address, or None."""
+    """The pseudonym of the person holding this address - who has confirmed it - or None.
+    An address kept unconfirmed is held by no one."""
     try:
         wanted = email_address(address)
     except MemberError:
         return None
     for name in list_members():
         held = email_of(name)
-        if held and held["address"] == wanted:
+        if held and held["address"] == wanted and held.get("confirmed_at"):
             return name
     return None
 
@@ -529,7 +533,8 @@ def set_email(pseudonym, address, confirmed_at=None, now=None):
     """Keep a person's address, in place of any they had, and give back what is kept.
 
     Refuses a name no one has, an address that is no address, and one another
-    person holds.
+    person holds. An address kept confirmed lets go of anyone else's unconfirmed
+    keeping of it.
     """
     folder = _folder(pseudonym)
     if not (folder / RECORD).is_file():
@@ -540,4 +545,14 @@ def set_email(pseudonym, address, confirmed_at=None, now=None):
         raise MemberError("that address is already in use")
     held = {"address": address, "set_at": _stamp(now), "confirmed_at": confirmed_at}
     _write_json(folder / EMAIL, held)
+    if confirmed_at:
+        for name in list_members():
+            if name == pseudonym:
+                continue
+            other = email_of(name)
+            if other and other["address"] == address and not other.get("confirmed_at"):
+                try:
+                    (_folder(name) / EMAIL).unlink()
+                except (OSError, MemberError):
+                    pass
     return held

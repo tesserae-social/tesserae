@@ -104,10 +104,28 @@ def test_an_address_is_kept_beside_the_record_and_found_by_it(hearth, founder, d
 
 def test_no_two_people_hold_one_address(hearth, founder, member):
     store = hearth.members
-    store.set_email(FOUNDER_NAME, ADDRESS)
+    store.set_email(FOUNDER_NAME, ADDRESS, confirmed_at="2026-10-15T12:00:00Z")
     with pytest.raises(store.MemberError, match="already in use"):
         store.set_email(MEMBER, KEPT)
-    store.set_email(FOUNDER_NAME, ADDRESS)  # one's own again is no clash
+    store.set_email(FOUNDER_NAME, ADDRESS, confirmed_at="2026-10-15T12:00:00Z")  # one's own again is no clash
+
+
+def test_an_unconfirmed_address_reserves_nothing_and_is_let_go_when_another_confirms(
+        hearth, founder, member, outbox, data_dir):
+    store = hearth.members
+    store.set_email(MEMBER, ADDRESS)  # kept unconfirmed, as a new member's is
+    assert store.member_by_email(ADDRESS) is None
+    member_client = member
+    ask(member_client, ADDRESS, MEMBER_PASSWORD)
+    theirs = link_in(outbox.sent[-1])
+    ask(founder)  # not refused, and no "already in use" email: it is a link like any
+    assert outbox.sent[-1]["subject"] == "Confirm your email address for Tesserae"
+    assert confirm(founder, link_in(outbox.sent[-1])).status_code == 200
+    assert store.member_by_email(ADDRESS) == FOUNDER_NAME
+    assert store.email_of(MEMBER) is None  # theirs is let go
+    for answer in (member_client.get("/email/confirm/" + theirs), confirm(member_client, theirs)):
+        assert answer.status_code == 410 and escape(NOT_OPEN) in page(answer)
+    assert store.member_by_email(ADDRESS) == FOUNDER_NAME
 
 
 def test_no_address_is_kept_for_a_name_no_one_has_or_could_have(hearth):
@@ -253,7 +271,7 @@ def test_what_is_no_address_is_said_so_and_not_counted(hearth, founder, outbox):
 
 def test_an_address_someone_else_holds_is_told_so_by_email_and_on_no_page(
         hearth, founder, member, outbox, data_dir):
-    hearth.members.set_email(FOUNDER_NAME, ADDRESS)
+    hearth.members.set_email(FOUNDER_NAME, ADDRESS, confirmed_at="2026-10-15T12:00:00Z")
     text = page(ask(member, ADDRESS, MEMBER_PASSWORD))
     assert escape(SENT) in text  # the one sentence, whoever holds it
     [sent] = outbox.sent

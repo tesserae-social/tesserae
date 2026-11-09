@@ -2759,7 +2759,18 @@ def hearth():
 def hearth_page(**told):
     cards = [room_card(room) for room in rooms_here()]
     return render_template("hearth.html", door=door_shown(), cards=cards,
-                           welcome=None if cards else welcome_shown(), **told)
+                           welcome=None if cards else welcome_shown(),
+                           unconfirmed=EMAIL_UNCONFIRMED if address_unconfirmed() else None,
+                           **told)
+
+
+def address_unconfirmed():
+    """Whether whoever is signed in has an address kept that they have not yet confirmed."""
+    try:
+        held = members.email_of(session.get("member"))
+    except MemberError:
+        return False
+    return bool(held) and not held.get("confirmed_at")
 
 
 # ---- the rooms -----------------------------------------------------------
@@ -3316,6 +3327,7 @@ EMAIL_SENT = "A link is on its way to that address."
 EMAIL_NOT_SENT = "The email couldn't be sent just now. Try again later."
 EMAIL_CONFIRMED = "Your email address is confirmed."
 LINK_NOT_OPEN = "This link is no longer open."
+EMAIL_UNCONFIRMED = "We've sent a link to your email address. Open it to confirm."
 
 # Pages a token is carried on: kept out of every cache, out of the address any
 # link on them hands on to another site, and out of every index. The policy is
@@ -3425,6 +3437,8 @@ def confirm_email(token):
         members.set_email(held.get("name"), held.get("address"), confirmed_at=utc_iso())
     except MemberError:  # gone, or the address taken since the link was sent
         return render_template_string(CONFIRM_PAGE, note=LINK_NOT_OPEN), 410
+    # claimed now: anyone else's link to confirm the same address stops working
+    tokens.drop("confirm", held.get("name"), address=held.get("address"))
     return render_template_string(CONFIRM_PAGE, note=EMAIL_CONFIRMED)
 
 
@@ -3463,8 +3477,8 @@ SIGNED_IN_ALREADY = "You're signed in already; this invitation is for someone ne
 JOIN_SAID = "Choose how you'll be known here, an email address, and a password."
 JOIN_NAME_SAID = ("Short, and not necessarily your real name: lowercase letters, digits and "
                   "single hyphens.")
-JOIN_EMAIL_SAID = ("Only for a link if you forget your password. It's never shown on any page "
-                   "or read by any agent.")
+JOIN_EMAIL_SAID = ("Only for a link if you forget your password. It's never shown to anyone "
+                   "else or read by any agent.")
 JOIN_PASSWORD_SAID = "At least 10 characters."
 JOIN_PRIVATE = ("Private here means unread and unshown. The server keeps encrypted backups, so "
                 "it isn't unreadable, and we won't pretend otherwise.")

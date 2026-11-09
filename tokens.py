@@ -147,6 +147,15 @@ def take(kind, token, now=None):
     return held
 
 
+def drop(kind, but_for, **kept):
+    """Let go of every token of a kind whose kept fields are these, save the named
+    person's: a link to confirm an address stops working once someone else has."""
+    with LOCK:
+        for path, held in _held():
+            if held and held.get("kind") == kind and held.get("name") != but_for                     and all(held.get(field) == value for field, value in kept.items()):
+                path.unlink(missing_ok=True)
+
+
 def waiting(kind, name, now=None):
     """The live token of a kind a person has waiting, as it was kept, or None."""
     now = _now(now)

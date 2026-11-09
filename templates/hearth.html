@@ -7,7 +7,9 @@
    them their own door. A visitor is sent to the login page before this is
    drawn. The ways to the bench and the commons are in the menu, on every page. #}
 {% block content %}
-{# One card for each correspondence: who it is with, the latest letter, what is
+{% if unconfirmed %}{# said while an address kept for them waits to be confirmed, as a new
+   member's does; nothing at all is drawn here otherwise #}<p>{{ unconfirmed }}</p>
+{% endif %}{# One card for each correspondence: who it is with, the latest letter, what is
    waiting, and how the bond stands. Said in words, and nothing is counted. #}
 <section class="rooms">
   <h2>your correspondences</h2>

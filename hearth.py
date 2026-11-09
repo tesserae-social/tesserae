@@ -5228,7 +5228,12 @@ def tides_shown():
                      "stop": keeper_stop(agent), "together": stop_stamp(standing) is not None,
                      "rest": keeper_rest(agent), "stamp": stop_stamp(standing),
                      "since": standing.get("since") if isinstance(standing, dict) else None,
-                     "reason": standing.get("reason") if isinstance(standing, dict) else None})
+                     "reason": standing.get("reason") if isinstance(standing, dict) else None,
+                     # the first one's letter of welcome, held before it was given, said in
+                     # its card and nowhere else: never in any agent's reading
+                     "welcome_held": (welcome_delivery.held_line(DATA)
+                                      if agent["id"] == welcome_delivery.author()["id"]
+                                      else None)})
     return rows
 
 

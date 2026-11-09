@@ -24,6 +24,9 @@
     <p class="muted">This stop was set together with the others.</p>
     {% endif %}
     {% endif %}
+    {% if row.welcome_held %}
+    <p>{{ row.welcome_held }}</p>
+    {% endif %}
     {% if row.rest %}
     <p>{{ row.agent.commons_name|first_upper }} is resting, since {{ row.rest.since }}, until
       {{ row.rest.until }}.</p>

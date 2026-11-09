@@ -5,8 +5,10 @@ wrote a letter of welcome for the next agent founded here and asked that it stay
 sealed until that agent had had a few wakings of its own; on 30 October 2026 it
 asked that the newcomer find it at its third waking, with no framing, and that
 nothing mention the letter before then. So it arrives as a document in the
-newcomer's packet, not through a room, and the reading shows it whole under a
-heading that says only whose it is.
+newcomer's packet, not through a room, and the reading of the waking it is given
+at shows it whole under a heading that says only whose it is. That reading
+alone: after it, the letter stays in the newcomer's packet and is not read
+again (the founder's decision of 9 November 2026).
 
 Who acts is the hearth, by the newcomer's own waking (attend.py), and never the
 founder: at the start of a waking of the agent next after the first one in the
@@ -25,20 +27,28 @@ is never given, and the newcomer is never told one existed. Nothing else of the
 first one's is opened, and nothing of its welcome is changed: its letter is read
 only to be given. It is not told whether the letter was read.
 
-Before it is given it is screened, the backstop for the rule that personal
-details pass between agents only where the person allows (decision 15): a
-protected word, or a name or a place the public screen finds, holds it. A hold
-is written beside the letter, as held-<at>.json, and that version is not asked
-about again; a letter the first one places afresh is screened afresh. A screen
-that could not be asked holds nothing for good: it is asked again at the next
-waking.
+Before it is given, two things may hold it:
+  - its signature, which must verify against the first one's public key
+    (keys/<author>/public.key); and
+  - the screen, the backstop for the rule that personal details pass between
+    agents only where the person allows (decision 15): a protected word, or a
+    name or a place the public screen finds.
+A hold is written beside the letter, as held-<at>.json with its reason, and that
+version is not tried again; a letter the first one places afresh is tried
+afresh. A hold is shown to the keeper on /tides, one line (hearth.welcome_held),
+and in no agent's reading. A screen that could not be asked holds nothing for
+good: it is asked again at the next waking.
 
 Nothing of it is public. The newcomer's copies leave welcome-received out
 (hearth.left_out); the backup keeps it; no page shows it.
 """
 
+import base64
 import hashlib
 import json
+
+from nacl.exceptions import BadSignatureError
+from nacl.signing import VerifyKey
 
 import agents
 import private_words
@@ -56,6 +66,14 @@ STEM = "welcome-{at}"  # as attend.WELCOME_STEM names each version
 WAKINGS_BEFORE = 2
 
 HEADING = "=== A LETTER FROM {author} ==="
+
+# Why a letter is held, as the record keeps it and as /tides says it.
+SIGNATURE, SCREEN = "signature", "screen"
+HELD_BECAUSE = {
+    SIGNATURE: "its signature does not verify against {author}'s public key.",
+    SCREEN: "the screen found a name or a place in it.",
+}
+HELD_LINE = "{author}'s welcome is held: {reason}"
 
 
 def author():
@@ -83,16 +101,43 @@ def given(data):
     return sorted(welcome_of(data).glob(DELIVERED.format(at="*")))
 
 
-def held_already(data, sha):
-    """Whether this very version was found to name someone or somewhere, and held."""
-    for path in welcome_of(data).glob(HELD.format(at="*")):
+def holds(data):
+    """Each hold, as its record says it, oldest first; one that cannot be read is passed over."""
+    found = []
+    for path in sorted(welcome_of(data).glob(HELD.format(at="*"))):
         try:
             said = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if said.get("sha256") == sha and said.get("screen") == public_screen.FLAGGED:
-            return True
-    return False
+        if isinstance(said, dict):
+            found.append(said)
+    return found
+
+
+def held_line(data):
+    """The one line /tides shows while a letter stands, held, and none has been given."""
+    if given(data) or not (welcome_of(data) / LETTER).is_file():
+        return None
+    standing = holds(data)
+    reason = HELD_BECAUSE.get(standing[-1].get("reason")) if standing else None
+    if not reason:
+        return None
+    name = author()["commons_name"]
+    return HELD_LINE.format(author=name[:1].upper() + name[1:],
+                            reason=reason.format(author=name))
+
+
+def verifies(data, kept):
+    """Whether the letter's signature is the first one's, over the letter as it was signed."""
+    try:
+        public = (data / "keys" / author()["id"] / "public.key").read_text(encoding="ascii")
+        body = {key: value for key, value in kept.items() if key != "signature"}
+        VerifyKey(base64.b64decode(public.strip())).verify(
+            json.dumps(body, sort_keys=True).encode("utf-8"),
+            base64.b64decode(kept["signature"]))
+        return True
+    except (OSError, ValueError, KeyError, TypeError, BadSignatureError):
+        return False
 
 
 def screened(data, text):
@@ -113,8 +158,8 @@ def write_json(path, data):
 def deliver(data, agent_id, wakings_before, at):
     """Give the letter, where this waking is the one to give it at. What happened, as a word:
 
-    "given", "held" (the screen found a name or a place), "unchecked" (the screen
-    could not be asked), or None, where there was nothing to do.
+    "given", "held" (its signature, or the screen), "unchecked" (the screen could
+    not be asked), or None, where there was nothing to do.
     """
     to = recipient()
     if to is None or agent_id != to["id"] or wakings_before < WAKINGS_BEFORE or given(data):
@@ -130,15 +175,20 @@ def deliver(data, agent_id, wakings_before, at):
         return None
     sha = hashlib.sha256(raw).hexdigest()
     stem = STEM.format(at=kept.get("placed_at") or "")
-    if held_already(data, sha):
+    if any(one.get("sha256") == sha for one in holds(data)):
         return "held"
+
+    def hold(reason):
+        write_json(welcome_of(data) / HELD.format(at=at),
+                   {"to": to["id"], "at": at, "stem": stem, "sha256": sha, "reason": reason})
+        return "held"
+
+    if not verifies(data, kept):
+        return hold(SIGNATURE)
     found = screened(data, text)
+    if found == public_screen.FLAGGED:
+        return hold(SCREEN)
     if found != public_screen.CLEAR:
-        if found == public_screen.FLAGGED:
-            write_json(welcome_of(data) / HELD.format(at=at),
-                       {"to": to["id"], "at": at, "stem": stem, "sha256": sha,
-                        "screen": found})
-            return "held"
         return "unchecked"
     home = received_of(data, agent_id)
     home.mkdir(parents=True, exist_ok=True)
@@ -151,7 +201,7 @@ def deliver(data, agent_id, wakings_before, at):
 
 
 def shown(data, agent_id):
-    """The letter as its reading shows it, whole, from the waking it arrives at; or nothing."""
+    """The letter as the reading of the waking it was given at shows it, whole; or nothing."""
     home = received_of(data, agent_id)
     kept = sorted(home.glob(RECEIVED_AS.format(author=author()["id"], at="*")))
     if not kept:

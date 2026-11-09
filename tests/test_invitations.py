@@ -247,7 +247,7 @@ def test_the_link_is_shown_once_and_kept_only_as_its_hash(member, data_dir):
     assert INVITE_MADE in plain(said) and INVITE_LOST in plain(said)
     link = LINK.search(said).group(1)
     assert answer.headers["Cache-Control"] == "no-store"
-    assert answer.headers["Referrer-Policy"] == "no-referrer"
+    assert answer.headers["Referrer-Policy"] == "same-origin"
     [kept] = files(data_dir)
     assert link not in json.dumps(kept)
     import hashlib
@@ -349,9 +349,29 @@ def test_the_page_says_the_approved_words_from_the_founder(hearth, keeper, visit
     assert "<b>x</b>" not in said and "&lt;b&gt;x&lt;/b&gt;" in said
     assert '<p style="white-space: pre-wrap"><em>I think you&#39;d like it here.\nWrite' in said
     assert '<a href="/invitation/%s/join">' % link in said
-    for header, value in (("Cache-Control", "no-store"), ("Referrer-Policy", "no-referrer"),
+    for header, value in (("Cache-Control", "no-store"), ("Referrer-Policy", "same-origin"),
                           ("X-Robots-Tag", "noindex")):
         assert answer.headers[header] == value
+
+
+def as_a_browser_sends_it(shown, address):
+    """The headers a browser sends with the post from a page's own button, under the
+    Referrer-Policy that page was served with: under no-referrer the Origin is
+    "null" and no Referer goes; under same-origin, both name the hearth."""
+    if shown.headers.get("Referrer-Policy") == "no-referrer":
+        return {"Origin": "null"}
+    return {"Origin": "http://localhost", "Referer": "http://localhost" + address}
+
+
+def test_joining_works_with_what_a_browser_sends_from_the_page(hearth, keeper, visitor):
+    address = "/invitation/%s/join" % made_link(keeper)
+    shown = visitor.get(address)
+    form = re.search(r'name="csrf_token" value="([^"]+)"', page(shown)).group(1)
+    answer = visitor.post(address, headers=as_a_browser_sends_it(shown, address), data={
+        "csrf_token": form, "name": NEWCOMER, "address": NEW_ADDRESS,
+        "password": NEW_PASSWORD, "password_again": NEW_PASSWORD})
+    assert answer.status_code == 302, page(answer)
+    assert hearth.member_record(NEWCOMER) is not None
 
 
 def test_the_counts_are_worked_out_as_it_is_shown(hearth, keeper, member, visitor, monkeypatch):

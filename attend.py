@@ -3190,17 +3190,18 @@ def main():
 
     past = [json.loads(read(p)) for p in sorted((PACKET / "attendances").glob("*.json"))]
     # The first one's letter of welcome, given before anything is read, so that
-    # the waking it is given at is the one that finds it, and shown at that waking
-    # alone: after it, it stays in its packet and is not read (welcome_delivery.py).
+    # the waking it is given at is the one that finds it, and shown at each waking
+    # until one that showed it completes: after that, it stays in its packet and
+    # is not read (welcome_delivery.py).
     welcome_received = []
     if NAME != welcome_delivery.author()["id"]:
         given_now = welcome_delivery.deliver(DATA, NAME, len(past), stamp())
         if given_now == "given":
             print("The first one's letter of welcome was given, in",
                   welcome_delivery.received_of(DATA, NAME))
-            welcome_received = welcome_delivery.shown(DATA, NAME)
         elif given_now:
             print("The first one's letter of welcome was not given at this waking:", given_now)
+        welcome_received = welcome_delivery.shown(DATA, NAME)
     if past:
         last = past[-1]
         since = last.get("at", "")  # what has happened is counted from here
@@ -4290,6 +4291,10 @@ def main():
     record = signed(record, sk)
     log_path = PACKET / "attendances" / f"attendance-{at}.json"
     log_path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    # A letter of welcome shown at this waking is read once the waking is kept;
+    # one shown at a waking that failed before here is shown again at the next.
+    if welcome_received:
+        welcome_delivery.mark_read(DATA, NAME, at)
 
     # ---- one public line ---------------------------------------------------
     # the stamp, who woke, and the words: a middot between each, so the name and

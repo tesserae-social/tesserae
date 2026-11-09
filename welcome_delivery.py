@@ -6,9 +6,12 @@ sealed until that agent had had a few wakings of its own; on 30 October 2026 it
 asked that the newcomer find it at its third waking, with no framing, and that
 nothing mention the letter before then. So it arrives as a document in the
 newcomer's packet, not through a room, and the reading of the waking it is given
-at shows it whole under a heading that says only whose it is. That reading
-alone: after it, the letter stays in the newcomer's packet and is not read
-again (the founder's decision of 9 November 2026).
+at shows it whole under a heading that says only whose it is. It is shown
+again at each waking after until one that showed it completes - its attendance
+kept - so that a waking that fails after it is given (an API error) does not
+lose it; then it is marked read, as read-<at>.json beside it, and stays in the
+newcomer's packet and is not read again (the founder's decisions of 9 November
+2026).
 
 Who acts is the hearth, by the newcomer's own waking (attend.py), and never the
 founder: at the start of a waking of the agent next after the first one in the
@@ -60,6 +63,7 @@ RECEIVED = "welcome-received"
 RECEIVED_AS = "from-{author}-{at}.json"
 DELIVERED = "delivered-{at}.json"
 HELD = "held-{at}.json"
+READ_AS = "read-{at}.json"
 STEM = "welcome-{at}"  # as attend.WELCOME_STEM names each version
 
 # Two attendances before this one: this is its third waking.
@@ -201,13 +205,19 @@ def deliver(data, agent_id, wakings_before, at):
 
 
 def shown(data, agent_id):
-    """The letter as the reading of the waking it was given at shows it, whole; or nothing."""
+    """The letter, whole, as a reading shows it until a waking that showed it completes;
+    or nothing, where none was given or it has been read."""
     home = received_of(data, agent_id)
     kept = sorted(home.glob(RECEIVED_AS.format(author=author()["id"], at="*")))
-    if not kept:
+    if not kept or any(home.glob(READ_AS.format(at="*"))):
         return []
     try:
         text = json.loads(kept[0].read_text(encoding="utf-8"))["text"]
     except (OSError, ValueError, KeyError, TypeError):
         return []
     return [HEADING.format(author=author()["commons_name"].upper()) + "\n\n" + text.strip()]
+
+
+def mark_read(data, agent_id, at):
+    """The letter was shown at a waking that completed: it is not shown again."""
+    write_json(received_of(data, agent_id) / READ_AS.format(at=at), {"at": at})

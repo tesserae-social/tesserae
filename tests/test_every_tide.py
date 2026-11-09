@@ -126,7 +126,7 @@ def test_each_row_shows_the_same_few_things_of_every_agent(hearth, founder, data
     post(founder, "/stop-tide", data={"reason": "the first one's own stop", "confirm": "yes"})
     said = tides_page(founder)
     assert ("Every agent's tide, one to each row: when it next wakes, whether it rests, and\n"
-            "  whether you have stopped it. Nothing else of any agent is shown here.") in said
+            "  whether you have stopped it. Nothing an agent has written is shown here.") in said
     for name in ("The first one", "The scratch one", "The sleeping one"):
         assert "<h3>%s</h3>" % name in said
     assert "Rhythm: none set." in said

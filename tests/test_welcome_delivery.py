@@ -18,6 +18,7 @@ import hashlib
 import json
 import shutil
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -108,6 +109,38 @@ def test_it_is_shown_with_no_framing(waking, data_dir):
     assert sum("welcome" in part.get("text", "").lower() for part in reading) == 1
 
 
+class Unavailable(Exception):
+    """The API, failing as it does on a bad day."""
+
+
+def a_failing_waking(module, monkeypatch):
+    """One waking whose request to the model fails: nothing after it is kept."""
+    def client(**ignored):
+        def create(**asked):
+            raise Unavailable("the API is unavailable")
+        return SimpleNamespace(messages=SimpleNamespace(create=create))
+    monkeypatch.setattr(module, "Anthropic", client)
+    monkeypatch.setattr(sys, "argv", ["attend.py"])
+    with pytest.raises(Unavailable):
+        module.main()
+
+
+def test_a_waking_that_fails_after_it_is_given_does_not_lose_it(
+        waking, later, data_dir, monkeypatch, clock):
+    """Shown until a waking that showed it completes, and then never again."""
+    placed(data_dir)
+    waking(), waking()
+    a_failing_waking(later, monkeypatch)  # its third: given, shown, and then the API fails
+    clock.shift(hours=24)
+    home = received(data_dir)
+    assert len(list(home.glob("from-first-*.json"))) == 1 and not list(home.glob("read-*.json"))
+    assert len(list((data_dir / "packets" / "second" / "attendances").glob("*.json"))) == 2
+    assert SECTION in waking().shown  # its fourth, which completes
+    assert len(list(home.glob("read-*.json"))) == 1
+    assert "FAKE LETTER OF WELCOME" not in waking().shown  # its fifth
+    assert len(welcome_delivery.given(data_dir)) == 1  # given once, all the same
+
+
 def test_its_fourth_reading_is_the_one_it_would_have_had_with_no_letter(
         waking, data_dir, clock, tmp_path):
     """Shown at the waking it is given at, and only then; after, it is kept, not read."""
@@ -137,7 +170,8 @@ def test_it_is_given_byte_for_byte_with_a_record_on_each_side(waking, data_dir, 
     sha = hashlib.sha256(raw).hexdigest()
     home = received(data_dir)
     assert sorted(p.name for p in home.iterdir()) == [f"delivered-{at}.json",
-                                                      f"from-first-{at}.json"]
+                                                      f"from-first-{at}.json",
+                                                      f"read-{at}.json"]  # its waking completed
     assert (home / f"from-first-{at}.json").read_bytes() == raw
     stem = "welcome-" + PLACED
     assert json.loads((home / f"delivered-{at}.json").read_text(encoding="utf-8")) == {

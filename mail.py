@@ -250,3 +250,28 @@ def send_reset_keeper(to, now=None):
 def send_changed(to, name, day, now=None):
     return send(CHANGED, to, CHANGED_SUBJECT,
                 CHANGED_TEXT.format(name=name, day=day, link=link("/forgot")), now)
+
+
+# When something is waiting for a person on the hearth (proposals/quiet-and-
+# questions.md, section 3, as the founder changed it on 9 November): who wrote,
+# and a link, and nothing else - never a word of any letter, never a count, never
+# "you've been away" - and in every one, a link that stops them.
+WAITING = "waiting"
+WAITING_SUBJECT = "Someone has written to you at Tesserae"
+WAITING_TEXT = """{who} {has} written to you at Tesserae.
+
+{link}
+
+To stop these emails, open this link: {stop}"""
+
+
+def send_waiting(to, names, stop, now=None):
+    """Tell a person who has written to them, by the names the commons gives them."""
+    names = [name for name in names if isinstance(name, str) and name]
+    if not names:
+        return NOT_SENT % "no one wrote"
+    who = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    return send(WAITING, to, WAITING_SUBJECT,
+                WAITING_TEXT.format(who=who[:1].upper() + who[1:],
+                                    has="has" if len(names) == 1 else "have",
+                                    link=link("/login"), stop=stop), now)

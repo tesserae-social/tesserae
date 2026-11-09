@@ -195,8 +195,29 @@ def test_pages_that_carry_a_link_are_kept_from_caches_referrers_and_indexes(foun
     for answer in (founder.get("/email/confirm/" + link), confirm(founder, link),
                    founder.get("/email/confirm/" + link)):
         assert answer.headers["Cache-Control"] == "no-store"
-        assert answer.headers["Referrer-Policy"] == "no-referrer"
+        assert answer.headers["Referrer-Policy"] == "same-origin"
         assert answer.headers["X-Robots-Tag"] == "noindex"
+
+
+def as_a_browser_sends_it(shown, address):
+    """The headers a browser sends with the post from a page's own button, under the
+    Referrer-Policy that page was served with: under no-referrer the Origin is
+    "null" and no Referer goes; under same-origin, both name the hearth."""
+    if shown.headers.get("Referrer-Policy") == "no-referrer":
+        return {"Origin": "null"}
+    return {"Origin": "http://localhost", "Referer": "http://localhost" + address}
+
+
+def test_the_button_works_with_what_a_browser_sends_from_the_page(hearth, founder, outbox):
+    ask(founder)
+    address = "/email/confirm/" + link_in(outbox.sent[0])
+    browser = hearth.app.test_client()
+    shown = browser.get(address)
+    form = re.search(r'name="csrf_token" value="([^"]+)"', page(shown)).group(1)
+    answer = browser.post(address, data={"csrf_token": form},
+                          headers=as_a_browser_sends_it(shown, address))
+    assert answer.status_code == 200 and escape(CONFIRMED) in page(answer), page(answer)
+    assert hearth.members.email_of(FOUNDER_NAME)["address"] == KEPT
 
 
 def test_the_link_is_on_the_hearth_s_own_address_whatever_host_is_asked_for(

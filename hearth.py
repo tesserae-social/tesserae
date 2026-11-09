@@ -3310,7 +3310,9 @@ EMAIL_CONFIRMED = "Your email address is confirmed."
 LINK_NOT_OPEN = "This link is no longer open."
 
 # Pages a token is carried on: kept out of every cache, out of the address any
-# link on them hands on, and out of every index.
+# link on them hands on to another site, and out of every index. The policy is
+# same-origin and not no-referrer: under no-referrer a browser names the Origin
+# of the page's own button as "null", and the hearth refuses a post from nowhere.
 TOKEN_PAGES = frozenset({"confirm_email"})
 
 
@@ -3318,7 +3320,7 @@ TOKEN_PAGES = frozenset({"confirm_email"})
 def keep_tokens_close(answer):
     if request.endpoint in TOKEN_PAGES:
         answer.headers["Cache-Control"] = "no-store"
-        answer.headers["Referrer-Policy"] = "no-referrer"
+        answer.headers["Referrer-Policy"] = "same-origin"
         answer.headers["X-Robots-Tag"] = "noindex"
     return answer
 

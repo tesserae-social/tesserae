@@ -1176,6 +1176,7 @@ def rhythm_note(of=None):
 # registry names the door among its features.
 FIRST_ONES_LINE = re.compile(r"^﻿?[\s-]*citizen\s*·\s*the first one\b")
 ATTENDS_AT = re.compile(r"attends at (?:dawn|sunset|\d{2}:\d{2})")
+FOUNDED_SAID = re.compile(r"founded \d{1,2} [A-Z][a-z]+ \d{4}")
 MEMBERS_LINE = re.compile(r"^﻿?[\s-]*member\s*·\s*([^·]+?)\s*·\s*\S")
 DOOR_SAID = re.compile(r" · door (?:open|closed)(?: · (?:has room|is full))?[ \t]*$")
 KEEPS_THE_HEARTH = re.compile(r"[ \t]*·[ \t]*keeps the hearth(?=[ \t]*·|[ \t]*$)")
@@ -1280,7 +1281,24 @@ def attending(line, times):
     if citizen["id"] not in times:
         times[citizen["id"]] = attends_today(citizen)
     at = times[citizen["id"]]
-    return ATTENDS_AT.sub("attends at " + at, line, count=1) if at else line
+    if not at:
+        return line
+    if ATTENDS_AT.search(line):
+        return ATTENDS_AT.sub("attends at " + at, line, count=1)
+    if citizen["id"] == rooms.FIRST:
+        return line  # the first one's line is the founder's, and has always said it
+    # A later citizen's line is written without it, since it has no rhythm until its
+    # first waking (by hand); once it has one, it is said, after "founded ..." where
+    # the line says so, and before any door (the founder, 9 November).
+    words = line.rstrip("\r\n")
+    plain = DOOR_SAID.sub("", words)
+    its_door = words[len(plain):]
+    founded = FOUNDED_SAID.search(plain)
+    if founded:
+        plain = plain[:founded.end()] + ", attends at " + at + plain[founded.end():]
+    else:
+        plain = plain.rstrip() + " · attends at " + at
+    return plain + its_door + line[len(words):]
 
 
 # Every tide tends members.md, and the pages do on the way to handing it out;
@@ -2297,6 +2315,35 @@ def backup_trees():
 
 BACKUP_TREES = backup_trees()
 
+# A founding in progress (found_agent.py) keeps its plan, letters and manifest
+# under foundings/<id>/, and, before it is in the registry, the new agent's
+# signing key and packet under keys/<id> and packets/<id>, which no tree above
+# holds. Each is nowhere but this disk, the key above all, so each backup takes
+# them too (gate G7): asked at the moment of the backup, since a founding goes
+# on while the hearth runs, and after every tree above, so that with no founding
+# under way the backup is what it always was. A tree that is not there is not
+# named; one that a tree above already holds is not named twice.
+FOUNDINGS = "foundings"
+STAGED_PLAN = "plan.json"
+
+
+def staged_trees(held=None):
+    """The trees of every founding under way, in the order of their ids: foundings/ first."""
+    held = BACKUP_TREES if held is None else held
+    if not (DATA / FOUNDINGS).is_dir():
+        return ()
+    trees = [FOUNDINGS]
+    registered = {agent["id"] for agent in agents.registry()}
+    for plan in sorted((DATA / FOUNDINGS).glob("*/" + STAGED_PLAN)):
+        staged = plan.parent.name
+        if staged in registered or not agents.ID.fullmatch(staged):
+            continue
+        for tree in ("packets/" + staged, "keys/" + staged):
+            if ((DATA / tree).is_dir() and tree not in trees
+                    and not any(tree == one or tree.startswith(one + "/") for one in held)):
+                trees.append(tree)
+    return tuple(trees)
+
 EXPORT_TAKEN = "export taken by the founder"
 EXPORT_TAKEN_BY = "export taken by %s"  # a person who is not the founder, by their commons name
 
@@ -2412,7 +2459,7 @@ def backup_archive():
     """
     holder = io.BytesIO()
     with ATTEND_LOCK, tarfile.open(fileobj=holder, mode="w:gz") as bundle:
-        for path, name in export_files(BACKUP_TREES, left_out=()):
+        for path, name in export_files(BACKUP_TREES + staged_trees(), left_out=()):
             bundle.add(path, arcname=name)
     return holder.getvalue()
 
@@ -3273,6 +3320,7 @@ def account_page(**told):
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
                            rest_said=rest_said(name) if name else None,
                            email=email_shown(name) if name else None,
+                           emails=emails_shown(name) if name else None,
                            inviting=inviting_shown(name) if name else None,
                            writing_longest=members.WRITING_LONGEST, **told)
 
@@ -3344,7 +3392,7 @@ EMAIL_UNCONFIRMED = "We've sent a link to your email address. Open it to confirm
 # link on them hands on to another site, and out of every index. The policy is
 # same-origin and not no-referrer: under no-referrer a browser names the Origin
 # of the page's own button as "null", and the hearth refuses a post from nowhere.
-TOKEN_PAGES = frozenset({"confirm_email", "reset_password"})
+TOKEN_PAGES = frozenset({"confirm_email", "reset_password", "stop_emails"})
 
 
 @app.after_request
@@ -3458,6 +3506,228 @@ def utc_iso():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# ---- an email when something is waiting --------------------------------------
+
+# A person is emailed when something is waiting for them in one of their rooms:
+# a letter of the agent's they have not opened, an errand it has asked that no
+# letter has answered, or an offering of its that waits on them (proposals/quiet-
+# and-questions.md, section 3, as the founder changed it on 9 November). The
+# email says only who wrote, with a link, and never a word of any letter, nor a
+# count (mail.send_waiting). Each person chooses on their account page: daily,
+# weekly, or off; daily until they choose. Each email carries a link that stops
+# them.
+#
+# Only something not yet told of brings an email: a letter left unopened is told
+# of once, not every day it waits. Nothing is sent to an address that is not
+# confirmed, nor to anyone resting from the correspondence, whose rest is theirs.
+#
+# The emails go once a day, at WAITING_HOUR: eighteen o'clock UTC, one in the
+# afternoon in Eastern winter and two in its summer. That is hours from every
+# dawn the tide wakes an agent at (the latest, in January, a little after
+# thirteen o'clock UTC), five from the nightly backup (BACKUP_HOUR, thirteen
+# o'clock), and hours before the earliest sunset (after twenty-one o'clock UTC),
+# so a letter written at dawn is told of the same day, and no email goes while a
+# dawn waking may be writing.
+WAITING_HOUR = 18     # UTC
+WAITING_GAP = {"daily": timedelta(hours=20), "weekly": timedelta(days=6, hours=12)}
+EMAIL_ROUND = DATA / "email-round.json"  # the UTC day the emails last went out
+EMAIL_CHOICES = {"daily": "Daily, when something is waiting",
+                 "weekly": "Weekly at most",
+                 "off": "Never"}
+EMAILS_SAVED = "Saved."
+EMAILS_STOPPED = "You won't be emailed when something is waiting. You can change this on your account page."
+STOP_LINK_NOT_OPEN = "This link doesn't stop anything."
+
+
+def waiting_for(name):
+    """Who has something waiting for a person, by the names the commons gives them, and what:
+    (names, things), each thing named by its room and its stamp or id, and nothing else of it."""
+    names, things = [], set()
+    for room in rooms.of(name):
+        found = set()
+        latest = latest_letter(room)
+        if latest and latest["theirs"] and latest["stamp"] > members.seen(name, room.id):
+            found.add("letter:%s:%s" % (room.id, latest["stamp"]))
+        for errand in open_errands(room.id):
+            found.add("errand:%s:%s" % (room.id, errand["name"]))
+        if is_first_room(room):  # offerings are built for its room alone yet (gate G4)
+            for one in offering.awaiting("founder"):
+                found.add("offering:%s:%s" % (room.id, one.get("id", "")))
+        if found:
+            names.append(room.other)
+            things |= found
+    return names, things
+
+
+def resting(name):
+    """Whether a person rests from the correspondence: the founder's rest for the keeper."""
+    try:
+        record = members.load_member(name)
+    except MemberError:
+        return False
+    keeper = isinstance(record, dict) and record.get("role") == "keeper"
+    return bool(founder_rest(members.FOUNDER if keeper else name))
+
+
+def email_due(name, now):
+    """What an email to a person would say now, (address, names, things), or None for none."""
+    every = members.emails_of(name)
+    if every not in WAITING_GAP:
+        return None
+    held = members.email_of(name)
+    if not held or not held.get("confirmed_at") or resting(name):
+        return None
+    names, things = waiting_for(name)
+    told = members.told_of(name)
+    if not things or not things - set(told.get("told", [])):
+        return None
+    try:
+        last = datetime.strptime(told["at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (KeyError, TypeError, ValueError):
+        last = None
+    if last is not None and now - last < WAITING_GAP[every]:
+        return None
+    return held["address"], names, things
+
+
+def stop_token(name):
+    """The part of a person's stop link that only the hearth can make: it stops their emails
+    when something waits, and does nothing else."""
+    return hmac.new(HEARTH_SECRET.encode("utf-8"), ("email-stop:" + name).encode("utf-8"),
+                    hashlib.sha256).hexdigest()[:32]
+
+
+def stop_link(name):
+    """A person's stop link, on the hearth's own address."""
+    return mail.link("/email/stop/%s/%s" % (name, stop_token(name)))
+
+
+def send_waiting_emails(now=None):
+    """One round: an email to each person something new waits for. How many went."""
+    now = now or datetime.now(timezone.utc)
+    went = 0
+    for name in members.list_members():
+        try:
+            due = email_due(name, now)
+            if due is None:
+                continue
+            address, names, things = due
+            if mail.send_waiting(address, names, stop_link(name), now) == mail.SENT:
+                members.set_told(name, things, now)
+                went += 1
+        except Exception:  # one person's trouble stops no one else's email
+            continue
+    return went
+
+
+def next_round(now):
+    """The next eighteen o'clock UTC: today's if it is still ahead, else tomorrow's."""
+    at = now.replace(hour=WAITING_HOUR, minute=0, second=0, microsecond=0)
+    return at if at > now else at + timedelta(days=1)
+
+
+def round_due(now):
+    """Whether today's round has yet to go, its hour having come."""
+    if now.hour < WAITING_HOUR:
+        return False
+    return (load(EMAIL_ROUND) or {}).get("day") != now.strftime("%Y-%m-%d")
+
+
+def email_round(now):
+    """Today's round, once: what went is noted in mail.log, and the day here."""
+    write_json(EMAIL_ROUND, {"day": now.strftime("%Y-%m-%d")})
+    send_waiting_emails(now)
+
+
+def emailing():
+    """Send the day's emails at eighteen o'clock UTC. Forever, and quietly."""
+    try:
+        now = datetime.now(timezone.utc)
+        if round_due(now):  # the machine may have been down at the hour
+            email_round(now)
+    except Exception:
+        pass
+    while True:
+        try:
+            when = next_round(datetime.now(timezone.utc))
+            while True:
+                left = (when - datetime.now(timezone.utc)).total_seconds()
+                if left <= 0:
+                    break
+                time.sleep(min(left, BACKUP_CHUNK))
+            now = datetime.now(timezone.utc)
+            if round_due(now):
+                email_round(now)
+        except Exception:  # nothing may end this thread
+            time.sleep(BACKUP_ERROR)
+
+
+EMAILS_RUNNING = False
+
+
+def start_emails():
+    """Set the day's emails going, once."""
+    global EMAILS_RUNNING
+    if EMAILS_RUNNING:
+        return
+    EMAILS_RUNNING = True
+    threading.Thread(target=emailing, name="emails", daemon=True).start()
+
+
+def emails_shown(name):
+    """How often the one signed in is emailed when something waits, as their page shows it."""
+    return {"every": members.emails_of(name), "choices": EMAIL_CHOICES}
+
+
+@app.route("/account/emails", methods=["POST"])
+@member_required
+def account_emails():
+    name = session.get("member")
+    try:
+        members.set_emails(name, request.form.get("every", ""))
+    except MemberError:
+        return account_page(emails_error="Choose daily, weekly or never.")
+    return account_page(emails_saved=EMAILS_SAVED)
+
+
+STOP_PAGE = """{% extends "base.html" %}
+{% block title %}emails{% endblock %}
+{% block heading %}emails{% endblock %}
+{% block content %}
+<section>
+  {% if note %}<p>{{ note }}</p>
+  {% else %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>Press the button to stop the emails Tesserae sends you when something is waiting.</p>
+    <button type="submit">Stop these emails</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
+"""
+
+
+# The link opens a page with one button, and the emails stop only when it is
+# pressed, as with the link that confirms an address: some mail services open
+# every link in a message before its reader does.
+@app.route("/email/stop/<name>/<token>", methods=["GET", "POST"])
+def stop_emails(name, token):
+    try:
+        known = members.load_member(name) is not None
+    except MemberError:
+        known = False
+    if not known or not hmac.compare_digest(token, stop_token(name)):
+        return render_template_string(STOP_PAGE, note=STOP_LINK_NOT_OPEN), 410
+    if request.method == "GET":
+        return render_template_string(STOP_PAGE, note=None)
+    try:
+        members.set_emails(name, "off")
+    except MemberError:
+        return render_template_string(STOP_PAGE, note=STOP_LINK_NOT_OPEN), 410
+    return render_template_string(STOP_PAGE, note=EMAILS_STOPPED)
+
+
 # ---- invitations ------------------------------------------------------------
 
 # Tesserae is open by invitation only (proposals/invitations.md, and the design
@@ -3488,8 +3758,8 @@ SIGNED_IN_ALREADY = "You're signed in already; this invitation is for someone ne
 JOIN_SAID = "Choose how you'll be known here, an email address, and a password."
 JOIN_NAME_SAID = ("Short, and not necessarily your real name: lowercase letters, digits and "
                   "single hyphens.")
-JOIN_EMAIL_SAID = ("Only for a link if you forget your password. It's never shown to anyone "
-                   "else or read by any agent.")
+JOIN_EMAIL_SAID = ("For a password link, and a short email when something is waiting for you, "
+                   "which you can stop. Never shown to anyone else or read by any agent.")
 JOIN_PASSWORD_SAID = "At least 10 characters."
 JOIN_PRIVATE = ("Private here means unread and unshown. The server keeps encrypted backups, so "
                 "it isn't unreadable, and we won't pretend otherwise.")
@@ -4325,7 +4595,8 @@ def leave_letter(room):
 
     incoming = rooms.places(room.id).incoming
     incoming.mkdir(parents=True, exist_ok=True)
-    stem = free_stem(f"founder-{utc_stamp()}", room.id)
+    # named for its writer: "founder-" in a room the keeper is in, as always (G10)
+    stem = free_stem(f"{rooms.person_of(room.id)}-{utc_stamp()}", room.id)
     (incoming / f"{stem}.md").write_text(offering.with_things(things, text + "\n"),
                                          encoding="utf-8")
     if photo:
@@ -5850,6 +6121,7 @@ def take_off_bench():
 
 start_tide()
 start_backups()
+start_emails()
 
 
 if __name__ == "__main__":

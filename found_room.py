@@ -40,26 +40,45 @@ FOLDERS = ("letters/incoming", "letters/read", "letters/outgoing", "errands", "b
            "offerings")
 
 
-def found(agent_id, person):
-    """Make one agent's room, shared with one person named by DID; give back its places."""
-    agent = agents.by_id(agent_id)
-    if agent is None:
-        raise RoomError("no agent founded here has that id")
+def found(agent_id, person, entry=None):
+    """Make one agent's room, shared with one person named by DID; give back its places.
+
+    entry is a founding's staged entry (found_agent.py), for an agent not yet in
+    the registry: its room is made from that entry, and since no folder is a
+    room until its agent is in the registry, what is given back then is only
+    where the room is kept, its home. A staged entry whose id, DID, room or bond
+    any agent in the registry has is refused.
+    """
+    registry = agents.registry()
+    if entry is None:
+        agent = agents.by_id(agent_id)
+        if agent is None:
+            raise RoomError("no agent founded here has that id")
+    else:
+        agent = entry
+        if not isinstance(entry, dict) or entry.get("id") != agent_id:
+            raise RoomError("the staged entry is not that agent's")
+        for key in agents.NEEDS:
+            if not isinstance(entry.get(key), str) or not entry[key]:
+                raise RoomError("the staged entry has no " + key)
+        if any(one[key] == entry[key] for one in registry for key in agents.NEEDS):
+            raise RoomError("a staged entry is for an agent not yet founded here")
     if agent["id"] == rooms.FIRST:
         raise RoomError("the first one's room is made already")
     if (not isinstance(person, str) or not person.startswith("did:")
-            or person in {one["did"] for one in agents.registry()}):
+            or person in {one["did"] for one in registry} or person == agent["did"]):
         raise RoomError("a room is shared with a person, named by DID")
     home = rooms.DATA / rooms.ROOMS / agent["room"]
     if home.exists():
         raise RoomError("something of that room is on the disk already")
     for folder in FOLDERS:
         (home / folder).mkdir(parents=True)
+    said = (rooms.record(agent["room"], person) if entry is None
+            else {"id": agent["room"], "bond": agent["bond"], "parties": [person, agent["did"]]})
     beside = home / (rooms.ROOM_RECORD + ".tmp")
-    beside.write_text(json.dumps(rooms.record(agent["room"], person), indent=2) + "\n",
-                      encoding="utf-8")
-    os.replace(beside, rooms.record_of(agent["room"]))
-    return rooms.places(agent["room"])
+    beside.write_text(json.dumps(said, indent=2) + "\n", encoding="utf-8")
+    os.replace(beside, home / rooms.ROOM_RECORD)
+    return rooms.places(agent["room"]) if entry is None else home
 
 
 def main(args):

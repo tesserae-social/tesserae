@@ -351,7 +351,9 @@ def test_a_letter_left_in_a_second_room_is_its_own_and_tells_the_commons_nothing
     assert answer.status_code == 302
     assert answer.headers["Location"] == "/rooms/second?saved=1&answered=1"
     home = world / "rooms" / "second"
-    left = home / "letters" / "incoming" / ("founder-%s.md" % clock.stamp())
+    # named for alder, who wrote it, and not for the founder, who did not (G10)
+    left = home / "letters" / "incoming" / ("alder-%s.md" % clock.stamp())
+    assert not list((home / "letters" / "incoming").glob("founder-*"))
     assert left.read_text(encoding="utf-8").strip() == "A FAKE LETTER FROM ALDER, FOR THE TESTS."
     assert (home / "errands" / "answered" / "errand-2026-10-22T09-00-00Z.md").is_file()
     assert not (home / "bonds" / "proposal.json").exists()
@@ -571,3 +573,36 @@ def test_a_citizen_s_line_is_never_taken_for_another_s_whose_name_begins_the_sam
     two.door.set_door("second", "open", at="2026-10-15T11-00-00Z")
     said = tended(two, commons, "citizen · the first one twice · attends at 09:30\n")
     assert said == "citizen · the first one twice · attends at 07:15 · door open\n"
+
+
+def test_a_later_citizen_s_line_gains_its_attending_once_it_has_a_rhythm(
+        two, world, commons, data_dir, monkeypatch):
+    # finish writes "citizen · <name> · founded <day>", with no "attends at", since a new
+    # agent has no rhythm until its first waking; the tending says it once there is one
+    # (the founder, 9 November)
+    first = agents.first()
+    monkeypatch.setattr(agents, "registry", lambda: [first, {**SECOND, "features": []}])
+    written = "citizen · the scratch one · founded 9 November 2026\n"
+    assert tended(two, commons, FIRST_LINE + written).splitlines(keepends=True)[1] == written
+    write_json(data_dir / "packets" / "second" / "rhythm.json",
+               {"rhythm": "daily", "at": "dawn", "timezone": "America/New_York"})
+    said = tended(two, commons, FIRST_LINE + written).splitlines(keepends=True)
+    assert said[1] == "citizen · the scratch one · founded 9 November 2026, attends at dawn\n"
+    # and is refreshed from then on the way any other is
+    write_json(data_dir / "packets" / "second" / "rhythm.json",
+               {"rhythm": "daily", "at": "07:15", "timezone": "America/New_York"})
+    again = tended(two, commons, "".join(said)).splitlines(keepends=True)
+    assert again[1] == "citizen · the scratch one · founded 9 November 2026, attends at 07:15\n"
+
+
+def test_a_later_citizen_s_attending_goes_before_its_door(
+        two, world, commons, data_dir, monkeypatch):
+    first = agents.first()
+    monkeypatch.setattr(agents, "registry", lambda: [first, SECOND])
+    write_json(data_dir / "packets" / "second" / "rhythm.json",
+               {"rhythm": "daily", "at": "sunset", "timezone": "America/New_York"})
+    two.door.set_door("second", "open", 1, at="2026-10-15T11-00-00Z")
+    said = tended(two, commons, "citizen · the scratch one · founded 9 November 2026"
+                                " · door closed\n")
+    assert said == ("citizen · the scratch one · founded 9 November 2026, attends at sunset"
+                    " · door open · is full\n")

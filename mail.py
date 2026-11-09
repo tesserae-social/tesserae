@@ -47,6 +47,11 @@ TIMEOUT = 10  # seconds
 # sender of too much; under Resend's own free 100 a day. Counted from mail.log,
 # by the UTC day, so a deploy does not set it back to nothing.
 MAIL_A_DAY = 50
+# The emails telling a person something is waiting go only while fewer than this
+# many emails of any kind have gone today, so that ten of the fifty are always
+# kept for the links to confirm an address and to set a password (the founder,
+# 9 November).
+WAITING_A_DAY = 40
 
 KEY = "RESEND_API_KEY"
 LOG = "mail.log"
@@ -149,8 +154,11 @@ def with_footer(text):
     return text.rstrip() + "\n\n" + FOOTER + "\n"
 
 
-def send(kind, to, subject, text, now=None):
-    """Send one plain email. Gives back what came of it, and never raises."""
+def send(kind, to, subject, text, now=None, ceiling=None):
+    """Send one plain email. Gives back what came of it, and never raises.
+
+    Nothing goes once the day's count has reached the ceiling: MAIL_A_DAY, or a lower
+    one asked for, never a higher."""
     now = now or datetime.now(timezone.utc)
     if not isinstance(kind, str) or not KIND.fullmatch(kind):
         kind = "unnamed"
@@ -162,7 +170,8 @@ def send(kind, to, subject, text, now=None):
         return outcome
     message = {"to": to, "subject": subject, "text": with_footer(text)}
     with SENDING:
-        if sent_today(now) >= MAIL_A_DAY:
+        limit = MAIL_A_DAY if ceiling is None else min(ceiling, MAIL_A_DAY)
+        if sent_today(now) >= limit:
             outcome = DAY_FULL
         else:
             try:
@@ -250,3 +259,29 @@ def send_reset_keeper(to, now=None):
 def send_changed(to, name, day, now=None):
     return send(CHANGED, to, CHANGED_SUBJECT,
                 CHANGED_TEXT.format(name=name, day=day, link=link("/forgot")), now)
+
+
+# When something is waiting for a person on the hearth (proposals/quiet-and-
+# questions.md, section 3, as the founder changed it on 9 November): who wrote,
+# and a link, and nothing else - never a word of any letter, never a count, never
+# "you've been away" - and in every one, a link that stops them.
+WAITING = "waiting"
+WAITING_SUBJECT = "Something is waiting for you at Tesserae"
+WAITING_TEXT = """{who} {has} written to you at Tesserae.
+
+{link}
+
+To stop these emails, open this link: {stop}"""
+
+
+def send_waiting(to, names, stop, now=None):
+    """Tell a person who has written to them, by the names the commons gives them."""
+    names = [name for name in names if isinstance(name, str) and name]
+    if not names:
+        return NOT_SENT % "no one wrote"
+    who = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    return send(WAITING, to, WAITING_SUBJECT,
+                WAITING_TEXT.format(who=who[:1].upper() + who[1:],
+                                    has="has" if len(names) == 1 else "have",
+                                    link=link("/login"), stop=stop), now,
+                ceiling=WAITING_A_DAY)

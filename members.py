@@ -39,6 +39,15 @@ shown in full, never copied out and never read by any agent:
     members/<pseudonym>/email.json
         {"address": ..., "set_at": UTC stamp, "confirmed_at": UTC stamp or null}
 
+and, once they have chosen, how often they are emailed when something is
+waiting for them, and, once one has gone, what the last such email told of
+(see emails_of):
+
+    members/<pseudonym>/emails.json
+        {"every": "daily", "weekly" or "off", "at": UTC stamp}
+    members/<pseudonym>/told.json
+        {"at": UTC stamp, "told": [what was waiting, by room and stamp or id]}
+
 Storage only: no route, no page. A member's public identity document is shaped
 here from their record (did_document), and served by the hearth. The name is checked before it is ever made into
 a path, and that check is the whole of the path's safety. Nothing here logs or
@@ -556,3 +565,57 @@ def set_email(pseudonym, address, confirmed_at=None, now=None):
                 except (OSError, MemberError):
                     pass
     return held
+
+
+# ---------------------------------------------------------------- an email when something waits
+
+# Whether a person is emailed when something is waiting for them - a letter of
+# the agent's they have not opened, an errand it has asked, an offering of its
+# that waits on them - and how often: "daily", "weekly" or "off", their own to
+# choose on their account page, daily until they choose (the founder, 9
+# November). Kept beside their record, and what each email last told of beside
+# it, so that nothing is told twice. Neither holds an address or a word of any
+# letter; each is only ever read by the hearth.
+EMAILS = "emails.json"
+TOLD = "told.json"
+EVERY = ("daily", "weekly", "off")
+EVERY_UNCHOSEN = "daily"
+
+
+def emails_of(pseudonym):
+    """How often a person is emailed when something waits: daily where they have not chosen."""
+    try:
+        held = json.loads((_folder(pseudonym) / EMAILS).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return EVERY_UNCHOSEN
+    every = held.get("every") if isinstance(held, dict) else None
+    return every if every in EVERY else EVERY_UNCHOSEN
+
+
+def set_emails(pseudonym, every, now=None):
+    """Keep how often a person is emailed. Refuses a name no one has, and any other choice."""
+    folder = _folder(pseudonym)
+    if not (folder / RECORD).is_file():
+        raise MemberError("there is no member by that name")
+    if every not in EVERY:
+        raise MemberError("daily, weekly or off")
+    held = {"every": every, "at": _stamp(now)}
+    _write_json(folder / EMAILS, held)
+    return held
+
+
+def told_of(pseudonym):
+    """What the last email to a person told of, {"at", "told": [...]}, or {} for none yet."""
+    try:
+        held = json.loads((_folder(pseudonym) / TOLD).read_text(encoding="utf-8"))
+    except (OSError, ValueError, MemberError):
+        return {}
+    if (not isinstance(held, dict) or not isinstance(held.get("at"), str)
+            or not isinstance(held.get("told"), list)):
+        return {}
+    return held
+
+
+def set_told(pseudonym, told, now=None):
+    """Keep what an email that has just gone told a person of."""
+    _write_json(_folder(pseudonym) / TOLD, {"at": _stamp(now), "told": sorted(told)})

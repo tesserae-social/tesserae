@@ -152,6 +152,22 @@ def store_name(did):
     return "founder" if did == bonds.FOUNDER_DID else did.rsplit(":", 1)[-1]
 
 
+def person_of(room_id):
+    """The person a room is shared with, as the stores name them, or None for no room.
+
+    Their letters in it are named by it, and the agent's to them: "founder-<stamp>"
+    and "to-founder-<stamp>" in a room the keeper is in, as the first one's always
+    were, and "<pseudonym>-<stamp>" and "to-<pseudonym>-<stamp>" in any other, so
+    that no letter in a later agent's room is named for someone who did not write
+    it or is not its reader (gate G10, stage 8).
+    """
+    agent = agent_of(room_id)
+    pair = parties(room_id)
+    if agent is None or pair is None:
+        return None
+    return store_name(next(did for did in pair if did != agent["did"]))
+
+
 def of(who):
     """The rooms someone is in, each as they stand in it, in the order the agents were founded.
 

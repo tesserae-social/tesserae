@@ -1677,6 +1677,12 @@ def room_places():
     return rooms.places(AGENT["room"])
 
 
+def to_the_other():
+    """How its letters are named before their stamp: "to-founder-" in a room the keeper
+    is in, as the first one's always were, and "to-<pseudonym>-" in any other (G10)."""
+    return "to-" + rooms.person_of(AGENT["room"]) + "-"
+
+
 def errands_open():
     """The errands the first one has asked that no letter has answered yet."""
     return sorted(room_places().errands.glob("errand-*.md"))
@@ -2925,9 +2931,10 @@ def tide_stop_lines(since):
 def gone_out_on(day):
     """Whether anything - a letter, or a picture alone - went to the founder on one local day."""
     setting = rhythm_set()
-    for path in room_places().outgoing.glob("to-founder-*.md"):
+    named = to_the_other()
+    for path in room_places().outgoing.glob(named + "*.md"):
         try:
-            if waking.today(setting, threshold.moment(path.stem[len("to-founder-"):])) == day:
+            if waking.today(setting, threshold.moment(path.stem[len(named):])) == day:
                 return True
         except (TypeError, ValueError):
             continue
@@ -3698,13 +3705,13 @@ def main():
         picture_kept, picture = picture, None
     letter_name = None
     if letter or picture:
-        letter_name = f"to-founder-{at}.md"
+        letter_name = f"{to_the_other()}{at}.md"
         (places.outgoing / letter_name).write_text(
             (letter or ONLY_A_PICTURE) + "\n", encoding="utf-8")
     if letter:
         acted.append(LETTER_ACT)
     if picture:
-        (places.outgoing / f"to-founder-{at}.svg").write_text(
+        (places.outgoing / f"{to_the_other()}{at}.svg").write_text(
             picture + "\n", encoding="utf-8")
         acted.append(PICTURE_ACT)
 
@@ -3729,7 +3736,7 @@ def main():
     if kept_sent:
         draft_at, beside_at = (PACKET / "study" / f"{kept_sent}.md",
                                PACKET / "study" / f"{kept_sent}{offering.PICTURE_SUFFIX}")
-        letter_name = f"to-founder-{at}.md"
+        letter_name = f"{to_the_other()}{at}.md"
         alone = kept_sent.endswith("-picture")  # a picture alone, carried by its one line
         (places.outgoing / letter_name).write_text(
             (ONLY_A_PICTURE if alone else kept_letter_words(kept_sent)) + "\n", encoding="utf-8")
@@ -3737,7 +3744,7 @@ def main():
         STUDY_SENT.mkdir(parents=True, exist_ok=True)
         kept_sent_picture = beside_at.exists()
         if kept_sent_picture:
-            shutil.copy(beside_at, places.outgoing / f"to-founder-{at}.svg")
+            shutil.copy(beside_at, places.outgoing / f"{to_the_other()}{at}.svg")
             beside_at.replace(STUDY_SENT / beside_at.name)
         draft_at.replace(STUDY_SENT / draft_at.name)
 

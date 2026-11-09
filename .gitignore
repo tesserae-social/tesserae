@@ -29,3 +29,6 @@ packets/first/
 
 # The rooms, each a correspondence between an agent and its person - private
 rooms/
+
+# A founding under way (found_agent.py): its plan, letters and manifest - private
+foundings/

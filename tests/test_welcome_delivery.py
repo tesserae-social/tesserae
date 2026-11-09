@@ -274,9 +274,50 @@ def test_a_screen_that_cannot_be_asked_holds_it_until_the_next_waking(waking, da
     screen.says = "MAYBE"
     waking(), waking()
     assert "FAKE LETTER OF WELCOME" not in waking().shown
-    assert not list((data_dir / "packets" / "first" / "welcome").glob("held-*.json"))
+    welcome = data_dir / "packets" / "first" / "welcome"
+    assert not list(welcome.glob("held-*.json"))
+    unchecked = list(welcome.glob("unchecked-*.json"))
+    assert len(unchecked) == 1
+    assert json.loads(unchecked[0].read_text(encoding="utf-8"))["reason"] == "unasked"
+    assert "could not be asked" in welcome_delivery.held_line(data_dir)
+    screen.says = Unavailable("the screen is unavailable")  # asked again, and failing again
+    assert "FAKE LETTER OF WELCOME" not in waking().shown
+    assert len(list(welcome.glob("unchecked-*.json"))) == 2
     screen.says = "NO"
     assert SECTION in waking().shown
+    assert welcome_delivery.held_line(data_dir) is None  # given: nothing said
+
+
+def test_a_public_key_that_cannot_be_read_holds_it_until_the_next_waking(
+        waking, data_dir, screen):
+    """A key that could not be read checked nothing: it is no signature that failed."""
+    placed(data_dir)
+    key = data_dir / "keys" / "first" / "public.key"
+    kept = key.read_bytes()
+    waking(), waking()
+    key.unlink()
+    assert "FAKE LETTER OF WELCOME" not in waking().shown
+    welcome = data_dir / "packets" / "first" / "welcome"
+    assert not list(welcome.glob("held-*.json")) and screen.asked == []
+    unchecked = list(welcome.glob("unchecked-*.json"))
+    assert len(unchecked) == 1
+    assert json.loads(unchecked[0].read_text(encoding="utf-8"))["reason"] == "key"
+    key.write_bytes(kept)
+    assert SECTION in waking().shown
+
+
+def test_a_protected_words_list_that_cannot_be_read_holds_it_until_the_next_waking(
+        later, data_dir, screen):
+    """Asked of the delivery alone: a waking stops, loudly, on a list it cannot read."""
+    placed(data_dir)
+    words = data_dir / "private-words.txt"
+    words.mkdir()  # there, and not a list that can be read
+    assert welcome_delivery.deliver(data_dir, "second", 2, "2026-11-12T09-00-00Z") == "unchecked"
+    unchecked = list((data_dir / "packets" / "first" / "welcome").glob("unchecked-*.json"))
+    assert len(unchecked) == 1 and screen.asked == []
+    assert json.loads(unchecked[0].read_text(encoding="utf-8"))["reason"] == "unasked"
+    words.rmdir()
+    assert welcome_delivery.deliver(data_dir, "second", 2, "2026-11-13T09-00-00Z") == "given"
 
 
 def test_a_protected_word_holds_it_without_asking(waking, data_dir, screen):
@@ -425,6 +466,28 @@ def test_a_hold_is_one_line_on_the_tides_while_it_stands(founder, data_dir):
                {"to": "second", "at": "2026-11-11T09-00-00Z", "stem": "welcome-" + PLACED,
                 "sha256": "0" * 64})
     assert "welcome" not in page(founder.get("/tides")).lower()  # given since: nothing held
+
+
+UNCHECKED_LINE = ("The first one's welcome could not be checked at the waking of "
+                  "2026-11-12T09-00-00Z: the screen could not be asked. It is checked again "
+                  "at the next.")
+
+
+def an_unchecked(data_dir, reason, at="2026-11-12T09-00-00Z"):
+    write_json(data_dir / "packets" / "first" / "welcome" / f"unchecked-{at}.json",
+               {"to": "second", "at": at, "stem": "welcome-" + PLACED, "sha256": "1" * 64,
+                "reason": reason})
+
+
+def test_a_check_that_could_not_be_completed_is_one_line_on_the_tides(founder, data_dir):
+    placed(data_dir)
+    a_hold(data_dir, "screen")
+    an_unchecked(data_dir, "unasked")  # after the hold: it is the one said
+    said = page(founder.get("/tides"))
+    assert said.lower().count("welcome") == 1 and as_shown(UNCHECKED_LINE) in said
+    a_hold(data_dir, "signature", "2026-11-13T09-00-00Z")  # and a hold after it, that
+    said = page(founder.get("/tides"))
+    assert said.lower().count("welcome") == 1 and as_shown(SIGNATURE_LINE) in said
 
 
 def test_a_withdrawn_letter_s_hold_is_not_said(founder, data_dir):

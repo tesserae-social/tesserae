@@ -48,13 +48,24 @@ def fresh():
 
 @pytest.fixture
 def registry(env, monkeypatch, tmp_path):
-    """Read the registry from a file this test chooses; leave no module that read it behind."""
+    """Read the registry from a file this test chooses; leave no module that read it behind.
+
+    The modules that stood before are put back after, not merely dropped: a module
+    imported earlier (welcome_delivery, imported when its tests are collected)
+    holds the public_screen it found then, and conftest stubs the screen that
+    sys.modules names - were that a new one, the stub would miss the one it calls.
+    """
+    before = {name: sys.modules.get(name) for name in DERIVED}
+
     def use(where):
         monkeypatch.setattr(agents, "FILE", where)
         return fresh()
     yield use
-    for name in DERIVED:
-        sys.modules.pop(name, None)
+    for name, module in before.items():
+        if module is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = module
 
 
 def write_registry(path, entries):

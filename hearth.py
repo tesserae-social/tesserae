@@ -2252,7 +2252,9 @@ def chronicle_text(lines):
 # A letter of welcome given to an agent by the first one (welcome_delivery.py),
 # under its packet's welcome-received/, is left out of its copies, whoever takes
 # them: it is the first one's letter to it, and not its person's to read. The
-# backup keeps it.
+# backup keeps it. It is named only for the one agent a letter is given to
+# (welcome_delivery.recipient): the first one, its author, never has the folder,
+# and so what its copy leaves out is what it was.
 
 
 def packet_tree(agent):
@@ -2272,9 +2274,12 @@ def export_trees(agent):
 
 def left_out(agent):
     """What an agent's copy leaves out of its trees: its private notebook, a letter of welcome
-    given to it (welcome_delivery.py), and others' marks."""
-    return (packet_tree(agent) + "/private",
-            packet_tree(agent) + "/" + welcome_delivery.RECEIVED) + tuple(
+    given to it, where it is the one agent a letter is given to (welcome_delivery.py), and
+    others' marks."""
+    to = welcome_delivery.recipient()
+    received = ((packet_tree(agent) + "/" + welcome_delivery.RECEIVED,)
+                if to is not None and to["id"] == agent["id"] else ())
+    return (packet_tree(agent) + "/private",) + received + tuple(
         "bonds/witnesses/" + other["bond"] + ".json"
         for other in agents.registry() if other["id"] != agent["id"])
 

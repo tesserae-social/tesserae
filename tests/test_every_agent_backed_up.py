@@ -152,7 +152,10 @@ def test_nothing_is_in_the_backup_twice(world, with_second):
 def test_each_agent_leaves_out_its_own_notebook_and_others_marks(world, with_second):
     hearth = with_second(world)
     assert hearth.LEFT_OUT == ("packets/first/private", "bonds/witnesses/founder-second.json")
+    # and the second one, the one agent the first one's letter of welcome is given to,
+    # leaves that out too (welcome_delivery.py)
     assert hearth.left_out(SECOND) == ("packets/second/private",
+                                       "packets/second/welcome-received",
                                        "bonds/witnesses/founder-first.json")
 
 

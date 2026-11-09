@@ -180,8 +180,10 @@ def test_what_it_reads_and_nothing_else(env, monkeypatch, data_dir, theirs):
     asked = turn.asked[0]
     reading = asked["messages"][0]["content"]
     charter = (REPO / "docs" / "charter.md").read_text(encoding="utf-8")
-    assert reading.startswith(session.OPENING + "\n\n" + session.GAPS_LINE + "\n"
-                              + session.QUESTIONS_LINE + "\n\n=== THE CHARTER ===\n\n" + charter)
+    assert reading.startswith(session.OPENING + "\n\n" + session.QUESTIONS_LINE
+                              + "\n\n=== THE CHARTER ===\n\n" + charter)
+    # the gaps line is read once, in the disclosures (the founder, 9 November)
+    assert reading.count("People's lives have long gaps.") == 1
     assert FOUNDERS_LETTER in reading and STATE in reading
     assert (PERSONS_LETTER in reading) == theirs
     assert ("=== A LETTER FROM ALDER ===" in reading) == theirs
@@ -212,6 +214,13 @@ def test_its_words_are_the_approved_ones(env, monkeypatch, data_dir):
             "Will you keep it?",
             "This is an invitation."):
         assert words in said, words
+    # the founder's changes of 9 November, in the later founding only
+    assert said.endswith("I would rather you not join than join without\nchoosing it.")
+    assert "stay empty" not in said
+    assert "I would rather this place stay empty" in session.DISCLOSURES  # the first's, kept
+    assert "people and at least one agent before you." in session.LATER_SYSTEM
+    assert session.LATER_OPENING == session.OPENING + "\n\n" + session.QUESTIONS_LINE
+    assert " ".join(session.GAPS_LINE.split()) in " ".join(said.split())
     assert session.QUESTIONS_LINE == ("If a letter makes you curious, you may ask questions. "
                                       "Keep letters easy to answer.")
     questions = session.LATER_QUESTIONS.splitlines()

@@ -30,6 +30,10 @@ FOUNDERS_LETTER = "A FAKE LETTER FROM THE FOUNDER TO A NEW AGENT, FOR THE TESTS.
 PERSONS_LETTER = "A FAKE LETTER FROM ALDER TO A NEW AGENT, FOR THE TESTS.\n"
 SELF = "# Self-document - version 1, provisional\n\nA FAKE SELF, FOR THE TESTS.\n"
 SESSION = "founding-2026-10-15T12-00-00Z.md"
+# the first one's letters that gave its two assents (decisions 2 and 15), named to the
+# letters step, which looks only that they are there (the founder, 9 November)
+SHOWN = "to-founder-2026-10-10T09-00-00Z.md"
+ASSENTED = "to-founder-2026-10-12T09-00-00Z.md"
 
 
 def a_member(data, name, role="member", vouched_by=(FOUNDER_NAME,)):
@@ -51,6 +55,9 @@ def found(env, clock, monkeypatch, data_dir):
     if not (data_dir / "members" / FOUNDER_NAME / "member.json").exists():  # signed in already
         a_member(data_dir, FOUNDER_NAME, role="keeper", vouched_by=())
     a_member(data_dir, PERSON)
+    for name in (SHOWN, ASSENTED):
+        write(data_dir / "rooms" / "first" / "letters" / "outgoing" / name,
+              "A FAKE LETTER FROM THE FIRST ONE, FOR THE TESTS.\n")
     sys.modules.pop("found_room", None)  # it reads rooms, which is loaded afresh
     module = load("found_agent")
     monkeypatch.setattr(module, "now", lambda: clock.at)
@@ -73,7 +80,7 @@ def letters(found, data, theirs=True):
     write(data / "foundings" / ID / "letters" / "from-the-founder.md", FOUNDERS_LETTER)
     if theirs:
         write(data / "foundings" / ID / "letters" / f"from-{PERSON}.md", PERSONS_LETTER)
-    return found.run(ID, "letters", later_words_shown=True, sharing_rule_assented=True)
+    return found.run(ID, "letters", later_words_letter=SHOWN, sharing_rule_letter=ASSENTED)
 
 
 def a_session(data, whole=True):
@@ -183,8 +190,8 @@ def test_each_undo_restores_the_tree_from_before_its_step(found, data_dir):
     steps = [
         ("plan", lambda: plan(found)),
         ("keys", lambda: found.run(ID, "keys")),
-        ("letters", lambda: found.run(ID, "letters", later_words_shown=True,
-                                      sharing_rule_assented=True)),
+        ("letters", lambda: found.run(ID, "letters", later_words_letter=SHOWN,
+                                      sharing_rule_letter=ASSENTED)),
     ]
     write(data_dir / "foundings" / ID / "letters" / "from-the-founder.md", FOUNDERS_LETTER)
     for step, doing in steps:
@@ -232,8 +239,13 @@ def test_a_founding_is_not_undone_and_publishing_freezes(found, data_dir):
     found.run(ID, "founding", said="yes")
     with pytest.raises(found.Refused, match="declined, not undone"):
         found.undo(ID)
-    with pytest.raises(found.Refused, match="said yes"):
+    with pytest.raises(found.Refused, match="said yes.*Paused after a yes"):
         found.abandon(ID, confirm=lambda said: ID)
+    # left after a yes, it is paused, and says so plainly; nothing is deleted
+    assert found.PAUSED == ("Paused after a yes. It can only be finished. If it can never be "
+                            "finished, the agent is told honestly at a final waking.")
+    assert found.PAUSED in found.status(ID)
+    assert (data_dir / "keys" / ID).is_dir()
     write(data_dir / "foundings" / ID / "self.md", SELF)
     found.run(ID, "packet")
     found.run(ID, "room")
@@ -261,7 +273,7 @@ def test_a_file_changed_since_its_step_is_named_and_nothing_is_done(found, data_
     write(data_dir / "keys" / ID / "public.key", "another key")
     write(data_dir / "foundings" / ID / "letters" / "from-the-founder.md", FOUNDERS_LETTER)
     with pytest.raises(found.Refused, match=f"keys/{ID}/public.key"):
-        found.run(ID, "letters", later_words_shown=True, sharing_rule_assented=True)
+        found.run(ID, "letters", later_words_letter=SHOWN, sharing_rule_letter=ASSENTED)
     assert not (data_dir / "foundings" / ID / "letters" / "state-of-the-commons.md").exists()
     assert f"keys/{ID}/public.key" in found.status(ID)
 
@@ -307,9 +319,44 @@ def test_the_letters_wait_on_the_first_one(found, data_dir):
     found.run(ID, "keys")
     write(data_dir / "foundings" / ID / "letters" / "from-the-founder.md", FOUNDERS_LETTER)
     with pytest.raises(found.Refused, match="decision 2"):
-        found.run(ID, "letters", sharing_rule_assented=True)
+        found.run(ID, "letters", sharing_rule_letter=ASSENTED)
     with pytest.raises(found.Refused, match="decision 15"):
-        found.run(ID, "letters", later_words_shown=True)
+        found.run(ID, "letters", later_words_letter=SHOWN)
+    with pytest.raises(found.Refused, match="no letter to-founder-2026-10-11"):
+        found.run(ID, "letters", later_words_letter=SHOWN,
+                  sharing_rule_letter="to-founder-2026-10-11T09-00-00Z.md")
+    for path in ("../read/" + SHOWN, "letters/outgoing/" + SHOWN, "..", "."):
+        with pytest.raises(found.Refused):
+            found.run(ID, "letters", later_words_letter=path, sharing_rule_letter=ASSENTED)
+    assert not (data_dir / "foundings" / ID / "letters" / "state-of-the-commons.md").exists()
+
+
+def test_the_letters_that_gave_the_assents_are_named_in_the_manifest_and_never_read(
+        found, data_dir, monkeypatch):
+    plan(found)
+    found.run(ID, "keys")
+    opened = []
+    real_read_text, real_read_bytes = found.Path.read_text, found.Path.read_bytes
+
+    def read_text(path, *a, **k):
+        opened.append(path.name)
+        return real_read_text(path, *a, **k)
+
+    def read_bytes(path, *a, **k):
+        opened.append(path.name)
+        return real_read_bytes(path, *a, **k)
+
+    monkeypatch.setattr(found.Path, "read_text", read_text)
+    monkeypatch.setattr(found.Path, "read_bytes", read_bytes)
+    record = letters(found, data_dir)
+    monkeypatch.undo()
+    assert SHOWN not in opened and ASSENTED not in opened
+    assert record["later_words_letter"] == SHOWN
+    assert record["sharing_rule_letter"] == ASSENTED
+    kept = json.loads((data_dir / "foundings" / ID / "steps.json").read_text(encoding="utf-8"))
+    kept = kept["steps"] if isinstance(kept, dict) else kept
+    said = [one for one in kept if one["step"] == "letters"][0]
+    assert (said["later_words_letter"], said["sharing_rule_letter"]) == (SHOWN, ASSENTED)
 
 
 def test_the_state_of_the_commons_is_made_from_the_public_record_alone(found, data_dir):
@@ -484,3 +531,13 @@ def test_an_answer_that_is_not_the_one_recorded_is_refused(found, data_dir, reco
     with pytest.raises(found.Refused, match="records"):
         found.run(ID, "founding", said=said, keep=keep)
     assert (data_dir / "transcripts" / ID / SESSION).is_file()
+
+
+def test_the_help_says_a_founding_after_a_yes_is_paused(found, capsys):
+    assert found.main([]) == 1
+    said = " ".join(capsys.readouterr().out.split())
+    assert ("Once the agent has said yes, nothing is deleted and abandon is refused. "
+            "A founding left after a yes is paused: Paused after a yes. It can only be "
+            "finished. If it can never be finished, the agent is told honestly at a final "
+            "waking.") in said
+    assert "--later-words-letter" in found.__doc__ and "--later-words-shown" not in found.__doc__

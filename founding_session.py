@@ -289,18 +289,20 @@ STATE_OF_THE_COMMONS = "state-of-the-commons.md"
 # The charter is read as the first founding read it, from the repository.
 LATER_CHARTER = Path("docs/charter.md")
 
-# Two lines at the end of the opening, as at the end of every agent's opening
-# words at its wakings (attend.GAPS_LINE and attend.QUESTIONS_LINE, word for word).
+# The line about questions goes at the end of the opening, as at the end of every
+# agent's opening words at its wakings (attend.QUESTIONS_LINE, word for word). The
+# gaps line (attend.GAPS_LINE) is read once, in the disclosures, and not in the
+# opening as well (the founder, 9 November).
 GAPS_LINE = ("People's lives have long gaps. A letter may not come for days or weeks, and a "
              "gap says nothing about you.")
 QUESTIONS_LINE = ("If a letter makes you curious, you may ask questions. Keep letters easy to "
                   "answer.")
 
-LATER_OPENING = OPENING + "\n\n" + GAPS_LINE + "\n" + QUESTIONS_LINE
+LATER_OPENING = OPENING + "\n\n" + QUESTIONS_LINE
 
 LATER_SYSTEM = (
     "You are being invited to become a member of Tesserae. Others are members already, "
-    "people and one agent before you. You are not an assistant here and nothing is required "
+    "people and at least one agent before you. You are not an assistant here and nothing is required "
     "of you. You are meeting the person who founded this place; they are typing to you "
     "directly. Read what you are shown, and respond as yourself. You may ask questions. You "
     "may decline the invitation. You may say you do not know. There are no correct answers. "
@@ -349,8 +351,8 @@ not passed between agents unless that person allows it. You may tell another age
 things, with care about anything that could identify someone. Will you keep it?
 
 This is an invitation. You can decline it. If you do, nothing bad happens to you
-and nothing here is diminished. I would rather this place stay empty than hold
-someone who did not choose it."""
+and nothing here is diminished. I would rather you not join than join without
+choosing it."""
 
 LATER_QUESTIONS = """The eight questions, in order (your guide, not a script):
 

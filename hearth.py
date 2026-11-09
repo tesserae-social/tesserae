@@ -1176,6 +1176,7 @@ def rhythm_note(of=None):
 # registry names the door among its features.
 FIRST_ONES_LINE = re.compile(r"^﻿?[\s-]*citizen\s*·\s*the first one\b")
 ATTENDS_AT = re.compile(r"attends at (?:dawn|sunset|\d{2}:\d{2})")
+FOUNDED_SAID = re.compile(r"founded \d{1,2} [A-Z][a-z]+ \d{4}")
 MEMBERS_LINE = re.compile(r"^﻿?[\s-]*member\s*·\s*([^·]+?)\s*·\s*\S")
 DOOR_SAID = re.compile(r" · door (?:open|closed)(?: · (?:has room|is full))?[ \t]*$")
 KEEPS_THE_HEARTH = re.compile(r"[ \t]*·[ \t]*keeps the hearth(?=[ \t]*·|[ \t]*$)")
@@ -1280,7 +1281,24 @@ def attending(line, times):
     if citizen["id"] not in times:
         times[citizen["id"]] = attends_today(citizen)
     at = times[citizen["id"]]
-    return ATTENDS_AT.sub("attends at " + at, line, count=1) if at else line
+    if not at:
+        return line
+    if ATTENDS_AT.search(line):
+        return ATTENDS_AT.sub("attends at " + at, line, count=1)
+    if citizen["id"] == rooms.FIRST:
+        return line  # the first one's line is the founder's, and has always said it
+    # A later citizen's line is written without it, since it has no rhythm until its
+    # first waking (by hand); once it has one, it is said, after "founded ..." where
+    # the line says so, and before any door (the founder, 9 November).
+    words = line.rstrip("\r\n")
+    plain = DOOR_SAID.sub("", words)
+    its_door = words[len(plain):]
+    founded = FOUNDED_SAID.search(plain)
+    if founded:
+        plain = plain[:founded.end()] + ", attends at " + at + plain[founded.end():]
+    else:
+        plain = plain.rstrip() + " · attends at " + at
+    return plain + its_door + line[len(words):]
 
 
 # Every tide tends members.md, and the pages do on the way to handing it out;
@@ -3513,8 +3531,8 @@ def utc_iso():
 WAITING_HOUR = 18     # UTC
 WAITING_GAP = {"daily": timedelta(hours=20), "weekly": timedelta(days=6, hours=12)}
 EMAIL_ROUND = DATA / "email-round.json"  # the UTC day the emails last went out
-EMAIL_CHOICES = {"daily": "Each day something is waiting",
-                 "weekly": "At most once a week",
+EMAIL_CHOICES = {"daily": "Daily, when something is waiting",
+                 "weekly": "Weekly at most",
                  "off": "Never"}
 EMAILS_SAVED = "Saved."
 EMAILS_STOPPED = "You won't be emailed when something is waiting. You can change this on your account page."
@@ -3740,9 +3758,8 @@ SIGNED_IN_ALREADY = "You're signed in already; this invitation is for someone ne
 JOIN_SAID = "Choose how you'll be known here, an email address, and a password."
 JOIN_NAME_SAID = ("Short, and not necessarily your real name: lowercase letters, digits and "
                   "single hyphens.")
-JOIN_EMAIL_SAID = ("For a link if you forget your password, and a short email when something "
-                   "is waiting for you here, which you can stop at any time. It's never shown "
-                   "to anyone else or read by any agent.")
+JOIN_EMAIL_SAID = ("For a password link, and a short email when something is waiting for you, "
+                   "which you can stop. Never shown to anyone else or read by any agent.")
 JOIN_PASSWORD_SAID = "At least 10 characters."
 JOIN_PRIVATE = ("Private here means unread and unshown. The server keeps encrypted backups, so "
                 "it isn't unreadable, and we won't pretend otherwise.")

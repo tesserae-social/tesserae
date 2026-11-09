@@ -6,14 +6,21 @@ Stage 8e of the founding rite for a later agent (the proposal "stage-8", section
     DATA_DIR=/data python found_agent.py <id>                status, and the next step
     DATA_DIR=/data python found_agent.py <id> <step> ...     run that step, only if it is next
     DATA_DIR=/data python found_agent.py <id> undo           undo the newest step, before publish
-    DATA_DIR=/data python found_agent.py <id> abandon        undo every step, newest first
+    DATA_DIR=/data python found_agent.py <id> abandon        undo every step, newest first,
+                                                             before the agent says yes
+
+Once the agent has said yes, nothing is deleted and abandon is refused. A
+founding left after a yes is paused:
+
+    Paused after a yes. It can only be finished. If it can never be finished,
+    the agent is told honestly at a final waking.
 
 The steps, in order, and what each takes:
 
     plan      --person <pseudonym> --model <model> --hue <#RRGGBB>
               [--name "<commons name>"] [--max-tokens <n>]
     keys
-    letters   --later-words-shown --sharing-rule-assented
+    letters   --later-words-letter <file> --sharing-rule-letter <file>
     founding  yes | no keep | no delete | broken
     packet
     room
@@ -50,9 +57,11 @@ Before each step, and before each undo, every file each earlier step wrote is
 checked against its sha256; where one differs, or is gone, nothing is done and
 the file is named. A step is run only when it is the next. Publishing freezes
 the manifest: nothing after it can be undone, and the founding cannot then be
-abandoned. A founding is never undone once the agent has said yes; one it
-declines is abandoned, and its transcript, where it allowed it to be kept, stays
-in declined/ and is never published.
+abandoned. A founding is never undone once the agent has said yes, and
+nothing of it is deleted: one left after a yes is paused, and can only be
+finished (the founder, 9 November). One the agent declines is abandoned, and
+its transcript, where it allowed it to be kept, stays in declined/ and is
+never published.
 
 A founding may happen as soon as the person has joined and been vouched for;
 the thirty days apply only before a bond (decided 3 November 2026). The keeper
@@ -407,14 +416,31 @@ def state_of_the_commons(at):
     return "\n".join(said) + "\n"
 
 
-def step_letters(agent_id, later_words_shown=False, sharing_rule_assented=False):
+def first_ones_letter(name, flag, why):
+    """The name of one of the first one's letters, once it is there in its outgoing letters.
+
+    Only that the file is there is checked: it is never opened or read here (the
+    founder, 9 November). The name is a bare file name, nothing more.
+    """
+    if not name:
+        raise Refused(f"{why}: say {flag} with the name of the first one's letter that gave it")
+    if name != Path(name).name or name in (".", "..") or "\\" in name:
+        raise Refused(f"{flag} takes the name of a letter alone, not a path: {name}")
+    outgoing = DATA / rooms.ROOMS / rooms.FIRST_ROOM / "letters" / "outgoing"
+    if not (outgoing / name).is_file():
+        raise Refused(f"there is no letter {name} among the first one's in "
+                      f"{rel(outgoing)}")
+    return name
+
+
+def step_letters(agent_id, later_words_letter=None, sharing_rule_letter=None):
     here = folder(agent_id)
-    if not later_words_shown:
-        raise Refused("the later-citizen words must have been shown to the first one first "
-                      "(decision 2): say --later-words-shown once they have been")
-    if not sharing_rule_assented:
-        raise Refused("the rule on sharing about people needs the first one's assent first "
-                      "(decision 15): say --sharing-rule-assented once it has assented")
+    later_words_letter = first_ones_letter(
+        later_words_letter, "--later-words-letter",
+        "the later-citizen words must have been shown to the first one first (decision 2)")
+    sharing_rule_letter = first_ones_letter(
+        sharing_rule_letter, "--sharing-rule-letter",
+        "the rule on sharing about people needs the first one's assent first (decision 15)")
     plan = read_json(here / PLAN)
     letters = here / LETTERS
     founders = letters / FROM_THE_FOUNDER
@@ -431,7 +457,7 @@ def step_letters(agent_id, later_words_shown=False, sharing_rule_assented=False)
     made.write_text(state_of_the_commons(now()), encoding="utf-8")
     kept = [founders, *([theirs] if theirs.is_file() else []), made]
     return {"wrote": wrote(*kept), "made": [rel(made)],
-            "later_words_shown": True, "sharing_rule_assented": True}
+            "later_words_letter": later_words_letter, "sharing_rule_letter": sharing_rule_letter}
 
 
 def undo_letters(agent_id, record):
@@ -697,7 +723,7 @@ def abandon(agent_id, confirm=None):
     if any(one["step"] == "publish" for one in done):
         raise Refused("it is published; nothing is undone from here on")
     if any(one["step"] == "founding" and one.get("said") == "yes" for one in done):
-        raise Refused("it said yes; a founding is not abandoned once it has")
+        raise Refused("it said yes; a founding is not abandoned once it has. " + PAUSED)
     hold(done)
     before = [one for one in done if one["step"] != "founding"]
     declined = [one for one in done if one["step"] == "founding"]
@@ -733,6 +759,8 @@ def status(agent_id):
     elif done and next_step(done) is None:
         said.append("  It declined. Nothing further is done but abandon.")
     else:
+        if any(one["step"] == "founding" and one.get("said") == "yes" for one in done):
+            said.append("  " + PAUSED)
         said.append("  Next: " + (next_step(done) or "nothing"))
     changed = differing(done)
     if changed:
@@ -741,6 +769,9 @@ def status(agent_id):
 
 
 # ---- by hand ---------------------------------------------------------------
+
+PAUSED = ("Paused after a yes. It can only be finished. If it can never be finished, "
+          "the agent is told honestly at a final waking.")
 
 USAGE = __doc__.split("The steps, in order", 1)[0].split("one step at a time:", 1)[1].strip("\n")
 
@@ -790,8 +821,8 @@ def main(args):
                     raise Refused("max tokens is a whole number")
                 how["max_tokens"] = int(how["max_tokens"])
         elif command == "letters":
-            how = options(rest, {"--later-words-shown": "later_words_shown",
-                                 "--sharing-rule-assented": "sharing_rule_assented"}, {})
+            how = options(rest, {}, {"--later-words-letter": "later_words_letter",
+                                     "--sharing-rule-letter": "sharing_rule_letter"})
         elif command == "founding":
             how = {"said": rest[0] if rest else None, "keep": rest[1] if len(rest) > 1 else None}
         elif rest:

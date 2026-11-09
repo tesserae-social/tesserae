@@ -140,8 +140,8 @@ def test_the_keeper_and_a_member_are_each_asked_for_an_address(founder, member):
     for client in (founder, member):
         text = page(client.get("/account"))
         # it says, truly, what the address is used for: a link, and the emails that stop
-        assert ("Add an email address. It's used to send you a link if you forget your password, "
-                "and a") in text
+        assert ("Add an email address. For a password link, and a short email when something "
+                "is waiting for you, which you can stop.") in " ".join(text.split())
         assert 'name="address"' in text and 'name="email_password"' in text
         assert "Send a link to confirm it" in text
 

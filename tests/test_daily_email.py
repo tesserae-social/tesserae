@@ -59,7 +59,7 @@ def test_a_letter_waiting_is_told_by_who_wrote_and_a_link_and_nothing_else(
     assert a_round(hearth) == 1
     (sent,) = outbox.sent
     assert sent["to"] == ADDRESS
-    assert sent["subject"] == "Someone has written to you at Tesserae"
+    assert sent["subject"] == "Something is waiting for you at Tesserae"
     text = sent["text"]
     assert text.startswith(SAYS + "\n\nhttps://hearth.tesserae.social/login\n\n"
                            "To stop these emails, open this link: ")
@@ -257,3 +257,39 @@ def test_the_email_thread_is_set_going_once(hearth, monkeypatch):
         hearth.start_emails()
     assert [thread.name for thread in started] == ["emails"]
     assert started[0].daemon is True
+
+
+# ---- the founder's words and limits of 9 November -----------------------------
+
+def test_the_choices_read_as_the_founder_wrote_them(hearth, kept):
+    assert list(hearth.EMAIL_CHOICES.values()) == [
+        "Daily, when something is waiting", "Weekly at most", "Never"]
+    said = " ".join(page(kept.get("/account")).split())
+    for words in hearth.EMAIL_CHOICES.values():
+        assert words in said
+
+
+def sent_already(hearth, how_many, when="2026-10-15T18:00"):
+    """mail.log, as if how_many emails had gone already that UTC day."""
+    log = hearth.mail.log_path()
+    log.parent.mkdir(parents=True, exist_ok=True)
+    stamp = at(when).strftime("%Y-%m-%dT%H:%M:%SZ")
+    log.write_text("".join("%s · confirm · sent\n" % stamp for _ in range(how_many)),
+                   encoding="utf-8")
+
+
+def test_these_emails_keep_ten_of_the_day_s_fifty_for_links(hearth, kept, room, outbox):
+    assert (hearth.mail.WAITING_A_DAY, hearth.mail.MAIL_A_DAY) == (40, 50)
+    a_letter(room)
+    sent_already(hearth, 39)
+    assert a_round(hearth) == 1  # the fortieth may go
+    a_letter(room, stamp="2026-10-15T10-00-00Z")
+    assert a_round(hearth, "2026-10-16T18:00") == 1  # a new day, a new count
+    sent_already(hearth, 40, when="2026-10-17T18:00")
+    a_letter(room, stamp="2026-10-17T09-00-00Z")
+    assert a_round(hearth, "2026-10-17T18:00") == 0  # no further than forty
+    # and a link to confirm or to set a password still goes, up to the fifty
+    now = at("2026-10-17T18:00")
+    assert hearth.mail.send("confirm", ADDRESS, "s", "w", now) == hearth.mail.SENT
+    sent_already(hearth, 50, when="2026-10-17T18:00")
+    assert hearth.mail.send("reset", ADDRESS, "s", "w", now) == hearth.mail.DAY_FULL

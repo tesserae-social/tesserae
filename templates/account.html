@@ -36,9 +36,9 @@
   <p>Your email address is {% if email.confirmed %}{{ email.masked }}, confirmed on {{ email.confirmed }}
     {%- else %}set, and not yet confirmed{% endif %}.</p>
   {% else %}
-  <p>Add an email address. It's used to send you a link if you forget your password, and a
-    short email when something is waiting for you here, which you can stop. It's never shown in full on any page here, and only partly, to you, on this one; never in
-    a copy of the record, and never read by any agent.</p>
+  <p>Add an email address. For a password link, and a short email when something is waiting
+    for you, which you can stop. It's never shown in full on any page here, and only partly,
+    to you, on this one; never in a copy of the record, and never read by any agent.</p>
   {% endif %}
   {% if email.waiting %}<p class="muted">A link to confirm an address was sent on
     {{ email.waiting }}; it lasts a day.</p>{% endif %}

@@ -113,9 +113,11 @@ def test_the_page_asks_for_the_name_the_words_and_the_new_password_twice(visitor
     assert "open your key" in said and "same key" in said
 
 
-def test_the_login_page_points_to_it(visitor):
+def test_the_login_page_no_longer_points_to_it_but_it_still_answers(visitor):
+    # the founder's change of 9 November: the keeper reaches /recover directly, and by his reset email
     said = page(visitor.get("/login"))
-    assert '<a href="/recover">If you have twelve words, they will let you in.</a>' in said
+    assert "twelve words" not in said and 'href="/recover"' not in said
+    assert visitor.get("/recover").status_code == 200
 
 
 def test_the_recover_form_carries_the_token(visitor):

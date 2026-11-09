@@ -689,12 +689,13 @@ def test_a_visitor_at_the_front_address_is_sent_to_log_in(visitor, founder):
 def test_the_login_page_is_as_it_was(visitor):
     said = page(visitor.get("/login"))
     assert "<h1>log in</h1>" in said
-    # the one change since: the box takes a commons name or a confirmed address (9 November)
+    # the changes since: the box takes a commons name or a confirmed address, and the twelve words
+    # are no longer offered here, the forgotten password the only way named (9 November)
     for kept in ('<label for="pseudonym">commons name or email address</label>', '<label for="password">password</label>',
                  '<button type="submit">Log in</button>',
-                 'Forgotten your password? <a href="/forgot">We can email you a link.</a>',
-                 '<a href="/recover">If you have twelve words, they will let you in.</a>'):
+                 'Forgotten your password? <a href="/forgot">We can email you a link.</a>'):
         assert kept in said, kept
+    assert "twelve words" not in said and 'href="/recover"' not in said
     assert "the books will open with the commons" not in said  # it promised what is not built
     assert "<footer>" not in said  # and a page with nothing to say at its foot has none
 

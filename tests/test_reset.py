@@ -103,10 +103,10 @@ def sent_link(client, outbox, given=MEMBER):
 
 # ---- the login page, and /forgot ----------------------------------------------
 
-def test_the_login_page_offers_both_ways(visitor):
+def test_the_login_page_offers_the_email_link_alone(visitor):
     said = page(visitor.get("/login"))
     assert '<p class="muted">Forgotten your password? <a href="/forgot">We can email you a link.</a></p>' in said
-    assert '<a href="/recover">If you have twelve words, they will let you in.</a>' in said
+    assert "twelve words" not in said
 
 
 def test_the_page_asks_for_a_name_or_an_address(visitor):

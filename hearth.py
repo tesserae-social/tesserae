@@ -3114,15 +3114,26 @@ def member_identity(name):
     return answer
 
 
-# Ask for the pseudonym and password, and remember whoever they open for: the
-# password is a member's own, and opens their vault. A blank pseudonym is no
-# one's, and is refused as a wrong password is - after the same one derivation,
-# on a vault no password opens.
+def whose_login(given):
+    """The name a login is tried at: anything with an @ is looked up as an address,
+    which opens only for the person who has confirmed it (the keeper too); an
+    address no one holds, or holds unconfirmed, is tried as itself, a name no one
+    could have, and refused as any wrong password is, after the same derivation."""
+    if "@" in given:
+        return members.member_by_email(given) or given
+    return given
+
+
+# Ask for a commons name or a confirmed email address (the founder, 9 November),
+# and the password, and remember whoever they open for: the password is a
+# member's own, and opens their vault. A blank name is no one's, and is refused
+# as a wrong password is - after the same one derivation, on a vault no password
+# opens. Misses at an address held by someone count against their name.
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
     if request.method == "POST":
-        name = request.form.get("pseudonym", "").strip().lower()
+        name = whose_login(request.form.get("pseudonym", "").strip().lower())
         password = request.form.get("password", "")
         now = datetime.now(timezone.utc)
         counted = tries_counted(name, now)

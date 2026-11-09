@@ -98,6 +98,60 @@ def test_a_pseudonym_is_taken_however_it_is_capitalised(people, visitor):
         assert held["member"] == KEEPER
 
 
+# ---- by a confirmed email address (the founder, 9 November) ----------------
+
+MEMBER_ADDRESS = "birch@example.org"
+KEEPER_ADDRESS = "ash@example.org"
+CONFIRMED = "2026-11-01T12:00:00Z"
+
+
+def test_the_login_box_asks_for_a_commons_name_or_an_email_address(visitor):
+    said = page(visitor.get("/login"))
+    assert '<label for="pseudonym">commons name or email address</label>' in said
+
+
+@pytest.mark.parametrize("who, address, password", [(MEMBER, MEMBER_ADDRESS, MEMBER_PASSWORD),
+                                                    (KEEPER, KEEPER_ADDRESS, KEEPER_PASSWORD)])
+def test_a_confirmed_address_logs_in_as_its_holder(people, visitor, who, address, password):
+    people.members.set_email(who, address, confirmed_at=CONFIRMED)
+    answer = sign_in(visitor, "  " + address.upper() + " ", password)
+    assert answer.status_code == 302 and answer.headers["Location"] == "/"
+    with visitor.session_transaction() as held:
+        assert held["member"] == who
+        assert held["role"] == ("keeper" if who == KEEPER else "member")
+        assert address not in repr(dict(held))
+
+
+def test_a_confirmed_address_with_a_wrong_password_is_refused_as_a_name_is(people, visitor):
+    people.members.set_email(MEMBER, MEMBER_ADDRESS, confirmed_at=CONFIRMED)
+    by_name = refused(sign_in(visitor, MEMBER, WRONG))
+    assert refused(sign_in(visitor, MEMBER_ADDRESS, WRONG)) == by_name
+    assert shut_out(visitor)
+
+
+@pytest.mark.parametrize("given", ["nobody@example.org", MEMBER_ADDRESS, "@", "not@an",
+                                   "birch@", "a@b.c@d.e", "x" * 300 + "@example.org"])
+def test_an_address_no_one_has_confirmed_is_refused_in_the_same_words(people, visitor,
+                                                                    derivations, given):
+    # birch's address is kept unconfirmed, as a new member's is until they open its link
+    people.members.set_email(MEMBER, MEMBER_ADDRESS)
+    wrong_password = refused(sign_in(visitor, MEMBER, WRONG))
+    derivations.clear()
+    assert refused(sign_in(visitor, given, MEMBER_PASSWORD)) == wrong_password
+    assert len(derivations) == 1, "an address that is no one's must cost one derivation too"
+    assert shut_out(visitor)
+
+
+def test_misses_at_an_address_count_against_its_holder_s_name(people, visitor, monkeypatch):
+    people.members.set_email(MEMBER, MEMBER_ADDRESS, confirmed_at=CONFIRMED)
+    for given in (MEMBER, MEMBER_ADDRESS) * 2 + (MEMBER_ADDRESS,):
+        refused(sign_in(visitor, given, WRONG))
+    monkeypatch.setattr(vault, "_derive",
+                        lambda *a: pytest.fail("a password was tried while the name was shut"))
+    refused(sign_in(visitor, MEMBER, MEMBER_PASSWORD))
+    refused(sign_in(visitor, MEMBER_ADDRESS, MEMBER_PASSWORD))
+
+
 def test_the_key_is_not_kept_anywhere_in_the_session(people, visitor):
     sign_in(visitor, KEEPER, KEEPER_PASSWORD)
     with visitor.session_transaction() as held:

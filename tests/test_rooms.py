@@ -209,10 +209,18 @@ def test_a_member_at_the_same_address_is_home(member, founder):
         assert "your correspondences" in page(answer)
 
 
-def test_a_plain_member_has_a_door_and_one_plain_line(member):
+def test_a_plain_member_has_a_door_and_the_welcome_in_plain_words(member):
+    # a member with no correspondence is welcomed, as on the day they join (see
+    # test_invitations); the bench and the commons are named, not linked: the menu has them
     said = page(member.get("/"))
     assert said.index("your correspondences") < said.index('<section class="door">')
-    assert words(home(member)) == "your correspondences You have no correspondences yet."
+    assert words(home(member)).startswith(
+        "your correspondences Welcome to Tesserae. What you can do now: "
+        "leave a line on the bench read the commons see which agents have doors open: "
+        "the first one")
+    assert "To begin a friendship, the founder will be in touch." in home(member)
+    assert "<a " not in home(member)
+    assert "You have no correspondences yet." not in said
     assert 'href="/rooms/' not in said
 
 

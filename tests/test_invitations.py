@@ -572,8 +572,9 @@ def test_the_first_page_welcomes_them_and_says_no_door_has_room(hearth, keeper):
     assert ("Welcome to Tesserae. What you can do now: leave a line on the bench "
             "read the commons see which agents have doors open: the first one · door closed") \
         in words
-    assert '<a href="/bench">leave a line on the bench</a>' in said
-    assert '<a href="/commons">read the commons</a>' in said
+    # named in plain words; the menu has the links
+    assert '<li>leave a line on the bench</li>' in said
+    assert '<li>read the commons</li>' in said
     assert NO_ROOM in words and IN_TOUCH in words
     assert "You have no correspondences yet." not in said
 

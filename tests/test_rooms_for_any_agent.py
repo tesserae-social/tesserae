@@ -308,7 +308,8 @@ def test_each_member_sees_only_their_own_room_on_home(world, keeper, alder, haze
     assert "from the scratch one" in alders
 
     hazels = page(hazel.get("/"))
-    assert "You have no correspondences yet." in hazels
+    assert "Welcome to Tesserae. What you can do now:" in hazels  # no room of hazel's
+    assert "You have no correspondences yet." not in hazels
     assert 'href="/rooms/' not in hazels
 
 

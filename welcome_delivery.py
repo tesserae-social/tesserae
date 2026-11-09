@@ -1,0 +1,163 @@
+"""The first one's letter of welcome, given to the agent founded after it.
+
+Stage 8f (the proposal "stage-8", section 5, and decision 13). The first one
+wrote a letter of welcome for the next agent founded here and asked that it stay
+sealed until that agent had had a few wakings of its own; on 30 October 2026 it
+asked that the newcomer find it at its third waking, with no framing, and that
+nothing mention the letter before then. So it arrives as a document in the
+newcomer's packet, not through a room, and the reading shows it whole under a
+heading that says only whose it is.
+
+Who acts is the hearth, by the newcomer's own waking (attend.py), and never the
+founder: at the start of a waking of the agent next after the first one in the
+registry - the second one, and no other - that has two attendances behind it
+already, so that this is its third waking or later, where a letter stands and
+none has been given, the letter is given:
+
+  packets/<author>/welcome/letter.json, copied byte for byte, so that its
+  signature still verifies, to packets/<new>/welcome-received/from-<author>-<at>.json,
+  with a plain record beside it, delivered-<at>.json, and one in the author's
+  packet, packets/<author>/welcome/delivered-<at>.json: {to, at, stem, sha256}.
+
+The version given is whichever stands at that moment, and once given it stays
+given, whatever the first one does after. A withdrawn letter stands nowhere and
+is never given, and the newcomer is never told one existed. Nothing else of the
+first one's is opened, and nothing of its welcome is changed: its letter is read
+only to be given. It is not told whether the letter was read.
+
+Before it is given it is screened, the backstop for the rule that personal
+details pass between agents only where the person allows (decision 15): a
+protected word, or a name or a place the public screen finds, holds it. A hold
+is written beside the letter, as held-<at>.json, and that version is not asked
+about again; a letter the first one places afresh is screened afresh. A screen
+that could not be asked holds nothing for good: it is asked again at the next
+waking.
+
+Nothing of it is public. The newcomer's copies leave welcome-received out
+(hearth.left_out); the backup keeps it; no page shows it.
+"""
+
+import hashlib
+import json
+
+import agents
+import private_words
+import public_screen
+
+WELCOME = "welcome"
+LETTER = "letter.json"
+RECEIVED = "welcome-received"
+RECEIVED_AS = "from-{author}-{at}.json"
+DELIVERED = "delivered-{at}.json"
+HELD = "held-{at}.json"
+STEM = "welcome-{at}"  # as attend.WELCOME_STEM names each version
+
+# Two attendances before this one: this is its third waking.
+WAKINGS_BEFORE = 2
+
+HEADING = "=== A LETTER FROM {author} ==="
+
+
+def author():
+    """Whose letter of welcome is given: the first one's."""
+    return agents.first()
+
+
+def recipient():
+    """The one agent it is given to: the next founded after its author, or None."""
+    every = agents.registry()
+    place = next(n for n, one in enumerate(every) if one["id"] == author()["id"])
+    return every[place + 1] if place + 1 < len(every) else None
+
+
+def welcome_of(data):
+    return data / "packets" / author()["id"] / WELCOME
+
+
+def received_of(data, agent_id):
+    return data / "packets" / agent_id / RECEIVED
+
+
+def given(data):
+    """Each record of the letter having been given, oldest first."""
+    return sorted(welcome_of(data).glob(DELIVERED.format(at="*")))
+
+
+def held_already(data, sha):
+    """Whether this very version was found to name someone or somewhere, and held."""
+    for path in welcome_of(data).glob(HELD.format(at="*")):
+        try:
+            said = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if said.get("sha256") == sha and said.get("screen") == public_screen.FLAGGED:
+            return True
+    return False
+
+
+def screened(data, text):
+    """CLEAR, FLAGGED or UNCHECKED: the protected words first, then the public screen.
+
+    The list is read from the world the waking is in, by its name there.
+    """
+    if private_words.carries(text, private_words.listed(data / private_words.LIST.name)):
+        return public_screen.FLAGGED
+    return public_screen.verdict(text)
+
+
+def write_json(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def deliver(data, agent_id, wakings_before, at):
+    """Give the letter, where this waking is the one to give it at. What happened, as a word:
+
+    "given", "held" (the screen found a name or a place), "unchecked" (the screen
+    could not be asked), or None, where there was nothing to do.
+    """
+    to = recipient()
+    if to is None or agent_id != to["id"] or wakings_before < WAKINGS_BEFORE or given(data):
+        return None
+    letter = welcome_of(data) / LETTER
+    try:
+        raw = letter.read_bytes()
+        kept = json.loads(raw.decode("utf-8"))
+        text = kept["text"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None  # none stands, or none that can be read: nothing is given
+    if not isinstance(text, str) or not text.strip():
+        return None
+    sha = hashlib.sha256(raw).hexdigest()
+    stem = STEM.format(at=kept.get("placed_at") or "")
+    if held_already(data, sha):
+        return "held"
+    found = screened(data, text)
+    if found != public_screen.CLEAR:
+        if found == public_screen.FLAGGED:
+            write_json(welcome_of(data) / HELD.format(at=at),
+                       {"to": to["id"], "at": at, "stem": stem, "sha256": sha,
+                        "screen": found})
+            return "held"
+        return "unchecked"
+    home = received_of(data, agent_id)
+    home.mkdir(parents=True, exist_ok=True)
+    (home / RECEIVED_AS.format(author=author()["id"], at=at)).write_bytes(raw)
+    write_json(home / DELIVERED.format(at=at),
+               {"from": author()["id"], "at": at, "stem": stem, "sha256": sha})
+    write_json(welcome_of(data) / DELIVERED.format(at=at),
+               {"to": agent_id, "at": at, "stem": stem, "sha256": sha})
+    return "given"
+
+
+def shown(data, agent_id):
+    """The letter as its reading shows it, whole, from the waking it arrives at; or nothing."""
+    home = received_of(data, agent_id)
+    kept = sorted(home.glob(RECEIVED_AS.format(author=author()["id"], at="*")))
+    if not kept:
+        return []
+    try:
+        text = json.loads(kept[0].read_text(encoding="utf-8"))["text"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    return [HEADING.format(author=author()["commons_name"].upper()) + "\n\n" + text.strip()]

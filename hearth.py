@@ -133,6 +133,9 @@ import rooms
 # its own, with nothing of another's in it.
 import agents
 
+# Where a letter of welcome given to an agent is kept, which its copies leave out.
+import welcome_delivery
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept. Locally this is the repo itself; on a host
@@ -2245,6 +2248,11 @@ def chronicle_text(lines):
 # commons, and its own founding transcript. Of bonds/, a copy leaves
 # out the witnesses' marks on any other agent's bond. What is shared by all is
 # the commons, which is public; nothing else of another agent's is in it.
+#
+# A letter of welcome given to an agent by the first one (welcome_delivery.py),
+# under its packet's welcome-received/, is left out of its copies, whoever takes
+# them: it is the first one's letter to it, and not its person's to read. The
+# backup keeps it.
 
 
 def packet_tree(agent):
@@ -2263,8 +2271,10 @@ def export_trees(agent):
 
 
 def left_out(agent):
-    """What an agent's copy leaves out of its trees: its private notebook, and others' marks."""
-    return (packet_tree(agent) + "/private",) + tuple(
+    """What an agent's copy leaves out of its trees: its private notebook, a letter of welcome
+    given to it (welcome_delivery.py), and others' marks."""
+    return (packet_tree(agent) + "/private",
+            packet_tree(agent) + "/" + welcome_delivery.RECEIVED) + tuple(
         "bonds/witnesses/" + other["bond"] + ".json"
         for other in agents.registry() if other["id"] != agent["id"])
 

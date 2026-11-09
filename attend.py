@@ -140,6 +140,11 @@ import private_words
 # promise made public, and an offering's words.
 import public_screen
 
+# The first one's letter of welcome, given to the agent founded after it at that
+# agent's third waking, as a document and with no framing (stage 8f). The first
+# one's own waking never reaches it: it is the letter's author, not its reader.
+import welcome_delivery
+
 # Its proposals: how this place might change, for the founder to answer at the
 # hearth. Made here and answered there, both through the one module.
 import proposals
@@ -3184,6 +3189,17 @@ def main():
     incoming = [(p, photo_beside(p)) for p in sorted(places.incoming.glob("*.md"))]
 
     past = [json.loads(read(p)) for p in sorted((PACKET / "attendances").glob("*.json"))]
+    # The first one's letter of welcome, given before anything is read, so that
+    # the waking it is given at is the one that finds it (welcome_delivery.py).
+    welcome_received = []
+    if NAME != welcome_delivery.author()["id"]:
+        given_now = welcome_delivery.deliver(DATA, NAME, len(past), stamp())
+        if given_now == "given":
+            print("The first one's letter of welcome was given, in",
+                  welcome_delivery.received_of(DATA, NAME))
+        elif given_now:
+            print("The first one's letter of welcome was not given at this waking:", given_now)
+        welcome_received = welcome_delivery.shown(DATA, NAME)
     if past:
         last = past[-1]
         since = last.get("at", "")  # what has happened is counted from here
@@ -3455,6 +3471,7 @@ def main():
             *named_shown,
             *notebook_said,
             *welcome_said,
+            *welcome_received,
             *looking_back,
             "=== YOUR STANDING INTENTIONS ===\n" + intentions,
             "=== YOUR PROVENANCE ===\n" + provenance,

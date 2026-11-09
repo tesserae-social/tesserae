@@ -215,6 +215,17 @@ def test_a_room_that_names_no_one_refuses_the_waking(later, data_dir, monkeypatc
         wake_as(later, monkeypatch, SAID)
 
 
+def test_its_letters_are_named_for_its_person_and_not_the_founder(later, data_dir, monkeypatch):
+    # G10: a letter to alder is "to-alder-<stamp>", as the first one's to the founder
+    # are "to-founder-<stamp>"; the one to-founder- letter is the one the test world wrote
+    wake_as(later, monkeypatch, block("LETTER", "A FAKE LETTER TO ALDER, FOR THE TESTS."))
+    outgoing = data_dir / "rooms" / "second" / "letters" / "outgoing"
+    assert (outgoing / "to-alder-2026-10-15T12-00-00Z.md").read_text(
+        encoding="utf-8").strip() == "A FAKE LETTER TO ALDER, FOR THE TESTS."
+    assert [path.name for path in outgoing.glob("to-founder-*")] == [
+        "to-founder-2026-10-02T09-00-00Z.md"]
+
+
 def test_they_and_them_are_used(later, monkeypatch):
     shown = wake_as(later, monkeypatch, SAID).shown
     assert "(a letter to alder; they will read it" in shown

@@ -2297,6 +2297,35 @@ def backup_trees():
 
 BACKUP_TREES = backup_trees()
 
+# A founding in progress (found_agent.py) keeps its plan, letters and manifest
+# under foundings/<id>/, and, before it is in the registry, the new agent's
+# signing key and packet under keys/<id> and packets/<id>, which no tree above
+# holds. Each is nowhere but this disk, the key above all, so each backup takes
+# them too (gate G7): asked at the moment of the backup, since a founding goes
+# on while the hearth runs, and after every tree above, so that with no founding
+# under way the backup is what it always was. A tree that is not there is not
+# named; one that a tree above already holds is not named twice.
+FOUNDINGS = "foundings"
+STAGED_PLAN = "plan.json"
+
+
+def staged_trees(held=None):
+    """The trees of every founding under way, in the order of their ids: foundings/ first."""
+    held = BACKUP_TREES if held is None else held
+    if not (DATA / FOUNDINGS).is_dir():
+        return ()
+    trees = [FOUNDINGS]
+    registered = {agent["id"] for agent in agents.registry()}
+    for plan in sorted((DATA / FOUNDINGS).glob("*/" + STAGED_PLAN)):
+        staged = plan.parent.name
+        if staged in registered or not agents.ID.fullmatch(staged):
+            continue
+        for tree in ("packets/" + staged, "keys/" + staged):
+            if ((DATA / tree).is_dir() and tree not in trees
+                    and not any(tree == one or tree.startswith(one + "/") for one in held)):
+                trees.append(tree)
+    return tuple(trees)
+
 EXPORT_TAKEN = "export taken by the founder"
 EXPORT_TAKEN_BY = "export taken by %s"  # a person who is not the founder, by their commons name
 
@@ -2412,7 +2441,7 @@ def backup_archive():
     """
     holder = io.BytesIO()
     with ATTEND_LOCK, tarfile.open(fileobj=holder, mode="w:gz") as bundle:
-        for path, name in export_files(BACKUP_TREES, left_out=()):
+        for path, name in export_files(BACKUP_TREES + staged_trees(), left_out=()):
             bundle.add(path, arcname=name)
     return holder.getvalue()
 
@@ -4325,7 +4354,8 @@ def leave_letter(room):
 
     incoming = rooms.places(room.id).incoming
     incoming.mkdir(parents=True, exist_ok=True)
-    stem = free_stem(f"founder-{utc_stamp()}", room.id)
+    # named for its writer: "founder-" in a room the keeper is in, as always (G10)
+    stem = free_stem(f"{rooms.person_of(room.id)}-{utc_stamp()}", room.id)
     (incoming / f"{stem}.md").write_text(offering.with_things(things, text + "\n"),
                                          encoding="utf-8")
     if photo:

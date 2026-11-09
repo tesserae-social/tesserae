@@ -351,7 +351,9 @@ def test_a_letter_left_in_a_second_room_is_its_own_and_tells_the_commons_nothing
     assert answer.status_code == 302
     assert answer.headers["Location"] == "/rooms/second?saved=1&answered=1"
     home = world / "rooms" / "second"
-    left = home / "letters" / "incoming" / ("founder-%s.md" % clock.stamp())
+    # named for alder, who wrote it, and not for the founder, who did not (G10)
+    left = home / "letters" / "incoming" / ("alder-%s.md" % clock.stamp())
+    assert not list((home / "letters" / "incoming").glob("founder-*"))
     assert left.read_text(encoding="utf-8").strip() == "A FAKE LETTER FROM ALDER, FOR THE TESTS."
     assert (home / "errands" / "answered" / "errand-2026-10-22T09-00-00Z.md").is_file()
     assert not (home / "bonds" / "proposal.json").exists()

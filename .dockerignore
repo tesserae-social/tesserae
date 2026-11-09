@@ -20,3 +20,6 @@ record
 
 # The rooms, each a correspondence kept between an agent and its person.
 rooms
+
+# A founding under way, kept on the data disk alone.
+foundings

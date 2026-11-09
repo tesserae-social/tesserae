@@ -440,8 +440,30 @@ def test_the_pages_that_carry_a_link_are_kept_out_of_caches_and_indexes(member, 
     link = sent_link(visitor, outbox)
     for answer in (visitor.get("/reset/" + link), visitor.get("/reset/" + "x" * 43)):
         assert answer.headers["Cache-Control"] == "no-store"
-        assert answer.headers["Referrer-Policy"] == "no-referrer"
+        assert answer.headers["Referrer-Policy"] == "same-origin"
         assert answer.headers["X-Robots-Tag"] == "noindex"
+
+
+def as_a_browser_sends_it(shown, address):
+    """The headers a browser sends with the post from a page's own button, under the
+    Referrer-Policy that page was served with: under no-referrer the Origin is
+    "null" and no Referer goes; under same-origin, both name the hearth."""
+    if shown.headers.get("Referrer-Policy") == "no-referrer":
+        return {"Origin": "null"}
+    return {"Origin": "http://localhost", "Referer": "http://localhost" + address}
+
+
+def test_the_button_works_with_what_a_browser_sends_from_the_page(
+        member, visitor, outbox, data_dir):
+    link = sent_link(visitor, outbox)
+    address = "/reset/" + link
+    before = record_of(data_dir, MEMBER)
+    shown = visitor.get(address)
+    form = re.search(r'name="csrf_token" value="([^"]+)"', page(shown)).group(1)
+    answer = visitor.post(address, headers=as_a_browser_sends_it(shown, address), data={
+        "csrf_token": form, "password": NEW_PASSWORD, "password_again": NEW_PASSWORD})
+    assert answer.status_code == 302 and answer.headers["Location"] == "/", page(answer)
+    assert record_of(data_dir, MEMBER)["verify_key"] != before["verify_key"]
 
 
 # ---- kept out of every log ------------------------------------------------------

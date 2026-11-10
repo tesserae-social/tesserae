@@ -139,15 +139,21 @@ KIND_CLASS = {
     "event": "tile-event",
 }
 
-# A person's letter is one tile a day at most, and says only that it was written
-# and in which part of the day the first of that day's letters was: never to
-# whom, at what hour, or a word of what it said. The part of the day is in the
-# words themselves, so the tile is toned from the public line and nothing else.
-# The hearth writes the line, and backfill_letter_tiles.py wrote the ones from
-# before it did.
+# A person's letter is one tile a day at most, and says only that it was written:
+# never to whom, at what hour, in which part of the day, or a word of what it
+# said. The hearth writes the line, and backfill_letter_tiles.py wrote the ones
+# from before it did. Until 10 November 2026 (the founder's decision) each named
+# the part of the day the first of that day's letters fell in; none is written
+# so now, amend_letter_lines.py takes it out of those that were, and the mosaic
+# shows none of it either way, for the founder or any member: its words are
+# "<date> · the founder wrote a letter", with any line he left beside it, and its
+# class is the letter's alone (letter_shown). The page's own script says the same.
 LETTER_WORDS = "the founder wrote a letter"
 LETTER_BANDS = {"dawn": "at dawn", "day": "during the day",
                 "evening": "in the evening", "night": "at night"}
+# "<anyone> wrote a letter <a part of the day>": the part the mosaic leaves out
+LETTER_PART = re.compile(r"^(.+ wrote a letter) (?:%s)$"
+                         % "|".join(re.escape(said) for said in LETTER_BANDS.values()))
 
 # What an offering is, said in words. The hearth says the same words on its own
 # page for them, out of this one dictionary, so that the two never part.
@@ -572,11 +578,24 @@ def is_letter_line(kind, words):
                                  or letter_band(words) is not None)
 
 
+def letter_shown(words):
+    """A letter line as the mosaic shows it: who wrote a letter, and no part of the day.
+
+    Any line left beside it, after the first middot, is kept as it was written.
+    """
+    said, beside, rest = words.partition(" %s " % DOT)
+    found = LETTER_PART.match(said)
+    return (found.group(1) if found else said) + beside + rest
+
+
 def event_class(kind, words):
-    """The class a line of the history is drawn in: its kind, and a letter's part of the day."""
-    css = KIND_CLASS[kind]
-    part = letter_band(words) if kind == "letter" else None
-    return "%s tile-letter-%s" % (css, part) if part else css
+    """The class a line of the history is drawn in: its kind, and nothing of when in the day."""
+    return KIND_CLASS[kind]
+
+
+def event_shown(kind, words):
+    """The words a line of the history is drawn with: a letter's without its part of the day."""
+    return letter_shown(words) if kind == "letter" else words
 
 
 def tiles_from(events, heartbeats, offerings=(), bonds=(), citizens=None):
@@ -586,8 +605,7 @@ def tiles_from(events, heartbeats, offerings=(), bonds=(), citizens=None):
     out by. Every tile's words open with that day too, because they are read out
     whole under the mosaic. A waking carries the part of the citizen's day it fell
     in twice over: in its class, so the tile is toned by it, and in its words.
-    A day's letter line is toned the same way, from the part of the day its own
-    words name.
+    A day's letter line carries neither: it says only who wrote a letter.
 
     Where is nowhere for most tiles, which are hover-only because there is
     nowhere for them to lead. A seal leads to the signed bond, and an offering
@@ -612,7 +630,7 @@ def tiles_from(events, heartbeats, offerings=(), bonds=(), citizens=None):
               hued(event_class(kind, words),
                    event_whose(kind, words, citizens) if kind in ("event", "founding") else None,
                    citizens),
-              "%s %s %s" % (human(when), DOT, words),
+              "%s %s %s" % (human(when), DOT, event_shown(kind, words)),
               BOND_URL if kind == "seal" else "")
              for when, kind, words in events
              if kind != "offering" and not (bonds and kind == "seal")]

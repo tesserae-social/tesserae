@@ -207,8 +207,10 @@ def test_looking_things_up_names_it_and_a_tool_opens_it(longer, attend):
     section_said = turn.asked[0]["messages"][0]["content"][-2]["text"]
     assert ("a named note, your letter of welcome or an earlier one, your founding record, or "
             "one of your proposals, using the tools") in section_said
-    assert [tool["name"] for tool in turn.asked[0]["tools"]][-3:] == [
-        "read_proposal", "read_welcome", "read_private"]
+    # read_welcome is offered, after read_proposal and before read_private and
+    # read_commons_lines, the last since 10 November 2026
+    assert [tool["name"] for tool in turn.asked[0]["tools"]][-4:] == [
+        "read_proposal", "read_welcome", "read_private", "read_commons_lines"]
     assert attend.READ_WELCOME["input_schema"]["required"] == ["stem"]
 
 

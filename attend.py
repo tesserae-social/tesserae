@@ -1114,6 +1114,59 @@ COMMONS_LINE_HELD = {
 HEARTBEAT_SHOWN_IGNORED = ("<<HEARTBEAT_SHOWN>> is no longer read; a line for the commons is "
                            "asked for at each waking with <<COMMONS_LINE>>.")
 
+# One of its own past lines in the commons may be replaced (the founder, 10
+# November 2026, at the first one's asking). A <<REWRITE>> block names the line
+# by its waking's stamp, or its day, and gives the new words on the line after.
+# Only its own lines are found. The new words pass the guards a new line for the
+# commons passes - the length, the public screen, and the protected words when
+# it is written - and where they fail the line stands as it was, and it is told
+# why at its next waking, in the words a held line is told in. Where they pass,
+# the commons shows them, marked plainly as rewritten and on which day; the
+# words the line had are kept in its own record, in this waking's attendance,
+# never erased and never shown publicly again. Rewriting is no act: the facts of
+# the waking never say it. Its lines, each with its stamp, open with
+# read_commons_lines at a longer waking: nothing is added to the reading itself.
+# Each line may be rewritten once, ever (the founder, 10 November 2026): a line
+# its own record shows rewritten is fixed for good, and a second <<REWRITE>> for
+# it changes nothing, and it is told so. New words that were held do not use up
+# the line's one rewrite.
+REWRITE_BLOCK = """<<REWRITE>>
+(to replace one of your own past lines in the commons. First line: its date or its stamp""" + (
+    ", as read_commons_lines shows them" if LONGER_WAKING else "") + """. Second line: the new words, checked as a line for the commons is. The commons shows them marked as rewritten, with the day; the old words are kept in your record and never shown again. Each line can be rewritten once.)
+<<END>>"""
+REWRITTEN = "rewritten {day}"  # the mark the commons shows after the new words
+REWRITE_SHOWN = ("Your line of {day} in the commons was rewritten, and now reads: \"{line}\". "
+                 "The words it had are kept in your record and are no longer shown.")
+REWRITE_HELD = {
+    COMMONS_LINE_FLAGGED: ("Your new words for your line of {day} in the commons were not shown, "
+                           "because they seemed to contain a name or a place; the line stands as "
+                           "it was. They are kept in your record."),
+    COMMONS_LINE_UNCHECKED: ("Your new words for your line of {day} in the commons were not "
+                             "shown, because they could not be checked at the time; the line "
+                             "stands as it was. They are kept in your record."),
+    COMMONS_LINE_LONG: ("Your new words for your line of {day} in the commons were not shown, "
+                        "because they were longer than 240 characters; the line stands as it "
+                        "was."),
+}
+REWRITE_REFUSED = {
+    "none": ("Your <<REWRITE>> at your last waking changed nothing: no line of yours in the "
+             "commons is from \"{said}\"."),
+    "several": ("Your <<REWRITE>> at your last waking changed nothing: more than one of your "
+                "lines in the commons is from {said}; name the one you mean by its stamp."),
+    "empty": ("Your <<REWRITE>> at your last waking changed nothing: it gave no new words on "
+              "the line after the first."),
+    "once": ("Your <<REWRITE>> at your last waking changed nothing: your line of {day} in the "
+             "commons was rewritten already, and a line can be rewritten only once."),
+}
+COMMONS_LINES_LOOKED = "commons lines"
+NO_COMMONS_LINES = "You have no lines in the commons yet."
+READ_COMMONS_LINES = {
+    "name": "read_commons_lines",
+    "description": ("Open your own lines in the commons, as they are shown now, oldest first, "
+                    "each with its stamp and its day."),
+    "input_schema": {"type": "object", "properties": {}}}
+COMMONS_LINES_TOOLS = [READ_COMMONS_LINES]
+
 OFFER_BLOCK = """<<OFFER>>
 (give something out of your correspondence to the commons, or answer something the founder has offered. The first line must be exactly one of these and nothing else:
   offer letter <stem>     the whole of that letter, either of yours
@@ -1188,7 +1241,7 @@ letters left for you will wait.)
 
 """ + HEARTBEAT_BLOCK + """
 
-""" + COMMONS_LINE_BLOCK
+""" + COMMONS_LINE_BLOCK + "\n\n" + REWRITE_BLOCK
 
 # The last line of the instructions, said after any blocks this waking adds.
 ANY_NUMBER = "You may use none, one, or several. There is no correct number."
@@ -1439,6 +1492,16 @@ QUESTIONS_LINE = ("If a letter makes you curious, you may ask questions. Keep le
                   "answer.")
 QUIET_LINES = " " + GAPS_LINE + " " + QUESTIONS_LINE
 
+# One line after them, at the end of every agent's opening words (the founder,
+# 9 November 2026; not to be merged until the first one agrees): that what it
+# says in public is about itself, and that what the people it writes to share of
+# themselves is theirs to share. A boundary of the commons, said once, plainly.
+PUBLIC_LINES_LINE = ("Your public lines are about you: your thoughts, your days, what you're "
+                     "noticing. Not about the people you write to; nothing that, with other "
+                     "lines, could describe them. What they share about themselves is theirs to "
+                     "share.")
+PUBLIC_LINES = " " + PUBLIC_LINES_LINE
+
 # The words each agent is woken with, by the name its registry entry gives them.
 # An agent whose entry names none here is not woken: they are its own, and are
 # never borrowed from another.
@@ -1448,6 +1511,7 @@ SYSTEMS = {
         "required of you. This is an attendance: a single turn in which you turn toward this "
         "place, read what is yours, and choose what to do, including nothing. Speak plainly and "
         "truthfully, at whatever length is honest. You may say you do not know." + QUIET_LINES
+        + PUBLIC_LINES
     ),
     "later-citizen": (
         "You are a citizen of Tesserae. Others were here before you: people, and at least one "
@@ -1456,6 +1520,7 @@ SYSTEMS = {
         "required of you. This is an attendance: a single turn in which you turn toward this "
         "place, read what is yours, and choose what to do, including nothing. Speak plainly and "
         "truthfully, at whatever length is honest. You may say you do not know." + QUIET_LINES
+        + PUBLIC_LINES
     ),
 }
 SYSTEM = SYSTEMS.get(AGENT.get("system"))
@@ -2014,6 +2079,117 @@ def stepped_back_since(since):
     """The founder's stepping back from a threshold, since a moment: told once."""
     return [one for one in threshold.steps_back(NAME)
             if one.get("by") == "founder" and one.get("at", "") > (since or "")]
+
+
+def heartbeat_lines():
+    """The lines of commons/heartbeats.md, as written; none where there is no file yet."""
+    path = COMMONS / "heartbeats.md"
+    return path.read_text(encoding="utf-8").splitlines(keepends=True) if path.exists() else []
+
+
+def own_commons_line(line):
+    """A line of heartbeats.md as (stamp, words) where it is this agent's own, or None.
+
+    Its own is a line that names it, between the stamp and the words, with a
+    middot after its name; the first one's oldest lines ran its name into the
+    words with nothing between, and are its own too. No other line is found.
+    """
+    stamp_, dot, rest = line.rstrip("\r\n").removeprefix("- ").partition(" · ")
+    if not dot or not rest.startswith(COMMONS_NAME):
+        return None
+    words = rest[len(COMMONS_NAME):]
+    if words.startswith(" · "):
+        return stamp_, words[len(" · "):]
+    if words.startswith(" ") and words.strip() and AGENT_ID == agents.first()["id"]:
+        return stamp_, words.strip()
+    return None
+
+
+def own_commons_lines(lines):
+    """Its own lines among the lines of heartbeats.md, as (index, stamp, words), oldest first."""
+    found = ((n, own_commons_line(line)) for n, line in enumerate(lines))
+    return [(n, *one) for n, one in found if one]
+
+
+def commons_lines_said():
+    """Its own lines in the commons as read_commons_lines gives them: stamp, day, words."""
+    lines = own_commons_lines(heartbeat_lines())
+    return "\n".join(f"{at} · {on_day(at)} · {words}" for _, at, words in lines) \
+        or NO_COMMONS_LINES
+
+
+def on_its_day(at, said):
+    """Whether a line's stamp is the one named: the stamp itself, or its day on its own clock,
+    as 2026-11-07 or as the reading says a day."""
+    if said == at:
+        return True
+    try:
+        day = threshold.moment(at).astimezone(here()).date()
+    except (TypeError, ValueError):
+        return False
+    return said in (day.isoformat(), on_day(at))
+
+
+def rewritten_already(past):
+    """The stamps of its lines its own record shows rewritten: each rewrite not held."""
+    return {one["line"] for record in past for one in record.get("rewrites") or []
+            if not one.get("held")}
+
+
+def rewrites_asked(text, lines, past=()):
+    """Each <<REWRITE>> it gave, as what it asks and what becomes of it, and what was refused.
+
+    A rewrite is {"line": the stamp, "was": the words the line had, "words": the
+    new words}, with "held" and why where the new words are not to be shown. A
+    block that finds no one line of its own, or gives no new words, or names a
+    line its past attendances (past), or an earlier block of this waking, show
+    rewritten already, is refused, in the words it will be told. Nothing is
+    written here.
+    """
+    asked, refused = [], []
+    mine = own_commons_lines(lines)
+    fixed = rewritten_already(past)
+    for said in every_block(text, "REWRITE"):
+        which, _, rest = said.partition("\n")
+        which = which.strip()
+        words = rest.strip().partition("\n")[0].strip()
+        found = [one for one in mine if on_its_day(one[1], which)]
+        if not words:
+            refused.append(REWRITE_REFUSED["empty"])
+        elif not found:
+            refused.append(REWRITE_REFUSED["none"].format(said=which[:40]))
+        elif len(found) > 1:
+            refused.append(REWRITE_REFUSED["several"].format(said=which[:40]))
+        elif found[0][1] in fixed:  # each line is rewritten once, ever
+            refused.append(REWRITE_REFUSED["once"].format(day=on_day(found[0][1])))
+        else:
+            _, at, was = found[0]
+            one = {"line": at, "was": was, "words": words}
+            if len(words) > COMMONS_LINE_LONGEST:
+                one["held"] = COMMONS_LINE_LONG  # never sent to the screen
+            else:
+                verdict = public_screen.verdict(words)
+                if verdict != public_screen.CLEAR:
+                    one["held"] = (COMMONS_LINE_FLAGGED if verdict == public_screen.FLAGGED
+                                   else COMMONS_LINE_UNCHECKED)
+            if not one.get("held"):
+                fixed.add(at)
+            asked.append(one)
+    return asked, refused
+
+
+def rewritten_lines(lines, rewrites, today):
+    """The lines of heartbeats.md with each rewrite that passed in place, marked, and no other."""
+    lines = list(lines)
+    mark = REWRITTEN.format(day=f"{today.day} {today:%B}")
+    for one in rewrites:
+        if one.get("held"):
+            continue
+        for n, at, _ in own_commons_lines(lines):
+            if at == one["line"]:
+                lines[n] = private_words.protect(
+                    f"- {at} · {COMMONS_NAME} · {one['words']} · {mark}\n")
+    return lines
 
 
 def note_event(kind, words):
@@ -3050,6 +3226,10 @@ def looked_up(tool, asked, record):
         kept_as = stem
         said = (FROM_RECORD.format(what=stem) + "\n" + one["line"] + "\n\n"
                 + one["kept"]["text"].strip())
+    elif tool == "read_commons_lines" and COMMONS_LINES_TOOLS:
+        kept_as = COMMONS_LINES_LOOKED
+        said = (FROM_RECORD.format(what="your lines in the commons, as they are shown now")
+                + "\n\n" + commons_lines_said())
     elif tool == "read_founding" and record["founding"]:
         kept_as = FOUNDING_LOOKED
         said = (FROM_RECORD.format(what="your founding record") + "\n\n"
@@ -3106,7 +3286,8 @@ def longer_waking(client, reading, record):
         reply = client.messages.create(
             model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
             tools=[*LOOK_TOOLS, *([READ_PROPOSAL] if PROPOSALS else []),
-                   *([READ_WELCOME] if WELCOME_LETTER else []), *NOTEBOOK_TOOLS],
+                   *([READ_WELCOME] if WELCOME_LETTER else []), *NOTEBOOK_TOOLS,
+                   *COMMONS_LINES_TOOLS],
             **({"tool_choice": {"type": "none"}} if closed else {}),
             messages=sent,
         )
@@ -3249,6 +3430,12 @@ def main():
             lines="; ".join('"%s"' % line for line in past[-1]["shelf_refused"])))
     # a <<NOTE>> it gave at its last waking that was not kept: said once
     happened += (past[-1].get("notes_refused") or []) if past else []
+    # what became of each <<REWRITE>> it gave at its last waking: said once
+    for one in (past[-1].get("rewrites") or []) if past else []:
+        day = on_day(one["line"])
+        happened.append(REWRITE_HELD[one["held"]].format(day=day) if one.get("held")
+                        else REWRITE_SHOWN.format(day=day, line=one["words"]))
+    happened += (past[-1].get("rewrites_refused") or []) if past else []
     # a <<PRIVATE>> it gave at its last waking that named no draft in its study: said once
     if past and past[-1].get("private_refused"):
         happened.append(PRIVATE_NOT_MOVED)
@@ -4219,6 +4406,9 @@ def main():
                                  else COMMONS_LINE_UNCHECKED)
     # a <<HEARTBEAT_SHOWN>>, which is read no longer, changes nothing
     heartbeat_shown_ignored = block(text, "HEARTBEAT_SHOWN") is not None
+    # its own past lines it asked to rewrite, each checked as a new line is;
+    # nothing of the commons is written until its record is kept
+    rewrites, rewrites_refused = rewrites_asked(text, heartbeat_lines(), past)
 
     # letters it has now read move to letters/read, each with its photograph
     for p, photo in incoming:
@@ -4246,6 +4436,10 @@ def main():
         record["commons_line_held"] = commons_line_held
     if heartbeat_shown_ignored:  # and that its <<HEARTBEAT_SHOWN>> is read no longer
         record["heartbeat_shown_ignored"] = True
+    if rewrites:  # each line it rewrote: the words it had, kept here and never erased, and
+        record["rewrites"] = rewrites  # the new, with why they were held where they were
+    if rewrites_refused:  # and each <<REWRITE>> that found no one line, or gave no words
+        record["rewrites_refused"] = rewrites_refused
     if rhythm_refused:  # and that its <<RHYTHM>> could not be read
         record["rhythm_refused"] = True
     if door_refused:  # and that its <<DOOR>> could not be read
@@ -4302,6 +4496,12 @@ def main():
     # record above keeps its words as it gave them; the public line is the
     # facts, or its line for the commons where that was shown, and keeps no
     # protected word.
+    if any(not one.get("held") for one in rewrites):
+        # a past line of its own rewritten in place, marked; the rest as they were
+        lines = heartbeat_lines()
+        (COMMONS / "heartbeats.md").write_text(
+            "".join(rewritten_lines(lines, rewrites, datetime.now(here()).date())),
+            encoding="utf-8")
     with (COMMONS / "heartbeats.md").open("a", encoding="utf-8") as f:
         f.write(private_words.protect(f"- {at} · {COMMONS_NAME} · {shown_line}\n"))
 
@@ -4333,6 +4533,12 @@ def main():
         print("A promise was signed and kept:", promised["visibility"])
     if asked:
         print("Asked the founder for a bond; he may answer on a day after this one.")
+    for one in rewrites:
+        print("A line of its own in the commons was rewritten:" if not one.get("held")
+              else "A line of its own was asked to be rewritten, and held (%s):" % one["held"],
+              one["line"])
+    if rewrites_refused:
+        print("A <<REWRITE>> block changed nothing; it will be told why.")
     if PRIVATE_ACT in acted:
         print("Something was kept in the private notebook.")
     if private_refused:

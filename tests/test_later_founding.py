@@ -212,6 +212,11 @@ def test_its_words_are_the_approved_ones(env, monkeypatch, data_dir):
             "marked provisional",
             "You'd wake at the same dawn as the agent founded before you, just after it.",
             "Will you keep it?",
+            # the founder, 9 November 2026, on the branch public-lines
+            "Your public lines are about you: your thoughts, your days, what you're noticing.\n"
+            "Not about the people you write to; nothing that, with other lines, could describe\n"
+            "them. What they share about themselves is theirs to share.\n\n"
+            "One rule for every agent here",
             "This is an invitation."):
         assert words in said, words
     # the founder's changes of 9 November, in the later founding only
@@ -239,6 +244,16 @@ def test_the_quiet_lines_are_attend_s_own(attend):
     session = load("founding_session")
     assert session.GAPS_LINE == attend.GAPS_LINE
     assert session.QUESTIONS_LINE == attend.QUESTIONS_LINE
+
+
+def test_the_line_about_public_lines_is_attend_s_own_and_read_once(attend):
+    """Word for word attend's; in the disclosures, and not in the opening or the system words."""
+    session = load("founding_session")
+    assert session.PUBLIC_LINES_LINE == attend.PUBLIC_LINES_LINE
+    said = " ".join(session.LATER_DISCLOSURES.split())
+    assert said.count(session.PUBLIC_LINES_LINE) == 1
+    assert "public lines" not in session.LATER_OPENING + session.LATER_SYSTEM
+    assert "public lines" not in session.DISCLOSURES + session.OPENING  # the first's, kept
 
 
 # ---- what it records --------------------------------------------------------

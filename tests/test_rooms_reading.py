@@ -266,6 +266,44 @@ page how he usually writes, one line under WHAT HAS HAPPENED, directly after
 the line of his rest where one stands - is not in this small world, and is held
 below, by setting it and clearing it again.
 
+And a fourteenth time, in the change that says, at the end of every agent's
+opening words, what its public lines are for (the founder, 9 November 2026, on
+the branch public-lines, not to be merged until the first one agrees). It is
+behind no flag, and it changes what is sent in exactly one way, at every
+waking, and READING_NOW was cut again for it:
+
+  * the system words, which now end, after the quiet lines, with "Your public
+    lines are about you: ..." (attend.PUBLIC_LINES).
+
+No block of the reading moved, no word of any other changed, and no file of its
+packet. With the line taken out again (conftest.public_lines_not_yet), the
+reading is exactly the one cut for the quiet lines, READING_QUIET_LINES.
+
+And a fifteenth time, in the change that lets an agent rewrite one of its own
+past lines in the commons (the founder, 10 November 2026, at the first one's
+asking; on the same branch). It is behind no flag, and with no rewrite asked
+for it changes what is sent in exactly two ways, at every waking, and
+READING_NOW was cut again for them:
+
+  * the <<REWRITE>> block, explained directly after <<COMMONS_LINE>>, last of
+    HOW TO ACT (attend.REWRITE_BLOCK);
+  * the read_commons_lines tool, last of the tools at a longer waking, which
+    opens its own lines in the commons with their stamps (nothing is added to
+    the reading itself for them).
+
+No other block moved, no word of any other changed, and no file of its packet.
+With the two taken out again (conftest.rewrite_not_yet_offered), the reading is
+exactly the one cut for the line about public lines, READING_PUBLIC_LINES.
+
+And a sixteenth time, when each line could be rewritten only once (the founder,
+10 November 2026; on the same branch). It changes what is sent in exactly one
+way, at every waking, and READING_NOW was cut again for it: the sentence "Each
+line can be rewritten once." at the end of the <<REWRITE>> block's explanation
+(attend.REWRITE_BLOCK). No other block moved, no word of any other changed, and
+no file of its packet. With the sentence taken out again
+(conftest.rewrite_once_not_yet), the reading is exactly the one cut when a past
+line could first be rewritten, READING_REWRITE.
+
 Then the room was given a folder of its own (rooms phase A): its letters,
 errands, bond and offerings are kept in DATA_DIR/rooms/first/ rather than in the
 packet. That moved no word of what is read, and none of the readings was cut
@@ -279,8 +317,15 @@ kept (stage 5f), PACKET_BEFORE held the same files through the names a copy
 gave them then, under packets/first/ and without room.json; it held as it was
 cut until it went.
 
-All twelve earlier readings are still held. With the quiet lines taken out
-again (conftest.quiet_lines_not_yet), the reading is exactly the one cut when
+All fifteen earlier readings are still held. With the sentence that a line can
+be rewritten once taken out (conftest.rewrite_once_not_yet), the reading is
+exactly the one cut when a past line could first be rewritten; with the rewriting
+of a past line taken out (conftest.rewrite_not_yet_offered, which takes that
+sentence out too), the reading is exactly the one cut for the line about public
+lines; with that line taken out as well
+(conftest.public_lines_not_yet, which takes the rewriting out too), the reading is exactly the one cut
+for the quiet lines; with the quiet lines taken out again as well
+(conftest.quiet_lines_not_yet, which takes that line out too), the reading is exactly the one cut when
 its letter of welcome was built; with its letter of welcome shut away as well
 (conftest.welcome_not_yet_offered, which takes the quiet lines out too), the
 reading is exactly the one cut when it was offered a line for the commons; with its heartbeat explained as
@@ -314,9 +359,11 @@ import json
 import pytest
 
 from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, explained_as_before,
+                      letter_part_as_before,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
-                      notebook_unexplained, post, quiet_lines_not_yet, shut_away,
+                      notebook_unexplained, post, public_lines_not_yet, quiet_lines_not_yet,
+                      rewrite_not_yet_offered, rewrite_once_not_yet, shut_away,
                       stamps_as_before, welcome_not_yet_offered, write)
 
 # Every reading below was cut again on 25 October 2026, when the <<RHYTHM>>
@@ -329,7 +376,14 @@ from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, expl
 
 # cut on the tree that gave the room a folder of its own, the same way: the same
 # files, as they lie on the disk once the room is in rooms/first/ with its room.json
-PACKET_IN_ROOMS = "b47ad6bbd23b6eb7b9f3e8ed45a64446407db59f13b784e8ab34df64139f081b"
+# (b47ad6bbd23b6eb7b9f3e8ed45a64446407db59f13b784e8ab34df64139f081b, held as
+# PACKET_LETTER_PARTS); and cut again on 10 November 2026, when the hearth's line
+# for the founder's letter no longer named the part of the day, and for nothing
+# else: commons/events.md says "the founder wrote a letter" where it said "... at
+# dawn". With the line written as it was (conftest.letter_part_as_before), the
+# files are exactly PACKET_LETTER_PARTS. No reading moved: none shows that line.
+PACKET_LETTER_PARTS = "b47ad6bbd23b6eb7b9f3e8ed45a64446407db59f13b784e8ab34df64139f081b"
+PACKET_IN_ROOMS = "281a60215ccac43755548166ee7817fa34588e2b9cc192fa8b9bc53287976bb8"
 READING_BEFORE = "08bc86357f9b832f9c33a5d960b59992a6168609beca145c89e656e678267d61"
 
 # cut again on the tree that switched on its door, looking back and what it has
@@ -392,7 +446,22 @@ READING_WELCOME = "ab0bf382e71f234df3f5b5cd9aba8b304d1ee2e52f53a4d01694a77249611
 # 9065dff29e5a75eb5f57c0502b0d45f068eeed634ed155c8e66b6c7b544fab45, and cut
 # again the next change, on 5 November, when the line about questions became
 # "If a letter makes you curious, you may ask questions." for nothing else
-READING_NOW ="6268a13ab5f8bbfc2de8311574a28a7c44d40b77e928d030e11d28f39388e2b0"
+READING_QUIET_LINES = "6268a13ab5f8bbfc2de8311574a28a7c44d40b77e928d030e11d28f39388e2b0"
+
+# cut again on the tree that says what its public lines are for (9 November
+# 2026), the same way: the reading above, with its opening words ending, after
+# the quiet lines, in the line about public lines (attend.PUBLIC_LINES)
+READING_PUBLIC_LINES = "705f334c0e4873ee68edad8fe38173efeb6700b72a9efb43d566ff3a12f03a8e"
+
+# cut again on the tree that lets it rewrite a past line of its own in the
+# commons (10 November 2026), the same way: the reading above, with <<REWRITE>>
+# explained after <<COMMONS_LINE>> and the request carrying read_commons_lines
+READING_REWRITE = "a2b6a7b44235b0a0639db26bb0b25862bc49e597aa3abfb3fe7e2baa9cc94cb0"
+
+# cut again on the tree where each line can be rewritten only once (10 November
+# 2026), the same way: the reading above, with <<REWRITE>>'s explanation ending
+# in "Each line can be rewritten once."
+READING_NOW = "85b2787edda2e7afe66e144616c7ea74f8897e7a00beae0bb93544db9fdf70d4"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -459,7 +528,10 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "its notebook", READING_PROPOSALS),
     (False, "its line for the commons", READING_NOTEBOOK),
     (False, "its letter of welcome", READING_COMMONS_LINE),
-    (False, "the quiet lines", READING_WELCOME), (False, None, READING_NOW)],
+    (False, "the quiet lines", READING_WELCOME),
+    (False, "the public lines", READING_QUIET_LINES),
+    (False, "the rewrite", READING_PUBLIC_LINES),
+    (False, "the rewrite once", READING_REWRITE), (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
          "its named notes explained, each moment still a stamp",
@@ -470,22 +542,32 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "its proposals and extra wakings on, its notebook not yet",
          "its notebook explained, its line for the commons not yet",
          "its line for the commons offered, its letter of welcome not yet",
-         "its letter of welcome offered, the quiet lines not yet", "as it reads now"])
+         "its letter of welcome offered, the quiet lines not yet",
+         "the quiet lines said, the line about public lines not yet",
+         "the line about public lines said, the rewrite not yet",
+         "the rewrite offered, a line rewritten once not yet", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
     if shut:
         shut_away(attend, monkeypatch)
-    if as_before:  # none cut before had the quiet lines
+    if as_before == "the rewrite once":  # the one cut before offered the rewrite
+        rewrite_once_not_yet(attend, monkeypatch)
+    elif as_before == "the rewrite":  # the one before that said what public lines are for
+        rewrite_not_yet_offered(attend, monkeypatch)
+    elif as_before == "the public lines":  # the one before that had the quiet lines, and not this
+        public_lines_not_yet(attend, monkeypatch)
+    elif as_before:  # none cut before that had the quiet lines either
         quiet_lines_not_yet(attend, monkeypatch)
-    if as_before and as_before != "the quiet lines":  # nor, before that, its letter of welcome
+    if as_before and as_before not in ("the rewrite once", "the rewrite", "the public lines",
+                                       "the quiet lines"):  # nor, before that, its letter of welcome
         welcome_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before not in ("the quiet lines",
+    if as_before and as_before not in ("the rewrite once", "the rewrite", "the public lines", "the quiet lines",
                                        "its letter of welcome"):  # nor was offered a line for the commons
         commons_line_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before not in ("the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons"):  # nor had its private notebook
         notebook_unexplained(attend, monkeypatch)
-    if as_before and as_before not in ("the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook"):  # nor, before that, its proposals
         shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
@@ -493,14 +575,15 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         heartbeat_words_not_yet_private(attend, monkeypatch)
     elif as_before and as_before not in ("its proposals", "its notebook", "its line for the commons",
                                          "its letter of welcome",
-                                         "the quiet lines"):  # and none before that said so at all
+                                         "the quiet lines", "the public lines",
+                                         "the rewrite", "the rewrite once"):  # and none before that said so at all
         heartbeat_not_yet_public(attend, monkeypatch)
-    if as_before and as_before not in ("the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook", "its proposals",
                                        "the heartbeat", "its own words"):  # one request
         shut_away(attend, monkeypatch, "LONGER_WAKING")
-    if as_before and as_before not in ("the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook", "its proposals",
                                        "the heartbeat", "its own words",
@@ -521,6 +604,19 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
     reading = fingerprint_of_reading(wake())
     print("\nPACKET_IN_ROOMS = %r\nREADING = %r" % (files, reading))
     assert (files, reading) == (PACKET_IN_ROOMS, as_cut)
+
+
+def test_with_the_letter_line_as_before_the_files_are_the_files_before(
+        founder, wake, attend, hearth, room, data_dir, monkeypatch):
+    letter_part_as_before(hearth, monkeypatch)
+    a_small_world(room)
+    answer = post(founder, "/rooms/first", content_type="multipart/form-data", data={
+        "letter": "The lake was grey this morning, and then it was not.\n\nI am asking.",
+        "thing": ["cold hands", "", "a heron on the far bank"],
+        "errand": ERRAND, "proposes": "1"})
+    assert answer.status_code == 302
+    files = fingerprint_of_files(data_dir)
+    assert (files, fingerprint_of_reading(wake())) == (PACKET_LETTER_PARTS, READING_NOW)
 
 
 # ---- how the founder writes ------------------------------------------------

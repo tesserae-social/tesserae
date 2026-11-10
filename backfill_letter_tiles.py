@@ -2,12 +2,12 @@
 """Give the founder's earlier letters their tiles in the mosaic. Run once, on the host.
 
 The hearth now writes one line to commons/events.md on each day the founder
-leaves a letter, naming the part of the day the first of that day's letters
-fell in. The letters left before it did have no line, so this finds every day
-on which he left at least one - read off the stamps in the letters' own names,
-on the citizen's clock, as the mosaic's days are - and writes the missing
-lines, each among the others in date order, each naming the part of the day of
-that day's first letter by the wakings' own bounds.
+leaves a letter, saying only that he wrote one. The letters left before it did
+have no line, so this finds every day on which he left at least one - read off
+the stamps in the letters' own names, on the citizen's clock, as the mosaic's
+days are - and writes the missing lines, each among the others in date order,
+in the same words. (Until 10 November 2026 each line named the part of the day
+of that day's first letter; none does now.)
 
 No line already there is changed, moved against the others, or taken out, and a
 day that already has its line is passed over, so a second run adds nothing.
@@ -24,7 +24,7 @@ import os
 import re
 from zoneinfo import ZoneInfo
 
-from build_atrium import CITIZEN_ZONE, band, is_letter_line, letter_words, parse_events
+from build_atrium import CITIZEN_ZONE, LETTER_WORDS, is_letter_line, parse_events
 
 # Where the letters are kept is the room's, and rooms.py's to say.
 import rooms
@@ -95,7 +95,7 @@ def backfilled(text, first):
     newline = "\r\n" if "\r\n" in text else "\n"
 
     def said(day):
-        return "%s · letter · %s%s" % (day.isoformat(), letter_words(band(first[day].hour)),
+        return "%s · letter · %s%s" % (day.isoformat(), LETTER_WORDS,
                                         newline)
 
     lines = text.splitlines(keepends=True)

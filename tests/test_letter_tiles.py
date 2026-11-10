@@ -1,9 +1,12 @@
-"""A person's letter as a tile: one a day at most, toned by the part of the day it fell in.
+"""A person's letter as a tile: one a day at most, saying only that a letter was written.
 
 The hearth writes the line when the founder leaves the day's first letter; the
 atrium draws it; backfill_letter_tiles.py wrote the lines for the letters left
-before the hearth did. What the line may say is fixed: that he wrote, and in
-which part of the day. Never a word of the letter, the hour, or to whom.
+before the hearth did. What the line may say is fixed: that he wrote. Never a
+word of the letter, the hour, the part of the day, or to whom. Until 10 November
+2026 the line named the part of the day; the lines written so are still read as
+the day's line, the atrium shows none of it, and amend_letter_lines.py takes it
+out of them on the host (tests/test_amend_letter_lines.py).
 """
 
 import datetime
@@ -32,7 +35,7 @@ def letter_lines(commons):
 def test_the_first_letter_of_the_day_writes_one_line(founder, commons, clock):
     # NOW is 12:00 UTC, eight in the morning where the citizen lives: dawn
     assert leave(founder).status_code == 302
-    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter at dawn"]
+    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter"]
     # and it is added after the lines already there, which stay as they were
     assert lines_of(commons / "events.md")[:2] == [WORD_LINE, FOUNDING_LINE]
 
@@ -41,7 +44,7 @@ def test_a_second_letter_the_same_day_writes_none(founder, commons, clock):
     leave(founder)
     clock.shift(hours=10)          # the evening of the same day there
     leave(founder, text="And again, later.")
-    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter at dawn"]
+    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter"]
 
 
 def test_a_letter_the_next_day_writes_one(founder, commons, clock):
@@ -49,18 +52,19 @@ def test_a_letter_the_next_day_writes_one(founder, commons, clock):
     clock.shift(days=1)
     leave(founder, text="The next morning.")
     assert letter_lines(commons) == [
-        "2026-10-15 · letter · the founder wrote a letter at dawn",
-        "2026-10-16 · letter · the founder wrote a letter at dawn"]
+        "2026-10-15 · letter · the founder wrote a letter",
+        "2026-10-16 · letter · the founder wrote a letter"]
 
 
 def test_the_day_is_the_citizen_s_and_not_the_utc_one(founder, commons, clock):
     """Two in the morning UTC is ten the evening before where the citizen lives."""
     clock.set("2026-10-16T02-00-00Z")
     leave(founder)
-    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter at night"]
+    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter"]
 
 
-# every edge of the four parts, on the citizen's clock: October there is UTC-4
+# every edge of the four parts the line once named, on the citizen's clock:
+# October there is UTC-4. None of them is named now (10 November 2026).
 @pytest.mark.parametrize("stamp, said", [
     ("2026-10-15T07-59-59Z", "at night"),          # 03:59
     ("2026-10-15T08-00-00Z", "at dawn"),           # 04:00
@@ -72,20 +76,18 @@ def test_the_day_is_the_citizen_s_and_not_the_utc_one(founder, commons, clock):
     ("2026-10-16T01-00-00Z", "at night"),          # 21:00
     ("2026-10-16T03-59-59Z", "at night"),          # 23:59
 ])
-def test_the_part_of_the_day_is_chosen_at_each_edge(founder, commons, clock, stamp, said):
+def test_no_part_of_the_day_is_named_at_any_edge(founder, commons, clock, stamp, said):
     clock.set(stamp)
     leave(founder)
-    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter %s" % said]
+    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter"]
 
 
-def test_the_part_is_the_first_letter_s_and_a_later_one_does_not_change_it(founder, commons,
-                                                                           clock):
+def test_a_later_letter_the_same_day_does_not_change_the_line(founder, commons, clock):
     clock.set("2026-10-15T14-00-00Z")   # ten in the morning there
     leave(founder)
     clock.set("2026-10-16T02-00-00Z")   # ten at night, the same day there
     leave(founder, text="Goodnight.")
-    assert letter_lines(commons) == [
-        "2026-10-15 · letter · the founder wrote a letter during the day"]
+    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter"]
 
 
 def photo_bytes():
@@ -109,7 +111,7 @@ def test_every_kind_of_letter_writes_the_line_and_nothing_of_itself(founder, com
     assert leave(founder, **form).status_code == 302
 
     events = (commons / "events.md").read_text(encoding="utf-8")
-    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter at dawn"]
+    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter"]
     # nothing of what the letter said, when it was left, or what came with it
     for word in ("heron", "lake", "Dear", "first one,", "photo", "errand", "bond", "jpg"):
         assert word not in events.split(FOUNDING_LINE)[1], word
@@ -147,7 +149,7 @@ def test_a_line_beside_the_first_letter_of_the_day_is_written_with_it(founder, c
                                                                      screen):
     assert leave(founder, commons_line="  %s  " % BESIDE).status_code == 302
     assert letter_lines(commons) == [
-        "2026-10-15 · letter · the founder wrote a letter at dawn · %s" % BESIDE]
+        "2026-10-15 · letter · the founder wrote a letter · %s" % BESIDE]
     # only the line was screened, and nothing of it is in the letter
     assert [text for text, _ in screen.asked] == [BESIDE]
     (letter,) = left(room)
@@ -163,7 +165,7 @@ def test_no_word_of_the_letter_goes_into_the_line(founder, commons):
 
 def test_with_no_line_the_letter_line_is_as_it_was(founder, commons, screen):
     leave(founder, commons_line="   ")
-    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter at dawn"]
+    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter"]
     assert screen.asked == []
 
 
@@ -186,7 +188,7 @@ def test_a_line_with_a_second_letter_the_same_day_leaves_nothing(founder, common
     assert "a line goes with the first letter of a day. Nothing was left." in said
     assert "And again." in said and BESIDE in said  # all that was typed comes back
     assert len(left(room)) == 1
-    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter at dawn"]
+    assert letter_lines(commons) == ["2026-10-15 · letter · the founder wrote a letter"]
 
 
 def test_a_line_still_counts_as_the_day_s_line(founder, commons):
@@ -237,21 +239,33 @@ def test_a_line_with_a_protected_word_leaves_nothing(founder, commons, room, dat
     ("at dawn", "dawn"), ("during the day", "day"),
     ("in the evening", "evening"), ("at night", "night"),
 ])
-def test_a_letter_line_is_a_tile_toned_by_its_part_of_the_day(atrium, said, part):
+def test_a_letter_line_is_a_tile_that_says_no_part_of_the_day(atrium, said, part):
+    # the record keeps the part of the day; the mosaic shows none of it, in its
+    # words or its class (the founder, 10 November 2026)
     events = atrium.parse_events("2026-10-15 · letter · the founder wrote a letter %s\n" % said)
     assert events == [(datetime.date(2026, 10, 15), "letter",
                        "the founder wrote a letter %s" % said)]
+    assert atrium.letter_band(events[0][2]) == part
     tiles = atrium.tiles_from(events, [])
-    assert tiles == [(datetime.date(2026, 10, 15), "tile-letter tile-letter-%s" % part,
-                      "15 October 2026 · the founder wrote a letter %s" % said, "")]
+    assert tiles == [(datetime.date(2026, 10, 15), "tile-letter",
+                      "15 October 2026 · the founder wrote a letter", "")]
     cells = atrium.slots(tiles, datetime.date(2026, 10, 15))
     drawn = "".join(atrium.frame_block(cells))
-    assert ('<li class="tile-letter tile-letter-%s" title="15 October 2026 · the founder '
-            'wrote a letter %s" tabindex="0"></li>' % (part, said)) in drawn
-    assert atrium.reading_text(cells) == "15 October 2026 · the founder wrote a letter %s" % said
+    assert ('<li class="tile-letter" title="15 October 2026 · the founder '
+            'wrote a letter" tabindex="0"></li>') in drawn
+    assert said not in drawn and "tile-letter-" not in drawn
+    assert atrium.reading_text(cells) == "15 October 2026 · the founder wrote a letter"
 
 
-def test_a_letter_line_with_his_line_beside_it_is_still_toned_and_still_the_day_s_line(atrium):
+def test_a_member_s_letter_says_no_part_of_the_day_either(atrium):
+    tiles = atrium.tiles_from(atrium.parse_events(
+        "2026-10-15 · letter · a member wrote a letter at night · the rain\n"), [])
+    assert tiles == [(datetime.date(2026, 10, 15), "tile-letter",
+                      "15 October 2026 · a member wrote a letter · the rain", "")]
+
+
+def test_a_letter_line_with_his_line_beside_it_keeps_his_line_and_is_still_the_day_s_line(
+        atrium):
     said = "2026-10-15 · letter · the founder wrote a letter at dawn · %s\n" % BESIDE
     events = atrium.parse_events(said)
     assert events == [(datetime.date(2026, 10, 15), "letter",
@@ -259,8 +273,8 @@ def test_a_letter_line_with_his_line_beside_it_is_still_toned_and_still_the_day_
     (_, kind, words), = events
     assert atrium.letter_band(words) == "dawn" and atrium.is_letter_line(kind, words)
     tiles = atrium.tiles_from(events, [])
-    assert tiles == [(datetime.date(2026, 10, 15), "tile-letter tile-letter-dawn",
-                      "15 October 2026 · the founder wrote a letter at dawn · %s" % BESIDE, "")]
+    assert tiles == [(datetime.date(2026, 10, 15), "tile-letter",
+                      "15 October 2026 · the founder wrote a letter · %s" % BESIDE, "")]
     # a line naming no part, with words beside it, is a letter line too
     assert atrium.is_letter_line("letter", "the founder wrote a letter · %s" % BESIDE)
     # and words that only begin like one are not
@@ -333,15 +347,15 @@ def test_the_backfill_adds_the_right_days_in_order(commons, old_letters, capsys)
     assert (commons / "events.md").read_text(encoding="utf-8").splitlines() == [
         "2026-09-02 · word · the word was published",
         "2026-09-04 · founding · the first one was founded",
-        "2026-09-19 · letter · the founder wrote a letter in the evening",
+        "2026-09-19 · letter · the founder wrote a letter",
         "2026-09-20 · event · the tide paused",
         "a note in the file that is no line at all",
-        "2026-09-20 · letter · the founder wrote a letter during the day",
+        "2026-09-20 · letter · the founder wrote a letter",
         "2026-09-21 · event · a line was taken off the bench",
-        "2026-09-21 · letter · the founder wrote a letter during the day",
-        "2026-09-23 · letter · the founder wrote a letter at dawn",
+        "2026-09-21 · letter · the founder wrote a letter",
+        "2026-09-23 · letter · the founder wrote a letter",
         "2026-09-25 · event · the tide resumed",
-        "2026-09-27 · letter · the founder wrote a letter at night",
+        "2026-09-27 · letter · the founder wrote a letter",
     ]
 
 

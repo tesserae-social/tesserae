@@ -595,8 +595,8 @@ LETTERS = ("2026-10-02 · letter · the founder wrote a letter at dawn\n"
            "2026-10-06 · letter · the founder wrote a letter\n")   # a line naming no part
 
 
-def test_both_paths_draw_a_letter_toned_by_its_part_of_the_day(atrium, data_dir, monkeypatch,
-                                                                tmp_path):
+def test_both_paths_draw_a_letter_with_no_part_of_the_day(atrium, data_dir, monkeypatch,
+                                                           tmp_path):
     a_record(data_dir)
     with (data_dir / "commons" / "events.md").open("a", encoding="utf-8") as record:
         record.write(LETTERS)
@@ -604,16 +604,16 @@ def test_both_paths_draw_a_letter_toned_by_its_part_of_the_day(atrium, data_dir,
     for name in REGIONS:
         assert here[name] == there[name], name
     for said in (here, there):
-        for day, part, words in [("2", "dawn", "at dawn"), ("3", "day", "during the day"),
-                                 ("4", "evening", "in the evening"), ("5", "night", "at night")]:
-            assert ('<li class="tile-letter tile-letter-%s" title="%s October 2026 · the founder '
-                    'wrote a letter %s" tabindex="0"></li>' % (part, day, words)) in said["mosaic"]
-        assert ('<li class="tile-letter" title="6 October 2026 · the founder wrote a letter" '
-                'tabindex="0"></li>') in said["mosaic"]
+        for day in "23456":  # each part of the day the record names, and the one naming none
+            assert ('<li class="tile-letter" title="%s October 2026 · the founder wrote a letter" '
+                    'tabindex="0"></li>' % day) in said["mosaic"]
+        assert "tile-letter-" not in said["mosaic"]
+        for words in ("at dawn", "during the day", "in the evening", "at night"):
+            assert "wrote a letter " + words not in said["mosaic"]
 
 
-def test_both_paths_tone_a_letter_with_the_founder_s_line_beside_it(atrium, data_dir,
-                                                                    monkeypatch, tmp_path):
+def test_both_paths_keep_the_founder_s_line_beside_a_letter(atrium, data_dir,
+                                                            monkeypatch, tmp_path):
     a_record(data_dir)
     with (data_dir / "commons" / "events.md").open("a", encoding="utf-8") as record:
         record.write("2026-10-07 · letter · the founder wrote a letter in the evening · "
@@ -623,8 +623,8 @@ def test_both_paths_tone_a_letter_with_the_founder_s_line_beside_it(atrium, data
     for name in REGIONS:
         assert here[name] == there[name], name
     for said in (here, there):
-        assert ('<li class="tile-letter tile-letter-evening" title="7 October 2026 · the founder '
-                'wrote a letter in the evening · the first frost, and coffee on the step" '
+        assert ('<li class="tile-letter" title="7 October 2026 · the founder '
+                'wrote a letter · the first frost, and coffee on the step" '
                 'tabindex="0"></li>') in said["mosaic"]
         assert ('<li class="tile-letter" title="8 October 2026 · the founder wrote a letter · '
                 'and one naming no part" tabindex="0"></li>') in said["mosaic"]
@@ -639,7 +639,7 @@ def test_both_paths_read_out_a_letter_as_the_newest_tile(atrium, data_dir, monke
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     assert here == there
     assert here["reading"] == ('<p class="reading">15 October 2026 · the founder wrote '
-                               'a letter in the evening</p>')
+                               'a letter</p>')
 
 
 # ---- the offerings, on both paths ----------------------------------------

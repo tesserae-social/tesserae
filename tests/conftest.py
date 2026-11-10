@@ -693,6 +693,104 @@ HEARTBEAT_SHOWN_BLOCK = """<<HEARTBEAT_SHOWN>>
 <<END>>"""
 
 
+def letter_part_as_before(hearth, monkeypatch):
+    """Write the day's line for the founder's letters, for one test, as before 10 November 2026.
+
+    Until then the hearth's line named the part of the day the first of that
+    day's letters fell in, by the wakings' own bounds ("the founder wrote a
+    letter at dawn"); it says only "the founder wrote a letter" now. Put back,
+    note_letter is exactly what it was, and a world held to a fingerprint from
+    before then gives that fingerprint again.
+    """
+    import build_atrium
+
+    def note_letter(line=""):
+        now = hearth.datetime.now(hearth.ZoneInfo(hearth.CITIZEN_ZONE))
+        with hearth.LETTER_LOCK:
+            if hearth.letter_line_today(now.date()):
+                return False
+            words = build_atrium.letter_words(build_atrium.band(now.hour))
+            hearth.note_event("letter", "%s %s %s" % (words, hearth.DOT, line) if line else words,
+                              now.date().isoformat())
+            return True
+
+    monkeypatch.setattr(hearth, "note_letter", note_letter)
+
+
+# The words that explained <<REWRITE>> before each line could be rewritten only
+# once (the founder, 10 November 2026): the block as it is, without the last sentence.
+REWRITE_ONCE = " Each line can be rewritten once.)"
+
+
+def rewrite_once_not_yet(module, monkeypatch):
+    """Take out, for one test, the sentence that a line can be rewritten once (10 November 2026).
+
+    It is behind no flag: one sentence at the end of the <<REWRITE>> block's
+    explanation, last of HOW TO ACT (attend.REWRITE_BLOCK). Taken out, the
+    reading is exactly what it was when a past line could first be rewritten,
+    for the first one and for a later agent alike. An attend.py from before it
+    has no such sentence, and is left.
+    """
+    said = getattr(module, "REWRITE_BLOCK", None)
+    if not said or REWRITE_ONCE not in said:
+        return  # none there, or put back already, in this test
+    was = said.replace(REWRITE_ONCE, ")")
+    assert module.HOW_TO_ACT.endswith("\n\n" + said)
+    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.removesuffix(said) + was)
+    later = getattr(module, "LATER_WORDS", None) or {}
+    if "HOW_TO_ACT" in later:
+        assert later["HOW_TO_ACT"].endswith("\n\n" + said)
+        monkeypatch.setitem(later, "HOW_TO_ACT", later["HOW_TO_ACT"].removesuffix(said) + was)
+    monkeypatch.setattr(module, "REWRITE_BLOCK", was)
+
+
+def rewrite_not_yet_offered(module, monkeypatch):
+    """Take out, for one test, the rewriting of a past line (the founder, 10 November 2026).
+
+    It is behind no flag, and with no rewrite asked for it changes what is sent in
+    two ways and no other: the <<REWRITE>> block, explained directly after
+    <<COMMONS_LINE>> at the end of HOW TO ACT, and the read_commons_lines tool,
+    last of the tools at a longer waking. Taken out, the reading is exactly what
+    it was with the line about public lines, for the first one and for a later
+    agent alike. An attend.py from before it has no such block, and is left.
+
+    That a line can be rewritten only once came after it, and is taken out first
+    (rewrite_once_not_yet).
+    """
+    rewrite_once_not_yet(module, monkeypatch)
+    said = getattr(module, "REWRITE_BLOCK", None)
+    if not said or ("\n\n" + said) not in module.HOW_TO_ACT:
+        return  # none there, or put back already, in this test
+    assert module.HOW_TO_ACT.endswith("\n\n" + said)
+    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.removesuffix("\n\n" + said))
+    # a later agent's HOW TO ACT is filled afresh at each waking from its template
+    later = getattr(module, "LATER_WORDS", None) or {}
+    if "HOW_TO_ACT" in later:
+        assert later["HOW_TO_ACT"].endswith("\n\n" + said)
+        monkeypatch.setitem(later, "HOW_TO_ACT", later["HOW_TO_ACT"].removesuffix("\n\n" + said))
+    monkeypatch.setattr(module, "COMMONS_LINES_TOOLS", [])
+
+
+def public_lines_not_yet(module, monkeypatch):
+    """Take out, for one test, the line about public lines (the founder, 9 November 2026).
+
+    It is behind no flag: one line said at the end of every agent's SYSTEM, after
+    the quiet lines (attend.PUBLIC_LINES). Taken out, the opening words are exactly
+    what they were with the quiet lines, for the first one and for a later agent
+    alike. An attend.py from before it has no such line, and is left.
+
+    The rewriting of a past line came after it, so a reading from before the one
+    is from before the other, and it is taken out first (rewrite_not_yet_offered).
+    """
+    rewrite_not_yet_offered(module, monkeypatch)
+    said = getattr(module, "PUBLIC_LINES", None)
+    if not said or not module.SYSTEM.endswith(said):
+        return  # none there, or put back already, in this test
+    for key, words in list(module.SYSTEMS.items()):
+        monkeypatch.setitem(module.SYSTEMS, key, words.removesuffix(said))
+    monkeypatch.setattr(module, "SYSTEM", module.SYSTEM.removesuffix(said))
+
+
 def quiet_lines_not_yet(module, monkeypatch):
     """Take out, for one test, the two lines its opening words end with (4 November 2026).
 
@@ -703,7 +801,11 @@ def quiet_lines_not_yet(module, monkeypatch):
     person's words on how they write are said only where they have set some,
     and none is set in any world held to a reading, so nothing else is put back.
     An attend.py from before them has no such words, and is left.
+
+    The line about public lines came after them, so a reading from before the one
+    is from before the other, and it is taken out first (public_lines_not_yet).
     """
+    public_lines_not_yet(module, monkeypatch)
     said = getattr(module, "QUIET_LINES", None)
     if not said or not module.SYSTEM.endswith(said):
         return  # none there, or put back already, in this test

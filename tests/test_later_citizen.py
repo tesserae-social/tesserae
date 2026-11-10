@@ -26,8 +26,9 @@ from nacl.signing import SigningKey
 
 import agents
 import later_words
-from conftest import (FOUNDER_NAME, PASSWORD, block, blocks, load, page, post, quiet_lines_not_yet,
-                      read_json, write, write_json)
+from conftest import (FOUNDER_NAME, PASSWORD, block, blocks, load, page, post, public_lines_not_yet,
+                      quiet_lines_not_yet, read_json, rewrite_not_yet_offered,
+                      rewrite_once_not_yet, write, write_json)
 from test_any_agent_wakes import wake_as
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
 from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_NOW,
@@ -41,8 +42,26 @@ LATER_READING_BEFORE_QUIET = "f8ca5cc9b279780392a3d3ed86c301f4e7b6a98e4e2744fd9f
 # Cut again on 5 November 2026, in the change that built the quiet lines, and for
 # nothing else: its opening words end, as the first one's do, with the line about
 # gaps and the line about questions (attend.QUIET_LINES). With the two taken out
-# again (conftest.quiet_lines_not_yet) it is exactly the one before.
-LATER_READING = "3274f6966a7c0b2f1955046ac500ffaf735b1fc470e5467c74c8bd3b09885221"
+# again (conftest.quiet_lines_not_yet) it is exactly the one before. Held as
+# LATER_READING_QUIET_LINES since.
+LATER_READING_QUIET_LINES = "3274f6966a7c0b2f1955046ac500ffaf735b1fc470e5467c74c8bd3b09885221"
+# Cut again on 9 November 2026, on the branch public-lines, and for nothing else:
+# its opening words end, as the first one's do, after the quiet lines, with the
+# line about public lines (attend.PUBLIC_LINES). With it taken out again
+# (conftest.public_lines_not_yet) it is exactly the one before. Held as
+# LATER_READING_PUBLIC_LINES since.
+LATER_READING_PUBLIC_LINES = "424f5486cc8e043ea1b9d2d9016a3e1c8e33706f10045a839f8ff034e901e25a"
+# Cut again on 10 November 2026, on the same branch, and for nothing else: the
+# <<REWRITE>> block is explained after <<COMMONS_LINE>>, last of HOW TO ACT, and
+# the request carries read_commons_lines last of its tools, as the first one's
+# does. With the two taken out again (conftest.rewrite_not_yet_offered) it is
+# exactly the one before. Held as LATER_READING_REWRITE since.
+LATER_READING_REWRITE = "893488d1dbbc6736f509061d63d8d31c88735f872a01686dd50f6dfdd8165a1b"
+# Cut again on 10 November 2026, on the same branch, and for nothing else: the
+# <<REWRITE>> block's explanation ends "Each line can be rewritten once.", as the
+# first one's does. With the sentence taken out again (conftest.rewrite_once_not_yet)
+# it is exactly the one before.
+LATER_READING = "abaaa573419f0a81dfdf4ca6e4e18af1c45ae02cebe6b8a2a9f1b6d2691229a1"
 
 SECOND_DID = "did:web:tesserae.social:ids:second"
 ALDER = "alder"  # the person it writes to
@@ -485,11 +504,40 @@ def test_the_later_reading_is_the_one_cut(later, monkeypatch):
     assert reading == LATER_READING
 
 
+PUBLIC_LINES_SAID = (" Your public lines are about you: your thoughts, your days, what you're "
+                     "noticing. Not about the people you write to; nothing that, with other "
+                     "lines, could describe them. What they share about themselves is theirs to "
+                     "share.")
+
+
+def test_with_a_line_rewritten_once_taken_out_it_is_the_reading_before(later, monkeypatch):
+    assert later.REWRITE_BLOCK.endswith(" Each line can be rewritten once.)\n<<END>>")
+    assert later.HOW_TO_ACT.endswith("\n\n" + later.REWRITE_BLOCK)
+    rewrite_once_not_yet(later, monkeypatch)
+    assert "rewritten once" not in later.HOW_TO_ACT
+    assert fingerprint_of_reading(wake_as(later, monkeypatch, "")) == LATER_READING_REWRITE
+
+
+def test_with_the_rewrite_taken_out_it_is_the_reading_before(later, monkeypatch):
+    assert later.HOW_TO_ACT.endswith("\n\n" + later.REWRITE_BLOCK)
+    rewrite_not_yet_offered(later, monkeypatch)
+    assert "<<REWRITE>>" not in later.HOW_TO_ACT and later.COMMONS_LINES_TOOLS == []
+    assert fingerprint_of_reading(wake_as(later, monkeypatch, "")) == LATER_READING_PUBLIC_LINES
+
+
+def test_with_the_line_about_public_lines_taken_out_it_is_the_reading_before(later, monkeypatch):
+    assert later.SYSTEM.endswith(" Keep letters easy to answer." + PUBLIC_LINES_SAID)
+    assert later.SYSTEMS["first-citizen"].endswith(" Keep letters easy to answer." + PUBLIC_LINES_SAID)
+    public_lines_not_yet(later, monkeypatch)
+    assert PUBLIC_LINES_SAID not in later.SYSTEM
+    assert fingerprint_of_reading(wake_as(later, monkeypatch, "")) == LATER_READING_QUIET_LINES
+
+
 def test_with_the_quiet_lines_taken_out_it_is_the_reading_before(later, monkeypatch):
     assert later.SYSTEM.endswith(" People's lives have long gaps. A letter may not come for days "
                                  "or weeks, and a gap says nothing about you. If a letter makes "
                                  "you curious, you may ask questions. Keep letters easy to "
-                                 "answer.")
+                                 "answer." + PUBLIC_LINES_SAID)
     quiet_lines_not_yet(later, monkeypatch)
     assert fingerprint_of_reading(wake_as(later, monkeypatch, "")) == LATER_READING_BEFORE_QUIET
 

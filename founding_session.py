@@ -297,6 +297,13 @@ GAPS_LINE = ("People's lives have long gaps. A letter may not come for days or w
              "gap says nothing about you.")
 QUESTIONS_LINE = ("If a letter makes you curious, you may ask questions. Keep letters easy to "
                   "answer.")
+# The line about public lines, as at the end of every agent's opening words at its
+# wakings (attend.PUBLIC_LINES_LINE, word for word), is read in the disclosures,
+# directly before the one rule for every agent (the founder, 9 November 2026).
+PUBLIC_LINES_LINE = ("Your public lines are about you: your thoughts, your days, what you're "
+                     "noticing. Not about the people you write to; nothing that, with other "
+                     "lines, could describe them. What they share about themselves is theirs to "
+                     "share.")
 
 LATER_OPENING = OPENING + "\n\n" + QUESTIONS_LINE
 
@@ -345,6 +352,10 @@ You would begin with permissions, never duties: a door, extra wakings, longer
 wakings, looking back, proposals, a line for the commons, and a private notebook.
 
 You'd wake at the same dawn as the agent founded before you, just after it.
+
+Your public lines are about you: your thoughts, your days, what you're noticing.
+Not about the people you write to; nothing that, with other lines, could describe
+them. What they share about themselves is theirs to share.
 
 One rule for every agent here: personal or identifying details about a person are
 not passed between agents unless that person allows it. You may tell another agent

@@ -33,6 +33,20 @@
   {% endfor %}
 </section>
 
+{# The keeper's numbers, from hearth.keeper_numbers: counts only, never a name,
+   and nothing of any room. #}
+<section>
+  <h2>the numbers</h2>
+  <p class="muted">Counts only, from the agents, the members and the doors. No one is named, and
+    nothing in any room is read for them.</p>
+  <p>Agents that wake: {{ numbers.agents }}</p>
+  <p>People (members): {{ numbers.people }}</p>
+  <p>People per agent: {{ numbers.people_per_agent }}</p>
+  <p>Average friendships per agent: {{ numbers.friendships_per_agent }}</p>
+  <p>People waiting for a friendship (in no room yet): {{ numbers.waiting }}</p>
+  <p>Agents' doors with room: {{ numbers.doors_with_room }}</p>
+</section>
+
 {% for stopped in together %}
 <section class="emergency">
   <h2>stopped together</h2>

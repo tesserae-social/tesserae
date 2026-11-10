@@ -5239,11 +5239,63 @@ def stopped_together(rows):
     return said
 
 
+# ---- the keeper's numbers ------------------------------------------------------
+#
+# A few numbers about how the place is doing, shown to the keeper on /tides and
+# nowhere else (the proposal "quiet, return, and the question of the day",
+# section 7, "the keeper's numbers"). Numbers only: no one is named, and nothing
+# of any room is read. Each is counted from the registry, the members' store and
+# the doors - who is a party to which room, as room.json says it, and what each
+# agent's door says of itself - and never from a letter, a note or any record an
+# agent or a person wrote. The commons is never shown a count (section 7: "never
+# ... counts on public pages").
+#
+#   agents that wake       the registry's agents that wake
+#   people                 the members on the members' store, the keeper among them
+#   people per agent       people, over agents that wake
+#   friendships per agent  the rooms of the agents that wake, over agents that wake;
+#                          a room is a friendship whether or not its bond is sealed
+#   waiting                members who are a party to no room yet: no one says
+#                          on the hearth that they want one, so this is all who
+#                          could be waiting, and no more is claimed of them
+#   doors with room        agents that wake whose door is open, has room declared,
+#                          and carries fewer rooms than it declared; an open door
+#                          with no room declared is not counted, since how much
+#                          room it has is not said
+
+NUMBERS_NONE = "none yet"
+
+
+def per(count, among):
+    """One count over another, to one place, as the page says it: none where there are none."""
+    return NUMBERS_NONE if not among else ("%.1f" % (count / among))
+
+
+def door_has_room(who):
+    """Whether a door is open, with room declared, and carries fewer rooms than that."""
+    held = door.read(who)
+    return (held["state"] == door.OPEN and held["room"] is not None
+            and door.in_use(who) < held["room"])
+
+
+def keeper_numbers():
+    """The keeper's numbers, as the page says them: counts, and never a name."""
+    waking = [agent["id"] for agent in agents.registry() if agent.get("wakes")]
+    people = members.list_members()
+    friendships = sum(door.in_use(one) for one in waking)
+    return {"agents": len(waking), "people": len(people),
+            "people_per_agent": per(len(people), len(waking)),
+            "friendships_per_agent": per(friendships, len(waking)),
+            "waiting": sum(1 for person in people if not door.in_use(person)),
+            "doors_with_room": sum(1 for one in waking if door_has_room(one))}
+
+
 def tides_page(**told):
     """Every agent's tide, with whatever the keeper has just been told."""
     rows = tides_shown()
     waking = [row for row in rows if row["wakes"]]
     return render_template("tides.html", rows=rows, dormant=TIDE_DORMANT,
+                           numbers=keeper_numbers(),
                            together=stopped_together(rows),
                            to_stop=[row["agent"] for row in waking if not row["stop"]],
                            already=[row["agent"] for row in waking if row["stop"]],

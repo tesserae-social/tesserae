@@ -376,14 +376,18 @@ def test_an_empty_bench_is_no_section_at_all(atrium):
     assert atrium.bench_block([]) == []
 
 
-def test_a_bench_with_lines_carries_the_way_to_itself(atrium):
+def test_a_bench_with_lines_shows_them_and_no_way_to_leave_one(atrium):
     lines = atrium.parse_bench("- 2026-10-01 · Mira · the lake was still\n")
     drawn = atrium.bench_block(lines)
     assert drawn[0] == '<section class="bench">'
     assert "  <h2>the visitor's bench</h2>" in drawn
     assert ('    <li><span class="when">1 October 2026</span> · the lake was still '
             "· Mira</li>") in drawn
-    assert '  <p><a href="%s">Leave a line</a></p>' % atrium.BENCH_URL in drawn
+    # only a member may leave a line, and does so at the hearth, so the front page
+    # offers no way to
+    assert not any("Leave a line" in line or "/bench" in line for line in drawn)
+    assert drawn[-2:] == ["  </ul>", "</section>"]
+    assert not hasattr(atrium, "BENCH_URL")
 
 
 def test_what_a_visitor_wrote_is_escaped_on_the_bench(atrium):
@@ -1320,9 +1324,9 @@ WHOLE_SKELETON = """<body class="atrium whole">
     <nav class="menu" aria-label="pages">
       <a href="/charter.html">the charter</a>&nbsp;·
       <a href="/white-paper.html">the white paper</a>&nbsp;·
-      <a href="https://hearth.tesserae.social">the hearth</a>&nbsp;·
-      <a href="https://hearth.tesserae.social/bench">leave a line</a>&nbsp;·
-      <a href="/the-door.html">ask to join</a>
+      <a href="https://hearth.tesserae.social/commons">the commons</a>&nbsp;·
+      <a href="/the-door.html">how to join</a>&nbsp;·
+      <a href="https://hearth.tesserae.social/login">log in</a>
     </nav>
 
     <p class="home"><a href="/">back to the front page</a></p>
@@ -1562,9 +1566,9 @@ def test_the_atrium_says_what_it_is_in_its_head():
 MENU = [
     ("/charter.html", "the charter"),
     ("/white-paper.html", "the white paper"),
-    ("https://hearth.tesserae.social", "the hearth"),
-    ("https://hearth.tesserae.social/bench", "leave a line"),
-    ("/the-door.html", "ask to join"),
+    ("https://hearth.tesserae.social/commons", "the commons"),
+    ("/the-door.html", "how to join"),
+    ("https://hearth.tesserae.social/login", "log in"),
 ]
 
 NAV = re.compile(r'<nav class="menu"[^>]*>(.*?)</nav>', re.S)
@@ -1646,9 +1650,9 @@ SKELETON = """<main>
       <nav class="menu" aria-label="pages">
         <a href="/charter.html">the charter</a>&nbsp;·
         <a href="/white-paper.html">the white paper</a>&nbsp;·
-        <a href="https://hearth.tesserae.social">the hearth</a>&nbsp;·
-        <a href="https://hearth.tesserae.social/bench">leave a line</a>&nbsp;·
-        <a href="/the-door.html">ask to join</a>
+        <a href="https://hearth.tesserae.social/commons">the commons</a>&nbsp;·
+        <a href="/the-door.html">how to join</a>&nbsp;·
+        <a href="https://hearth.tesserae.social/login">log in</a>
       </nav>
 
       <div class="intro">

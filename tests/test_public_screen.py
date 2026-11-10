@@ -129,12 +129,13 @@ def good_spirit(hearth, monkeypatch):
     return hearth
 
 
-def bench_says(visitor, line):
-    return post(visitor, "/bench", data={"line": line, "as": "a passerby"})
+def bench_says(member, line):
+    """A line left on the bench, by a member signed in: only a member may leave one."""
+    return post(member, "/bench", data={"line": line})
 
 
-def test_a_bench_line_the_screen_clears_is_placed(good_spirit, visitor, commons, screen):
-    assert bench_says(visitor, "hello from a passerby").status_code == 302
+def test_a_bench_line_the_screen_clears_is_placed(good_spirit, birch, commons, screen):
+    assert bench_says(birch, "hello from a passerby").status_code == 302
     assert lines_of(commons / "bench.md")[-1].endswith("hello from a passerby")
     assert screen.asked[-1][0] == "hello from a passerby"
 
@@ -142,18 +143,18 @@ def test_a_bench_line_the_screen_clears_is_placed(good_spirit, visitor, commons,
 @pytest.mark.parametrize("says, told", [("YES", BENCH_NAMED), (DOWN, COULD_NOT_CHECK),
                                          ("I think so", COULD_NOT_CHECK)])
 def test_a_bench_line_the_screen_does_not_clear_is_not_placed(
-        good_spirit, visitor, commons, screen, capsys, says, told):
+        good_spirit, birch, commons, screen, capsys, says, told):
     screen.says = says
-    answer = bench_says(visitor, "Hollis Brandt says hello")
+    answer = bench_says(birch, "Hollis Brandt says hello")
     assert answer.status_code == 200 and told in page(answer)
     assert not (commons / "bench.md").exists()
     out, err = capsys.readouterr()
     assert "Hollis" not in out + err
 
 
-def test_a_line_out_of_spirit_is_not_sent_to_the_screen(hearth, visitor, monkeypatch, screen):
+def test_a_line_out_of_spirit_is_not_sent_to_the_screen(hearth, birch, monkeypatch, screen):
     monkeypatch.setattr(hearth, "in_good_spirit", lambda line: False)
-    bench_says(visitor, "a cruel line")
+    bench_says(birch, "a cruel line")
     assert screen.asked == []
 
 

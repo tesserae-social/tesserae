@@ -20,7 +20,7 @@ REFUSAL = "This form was not sent from the hearth. Go back, refresh, and try aga
 
 # The whole of what may be posted without a token, written out here by hand so
 # that widening it is a change to this file as well as to hearth.py.
-EXEMPT = {"bench"}
+EXEMPT = set()
 
 CHANGING = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -64,7 +64,7 @@ def bench_line(hearth, line="The lake was still this morning."):
 
 # ---- the guard -----------------------------------------------------------
 
-def test_the_exempt_list_is_exactly_the_bench(hearth):
+def test_nothing_is_exempt_from_the_token(hearth):
     assert set(hearth.CSRF_EXEMPT) == EXEMPT
 
 
@@ -150,8 +150,7 @@ def test_every_form_on_the_founders_pages_carries_the_token(founder, hearth, com
         forms = said.count("<form")
         assert forms, path
         carried = said.count(f'name="csrf_token" value="{held}"')
-        # the bench's own visitor form is the one form that goes without
-        assert carried == forms - (1 if path == "/bench" else 0), path
+        assert carried == forms, path
 
 
 def test_the_login_form_carries_the_token(visitor):
@@ -217,13 +216,19 @@ def test_a_foreign_origin_is_refused_at_the_bench_too(visitor, hearth, commons, 
     assert lines_of(commons / "bench.md") == []
 
 
-def test_the_bench_takes_a_visitors_line_without_a_token(visitor, hearth, commons,
-                                                         monkeypatch):
+def test_the_bench_takes_no_line_without_a_token(keeper, visitor, hearth, commons,
+                                                 monkeypatch):
     monkeypatch.setattr(hearth, "in_good_spirit", lambda line: True)
-    answer = visitor.post("/bench", data={"line": "A quiet morning."})
+    for client in (keeper, visitor):
+        assert refused(client.post("/bench", data={"line": "A quiet morning."}))
+    assert lines_of(commons / "bench.md") == []
+
+
+def test_the_bench_takes_a_members_line_with_its_token(keeper, hearth, commons, monkeypatch):
+    monkeypatch.setattr(hearth, "in_good_spirit", lambda line: True)
+    answer = post(keeper, "/bench", data={"line": "A quiet morning."})
     assert answer.status_code == 302
     assert len(lines_of(commons / "bench.md")) == 1
-    assert "Set-Cookie" not in answer.headers  # and no passerby is handed a session
 
 
 # ---- the token's life ----------------------------------------------------

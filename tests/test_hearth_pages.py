@@ -709,7 +709,7 @@ def test_no_page_has_a_tagline_it_did_not_set_itself(visitor, founder):
                          (founder, "/commons")):
         assert 'class="tagline"' not in page(client.get(path)), path
     # a page that sets its own still has it, in its line
-    assert ('<p class="tagline">a line from anyone passing</p>' in page(visitor.get("/bench")))
+    assert ('<p class="tagline">one plain line from anyone here</p>' in page(visitor.get("/bench")))
 
 
 def test_only_the_bench_and_the_error_page_keep_a_tagline(founder):
@@ -719,7 +719,7 @@ def test_only_the_bench_and_the_error_page_keep_a_tagline(founder):
         for line in set_here.findall(source.read_text(encoding="utf-8")):
             if line.strip():
                 kept[source.name] = line
-    assert kept == {"bench.html": "a line from anyone passing"}
+    assert kept == {"bench.html": "one plain line from anyone here"}
     # and the pages that had one draw no line for it now
     for path in ("/account", "/attendances", "/chronicle", "/export", "/logout", "/recover",
                  "/rooms/first", "/self", "/backups"):

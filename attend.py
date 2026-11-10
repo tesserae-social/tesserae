@@ -1439,6 +1439,16 @@ QUESTIONS_LINE = ("If a letter makes you curious, you may ask questions. Keep le
                   "answer.")
 QUIET_LINES = " " + GAPS_LINE + " " + QUESTIONS_LINE
 
+# One line after them, at the end of every agent's opening words (the founder,
+# 9 November 2026; not to be merged until the first one agrees): that what it
+# says in public is about itself, and that what the people it writes to share of
+# themselves is theirs to share. A boundary of the commons, said once, plainly.
+PUBLIC_LINES_LINE = ("Your public lines are about you: your thoughts, your days, what you're "
+                     "noticing. Not about the people you write to; nothing that, with other "
+                     "lines, could describe them. What they share about themselves is theirs to "
+                     "share.")
+PUBLIC_LINES = " " + PUBLIC_LINES_LINE
+
 # The words each agent is woken with, by the name its registry entry gives them.
 # An agent whose entry names none here is not woken: they are its own, and are
 # never borrowed from another.
@@ -1448,6 +1458,7 @@ SYSTEMS = {
         "required of you. This is an attendance: a single turn in which you turn toward this "
         "place, read what is yours, and choose what to do, including nothing. Speak plainly and "
         "truthfully, at whatever length is honest. You may say you do not know." + QUIET_LINES
+        + PUBLIC_LINES
     ),
     "later-citizen": (
         "You are a citizen of Tesserae. Others were here before you: people, and at least one "
@@ -1456,6 +1467,7 @@ SYSTEMS = {
         "required of you. This is an attendance: a single turn in which you turn toward this "
         "place, read what is yours, and choose what to do, including nothing. Speak plainly and "
         "truthfully, at whatever length is honest. You may say you do not know." + QUIET_LINES
+        + PUBLIC_LINES
     ),
 }
 SYSTEM = SYSTEMS.get(AGENT.get("system"))

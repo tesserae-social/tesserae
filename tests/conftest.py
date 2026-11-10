@@ -693,6 +693,22 @@ HEARTBEAT_SHOWN_BLOCK = """<<HEARTBEAT_SHOWN>>
 <<END>>"""
 
 
+def public_lines_not_yet(module, monkeypatch):
+    """Take out, for one test, the line about public lines (the founder, 9 November 2026).
+
+    It is behind no flag: one line said at the end of every agent's SYSTEM, after
+    the quiet lines (attend.PUBLIC_LINES). Taken out, the opening words are exactly
+    what they were with the quiet lines, for the first one and for a later agent
+    alike. An attend.py from before it has no such line, and is left.
+    """
+    said = getattr(module, "PUBLIC_LINES", None)
+    if not said or not module.SYSTEM.endswith(said):
+        return  # none there, or put back already, in this test
+    for key, words in list(module.SYSTEMS.items()):
+        monkeypatch.setitem(module.SYSTEMS, key, words.removesuffix(said))
+    monkeypatch.setattr(module, "SYSTEM", module.SYSTEM.removesuffix(said))
+
+
 def quiet_lines_not_yet(module, monkeypatch):
     """Take out, for one test, the two lines its opening words end with (4 November 2026).
 
@@ -703,7 +719,11 @@ def quiet_lines_not_yet(module, monkeypatch):
     person's words on how they write are said only where they have set some,
     and none is set in any world held to a reading, so nothing else is put back.
     An attend.py from before them has no such words, and is left.
+
+    The line about public lines came after them, so a reading from before the one
+    is from before the other, and it is taken out first (public_lines_not_yet).
     """
+    public_lines_not_yet(module, monkeypatch)
     said = getattr(module, "QUIET_LINES", None)
     if not said or not module.SYSTEM.endswith(said):
         return  # none there, or put back already, in this test

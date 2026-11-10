@@ -266,6 +266,19 @@ page how he usually writes, one line under WHAT HAS HAPPENED, directly after
 the line of his rest where one stands - is not in this small world, and is held
 below, by setting it and clearing it again.
 
+And a fourteenth time, in the change that says, at the end of every agent's
+opening words, what its public lines are for (the founder, 9 November 2026, on
+the branch public-lines, not to be merged until the first one agrees). It is
+behind no flag, and it changes what is sent in exactly one way, at every
+waking, and READING_NOW was cut again for it:
+
+  * the system words, which now end, after the quiet lines, with "Your public
+    lines are about you: ..." (attend.PUBLIC_LINES).
+
+No block of the reading moved, no word of any other changed, and no file of its
+packet. With the line taken out again (conftest.public_lines_not_yet), the
+reading is exactly the one cut for the quiet lines, READING_QUIET_LINES.
+
 Then the room was given a folder of its own (rooms phase A): its letters,
 errands, bond and offerings are kept in DATA_DIR/rooms/first/ rather than in the
 packet. That moved no word of what is read, and none of the readings was cut
@@ -279,8 +292,10 @@ kept (stage 5f), PACKET_BEFORE held the same files through the names a copy
 gave them then, under packets/first/ and without room.json; it held as it was
 cut until it went.
 
-All twelve earlier readings are still held. With the quiet lines taken out
-again (conftest.quiet_lines_not_yet), the reading is exactly the one cut when
+All thirteen earlier readings are still held. With the line about public lines
+taken out (conftest.public_lines_not_yet), the reading is exactly the one cut
+for the quiet lines; with the quiet lines taken out again as well
+(conftest.quiet_lines_not_yet, which takes that line out too), the reading is exactly the one cut when
 its letter of welcome was built; with its letter of welcome shut away as well
 (conftest.welcome_not_yet_offered, which takes the quiet lines out too), the
 reading is exactly the one cut when it was offered a line for the commons; with its heartbeat explained as
@@ -316,7 +331,8 @@ import pytest
 from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, explained_as_before,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
-                      notebook_unexplained, post, quiet_lines_not_yet, shut_away,
+                      notebook_unexplained, post, public_lines_not_yet, quiet_lines_not_yet,
+                      shut_away,
                       stamps_as_before, welcome_not_yet_offered, write)
 
 # Every reading below was cut again on 25 October 2026, when the <<RHYTHM>>
@@ -392,7 +408,12 @@ READING_WELCOME = "ab0bf382e71f234df3f5b5cd9aba8b304d1ee2e52f53a4d01694a77249611
 # 9065dff29e5a75eb5f57c0502b0d45f068eeed634ed155c8e66b6c7b544fab45, and cut
 # again the next change, on 5 November, when the line about questions became
 # "If a letter makes you curious, you may ask questions." for nothing else
-READING_NOW ="6268a13ab5f8bbfc2de8311574a28a7c44d40b77e928d030e11d28f39388e2b0"
+READING_QUIET_LINES = "6268a13ab5f8bbfc2de8311574a28a7c44d40b77e928d030e11d28f39388e2b0"
+
+# cut again on the tree that says what its public lines are for (9 November
+# 2026), the same way: the reading above, with its opening words ending, after
+# the quiet lines, in the line about public lines (attend.PUBLIC_LINES)
+READING_NOW = "705f334c0e4873ee68edad8fe38173efeb6700b72a9efb43d566ff3a12f03a8e"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -459,7 +480,8 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "its notebook", READING_PROPOSALS),
     (False, "its line for the commons", READING_NOTEBOOK),
     (False, "its letter of welcome", READING_COMMONS_LINE),
-    (False, "the quiet lines", READING_WELCOME), (False, None, READING_NOW)],
+    (False, "the quiet lines", READING_WELCOME),
+    (False, "the public lines", READING_QUIET_LINES), (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
          "its named notes explained, each moment still a stamp",
@@ -470,22 +492,26 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "its proposals and extra wakings on, its notebook not yet",
          "its notebook explained, its line for the commons not yet",
          "its line for the commons offered, its letter of welcome not yet",
-         "its letter of welcome offered, the quiet lines not yet", "as it reads now"])
+         "its letter of welcome offered, the quiet lines not yet",
+         "the quiet lines said, the line about public lines not yet", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
     if shut:
         shut_away(attend, monkeypatch)
-    if as_before:  # none cut before had the quiet lines
+    if as_before == "the public lines":  # the one cut before had the quiet lines, and not this
+        public_lines_not_yet(attend, monkeypatch)
+    elif as_before:  # none cut before that had the quiet lines either
         quiet_lines_not_yet(attend, monkeypatch)
-    if as_before and as_before != "the quiet lines":  # nor, before that, its letter of welcome
+    if as_before and as_before not in ("the public lines",
+                                       "the quiet lines"):  # nor, before that, its letter of welcome
         welcome_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before not in ("the quiet lines",
+    if as_before and as_before not in ("the public lines", "the quiet lines",
                                        "its letter of welcome"):  # nor was offered a line for the commons
         commons_line_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before not in ("the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons"):  # nor had its private notebook
         notebook_unexplained(attend, monkeypatch)
-    if as_before and as_before not in ("the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook"):  # nor, before that, its proposals
         shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
@@ -493,14 +519,14 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         heartbeat_words_not_yet_private(attend, monkeypatch)
     elif as_before and as_before not in ("its proposals", "its notebook", "its line for the commons",
                                          "its letter of welcome",
-                                         "the quiet lines"):  # and none before that said so at all
+                                         "the quiet lines", "the public lines"):  # and none before that said so at all
         heartbeat_not_yet_public(attend, monkeypatch)
-    if as_before and as_before not in ("the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook", "its proposals",
                                        "the heartbeat", "its own words"):  # one request
         shut_away(attend, monkeypatch, "LONGER_WAKING")
-    if as_before and as_before not in ("the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook", "its proposals",
                                        "the heartbeat", "its own words",

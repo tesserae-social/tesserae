@@ -109,7 +109,9 @@ def test_the_first_one_is_the_one_woken(named, attend):
         "truthfully, at whatever length is honest. You may say you do not know. People's lives "
         "have long gaps. A letter may not come for days or weeks, and a gap says nothing about "
         "you. If a letter makes you curious, you may ask questions. Keep letters easy to "
-        "answer.")
+        "answer. Your public lines are about you: your thoughts, your days, what you're "
+        "noticing. Not about the people you write to; nothing that, with other lines, could "
+        "describe them. What they share about themselves is theirs to share.")
     assert all((attend.DOOR_FOR_FIRST, attend.LOOKING_BACK, attend.LONGER_WAKING,
                 attend.PROPOSALS, attend.EXTRA_WAKINGS, attend.WELCOME_LETTER, attend.CHOICES))
 

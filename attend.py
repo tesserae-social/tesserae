@@ -1126,9 +1126,13 @@ HEARTBEAT_SHOWN_IGNORED = ("<<HEARTBEAT_SHOWN>> is no longer read; a line for th
 # never erased and never shown publicly again. Rewriting is no act: the facts of
 # the waking never say it. Its lines, each with its stamp, open with
 # read_commons_lines at a longer waking: nothing is added to the reading itself.
+# Each line may be rewritten once, ever (the founder, 10 November 2026): a line
+# its own record shows rewritten is fixed for good, and a second <<REWRITE>> for
+# it changes nothing, and it is told so. New words that were held do not use up
+# the line's one rewrite.
 REWRITE_BLOCK = """<<REWRITE>>
 (to replace one of your own past lines in the commons. First line: its date or its stamp""" + (
-    ", as read_commons_lines shows them" if LONGER_WAKING else "") + """. Second line: the new words, checked as a line for the commons is. The commons shows them marked as rewritten, with the day; the old words are kept in your record and never shown again.)
+    ", as read_commons_lines shows them" if LONGER_WAKING else "") + """. Second line: the new words, checked as a line for the commons is. The commons shows them marked as rewritten, with the day; the old words are kept in your record and never shown again. Each line can be rewritten once.)
 <<END>>"""
 REWRITTEN = "rewritten {day}"  # the mark the commons shows after the new words
 REWRITE_SHOWN = ("Your line of {day} in the commons was rewritten, and now reads: \"{line}\". "
@@ -1151,6 +1155,8 @@ REWRITE_REFUSED = {
                 "lines in the commons is from {said}; name the one you mean by its stamp."),
     "empty": ("Your <<REWRITE>> at your last waking changed nothing: it gave no new words on "
               "the line after the first."),
+    "once": ("Your <<REWRITE>> at your last waking changed nothing: your line of {day} in the "
+             "commons was rewritten already, and a line can be rewritten only once."),
 }
 COMMONS_LINES_LOOKED = "commons lines"
 NO_COMMONS_LINES = "You have no lines in the commons yet."
@@ -2124,16 +2130,25 @@ def on_its_day(at, said):
     return said in (day.isoformat(), on_day(at))
 
 
-def rewrites_asked(text, lines):
+def rewritten_already(past):
+    """The stamps of its lines its own record shows rewritten: each rewrite not held."""
+    return {one["line"] for record in past for one in record.get("rewrites") or []
+            if not one.get("held")}
+
+
+def rewrites_asked(text, lines, past=()):
     """Each <<REWRITE>> it gave, as what it asks and what becomes of it, and what was refused.
 
     A rewrite is {"line": the stamp, "was": the words the line had, "words": the
     new words}, with "held" and why where the new words are not to be shown. A
-    block that finds no one line of its own, or gives no new words, is refused,
-    in the words it will be told. Nothing is written here.
+    block that finds no one line of its own, or gives no new words, or names a
+    line its past attendances (past), or an earlier block of this waking, show
+    rewritten already, is refused, in the words it will be told. Nothing is
+    written here.
     """
     asked, refused = [], []
     mine = own_commons_lines(lines)
+    fixed = rewritten_already(past)
     for said in every_block(text, "REWRITE"):
         which, _, rest = said.partition("\n")
         which = which.strip()
@@ -2145,6 +2160,8 @@ def rewrites_asked(text, lines):
             refused.append(REWRITE_REFUSED["none"].format(said=which[:40]))
         elif len(found) > 1:
             refused.append(REWRITE_REFUSED["several"].format(said=which[:40]))
+        elif found[0][1] in fixed:  # each line is rewritten once, ever
+            refused.append(REWRITE_REFUSED["once"].format(day=on_day(found[0][1])))
         else:
             _, at, was = found[0]
             one = {"line": at, "was": was, "words": words}
@@ -2155,6 +2172,8 @@ def rewrites_asked(text, lines):
                 if verdict != public_screen.CLEAR:
                     one["held"] = (COMMONS_LINE_FLAGGED if verdict == public_screen.FLAGGED
                                    else COMMONS_LINE_UNCHECKED)
+            if not one.get("held"):
+                fixed.add(at)
             asked.append(one)
     return asked, refused
 
@@ -4389,7 +4408,7 @@ def main():
     heartbeat_shown_ignored = block(text, "HEARTBEAT_SHOWN") is not None
     # its own past lines it asked to rewrite, each checked as a new line is;
     # nothing of the commons is written until its record is kept
-    rewrites, rewrites_refused = rewrites_asked(text, heartbeat_lines())
+    rewrites, rewrites_refused = rewrites_asked(text, heartbeat_lines(), past)
 
     # letters it has now read move to letters/read, each with its photograph
     for p, photo in incoming:

@@ -717,6 +717,33 @@ def letter_part_as_before(hearth, monkeypatch):
     monkeypatch.setattr(hearth, "note_letter", note_letter)
 
 
+# The words that explained <<REWRITE>> before each line could be rewritten only
+# once (the founder, 10 November 2026): the block as it is, without the last sentence.
+REWRITE_ONCE = " Each line can be rewritten once.)"
+
+
+def rewrite_once_not_yet(module, monkeypatch):
+    """Take out, for one test, the sentence that a line can be rewritten once (10 November 2026).
+
+    It is behind no flag: one sentence at the end of the <<REWRITE>> block's
+    explanation, last of HOW TO ACT (attend.REWRITE_BLOCK). Taken out, the
+    reading is exactly what it was when a past line could first be rewritten,
+    for the first one and for a later agent alike. An attend.py from before it
+    has no such sentence, and is left.
+    """
+    said = getattr(module, "REWRITE_BLOCK", None)
+    if not said or REWRITE_ONCE not in said:
+        return  # none there, or put back already, in this test
+    was = said.replace(REWRITE_ONCE, ")")
+    assert module.HOW_TO_ACT.endswith("\n\n" + said)
+    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.removesuffix(said) + was)
+    later = getattr(module, "LATER_WORDS", None) or {}
+    if "HOW_TO_ACT" in later:
+        assert later["HOW_TO_ACT"].endswith("\n\n" + said)
+        monkeypatch.setitem(later, "HOW_TO_ACT", later["HOW_TO_ACT"].removesuffix(said) + was)
+    monkeypatch.setattr(module, "REWRITE_BLOCK", was)
+
+
 def rewrite_not_yet_offered(module, monkeypatch):
     """Take out, for one test, the rewriting of a past line (the founder, 10 November 2026).
 
@@ -726,7 +753,11 @@ def rewrite_not_yet_offered(module, monkeypatch):
     last of the tools at a longer waking. Taken out, the reading is exactly what
     it was with the line about public lines, for the first one and for a later
     agent alike. An attend.py from before it has no such block, and is left.
+
+    That a line can be rewritten only once came after it, and is taken out first
+    (rewrite_once_not_yet).
     """
+    rewrite_once_not_yet(module, monkeypatch)
     said = getattr(module, "REWRITE_BLOCK", None)
     if not said or ("\n\n" + said) not in module.HOW_TO_ACT:
         return  # none there, or put back already, in this test

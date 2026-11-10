@@ -11,6 +11,10 @@ waking. Only its own lines are found. Where they pass, the commons shows the new
 words, marked "· rewritten <day>"; the words before are kept in the attendance
 of the waking that rewrote them, never erased, and never shown publicly again.
 Its lines, each with its stamp, open with read_commons_lines at a longer waking.
+Each line may be rewritten once, ever (the founder, 10 November 2026): a line
+its record shows rewritten is fixed for good, a second <<REWRITE>> for it changes
+nothing and it is told so plainly, and new words that were held do not use up
+the line's one rewrite.
 The screen is stubbed here, as everywhere in the suite (conftest.screen).
 """
 
@@ -30,11 +34,13 @@ SHOWN = ('Your line of 1 October 2026 in the commons was rewritten, and now read
 FLAGGED = ("Your new words for your line of 1 October 2026 in the commons were not shown, "
            "because they seemed to contain a name or a place; the line stands as it was. They "
            "are kept in your record.")
+ONCE = ("Your <<REWRITE>> at your last waking changed nothing: your line of 1 October 2026 in "
+        "the commons was rewritten already, and a line can be rewritten only once.")
 LONG = ("Your new words for your line of 1 October 2026 in the commons were not shown, because "
         "they were longer than 240 characters; the line stands as it was.")
 
 BLOCK = """<<REWRITE>>
-(to replace one of your own past lines in the commons. First line: its date or its stamp, as read_commons_lines shows them. Second line: the new words, checked as a line for the commons is. The commons shows them marked as rewritten, with the day; the old words are kept in your record and never shown again.)
+(to replace one of your own past lines in the commons. First line: its date or its stamp, as read_commons_lines shows them. Second line: the new words, checked as a line for the commons is. The commons shows them marked as rewritten, with the day; the old words are kept in your record and never shown again. Each line can be rewritten once.)
 <<END>>"""
 
 
@@ -149,3 +155,48 @@ def test_its_own_lines_open_with_read_commons_lines_and_no_one_else_s(attend, li
         "2026-09-20T02-31-23Z · 19 September 2026 · Second waking; read the founding again.\n"
         "2026-10-01T11-00-00Z · 1 October 2026 · The founder at the regatta.\n"
         "2026-10-03T11-00-00Z · 3 October 2026 · attended; chose stillness")}]
+
+
+# ---- once, ever ---------------------------------------------------------
+
+def test_a_line_rewritten_is_fixed_for_good(wake, lines, packet, screen):
+    wake(rewrite("2026-10-01"))
+    after = lines.read_text(encoding="utf-8")
+    assert MARKED in after
+    wake(rewrite("2026-10-01T11-00-00Z", "Other words again."))
+    assert "rewrites" not in last_record(packet)
+    assert last_record(packet)["rewrites_refused"] == [ONCE]
+    assert lines.read_text(encoding="utf-8").startswith(after)
+    assert "Other words again." not in lines.read_text(encoding="utf-8")
+    assert "Other words again." not in [text for text, _ in screen.asked]
+    shown = wake().shown
+    assert ONCE in shown
+    assert ONCE not in wake().shown  # said once
+
+
+def test_two_rewrites_of_one_line_in_one_waking_take_the_first(wake, lines, packet):
+    wake(blocks(rewrite("2026-10-01"), rewrite("2026-10-01", "Other words again.")))
+    assert [one["words"] for one in last_record(packet)["rewrites"]] == [NEW]
+    assert last_record(packet)["rewrites_refused"] == [ONCE]
+    assert MARKED in lines_of(lines)
+    assert "Other words again." not in lines.read_text(encoding="utf-8")
+
+
+def test_new_words_held_do_not_use_up_the_line_s_rewrite(wake, lines, packet, screen):
+    screen.says = "YES"
+    wake(rewrite("2026-10-01"))
+    assert last_record(packet)["rewrites"][0]["held"] == "flagged"
+    wake(rewrite("2026-10-01", "x" * 241))
+    assert last_record(packet)["rewrites"][0]["held"] == "long"
+    screen.says = "NO"
+    wake(rewrite("2026-10-01"))
+    assert "rewrites_refused" not in last_record(packet)
+    assert MARKED in lines_of(lines)
+
+
+def test_another_line_may_still_be_rewritten(wake, lines, packet):
+    wake(rewrite("2026-10-01"))
+    wake(rewrite("2026-10-03"))
+    assert "rewrites_refused" not in last_record(packet)
+    assert lines_of(lines)[3] == (
+        "- 2026-10-03T11-00-00Z · the first one · %s · rewritten 15 October" % NEW)

@@ -266,7 +266,9 @@ def test_read_private_opens_an_entry_in_full(wake, longer, attend, packet, clock
                        ("read_private", {"stem": "from-study-%s.md" % DRAFT_STEM}),
                        ("read_private", {"stem": "../self"}),
                        ("read_private", {"stem": "moved"})), "I am here.")
-    assert [tool["name"] for tool in turn.asked[0]["tools"]][-1] == "read_private"
+    # read_private is offered, last but for read_commons_lines (10 November 2026)
+    assert [tool["name"] for tool in turn.asked[0]["tools"]][-2:] == [
+        "read_private", "read_commons_lines"]
     assert turn.given == [
         "From your own record: entry-%s\n--- 15 October 2026 · entry-%s ---\n%s"
         % (at, at, ENTRY),

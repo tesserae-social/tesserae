@@ -306,9 +306,9 @@ def test_both_paths_leave_the_menu_and_the_question_alone(atrium, data_dir, monk
         assert re.findall(r'<a href="([^"]*)">(.*?)</a>', menu.search(said).group()) == [
             ("/charter.html", "the charter"),
             ("/white-paper.html", "the white paper"),
-            ("https://hearth.tesserae.social", "the hearth"),
-            ("https://hearth.tesserae.social/bench", "leave a line"),
-            ("/the-door.html", "ask to join")]
+            ("https://hearth.tesserae.social/commons", "the commons"),
+            ("/the-door.html", "how to join"),
+            ("https://hearth.tesserae.social/login", "log in")]
         assert "<details> <summary>What is Tesserae?</summary>" in GAP.sub(" ", said)
         assert "<details open" not in said
         assert 'class="links"' not in said and "links:start" not in said

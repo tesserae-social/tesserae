@@ -2,7 +2,7 @@
 
 {% block title %}the visitor's bench{% endblock %}
 {% block heading %}the visitor's bench{% endblock %}
-{% block tagline %}a line from anyone passing{% endblock %}
+{% block tagline %}one plain line from anyone here{% endblock %}
 
 {% block content %}
 <section>
@@ -41,14 +41,17 @@
 <section>
   <h2>leave a line</h2>
 
+  {# anyone may read the bench; only a signed-in member may leave a line on it.
+     A visitor is shown the one sentence in place of the form, and no token is
+     cut for them, so no visitor is handed a cookie. #}
+  {% if member_here %}
   {% if placed %}<p class="saved">Your line is on the bench.</p>{% endif %}
   {% if refused %}<p class="error">{{ refusal }}</p>{% endif %}
 
   <p class="note">{{ invitation }}</p>
 
-  {# no form token here: this form reads no session, and a token would hand every
-     passerby a cookie. hearth.py's CSRF_EXEMPT says why at more length. #}
   <form method="post" action="{{ url_for('bench') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="field">
       <label for="line">a line</label>
       <input type="text" id="line" name="line" class="wide" maxlength="{{ limit }}"
@@ -68,6 +71,9 @@
     </div>
     <button type="submit">Leave it on the bench</button>
   </form>
+  {% else %}
+  <p class="note">{{ members_only }}</p>
+  {% endif %}
 </section>
 {% endblock %}
 

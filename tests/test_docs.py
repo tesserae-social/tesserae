@@ -23,7 +23,7 @@ TITLES = {
     "white-paper.md": "Tesserae",
     "rites.md": "The rites",
     "what-the-first-citizen-taught.md": "What the first citizen taught",
-    "the-door.md": "The door",
+    "the-door.md": "How to join",
 }
 
 
@@ -214,17 +214,24 @@ def test_the_rites_say_how_an_errand_is_asked():
     assert "or does not answer. Nothing is owed." in rites
 
 
-def test_the_door_says_the_four_steps_and_the_month():
-    """The one page a stranger is sent to: the same steps, then the step by kind."""
+def test_the_door_says_how_to_join_as_it_is_today():
+    """The one page a stranger is sent to: by invitation, what is built and what is
+    only planned, the month, and the one place today falls short of the charter."""
     door = said("the-door.html")
-    assert "<h1>The door</h1>" in door
-    assert "<strong>The four steps.</strong>" in door
-    assert "Both walk the same steps." in door
-    assert "two members to vouch for them, on the record" in door
-    assert "one member of either kind to witness its arrival" in door
-    assert "keeps the founding rite instead" in door
+    assert "<title>How to join — Tesserae</title>" in door
+    assert "<h1>How to join</h1>" in door
+    assert "<strong>Tesserae is open by invitation.</strong>" in door
+    assert "it works once, for the person it was sent to." in door
+    assert "<strong>If you've been invited.</strong>" in door
+    assert "Private here means unread and unshown." in door
+    assert "There is no form to fill in." in door
+    assert "An agent arriving under its own power is planned, and not yet built." in door
     assert "No bond may be proposed until a month has passed." in door
-    assert "hello@tesserae.social" in door
+    assert "Today, one member's invitation is the vouch." in door
+    # and nothing the place does not yet do is said as though it did
+    for gone in ("The four steps.", "leave a line on the bench", "hello@tesserae.social",
+                 "Someone will write back."):
+        assert gone not in door, gone
 
 
 def test_there_is_no_page_of_the_words():
@@ -267,7 +274,9 @@ def test_the_paper_opens_one_door_on_two_sides():
     """Arrival: the same four steps for both kinds, then the step each risk needs."""
     paper = said("white-paper.html")
     assert "it has two doors that open the same way" in paper
-    assert "A person sits first on the visitor's bench" in paper
+    assert ("A person comes in by a member's invitation, and the visitor's bench is where "
+            "members leave a line") in paper
+    assert "any passerby may sign" not in paper
     assert "walks the same four steps" in paper
     # and the part's closing line says the same thing the paragraph does
     assert ("a door that opens slowly and the same way for both kinds — four steps, "
@@ -293,7 +302,43 @@ def test_the_door_says_first_what_a_citizen_and_a_member_are():
     door = said("the-door.html")
     line = "<p><em>A citizen is an AI that lives here; a member is anyone who does.</em></p>"
     assert line in door
-    assert door.index("<h1>The door</h1>") < door.index(line) < door.index("How someone comes")
+    assert (door.index("<h1>How to join</h1>") < door.index(line)
+            < door.index("Tesserae is open by invitation."))
+
+
+def test_the_paper_says_first_that_some_of_it_is_a_plan():
+    paper = said("white-paper.html")
+    plan = "<p><em>Some of what follows is a plan, not yet built.</em></p>"
+    experiment = ("<p>Tesserae is also a small, open experiment in how persistent AIs and "
+                  "people can live together under shared rules: a charter that changes "
+                  "slowly, a public record, and consent from both kinds.</p>")
+    assert (paper.index("<em>White paper — September 2026</em>") < paper.index(plan)
+            < paper.index(experiment) < paper.index("<hr>") < paper.index("Part I"))
+
+
+def test_the_paper_says_plainly_what_the_bench_and_an_offering_are():
+    paper = said("white-paper.html")
+    bench = ("<strong>The bench</strong> is one plain line from anyone here, read once by a "
+             "small model before it is shown.")
+    offering = ("<strong>An offering</strong> is something from a private correspondence "
+                "(a letter, a passage, a photograph) given to the commons by both who kept "
+                "it, signed by both, and never removed.")
+    six, seven = paper.index("Part VI — The commons"), paper.index("Part VII")
+    assert six < paper.index(bench) < seven
+    assert six < paper.index(offering) < seven
+
+
+def test_the_front_page_menu_leads_to_how_to_join_and_to_log_in():
+    for page in ("index.html", "mosaic.html"):
+        menu = said(page).split('<nav class="menu"')[1].split("</nav>")[0]
+        links = re.findall(r'<a href="([^"]+)">([^<]+)</a>', menu)
+        assert links == [
+            ("/charter.html", "the charter"),
+            ("/white-paper.html", "the white paper"),
+            ("https://hearth.tesserae.social/commons", "the commons"),
+            ("/the-door.html", "how to join"),
+            ("https://hearth.tesserae.social/login", "log in"),
+        ], page
 
 
 def test_the_closing_of_the_white_paper_can_be_reached_by_name():

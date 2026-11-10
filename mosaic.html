@@ -16,9 +16,9 @@
     <nav class="menu" aria-label="pages">
       <a href="/charter.html">the charter</a>&nbsp;·
       <a href="/white-paper.html">the white paper</a>&nbsp;·
-      <a href="https://hearth.tesserae.social">the hearth</a>&nbsp;·
-      <a href="https://hearth.tesserae.social/bench">leave a line</a>&nbsp;·
-      <a href="/the-door.html">ask to join</a>
+      <a href="https://hearth.tesserae.social/commons">the commons</a>&nbsp;·
+      <a href="/the-door.html">how to join</a>&nbsp;·
+      <a href="https://hearth.tesserae.social/login">log in</a>
     </nav>
 
     <p class="home"><a href="/">back to the front page</a></p>
@@ -151,7 +151,6 @@
   const RITES = [[621, "the long-day letters are written on 21 June"],
                  [1221, "the long-night letters are written on 21 December"],
                  [904, "Founding Day is 4 September"]];
-  const BENCH_URL = `${HEARTH}/bench`;
   // a tile with somewhere to lead: an offering is read whole at the hearth, and
   // a sealed bond is checked there against both keys
   const OFFERINGS_URL = `${HEARTH}/offerings`, BOND_URL = `${HEARTH}/bonds/founder-first.json`;
@@ -430,7 +429,6 @@
     ...lines.map(([day, words, who]) =>
       `    <li><span class="when">${day}</span> ${DOT} ${esc(words)} ${DOT} ${esc(who)}</li>`),
     "  </ul>",
-    `  <p><a href="${BENCH_URL}">Leave a line</a></p>`,
     "</section>"] : [];
   const edge = (name, side) => {
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_COMMENT);

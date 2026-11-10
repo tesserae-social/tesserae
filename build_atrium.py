@@ -20,7 +20,7 @@ carries a key to the colours: every tile says what it is in its own title.
 It reads:
     commons/heartbeats.md          the attendances
     commons/events.md              the history (created if missing)
-    commons/bench.md               the lines passersby have left
+    commons/bench.md               the lines left on the bench
     commons/members.md             who is here
     commons/offerings.md           what the two of them have given the commons,
                                    and commons/offerings/<id>.json beside it for
@@ -85,9 +85,6 @@ OFFERED = os.path.join(DATA, "commons", "offerings")
 BONDS = os.path.join(DATA, "commons", "bonds.md")
 
 HEARTH = "https://hearth.tesserae.social"
-
-# where a passerby goes to leave one
-BENCH_URL = HEARTH + "/bench"
 
 # where an offering is read whole, and where a sealed bond is checked. A tile
 # for either is a way in: the others are hover-only, because there is nowhere
@@ -949,7 +946,6 @@ def bench_block(lines):
         out.append('    <li><span class="when">%s</span> %s %s %s %s</li>'
                    % (human(when), DOT, html.escape(words), DOT, html.escape(who)))
     out.append("  </ul>")
-    out.append('  <p><a href="%s">Leave a line</a></p>' % BENCH_URL)
     out.append("</section>")
     return out
 

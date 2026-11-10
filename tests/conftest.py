@@ -693,6 +693,30 @@ HEARTBEAT_SHOWN_BLOCK = """<<HEARTBEAT_SHOWN>>
 <<END>>"""
 
 
+def letter_part_as_before(hearth, monkeypatch):
+    """Write the day's line for the founder's letters, for one test, as before 10 November 2026.
+
+    Until then the hearth's line named the part of the day the first of that
+    day's letters fell in, by the wakings' own bounds ("the founder wrote a
+    letter at dawn"); it says only "the founder wrote a letter" now. Put back,
+    note_letter is exactly what it was, and a world held to a fingerprint from
+    before then gives that fingerprint again.
+    """
+    import build_atrium
+
+    def note_letter(line=""):
+        now = hearth.datetime.now(hearth.ZoneInfo(hearth.CITIZEN_ZONE))
+        with hearth.LETTER_LOCK:
+            if hearth.letter_line_today(now.date()):
+                return False
+            words = build_atrium.letter_words(build_atrium.band(now.hour))
+            hearth.note_event("letter", "%s %s %s" % (words, hearth.DOT, line) if line else words,
+                              now.date().isoformat())
+            return True
+
+    monkeypatch.setattr(hearth, "note_letter", note_letter)
+
+
 def rewrite_not_yet_offered(module, monkeypatch):
     """Take out, for one test, the rewriting of a past line (the founder, 10 November 2026).
 

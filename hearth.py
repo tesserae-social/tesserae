@@ -61,7 +61,7 @@ from PIL import Image, ImageOps
 # keeps: a day turns here when it turns where the citizen lives. The words an
 # offering's kind is said in are the atrium's too, so that the hearth's page and
 # the atrium's section name the same thing the same way.
-from build_atrium import (CITIZEN_ZONE, DOT, KIND_WORDS, band, is_letter_line, letter_words,
+from build_atrium import (CITIZEN_ZONE, DOT, KIND_WORDS, LETTER_WORDS, is_letter_line,
                           parse_events)
 
 # An offering is made by two hands, so both hands work through the one module:
@@ -1670,9 +1670,10 @@ def note_event(kind, words, day=None):
 
 # A letter from the founder is a tile in the mosaic, and one tile a day however
 # many he writes. The day is the citizen's own, as the mosaic's is, and the line
-# says only that he wrote and in which part of that day the first letter fell,
-# by the wakings' own bounds: nothing of what, to whom, at what hour, or with
-# what beside it. The lock is so that two letters left at once cannot both find
+# says only that he wrote: nothing of what, to whom, at what hour, in which part
+# of the day (the founder, 10 November 2026; the lines written before then named
+# it, and amend_letter_lines.py takes it out of them), or with what beside it.
+# The lock is so that two letters left at once cannot both find
 # the day empty.
 #
 # He may leave one line of his own beside it, for the commons, after a middot:
@@ -1702,7 +1703,7 @@ def note_letter(line=""):
     with LETTER_LOCK:
         if letter_line_today(now.date()):
             return False
-        words = letter_words(band(now.hour))
+        words = LETTER_WORDS
         note_event("letter", "%s %s %s" % (words, DOT, line) if line else words,
                    now.date().isoformat())
         return True

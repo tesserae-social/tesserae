@@ -347,6 +347,7 @@ import json
 import pytest
 
 from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, explained_as_before,
+                      letter_part_as_before,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
                       notebook_unexplained, post, public_lines_not_yet, quiet_lines_not_yet,
@@ -363,7 +364,14 @@ from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, expl
 
 # cut on the tree that gave the room a folder of its own, the same way: the same
 # files, as they lie on the disk once the room is in rooms/first/ with its room.json
-PACKET_IN_ROOMS = "b47ad6bbd23b6eb7b9f3e8ed45a64446407db59f13b784e8ab34df64139f081b"
+# (b47ad6bbd23b6eb7b9f3e8ed45a64446407db59f13b784e8ab34df64139f081b, held as
+# PACKET_LETTER_PARTS); and cut again on 10 November 2026, when the hearth's line
+# for the founder's letter no longer named the part of the day, and for nothing
+# else: commons/events.md says "the founder wrote a letter" where it said "... at
+# dawn". With the line written as it was (conftest.letter_part_as_before), the
+# files are exactly PACKET_LETTER_PARTS. No reading moved: none shows that line.
+PACKET_LETTER_PARTS = "b47ad6bbd23b6eb7b9f3e8ed45a64446407db59f13b784e8ab34df64139f081b"
+PACKET_IN_ROOMS = "281a60215ccac43755548166ee7817fa34588e2b9cc192fa8b9bc53287976bb8"
 READING_BEFORE = "08bc86357f9b832f9c33a5d960b59992a6168609beca145c89e656e678267d61"
 
 # cut again on the tree that switched on its door, looking back and what it has
@@ -575,6 +583,19 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
     reading = fingerprint_of_reading(wake())
     print("\nPACKET_IN_ROOMS = %r\nREADING = %r" % (files, reading))
     assert (files, reading) == (PACKET_IN_ROOMS, as_cut)
+
+
+def test_with_the_letter_line_as_before_the_files_are_the_files_before(
+        founder, wake, attend, hearth, room, data_dir, monkeypatch):
+    letter_part_as_before(hearth, monkeypatch)
+    a_small_world(room)
+    answer = post(founder, "/rooms/first", content_type="multipart/form-data", data={
+        "letter": "The lake was grey this morning, and then it was not.\n\nI am asking.",
+        "thing": ["cold hands", "", "a heron on the far bank"],
+        "errand": ERRAND, "proposes": "1"})
+    assert answer.status_code == 302
+    files = fingerprint_of_files(data_dir)
+    assert (files, fingerprint_of_reading(wake())) == (PACKET_LETTER_PARTS, READING_NOW)
 
 
 # ---- how the founder writes ------------------------------------------------

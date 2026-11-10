@@ -141,12 +141,13 @@ KIND_CLASS = {
 
 # A person's letter is one tile a day at most, and says only that it was written:
 # never to whom, at what hour, in which part of the day, or a word of what it
-# said. The hearth writes the line with the part of the day the first of that
-# day's letters fell in, and backfill_letter_tiles.py wrote the ones from before
-# it did; since 10 November 2026 (the founder's decision) the mosaic shows none
-# of it, for the founder or any member: its words are "<date> · the founder
-# wrote a letter", with any line he left beside it, and its class is the
-# letter's alone (letter_shown). The page's own script says the same.
+# said. The hearth writes the line, and backfill_letter_tiles.py wrote the ones
+# from before it did. Until 10 November 2026 (the founder's decision) each named
+# the part of the day the first of that day's letters fell in; none is written
+# so now, amend_letter_lines.py takes it out of those that were, and the mosaic
+# shows none of it either way, for the founder or any member: its words are
+# "<date> · the founder wrote a letter", with any line he left beside it, and its
+# class is the letter's alone (letter_shown). The page's own script says the same.
 LETTER_WORDS = "the founder wrote a letter"
 LETTER_BANDS = {"dawn": "at dawn", "day": "during the day",
                 "evening": "in the evening", "night": "at night"}

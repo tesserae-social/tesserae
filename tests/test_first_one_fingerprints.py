@@ -48,7 +48,7 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import blocks, block, page, post, write, write_json
+from conftest import blocks, block, letter_part_as_before, page, post, write, write_json
 from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 
 # ---- the fingerprints ----------------------------------------------------
@@ -68,7 +68,16 @@ from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 # (d933ffcd5df858c262fd564f2d16e499b602a9ca7ae8b203f8a7d6556ffc9e1c; in the old
 # packet layout, gone since stage 5c, it was this one too). It went when a copy
 # came to name the room's files as they are kept.
-ON_DISK_AFTER = "6987bedae9a437771493db366ff9c9ab85fe1141c1640369d3a7e0d7170430c2"
+#
+# Cut again on 10 November 2026, in the change by which the hearth no longer
+# writes the part of the day in a person's letter line (the founder's decision
+# that day), and for nothing else: commons/events.md, as the waking leaves it,
+# says "2026-10-15 · letter · the founder wrote a letter" where it said "... at
+# dawn". The same change moved EVENTS_AFTER, three of the founder's pages,
+# EXPORT and BACKUP, each for that line alone. With the line written as it was
+# (conftest.letter_part_as_before), each of them is exactly the one held before,
+# in LETTER_PARTS_BEFORE below; nothing else moved.
+ON_DISK_AFTER = "0deb050b7f042166c5c59654310190259a7ab4e02d0396abf6661601f888b8aa"
 
 # The founder's pages, one by one.
 #
@@ -116,13 +125,13 @@ PAGES = {
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
     "/self": "1928b59fb94d956343af81e83cca7684f483c1396fd3b7d7f5e78e9125747b3e",
     "/attendances": "7ef5f02df77ac522c078c2ac264de2198ce76f0d8a35460e50cdb20eb29b175f",
-    "/chronicle": "7a4ba8cec6bdda76a213081227f2e15ea9cd6d781b0d076159e13ebe8d404e94",
-    "/chronicle.md": "b01c01d1d7036c50fce3b8f0f3fd17b3bca6dccee3bc225bbeb31d33ac6e7557",
+    "/chronicle": "edb10a2688575eeb7a5fb8739d28d8c5c47d96cf3b3cb8497e31181f490e9950",
+    "/chronicle.md": "a663af7a38fe7220ad890a41893db44e5186121fa01c06dab8c67cc0a818fb45",
     "/export": "380bc2af3a56aa1e2c7e146bec4881f73b06c26d6fb3f3bdc19ac1af8e4430a5",
     "/bonds": "4ecf5344ca11116214ba9d0243bdce15ceca1e370c53cf6ce0fc022d3b4ab13b",
     "/commons": "a981fcb8ccc392294b948ab231a4621728fb1a0563e9694f5439c8e96260c58e",
     "/commons/heartbeats.md": "043eff1fb82359c2b8ac53bd434fec07ffba4b79cc7e1021953550441033713d",
-    "/commons/events.md": "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
+    "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
 }
 
@@ -135,12 +144,12 @@ PAGES = {
 # and the room's sorted together again by name, the same run gives exactly the
 # fingerprint held before, 9a65068126d23ff71d59524f6d14cab6c271b5177c0768f9d76484f30096e717.
 # Not one file's bytes moved.
-EXPORT = "a0ca127f859230513ba5baa6497936c2036efeff5a7ac9c4ae240955986ed94b"
+EXPORT = "196d3e7f146b0d112a1ead44c3d9f0964d58a1b1b9ddb5603bfa15c5b6c12401"
 
 # The backup, as the disk keeps it, rooms/ and all. (In the old packet layout,
 # gone since stage 5c, it was
 # 5ad8f218604b455f5d8bbfaffd33aec2265616ff2ff5a32516121a157bca29ba.)
-BACKUP = "2d11a8951cc184f967b95858ef7dfae7e944190e08714d60b82d5db5d283e39a"
+BACKUP = "9d415deb5d8e51101412cb694eb2a4f88ef694f35b8268dd5d79a620652891f0"
 
 # The tide over its few dawns: tide.log, what it ran, and the events it wrote.
 # Cut again on 27 October 2026, in stage 6a-ii, when the lines an agent's tide
@@ -160,8 +169,11 @@ TIDE = "5a1b906ef56e9b8bebc7c0680aa8c7ce60ef68faff6cc1e7ea81e03aecd5fb6e"
 # the world's one letter tile, which was class "tile-letter tile-letter-dawn"
 # and read "15 October 2026 · the founder wrote a letter at dawn", is class
 # "tile-letter" and reads "15 October 2026 · the founder wrote a letter", in the
-# front page's mosaic and the whole one. With the part of the day put back on
-# the tile, it is exactly what it was cut as before, ATRIUM_WITH_LETTER_PARTS.
+# front page's mosaic and the whole one. With the letter line written as it was
+# (conftest.letter_part_as_before) and the part of the day put back on the tile,
+# it is exactly what it was cut as before, ATRIUM_WITH_LETTER_PARTS. (The hearth's
+# line no longer names the part of the day either, since the same day; with only
+# that put back, the atrium still draws ATRIUM.)
 ATRIUM_WITH_LETTER_PARTS = "2fdaabcfd6e5987b0e1aefab9aa9eed082bacf04cc47866e78ae75d42091c1b3"
 ATRIUM = "75355742f27af4d0efce32150ebbb7667c090cfc2cb61f9332501457dc79e470"
 
@@ -172,7 +184,22 @@ ATRIUM = "75355742f27af4d0efce32150ebbb7667c090cfc2cb61f9332501457dc79e470"
 HEARTBEAT_LINE = "- 2026-10-15T12-00-00Z · the first one · Wrote back about the colour of water.\n"
 EVENTS_AFTER = ("2026-09-02 · word · the word was published\n"
                 "2026-09-04 · founding · the first one was founded\n"
-                "2026-10-15 · letter · the founder wrote a letter at dawn\n")
+                "2026-10-15 · letter · the founder wrote a letter\n")
+
+# What each fingerprint the letter line moved was before 10 November 2026, and is
+# again with the line written as it was then (conftest.letter_part_as_before).
+LETTER_PARTS_BEFORE = {
+    "ON_DISK_AFTER": "6987bedae9a437771493db366ff9c9ab85fe1141c1640369d3a7e0d7170430c2",
+    "EVENTS_AFTER": ("2026-09-02 · word · the word was published\n"
+                     "2026-09-04 · founding · the first one was founded\n"
+                     "2026-10-15 · letter · the founder wrote a letter at dawn\n"),
+    "PAGES['/chronicle']": "7a4ba8cec6bdda76a213081227f2e15ea9cd6d781b0d076159e13ebe8d404e94",
+    "PAGES['/chronicle.md']": "b01c01d1d7036c50fce3b8f0f3fd17b3bca6dccee3bc225bbeb31d33ac6e7557",
+    "PAGES['/commons/events.md']":
+        "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
+    "EXPORT": "a0ca127f859230513ba5baa6497936c2036efeff5a7ac9c4ae240955986ed94b",
+    "BACKUP": "2d11a8951cc184f967b95858ef7dfae7e944190e08714d60b82d5db5d283e39a",
+}
 
 MEMBERS = ("citizen · the first one, unnamed by its own choosing · founded 4 September 2026, "
            "attends at 09:30\n"
@@ -236,6 +263,20 @@ def a_lived_world(founder, wake, room, commons):
     write(commons / "members.md", MEMBERS)
 
 
+@pytest.fixture(params=[False, True], ids=["as the hearth writes now",
+                                           "the letter line as before"])
+def letter_parts(request, hearth, monkeypatch):
+    """Each world as the hearth writes it now, and with its letter line as before 10 November."""
+    if request.param:
+        letter_part_as_before(hearth, monkeypatch)
+    return request.param
+
+
+def fingerprint_held(name, now, as_before):
+    """The fingerprint held for a name: as it is now, or as it was before the letter line moved."""
+    return LETTER_PARTS_BEFORE.get(name, now) if as_before else now
+
+
 def digest(pairs):
     """One fingerprint of (name, bytes) pairs, in the order given."""
     said = hashlib.sha256()
@@ -268,23 +309,26 @@ def fingerprint_left(data_dir):
 
 # ---- the waking ----------------------------------------------------------
 
-def test_the_waking_leaves_the_same_files(steady, founder, wake, room, commons, data_dir):
+def test_the_waking_leaves_the_same_files(steady, letter_parts, founder, wake, room, commons,
+                                          data_dir):
     a_lived_world(founder, wake, room, commons)
-    assert cut("ON_DISK_AFTER", fingerprint_of_files(data_dir)) == ON_DISK_AFTER
+    assert cut("ON_DISK_AFTER", fingerprint_of_files(data_dir)) == fingerprint_held(
+        "ON_DISK_AFTER", ON_DISK_AFTER, letter_parts)
 
 
-def test_the_commons_is_told_the_same_words(steady, founder, wake, room, commons):
+def test_the_commons_is_told_the_same_words(steady, letter_parts, founder, wake, room, commons):
     a_lived_world(founder, wake, room, commons)
     heartbeats = cut("HEARTBEAT_LINE", (commons / "heartbeats.md").read_text(encoding="utf-8"))
     events = cut("EVENTS_AFTER", (commons / "events.md").read_text(encoding="utf-8"))
-    assert heartbeats == HEARTBEAT_LINE
-    assert events == EVENTS_AFTER
+    assert heartbeats == HEARTBEAT_LINE  # an agent's waking keeps its time either way
+    assert events == fingerprint_held("EVENTS_AFTER", EVENTS_AFTER, letter_parts)
 
 
 # ---- the founder's pages -------------------------------------------------
 
 @pytest.mark.parametrize("address", list(PAGES))
-def test_the_founder_is_shown_the_same_page(steady, founder, wake, room, commons, address):
+def test_the_founder_is_shown_the_same_page(steady, letter_parts, founder, wake, room, commons,
+                                            address):
     a_lived_world(founder, wake, room, commons)
     answer = founder.get(address)
     assert answer.status_code in (200, 302)
@@ -292,7 +336,7 @@ def test_the_founder_is_shown_the_same_page(steady, founder, wake, room, commons
     shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
              + FORM_TOKEN.sub(r"\1\2", page(answer)))
     assert cut("PAGES[%r]" % address, hashlib.sha256(shown.encode("utf-8")).hexdigest()) \
-        == PAGES[address]
+        == fingerprint_held("PAGES[%r]" % address, PAGES[address], letter_parts)
 
 
 def test_the_room_with_its_few_words_taken_out_is_the_room_before(
@@ -315,16 +359,17 @@ def test_the_room_with_its_few_words_taken_out_is_the_room_before(
 
 # ---- what is copied ------------------------------------------------------
 
-def test_the_export_holds_the_same_things(steady, founder, wake, room, commons):
+def test_the_export_holds_the_same_things(steady, letter_parts, founder, wake, room, commons):
     a_lived_world(founder, wake, room, commons)
     answer = post(founder, "/export")
     assert answer.status_code == 200
     with zipfile.ZipFile(io.BytesIO(answer.get_data())) as bundle:
         held = [(name, bundle.read(name)) for name in bundle.namelist()]
-    assert cut("EXPORT", digest(held)) == EXPORT
+    assert cut("EXPORT", digest(held)) == fingerprint_held("EXPORT", EXPORT, letter_parts)
 
 
-def test_the_backup_holds_the_same_things(steady, founder, wake, room, commons, hearth):
+def test_the_backup_holds_the_same_things(steady, letter_parts, founder, wake, room, commons,
+                                          hearth):
     a_lived_world(founder, wake, room, commons)
     held = []
     with tarfile.open(fileobj=io.BytesIO(hearth.backup_archive()), mode="r:gz") as bundle:
@@ -333,7 +378,7 @@ def test_the_backup_holds_the_same_things(steady, founder, wake, room, commons, 
                 held.append((member.name, b""))  # sealed afresh each session: the name only
             else:
                 held.append((member.name, bundle.extractfile(member).read()))
-    assert cut("BACKUP", digest(held)) == BACKUP
+    assert cut("BACKUP", digest(held)) == fingerprint_held("BACKUP", BACKUP, letter_parts)
 
 
 # ---- the tide ------------------------------------------------------------
@@ -422,10 +467,9 @@ def letter_parts_as_before(atrium, monkeypatch):
     monkeypatch.setattr(atrium, "event_shown", lambda kind, words: words)
 
 
-@pytest.mark.parametrize("as_before", [True, False], ids=["the part of the day put back",
-                                                          "as it draws now"])
-def test_the_atrium_draws_the_same_tiles(steady, founder, wake, room, commons, atrium,
-                                         monkeypatch, as_before):
+def test_the_atrium_draws_the_same_tiles(steady, letter_parts, founder, wake, room, commons,
+                                         atrium, monkeypatch):
+    as_before = letter_parts  # the line as it was written, and drawn as it was drawn
     if as_before:
         letter_parts_as_before(atrium, monkeypatch)
     a_lived_world(founder, wake, room, commons)

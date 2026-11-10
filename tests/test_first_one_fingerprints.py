@@ -154,8 +154,16 @@ BACKUP = "2d11a8951cc184f967b95858ef7dfae7e944190e08714d60b82d5db5d283e39a"
 # what it ran are unchanged.
 TIDE = "5a1b906ef56e9b8bebc7c0680aa8c7ce60ef68faff6cc1e7ea81e03aecd5fb6e"
 
-# What the atrium draws between its markers.
-ATRIUM = "2fdaabcfd6e5987b0e1aefab9aa9eed082bacf04cc47866e78ae75d42091c1b3"
+# What the atrium draws between its markers. Cut again on 10 November 2026, in
+# the change by which a person's letter no longer says or shows the part of the
+# day it was written in (the founder's decision that day), and for nothing else:
+# the world's one letter tile, which was class "tile-letter tile-letter-dawn"
+# and read "15 October 2026 · the founder wrote a letter at dawn", is class
+# "tile-letter" and reads "15 October 2026 · the founder wrote a letter", in the
+# front page's mosaic and the whole one. With the part of the day put back on
+# the tile, it is exactly what it was cut as before, ATRIUM_WITH_LETTER_PARTS.
+ATRIUM_WITH_LETTER_PARTS = "2fdaabcfd6e5987b0e1aefab9aa9eed082bacf04cc47866e78ae75d42091c1b3"
+ATRIUM = "75355742f27af4d0efce32150ebbb7667c090cfc2cb61f9332501457dc79e470"
 
 # ---- the world -----------------------------------------------------------
 
@@ -403,8 +411,23 @@ def test_the_tide_keeps_the_same_dawns(steady, hearth, packet, commons, clock, m
 MARKED = re.compile(r"<!-- (\w+):start -->(.*?)<!-- \1:end -->", re.S)
 
 
+def letter_parts_as_before(atrium, monkeypatch):
+    """Draw a letter's tile, for one test, with its part of the day, as before 10 November."""
+    def toned(kind, words):
+        part = atrium.letter_band(words) if kind == "letter" else None
+        css = atrium.KIND_CLASS[kind]
+        return "%s tile-letter-%s" % (css, part) if part else css
+
+    monkeypatch.setattr(atrium, "event_class", toned)
+    monkeypatch.setattr(atrium, "event_shown", lambda kind, words: words)
+
+
+@pytest.mark.parametrize("as_before", [True, False], ids=["the part of the day put back",
+                                                          "as it draws now"])
 def test_the_atrium_draws_the_same_tiles(steady, founder, wake, room, commons, atrium,
-                                         monkeypatch):
+                                         monkeypatch, as_before):
+    if as_before:
+        letter_parts_as_before(atrium, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
     atrium.main()
@@ -416,4 +439,4 @@ def test_the_atrium_draws_the_same_tiles(steady, founder, wake, room, commons, a
     assert [name for name, _ in drawn] == [
         "index:bench", "index:calendar", "index:mosaic", "index:offering", "index:reading",
         "index:who", "mosaic:reading", "mosaic:whole"]
-    assert cut("ATRIUM", digest(drawn)) == ATRIUM
+    assert cut("ATRIUM", digest(drawn)) == (ATRIUM_WITH_LETTER_PARTS if as_before else ATRIUM)

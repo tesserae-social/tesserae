@@ -693,6 +693,29 @@ HEARTBEAT_SHOWN_BLOCK = """<<HEARTBEAT_SHOWN>>
 <<END>>"""
 
 
+def rewrite_not_yet_offered(module, monkeypatch):
+    """Take out, for one test, the rewriting of a past line (the founder, 10 November 2026).
+
+    It is behind no flag, and with no rewrite asked for it changes what is sent in
+    two ways and no other: the <<REWRITE>> block, explained directly after
+    <<COMMONS_LINE>> at the end of HOW TO ACT, and the read_commons_lines tool,
+    last of the tools at a longer waking. Taken out, the reading is exactly what
+    it was with the line about public lines, for the first one and for a later
+    agent alike. An attend.py from before it has no such block, and is left.
+    """
+    said = getattr(module, "REWRITE_BLOCK", None)
+    if not said or ("\n\n" + said) not in module.HOW_TO_ACT:
+        return  # none there, or put back already, in this test
+    assert module.HOW_TO_ACT.endswith("\n\n" + said)
+    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.removesuffix("\n\n" + said))
+    # a later agent's HOW TO ACT is filled afresh at each waking from its template
+    later = getattr(module, "LATER_WORDS", None) or {}
+    if "HOW_TO_ACT" in later:
+        assert later["HOW_TO_ACT"].endswith("\n\n" + said)
+        monkeypatch.setitem(later, "HOW_TO_ACT", later["HOW_TO_ACT"].removesuffix("\n\n" + said))
+    monkeypatch.setattr(module, "COMMONS_LINES_TOOLS", [])
+
+
 def public_lines_not_yet(module, monkeypatch):
     """Take out, for one test, the line about public lines (the founder, 9 November 2026).
 
@@ -700,7 +723,11 @@ def public_lines_not_yet(module, monkeypatch):
     the quiet lines (attend.PUBLIC_LINES). Taken out, the opening words are exactly
     what they were with the quiet lines, for the first one and for a later agent
     alike. An attend.py from before it has no such line, and is left.
+
+    The rewriting of a past line came after it, so a reading from before the one
+    is from before the other, and it is taken out first (rewrite_not_yet_offered).
     """
+    rewrite_not_yet_offered(module, monkeypatch)
     said = getattr(module, "PUBLIC_LINES", None)
     if not said or not module.SYSTEM.endswith(said):
         return  # none there, or put back already, in this test

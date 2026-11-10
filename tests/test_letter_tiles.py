@@ -237,21 +237,33 @@ def test_a_line_with_a_protected_word_leaves_nothing(founder, commons, room, dat
     ("at dawn", "dawn"), ("during the day", "day"),
     ("in the evening", "evening"), ("at night", "night"),
 ])
-def test_a_letter_line_is_a_tile_toned_by_its_part_of_the_day(atrium, said, part):
+def test_a_letter_line_is_a_tile_that_says_no_part_of_the_day(atrium, said, part):
+    # the record keeps the part of the day; the mosaic shows none of it, in its
+    # words or its class (the founder, 10 November 2026)
     events = atrium.parse_events("2026-10-15 · letter · the founder wrote a letter %s\n" % said)
     assert events == [(datetime.date(2026, 10, 15), "letter",
                        "the founder wrote a letter %s" % said)]
+    assert atrium.letter_band(events[0][2]) == part
     tiles = atrium.tiles_from(events, [])
-    assert tiles == [(datetime.date(2026, 10, 15), "tile-letter tile-letter-%s" % part,
-                      "15 October 2026 · the founder wrote a letter %s" % said, "")]
+    assert tiles == [(datetime.date(2026, 10, 15), "tile-letter",
+                      "15 October 2026 · the founder wrote a letter", "")]
     cells = atrium.slots(tiles, datetime.date(2026, 10, 15))
     drawn = "".join(atrium.frame_block(cells))
-    assert ('<li class="tile-letter tile-letter-%s" title="15 October 2026 · the founder '
-            'wrote a letter %s" tabindex="0"></li>' % (part, said)) in drawn
-    assert atrium.reading_text(cells) == "15 October 2026 · the founder wrote a letter %s" % said
+    assert ('<li class="tile-letter" title="15 October 2026 · the founder '
+            'wrote a letter" tabindex="0"></li>') in drawn
+    assert said not in drawn and "tile-letter-" not in drawn
+    assert atrium.reading_text(cells) == "15 October 2026 · the founder wrote a letter"
 
 
-def test_a_letter_line_with_his_line_beside_it_is_still_toned_and_still_the_day_s_line(atrium):
+def test_a_member_s_letter_says_no_part_of_the_day_either(atrium):
+    tiles = atrium.tiles_from(atrium.parse_events(
+        "2026-10-15 · letter · a member wrote a letter at night · the rain\n"), [])
+    assert tiles == [(datetime.date(2026, 10, 15), "tile-letter",
+                      "15 October 2026 · a member wrote a letter · the rain", "")]
+
+
+def test_a_letter_line_with_his_line_beside_it_keeps_his_line_and_is_still_the_day_s_line(
+        atrium):
     said = "2026-10-15 · letter · the founder wrote a letter at dawn · %s\n" % BESIDE
     events = atrium.parse_events(said)
     assert events == [(datetime.date(2026, 10, 15), "letter",
@@ -259,8 +271,8 @@ def test_a_letter_line_with_his_line_beside_it_is_still_toned_and_still_the_day_
     (_, kind, words), = events
     assert atrium.letter_band(words) == "dawn" and atrium.is_letter_line(kind, words)
     tiles = atrium.tiles_from(events, [])
-    assert tiles == [(datetime.date(2026, 10, 15), "tile-letter tile-letter-dawn",
-                      "15 October 2026 · the founder wrote a letter at dawn · %s" % BESIDE, "")]
+    assert tiles == [(datetime.date(2026, 10, 15), "tile-letter",
+                      "15 October 2026 · the founder wrote a letter · %s" % BESIDE, "")]
     # a line naming no part, with words beside it, is a letter line too
     assert atrium.is_letter_line("letter", "the founder wrote a letter · %s" % BESIDE)
     # and words that only begin like one are not

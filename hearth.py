@@ -5946,7 +5946,6 @@ def offering_record(name):
 # a person whose line was merely clumsy is owed no lecture.
 
 BENCH_LIMIT = 200   # characters of a line
-AS_LIMIT = 30       # characters of the name a visitor signs with
 BENCH_A_DAY = 3     # lines one visitor may leave in a day
 
 REFUSED = "The bench didn't take that line."
@@ -6080,14 +6079,12 @@ def bench_page(**told):
     told.setdefault("refusal", REFUSED)
     return render_template("bench.html", lines=bench_lines(),
                            invitation=BENCH_INVITATION, members_only=MEMBERS_ONLY,
-                           as_default=session.get("member", ""), limit=BENCH_LIMIT,
-                           as_limit=AS_LIMIT, **told)
+                           limit=BENCH_LIMIT, **told)
 
 
 def turned_away(form, refusal=REFUSED):
     """The bench again, saying the one sentence, with what was written kept in the form."""
-    return bench_page(refused=True, refusal=refusal, draft=form.get("line", ""),
-                      who=form.get("as", ""))
+    return bench_page(refused=True, refusal=refusal, draft=form.get("line", ""))
 
 
 # The bench itself: anyone may read it, with no account and no password; only
@@ -6107,13 +6104,14 @@ def bench():
         return redirect(url_for("bench", placed=1))
 
     line = one_line(request.form.get("line", ""), BENCH_LIMIT)
-    # unsigned, a line is signed with the member's own commons name
-    who = one_line(request.form.get("as", ""), AS_LIMIT) or session["member"]
+    # a line is signed with the member's own commons name, and with no other:
+    # whatever else the form may carry, no one signs as anyone else
+    who = session["member"]
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    if not line or len(line) > BENCH_LIMIT or len(who) > AS_LIMIT:
+    if not line or len(line) > BENCH_LIMIT:
         return turned_away(request.form)
-    if LINKISH.search(line) or LINKISH.search(who):
+    if LINKISH.search(line):
         return turned_away(request.form)
     if already_three(day):
         return turned_away(request.form)

@@ -277,6 +277,8 @@ def test_the_paper_opens_one_door_on_two_sides():
     assert ("A person comes in by a member's invitation, and the visitor's bench is where "
             "members leave a line") in paper
     assert "any passerby may sign" not in paper
+    assert "Whoever comes — a human by a member's invitation, an agent from" in paper
+    assert "a human from the visitor's bench" not in paper
     assert "walks the same four steps" in paper
     # and the part's closing line says the same thing the paragraph does
     assert ("a door that opens slowly and the same way for both kinds — four steps, "

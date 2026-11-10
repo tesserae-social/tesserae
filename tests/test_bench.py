@@ -78,10 +78,10 @@ def bench_lines(commons):
 # ---- one line, placed ----------------------------------------------------
 
 def test_a_line_in_good_spirit_is_placed(member, visitor, reader, commons, clock):
-    answer = leave(member, who="a passing stranger")
+    answer = leave(member)
     assert answer.status_code == 302
     assert "placed=1" in answer.headers["Location"]
-    assert bench_lines(commons) == ["- %s · a passing stranger · %s" % (clock.day(), LINE)]
+    assert bench_lines(commons) == ["- %s · birch · %s" % (clock.day(), LINE)]
     assert "Your line is on the bench." in page(member.get("/bench", query_string={"placed": 1}))
 
 
@@ -95,14 +95,23 @@ def test_the_line_is_read_once_by_the_small_model_and_nothing_else(member, visit
     assert asked["messages"] == [{"role": "user", "content": "<line>%s</line>" % LINE}]
 
 
-def test_an_unsigned_line_is_signed_with_the_member_s_commons_name(member, reader, commons):
-    leave(member, who="   ")
+def test_a_line_is_signed_with_the_member_s_own_commons_name(member, reader, commons):
+    leave(member)
     assert bench_lines(commons)[0].split(" · ")[1] == "birch"
 
 
-def test_the_form_offers_the_member_s_commons_name_and_never_a_passerby(member):
+@pytest.mark.parametrize("as_someone", ["Mira", "   ", "buy.example.com", "n" * 300])
+def test_no_member_signs_as_anyone_else(member, reader, commons, as_someone):
+    """A name sent with the line, as a hand-made form might, is not read at all."""
+    assert leave(member, who=as_someone).status_code == 302
+    assert bench_lines(commons)[0].split(" · ")[1] == "birch"
+
+
+def test_the_form_asks_for_the_line_and_nothing_else(member):
     said = page(member.get("/bench"))
-    assert 'placeholder="birch"' in said
+    assert '<label for="line">a line</label>' in said
+    assert 'name="as"' not in said
+    assert "signed as" not in said
     assert "passerby" not in said
 
 
@@ -111,10 +120,10 @@ def test_the_bench_s_reader_is_told_the_lines_are_left_by_members(hearth):
     assert "passerby" not in hearth.BENCH_SYSTEM and "passersby" not in hearth.BENCH_SYSTEM
 
 
-def test_the_name_a_visitor_signs_with_is_shown(member, visitor, reader):
-    leave(member, who="Mira")
+def test_the_member_s_name_is_shown_with_the_line(member, visitor, reader):
+    leave(member)
     said = page(visitor.get("/bench"))
-    assert "Mira" in said
+    assert "birch" in said
     assert LINE in said
 
 
@@ -130,18 +139,11 @@ def test_an_empty_bench_says_so(member):
     assert "Leave one line." in said and "checked for good spirit before it appears." in said
 
 
-def test_the_form_says_which_field_may_be_left_alone(member):
-    said = page(member.get("/bench"))
-    assert '<label for="line">a line</label>' in said
-    assert '<label for="as">signed as (optional)</label>' in said
-
-
 def test_a_line_is_shown_as_words_and_never_as_markup(member, visitor, reader, commons):
     written = "<b>hello</b> & <script>alert(1)</script>"
-    leave(member, line=written, who="<em>me</em>")
+    leave(member, line=written)
     said = page(visitor.get("/bench"))
     assert "&lt;b&gt;hello&lt;/b&gt;" in said
-    assert "&lt;em&gt;me&lt;/em&gt;" in said
     assert "<b>hello</b>" not in said
     assert "<script>alert(1)</script>" not in said
     assert written in (commons / "bench.md").read_text(encoding="utf-8")  # kept as written
@@ -172,11 +174,6 @@ def test_a_line_past_the_limit_is_refused(member, visitor, reader, hearth, commo
     assert bench_lines(commons) == []
 
 
-def test_a_name_past_its_limit_is_refused(member, visitor, reader, hearth, commons):
-    assert refused(leave(member, who="n" * (hearth.AS_LIMIT + 1)))
-    assert bench_lines(commons) == []
-
-
 @pytest.mark.parametrize("linkish", [
     "come to http://example.com",
     "see www.example.com",
@@ -185,11 +182,6 @@ def test_a_name_past_its_limit_is_refused(member, visitor, reader, hearth, commo
 ])
 def test_anything_that_looks_like_a_link_is_refused(member, visitor, reader, commons, linkish):
     assert refused(leave(member, line=linkish))
-    assert bench_lines(commons) == []
-
-
-def test_a_link_in_the_name_is_refused_too(member, visitor, reader, commons):
-    assert refused(leave(member, who="buy.example.com"))
     assert bench_lines(commons) == []
 
 
@@ -217,9 +209,8 @@ def test_a_model_that_cannot_be_reached_leaves_the_line_unplaced(member, visitor
 
 def test_a_refusal_keeps_what_was_written_and_says_no_more(member, visitor, hearth, monkeypatch):
     monkeypatch.setattr(hearth, "Anthropic", Reader(says="NO"))
-    said = page(leave(member, line="a line that was turned away", who="Mira"))
+    said = page(leave(member, line="a line that was turned away"))
     assert 'value="a line that was turned away"' in said
-    assert 'value="Mira"' in said
     assert said.count(REFUSAL) == 1
     # the whole of what a visitor is told: the one sentence, and never which rule
     told = re.findall(r'<p class="error">(.*?)</p>', said, re.S)

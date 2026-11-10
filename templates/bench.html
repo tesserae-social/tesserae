@@ -57,10 +57,6 @@
       <input type="text" id="line" name="line" class="wide" maxlength="{{ limit }}"
              value="{{ draft or '' }}" autocomplete="off" autofocus>
 
-      <label for="as">signed as (optional)</label>
-      <input type="text" id="as" name="as" maxlength="{{ as_limit }}"
-             value="{{ who or '' }}" placeholder="{{ as_default }}" autocomplete="off">
-
       {# the honeypot: not drawn, out of the tab order, and filled by no person.
          The display:none is written here as well as in the stylesheet, so that
          no person is ever shown a field meant for no one. #}

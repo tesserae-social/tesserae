@@ -131,7 +131,7 @@ def good_spirit(hearth, monkeypatch):
 
 def bench_says(member, line):
     """A line left on the bench, by a member signed in: only a member may leave one."""
-    return post(member, "/bench", data={"line": line, "as": "a passerby"})
+    return post(member, "/bench", data={"line": line})
 
 
 def test_a_bench_line_the_screen_clears_is_placed(good_spirit, birch, commons, screen):

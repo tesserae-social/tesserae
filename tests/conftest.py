@@ -717,6 +717,20 @@ def letter_part_as_before(hearth, monkeypatch):
     monkeypatch.setattr(hearth, "note_letter", note_letter)
 
 
+def times_as_before(hearth, monkeypatch):
+    """Give out, for one test, the times the public was given before 10 November 2026.
+
+    Until then the hearth handed out commons/heartbeats.md exactly as written,
+    each line with its stamp, and the chronicle said each thing's day and time
+    ("15 October 2026, 08:00"). Since the founder's decision that day it hands the
+    heartbeats out dated (build_atrium.dated_heartbeats) and the chronicle says
+    the day (hearth.book_day). Put back, the pages are exactly what they were,
+    and a world held to a fingerprint from before then gives that fingerprint again.
+    """
+    monkeypatch.setattr(hearth, "dated_heartbeats", lambda text: text)
+    monkeypatch.setattr(hearth, "book_day", hearth.readable_date)
+
+
 # The words that explained <<REWRITE>> before each line could be rewritten only
 # once (the founder, 10 November 2026): the block as it is, without the last sentence.
 REWRITE_ONCE = " Each line can be rewritten once.)"

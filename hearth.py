@@ -61,7 +61,7 @@ from PIL import Image, ImageOps
 # keeps: a day turns here when it turns where the citizen lives. The words an
 # offering's kind is said in are the atrium's too, so that the hearth's page and
 # the atrium's section name the same thing the same way.
-from build_atrium import (CITIZEN_ZONE, DOT, KIND_WORDS, LETTER_WORDS, is_letter_line,
+from build_atrium import (CITIZEN_ZONE, DOT, KIND_WORDS, dated_heartbeats, LETTER_WORDS, is_letter_line,
                           parse_events)
 
 # An offering is made by two hands, so both hands work through the one module:
@@ -2072,6 +2072,16 @@ BOOK_ACTS = {
 }
 
 
+def book_day(text):
+    """The day of a timestamp inside some text, on the first one's clock, said long: the
+    chronicle says the day a thing happened and not its time (the founder, 10 November
+    2026). Text with no timestamp is given back."""
+    found = STAMP.search(text)
+    if not found:
+        return text
+    return long_day(moment(found.group()).astimezone(EASTERN))
+
+
 def book_line(stamp, when, side, words, href=None, order=0):
     """One line of the book: when it happened, whose it was, and what it was.
 
@@ -2130,7 +2140,7 @@ def waking_lines(paused_days, agent=None):
     for path in newest_first(packet_of(agent["id"]) / ATTENDANCES.name, "*.json"):
         log = json.loads(read_text(path))
         at = log.get("at", stamp_in(path.name))
-        said = readable_date(at)
+        said = book_day(at)
         woken = WOKEN.get(log.get("woken_by"), WOKEN["founder"])
         lines.append(book_line(at, said, side,
                                "waking, %s \u00b7 %s" % (woken, log.get("heartbeat", "")),
@@ -2166,7 +2176,7 @@ def letter_lines(agent=None):
         for path in newest_first(folder, "*.md"):
             at = stamp_in(path.name)
             lines.append(book_line(
-                at, readable_date(at), who,
+                at, book_day(at), who,
                 "letter from %s \u00b7 %s" % (who, opening_line(offering.letter_only(path))),
                 href=url_for("room", room_id=agent["room"]) + "#" + path.stem, order=3))
     return lines
@@ -2181,7 +2191,7 @@ def bond_lines(agent=None):
     """
     if agent is not None and agent["id"] != rooms.FIRST:
         return []
-    lines = [book_line(at, readable_date(at), SIDES.get(who, "the founder"),
+    lines = [book_line(at, book_day(at), SIDES.get(who, "the founder"),
                        "a bond was proposed", order=4)
              for at, who in sorted(set(bond_proposals()))]
     for pattern, side in (("answer-*.json", "the first one"),
@@ -2189,7 +2199,7 @@ def bond_lines(agent=None):
         for path in newest_first(room_places().bonds, pattern):
             said = load(path) or {}
             at = said.get("at") or stamp_in(path.name)
-            lines.append(book_line(at, readable_date(at), side,
+            lines.append(book_line(at, book_day(at), side,
                                    "answered the proposal", order=5))
     return lines
 
@@ -3084,14 +3094,17 @@ def set_door():
     return redirect(url_for("hearth"))
 
 
-def plain(path):
+def plain(path, shown=None):
     """A file of the commons, exactly as written; nothing at all if it is not there yet.
+    Where it is handed out otherwise than as written, shown says how.
 
     These files of the commons, and only these, are open to another origin: the
     atrium reads them from the browser to draw itself from the living record.
     They are never cached, so what a reader sees is what the hearth holds now.
     """
     text = read_text(path) if path.exists() else ""
+    if shown:
+        text = shown(text)
     answer = Response(text, content_type="text/plain; charset=utf-8")
     answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
     answer.headers["Cache-Control"] = "no-cache"
@@ -3124,9 +3137,13 @@ def keep_private_words(answer):
 
 
 # The commons, open to anyone and to any machine: presence without content.
+# The heartbeats go out each with its day and not its time, and "at dawn" where
+# the waking was at dawn (the founder's decision of 10 November 2026): the file
+# here keeps every stamp, for the agent's own read_commons_lines and <<REWRITE>>,
+# and for the keeper's and a correspondent's pages, which say the time.
 @app.route("/commons/heartbeats.md")
 def commons_heartbeats():
-    return plain(HEARTBEATS)
+    return plain(HEARTBEATS, shown=dated_heartbeats)
 
 
 @app.route("/commons/events.md")

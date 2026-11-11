@@ -264,6 +264,33 @@ def test_both_paths_draw_the_same_atrium(atrium, data_dir, monkeypatch, tmp_path
         assert here[name] == there[name], name
 
 
+def test_the_dated_heartbeats_the_hearth_serves_draw_the_same_atrium(atrium, data_dir,
+                                                                     monkeypatch, tmp_path):
+    """The builder reads the stamps on the disk; the browser is handed the heartbeats as the
+    hearth serves them, each with its day and "at dawn" where it was a dawn (the founder,
+    10 November 2026). Both draw the one atrium, and the whole mosaic."""
+    import shutil
+    a_record(data_dir)
+    offerings(data_dir)
+    baked = build(atrium, monkeypatch)
+    served = tmp_path / "served"
+    shutil.copytree(data_dir / "commons", served / "commons")
+    beats = served / "commons" / "heartbeats.md"
+    beats.write_text(atrium.dated_heartbeats(beats.read_text(encoding="utf-8")),
+                     encoding="utf-8")
+    assert "T" not in "".join(line.split(" · ")[0] for line in
+                              beats.read_text(encoding="utf-8").splitlines()
+                              if line.startswith("- "))
+    here, there = both_paths(tmp_path, served, baked)
+    for name in REGIONS:
+        assert here[name] == there[name], name
+    built, drawn = both_pages(tmp_path, served, atrium.whole_path, page="mosaic.html")
+    assert regions_of(built, WHOLE_REGIONS) == regions_of(drawn, WHOLE_REGIONS)
+    said = " ".join(titles_of(here["mosaic"]))
+    assert "waking at dawn" in said
+    assert not any("waking " + part in said for part in ("by day", "in the evening", "at night"))
+
+
 def test_both_paths_keep_the_intro_word_for_word(atrium, data_dir, monkeypatch, tmp_path):
     """The intro is outside every marker: neither path writes it, and neither may move it."""
     a_record(data_dir)
@@ -392,13 +419,15 @@ def test_the_harness_shows_what_it_compared(atrium, data_dir, monkeypatch, tmp_p
         assert said["mosaic"].startswith('<ul class="mosaic" aria-label="the mosaic"> <li')
         # newest first: the last waking of the run leads, and the word ends it
         shown = titles_of(said["mosaic"])
-        assert shown[0] == ("16 October 2026 · waking at night · the first one · "
+        assert shown[0] == ("16 October 2026 · waking · the first one · "
                             "attended a second after")
         assert shown[-1] == "2 September 2026 · the word was published"
         assert said["reading"] == '<p class="reading">%s</p>' % shown[0]
         assert "tile-word" in said["mosaic"] and "tile-seal" in said["mosaic"]
         assert "the visitor's bench" in said["bench"]
-        assert "waking at dawn" in said["mosaic"] and "waking at night" in said["mosaic"]
+        # a waking at dawn says so, and no other says a part of the day (10 November 2026)
+        assert "waking at dawn" in said["mosaic"] and "waking · " in said["mosaic"]
+        assert "waking at night" not in said["mosaic"]
         # however a heartbeat line was written, it is read out the one way
         assert said["mosaic"].count("the first one · attended") == 6
         assert "<h2>who is here</h2>" in said["who"]

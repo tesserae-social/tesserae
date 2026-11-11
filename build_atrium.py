@@ -114,8 +114,19 @@ SEED_EVENTS = [
 
 DOT = "·"
 
-# a line of the record: an optional bullet, a stamp, a middot, the words
-RECORD = re.compile(r"^-?\s*(\S+)\s*" + DOT + r"\s*(.+?)\s*$")
+# a line of the record: an optional bullet, a stamp, a middot, the words. A
+# heartbeat as the public is given it carries its day, and "at dawn" where it was
+# a dawn waking, in the stamp's place (dated_heartbeats, below).
+RECORD = re.compile(r"^-?\s*(\d{4}-\d{2}-\d{2} at dawn|\S+)\s*" + DOT + r"\s*(.+?)\s*$")
+
+# The stamp a heartbeat is written with on the hearth, and the day it is given
+# the public by in its place (the founder's decision of 10 November 2026: every
+# public page and file says the day of a thing, not its time). An agent's own
+# stamps stay in the hearth's own file, where its read_commons_lines shows them
+# to it privately and its <<REWRITE>> finds a line by one; the hearth hands the
+# file out dated, and so does everything drawn from it.
+STAMPED = re.compile(r"^(﻿?\s*-?\s*)(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)(\s*" + DOT + ")")
+AT_DAWN = " at dawn"
 
 # The one who wakes. A heartbeat line names it between the stamp and the words,
 # with a middot after it; the older lines, which are all the first one's, ran the
@@ -158,7 +169,8 @@ KIND_WORDS = {"letter": "a letter", "passage": "a passage",
               "photo": "a photograph", "picture": "a picture"}
 
 # The citizen keeps one clock, Eastern time. The record is written in UTC; a
-# waking is toned by the hour it fell on, on the citizen's clock.
+# waking at dawn, on the citizen's clock, is toned and said as one, and any other
+# says nothing of the part of the day it fell in (the founder, 10 November 2026).
 CITIZEN_ZONE = "America/New_York"
 
 # The parts of a local day, and how a title names them.
@@ -435,7 +447,13 @@ def hued(css, citizen, citizens):
 
 
 def parse_heartbeats(text, citizens=None):
-    """One (moment, words) per attendance, oldest first."""
+    """One (moment, words) per attendance, oldest first.
+
+    A stamped line gives its moment, in UTC. A dated line, as the public is given
+    it, gives its day on the citizen's own clock (a date), with "at dawn" where it
+    was a dawn waking: (Dawn(day), words) then, so the tile says so. Lines of one
+    day keep the order they were written in.
+    """
     citizens = agents.public() if citizens is None else citizens
     out = []
     for line in text.splitlines():
@@ -446,10 +464,55 @@ def parse_heartbeats(text, citizens=None):
         try:
             when = datetime.datetime.strptime(stamp, "%Y-%m-%dT%H-%M-%SZ")
         except ValueError:
-            continue
+            dawn = stamp.endswith(AT_DAWN)
+            try:
+                when = datetime.datetime.strptime(stamp[:10], "%Y-%m-%d").date()
+            except ValueError:
+                continue
+            if len(stamp) != 10 and not dawn:
+                continue
+            when = Dawn(when.year, when.month, when.day) if dawn else when
         out.append((when, said_by(words, citizens)))
-    out.sort(key=lambda row: row[0])
+    out.sort(key=lambda row: sort_key(row[0]))
     return out
+
+
+class Dawn(datetime.date):
+    """The day of a dawn waking, as a dated heartbeat gives it: a date, known to be at dawn."""
+
+
+def sort_key(when):
+    """Where a heartbeat's moment or day sorts: a stamp by its moment; a day at its start."""
+    if isinstance(when, datetime.datetime):
+        return when
+    return datetime.datetime(when.year, when.month, when.day)
+
+
+def waking_day_and_part(when):
+    """The citizen's day a heartbeat fell on, and the part of it the mosaic may say:
+    "dawn", or None. No other part of the day is said (the founder, 10 November 2026)."""
+    if isinstance(when, datetime.datetime):
+        clock = here(when)
+        return clock.date(), ("dawn" if band(clock.hour) == "dawn" else None)
+    return datetime.date(when.year, when.month, when.day), (
+        "dawn" if isinstance(when, Dawn) else None)
+
+
+def dated_line(line):
+    """One line of heartbeats.md as the public is given it: its stamp made its day, on the
+    citizen's own clock, with "at dawn" where the waking was at dawn. Anything else of the
+    line, and a line with no stamp, stays exactly as it was."""
+    found = STAMPED.match(line)
+    if not found:
+        return line
+    lead, stamp, dot = found.groups()
+    day, part = waking_day_and_part(datetime.datetime.strptime(stamp, "%Y-%m-%dT%H-%M-%SZ"))
+    return lead + day.isoformat() + (AT_DAWN if part else "") + dot + line[found.end():]
+
+
+def dated_heartbeats(text):
+    """The text of heartbeats.md as the public is given it: every stamp made its day."""
+    return "".join(dated_line(line) for line in text.splitlines(keepends=True))
 
 
 def parse_offerings(text):
@@ -549,6 +612,17 @@ def band(hour):
     return "night"
 
 
+def waking_class(part):
+    """The class a waking's tile is drawn in: toned as a dawn where it was one, and
+    otherwise the waking's own, with nothing of when in the day (10 November 2026)."""
+    return "%s tile-%s" % (KIND_CLASS["attendance"], part) if part else KIND_CLASS["attendance"]
+
+
+def waking_said(part):
+    """What a waking's tile says of it: "waking at dawn", or "waking"."""
+    return "waking %s" % BAND_WORDS[part] if part else "waking"
+
+
 def letter_words(part):
     """The commons' line for a day's letters, the first of which fell in this part of it."""
     return "%s %s" % (LETTER_WORDS, LETTER_BANDS[part])
@@ -600,9 +674,10 @@ def tiles_from(events, heartbeats, offerings=(), bonds=(), citizens=None):
 
     The day is the citizen's own calendar day, and it is what the mosaic is laid
     out by. Every tile's words open with that day too, because they are read out
-    whole under the mosaic. A waking carries the part of the citizen's day it fell
-    in twice over: in its class, so the tile is toned by it, and in its words.
-    A day's letter line carries neither: it says only who wrote a letter.
+    whole under the mosaic. A waking at dawn says so twice over: in its class, so
+    the tile is toned as a dawn, and in its words; any other waking says nothing
+    of the part of the day it fell in, nor does a day's letter line, which says
+    only who wrote a letter (the founder, 10 November 2026).
 
     Where is nowhere for most tiles, which are hover-only because there is
     nowhere for them to lead. A seal leads to the signed bond, and an offering
@@ -635,13 +710,11 @@ def tiles_from(events, heartbeats, offerings=(), bonds=(), citizens=None):
         tiles.append((when, KIND_CLASS["seal"], "%s %s a bond was sealed" % (human(when), DOT),
                       BOND_PAGE + one))
     for when, words in heartbeats:
-        clock = here(when)
-        part = band(clock.hour)
+        day, part = waking_day_and_part(when)
         tiles.append((
-            clock.date(),
-            hued("%s tile-%s" % (KIND_CLASS["attendance"], part), whose(words, citizens),
-                 citizens),
-            "%s %s waking %s %s %s" % (human(clock.date()), DOT, BAND_WORDS[part], DOT, words),
+            day,
+            hued(waking_class(part), whose(words, citizens), citizens),
+            "%s %s %s %s %s" % (human(day), DOT, waking_said(part), DOT, words),
             "",
         ))
     for when, one, _, from_whom in offerings:

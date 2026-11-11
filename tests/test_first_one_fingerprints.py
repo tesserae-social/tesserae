@@ -48,7 +48,8 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import blocks, block, letter_part_as_before, page, post, write, write_json
+from conftest import (blocks, block, letter_part_as_before, page, post, times_as_before, write,
+                      write_json)
 from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 
 # ---- the fingerprints ----------------------------------------------------
@@ -119,18 +120,29 @@ FEW_WORDS = '    <p class="muted">A few words is enough. Weeks get full.</p>\n'
 LETTER_BOX_ENDS = "</textarea>\n"
 SEND = '    <button type="submit">Send</button>\n'
 FOLD_OPENS = "      <summary>more</summary>\n"
+
+# Three cut again on 10 November 2026, in the change by which every public page
+# and file says the day of a thing and not its time (the founder's decision that
+# day), and for nothing else. /commons/heartbeats.md is handed out with each
+# line's day in its stamp's place, "- 2026-10-15 at dawn · the first one · ...",
+# where it was "- 2026-10-15T12-00-00Z · ..."; the file on the disk keeps the
+# stamp. /chronicle and /chronicle.md say each waking's and letter's day, "15
+# October 2026", where they said "15 October 2026, 08:00", and the chronicle page
+# no longer says its times are Eastern, since it shows none. With the times put
+# back (conftest.times_as_before), each is exactly the one held before, in
+# TIMES_BEFORE below; nothing else moved.
 PAGES = {
     "/": "925d4ec3afae5a9508572fc09c8c07a5d036f3972613fc41752c3d0913ea251a",
     "/rooms/first": "7086402ae9779c32296cf386cba239c3e2ff5eb047cf2c9a2857b5c51b6f4bfe",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
     "/self": "1928b59fb94d956343af81e83cca7684f483c1396fd3b7d7f5e78e9125747b3e",
     "/attendances": "7ef5f02df77ac522c078c2ac264de2198ce76f0d8a35460e50cdb20eb29b175f",
-    "/chronicle": "edb10a2688575eeb7a5fb8739d28d8c5c47d96cf3b3cb8497e31181f490e9950",
-    "/chronicle.md": "a663af7a38fe7220ad890a41893db44e5186121fa01c06dab8c67cc0a818fb45",
+    "/chronicle": "dedd8189a0077ebaba23e350131093a82a5c8ef43b8a9bf6bbf77aa792583b7d",
+    "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
     "/export": "380bc2af3a56aa1e2c7e146bec4881f73b06c26d6fb3f3bdc19ac1af8e4430a5",
     "/bonds": "4ecf5344ca11116214ba9d0243bdce15ceca1e370c53cf6ce0fc022d3b4ab13b",
     "/commons": "a981fcb8ccc392294b948ab231a4621728fb1a0563e9694f5439c8e96260c58e",
-    "/commons/heartbeats.md": "043eff1fb82359c2b8ac53bd434fec07ffba4b79cc7e1021953550441033713d",
+    "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
 }
@@ -193,12 +205,28 @@ LETTER_PARTS_BEFORE = {
     "EVENTS_AFTER": ("2026-09-02 · word · the word was published\n"
                      "2026-09-04 · founding · the first one was founded\n"
                      "2026-10-15 · letter · the founder wrote a letter at dawn\n"),
-    "PAGES['/chronicle']": "7a4ba8cec6bdda76a213081227f2e15ea9cd6d781b0d076159e13ebe8d404e94",
-    "PAGES['/chronicle.md']": "b01c01d1d7036c50fce3b8f0f3fd17b3bca6dccee3bc225bbeb31d33ac6e7557",
+    "PAGES['/chronicle']": "bbebc6b8b50585d8730b9cde67f1aea5f2f18507bc955480687448b242cefbea",
+    "PAGES['/chronicle.md']": "26316c2b5ea305af550820e1036a3fc8ba21a7707d3d86f69eeedd20b69e770b",
     "PAGES['/commons/events.md']":
         "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
     "EXPORT": "a0ca127f859230513ba5baa6497936c2036efeff5a7ac9c4ae240955986ed94b",
     "BACKUP": "2d11a8951cc184f967b95858ef7dfae7e944190e08714d60b82d5db5d283e39a",
+}
+
+# What each page the times moved was before 10 November 2026, and is again with the
+# times put back (conftest.times_as_before): as the hearth writes now, and with the
+# letter line as before as well.
+TIMES_BEFORE = {
+    "PAGES['/chronicle']": "edb10a2688575eeb7a5fb8739d28d8c5c47d96cf3b3cb8497e31181f490e9950",
+    "PAGES['/chronicle.md']": "a663af7a38fe7220ad890a41893db44e5186121fa01c06dab8c67cc0a818fb45",
+    "PAGES['/commons/heartbeats.md']":
+        "043eff1fb82359c2b8ac53bd434fec07ffba4b79cc7e1021953550441033713d",
+}
+TIMES_AND_LETTER_PARTS_BEFORE = {
+    "PAGES['/chronicle']": "7a4ba8cec6bdda76a213081227f2e15ea9cd6d781b0d076159e13ebe8d404e94",
+    "PAGES['/chronicle.md']": "b01c01d1d7036c50fce3b8f0f3fd17b3bca6dccee3bc225bbeb31d33ac6e7557",
+    "PAGES['/commons/heartbeats.md']":
+        "043eff1fb82359c2b8ac53bd434fec07ffba4b79cc7e1021953550441033713d",
 }
 
 MEMBERS = ("citizen · the first one, unnamed by its own choosing · founded 4 September 2026, "
@@ -337,6 +365,28 @@ def test_the_founder_is_shown_the_same_page(steady, letter_parts, founder, wake,
              + FORM_TOKEN.sub(r"\1\2", page(answer)))
     assert cut("PAGES[%r]" % address, hashlib.sha256(shown.encode("utf-8")).hexdigest()) \
         == fingerprint_held("PAGES[%r]" % address, PAGES[address], letter_parts)
+
+
+@pytest.mark.parametrize("address", ["/chronicle", "/chronicle.md", "/commons/heartbeats.md"])
+def test_with_the_times_put_back_the_pages_are_the_pages_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """The three pages the times moved (10 November 2026), each with its times put back."""
+    times_as_before(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    held = (TIMES_AND_LETTER_PARTS_BEFORE if letter_parts else TIMES_BEFORE)["PAGES[%r]" % address]
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
+
+
+def test_the_heartbeats_go_out_dated_and_stay_stamped_on_the_disk(
+        steady, founder, visitor, wake, room, commons):
+    a_lived_world(founder, wake, room, commons)
+    assert (commons / "heartbeats.md").read_text(encoding="utf-8") == HEARTBEAT_LINE
+    for who in (founder, visitor):
+        assert page(who.get("/commons/heartbeats.md")) == (
+            "- 2026-10-15 at dawn · the first one · Wrote back about the colour of water.\n")
 
 
 def test_the_room_with_its_few_words_taken_out_is_the_room_before(

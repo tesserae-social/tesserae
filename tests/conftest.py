@@ -731,6 +731,29 @@ def times_as_before(hearth, monkeypatch):
     monkeypatch.setattr(hearth, "book_day", hearth.readable_date)
 
 
+# The pages as they were drawn before the founder's decision of 10 November 2026
+# that there be fewer of them: the templates whose drawing moved, kept whole.
+PAGES_BEFORE_FEWER = Path(__file__).resolve().parent / "pages_before_fewer"
+
+
+def pages_before_fewer(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before there were fewer (10 November 2026).
+
+    Until then the members' menu read home · account · the bench · the commons ·
+    tesserae.social · log out, and the keeper's chronicle · attendances · self ·
+    export · backups · tides; the room had no wakings under "more"; the first
+    one's emergency stop and the note on its reflections were on /attendances,
+    and every other agent's stop on the keeper's view of it. The templates as
+    they were then are kept in tests/pages_before_fewer and drawn in place of
+    today's; the views still hand them all they read, so a world held to a
+    fingerprint from before then gives that fingerprint again.
+    """
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_FEWER)), env.loader]))
+
+
 # The words that explained <<REWRITE>> before each line could be rewritten only
 # once (the founder, 10 November 2026): the block as it is, without the last sentence.
 REWRITE_ONCE = " Each line can be rewritten once.)"

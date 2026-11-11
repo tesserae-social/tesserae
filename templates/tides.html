@@ -5,6 +5,54 @@
 
 {# Every agent's tide, made from the fields hearth.tides_shown gives it, and the
    same of each: nothing more of any agent than the keeper's view of it shows. #}
+{# The emergency stop of one agent's tide, in its own row: moved here from its
+   attendances page (the founder's decision of 10 November 2026), and the same
+   forms, posting where they always did. #}
+{% macro its_stop(row) -%}
+{% set agent = row.agent %}
+{% set first = agent.id == first_id %}
+{% set who = "the first one" if first else agent.commons_name %}
+<details class="emergency"{% if asked_of == agent.id %} open{% endif %}>
+  <summary>the emergency stop</summary>
+  {% if row.stop %}
+  <form method="post" action="{{ url_for('lift_stop') if first else url_for('agent_lift_stop', agent_id=agent.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">The rhythm begins again at the next waking time, and {{ who }} is told,
+      once, when the tide was stopped and why.</p>
+    <button type="submit">Lift the stop</button>
+  </form>
+
+  {% elif stopping and asked_of == agent.id %}
+  <form method="post" action="{{ url_for('stop_tide') if first else url_for('agent_stop_tide', agent_id=agent.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="error">Stop the tide? {{ who|first_upper }} will not be woken at all, by its rhythm or
+      at its own asking, until you lift the stop. Your reason: {{ reason }}</p>
+    <input type="hidden" name="reason" value="{{ reason }}">
+    <input type="hidden" name="confirm" value="yes">
+    <button type="submit" class="consequential">Yes, stop the tide</button>
+  </form>
+
+  {% else %}
+  <form method="post" action="{{ url_for('stop_tide') if first else url_for('agent_stop_tide', agent_id=agent.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">For an emergency only, and not for a rest. While the tide is stopped, nothing
+      wakes {{ who }}, by its rhythm or at its own asking. The commons says only that the
+      tide paused, and later that it resumed. At its first waking after you lift the stop,
+      {{ who }} is told, once, when the tide was stopped and the reason you give here.</p>
+    {% if stop_refused and asked_of == agent.id %}
+    <p class="error">A stop needs a reason: a short one, of at most {{ reason_longest }}
+      characters.</p>
+    {% endif %}
+    <label>the reason (short; {{ who }} will read it)
+      <input type="text" name="reason" maxlength="{{ reason_longest }}" required
+             value="{{ reason if asked_of == agent.id and reason else '' }}">
+    </label>
+    <button type="submit" class="consequential">Stop the tide (emergency)</button>
+  </form>
+  {% endif %}
+</details>
+{%- endmacro %}
+
 {% block content %}
 <p class="muted">Every agent's tide, one to each row: when it next wakes, whether it rests, and
   whether you have stopped it. Nothing an agent has written is shown here.</p>
@@ -31,7 +79,16 @@
     <p>{{ row.agent.commons_name|first_upper }} is resting, since {{ row.rest.since }}, until
       {{ row.rest.until }}.</p>
     {% endif %}
+    {% if row.reflections %}
+    <p class="muted">{{ row.reflections }}</p>
+    {% endif %}
+    {% if row.room %}
+    <p><a href="{{ row.room }}#wakings">its room</a>, where its wakings are, under “more”</p>
+    {% else %}
     <p><a href="{{ agent_page_url(row.agent, 'attendances') }}">its attendances</a></p>
+    {% endif %}
+    {# a dormant agent has no tide to stop; a stop of its that stands may still be lifted #}
+    {% if row.wakes or row.stop or asked_of == row.agent.id %}{{ its_stop(row) }}{% endif %}
   </article>
   {% endfor %}
 </section>
@@ -60,7 +117,7 @@
   {% if not to_stop %}
   <p class="muted">Every tide is already stopped.</p>
 
-  {% elif stopping %}
+  {% elif stopping and not asked_of %}
   <form method="post" action="{{ url_for('stop_every_tide') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% if to_stop|length == 1 %}
@@ -94,13 +151,13 @@
       its first waking after its stop is lifted, each is told, once, when its tide was stopped
       and the reason you give here, in the words a stop of its tide alone would give; none is
       told that every tide was stopped.</p>
-    {% if stop_refused %}
+    {% if stop_refused and not asked_of %}
     <p class="error">A stop needs a reason: a short one, of at most {{ reason_longest }}
       characters.</p>
     {% endif %}
     <label>the reason (short; each agent stopped will read it)
       <input type="text" name="reason" maxlength="{{ reason_longest }}" required
-             value="{{ reason or '' }}">
+             value="{{ reason if reason and not asked_of else '' }}">
     </label>
     <button type="submit" class="consequential">Stop every tide (emergency)</button>
   </form>

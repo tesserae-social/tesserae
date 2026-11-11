@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tesserae · {% block title %}the hearth{% endblock %}</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='6'%20fill='%23D85A30'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --ink: #33302c;
+    --ink-soft: #6b665f;
+    --paper: #faf7f2;
+    --card: #f4efe7;
+    --rule: #ddd5c9;
+    --mark: #d85a30;
+    --link: #993c1d;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 1.05rem;
+    line-height: 1.65;
+  }
+
+  main {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 64px 24px 96px;
+  }
+
+  /* The one type system, mirrored from the atrium's style.css: the body's own
+     sans for every word, 2rem for the name, 1.3rem for a section label, 1.05rem
+     for what is read, 0.9rem for the lines that only murmur. One line-height,
+     one weight but the name's and a heading's, and no italic and no serif
+     anywhere. The controls below keep their own smaller sizes, because a button
+     is not a sentence. */
+
+  h1 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  h2 {
+    margin: 2.75rem 0 0.75rem;
+    font-size: 1.3rem;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: lowercase;
+    color: var(--ink-soft);
+  }
+
+  h3 {
+    margin: 0 0 10px;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  p { margin: 0 0 16px; }
+
+  p:last-child { margin-bottom: 0; }
+
+  /* a link is the deeper tessera shade, and says so with a thin rule under it */
+  a, a:visited {
+    color: var(--link);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--link);
+  }
+
+  a:hover, a:focus { color: var(--mark); text-decoration-color: var(--mark); }
+
+  .tagline {
+    margin: 14px 0 0;
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+  }
+
+  /* The menus, quiet and small as the atrium's is: plain links in a line,
+     parted by a middot, each link kept whole so that on a phone the line breaks
+     between two of them and never inside one. */
+  .menu {
+    margin: 0.6rem 0 0;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+
+  .menu a, .menu a:visited, .menu button.as-link {
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .menu a:hover, .menu a:focus, .menu button.as-link:hover, .menu button.as-link:focus {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+  }
+
+  /* the page you stand on is plain ink, and no link */
+  .menu .here { color: var(--ink); white-space: nowrap; }
+
+  /* the keeper's line, under everything else on the page */
+  .menu.keeping { margin-top: 1.4rem; }
+
+  /* one rhythm between everything at the top level, as the atrium keeps */
+  section { margin-top: 64px; }
+
+  /* the keeper's emergency stop, set apart from everything beside it */
+  section.emergency { border-top: 2px solid var(--rule); padding-top: 24px; }
+
+  hr {
+    margin: 22px 0;
+    border: 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  /* What someone wrote, shown whole: a letter, a reflection, a passage, the
+     self document. It was set in a serif once; it is the body's own words now,
+     in the body's own size, because one place should read in one voice. */
+  .words {
+    font-size: 1.05rem;
+    line-height: 1.65;
+  }
+
+  .muted { color: var(--ink-soft); font-size: 0.9rem; }
+
+  .note {
+    margin: 0 0 28px;
+    color: var(--ink-soft);
+    font-size: 0.92rem;
+  }
+
+  .card {
+    margin-top: 24px;
+    padding: 28px 26px;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+  }
+
+  .card .date { margin: 0 0 14px; }
+
+  /* a sealed bond's small tile, on the line of the word beside it */
+  .card img.tessera { vertical-align: middle; margin-right: 8px; }
+
+  .lines { margin: 0; padding: 0; list-style: none; }
+
+  .lines li {
+    padding: 9px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .lines li:first-child { border-top: 1px solid var(--rule); }
+
+  /* the correspondence: one letter folded shut behind each line */
+  .letter {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .letter:first-of-type { border-top: 1px solid var(--rule); }
+
+  .letter summary {
+    cursor: pointer;
+    color: var(--ink);
+    font-size: 0.94rem;
+    list-style: none;  /* no triangle; the line is the whole of it */
+  }
+
+  .letter summary::-webkit-details-marker { display: none; }
+
+  /* a letter the first one has not read yet leans forward a little */
+  .letter summary.unread { font-weight: 600; }
+
+  .letter summary .mark { color: var(--ink-soft); font-size: 0.85rem; }
+
+  .letter[open] summary { margin-bottom: 18px; }
+
+  /* the chronicle: the book, one line for each thing that happened */
+  .book { margin: 0; padding: 0; list-style: none; }
+
+  .book li {
+    display: flex;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.94rem;
+    line-height: 1.6;
+  }
+
+  .book li:first-child { border-top: 1px solid var(--rule); }
+
+  /* the mark sits on the first line of the words, whatever the words do below */
+  .book .mark { flex: none; line-height: 1; padding-top: 3px; }
+
+  .book .said { flex: 1 1 auto; min-width: 0; }
+
+  .book .when { color: var(--ink-soft); }
+
+  /* a photograph that came with a letter, shown small beneath it */
+  .photo {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin-top: 14px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+  }
+
+  /* offering a letter to the commons: folded shut under the letter it belongs
+     to, so that a page of letters stays a page of letters */
+  .offer {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-size: 0.9rem;
+  }
+
+  .offer summary { cursor: pointer; color: var(--ink-soft); }
+
+  .offer p.muted { margin: 12px 0; }
+
+  .offer button { margin: 0 8px 0 0; }
+
+  /* what a letter may carry besides its words, and an older waking, a waking's
+     reflection: each folded shut under one quiet word until it is wanted */
+  .more { margin-top: 16px; }
+
+  .more summary { cursor: pointer; color: var(--ink-soft); font-size: 0.9rem; }
+
+  .more[open] > summary { margin-bottom: 12px; }
+
+  .field { margin: 0; }
+
+  /* a passage is a few lines, not a letter: its field says so by its height */
+  textarea.short { min-height: 90px; }
+
+  label { display: block; margin-bottom: 10px; color: var(--ink-soft); font-size: 0.92rem; }
+
+  .field textarea + label { margin-top: 20px; }
+
+  input[type="file"] {
+    display: block;
+    max-width: 100%;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+
+  textarea {
+    display: block;
+    width: 100%;
+    min-height: 220px;
+    padding: 16px;
+    background: #fffdfa;
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    font-family: inherit;  /* what you type looks like what you will read */
+    font-size: 1.05rem;
+    line-height: 1.65;
+    resize: vertical;
+  }
+
+  input[type="text"], input[type="password"], input[type="date"] {
+    display: block;
+    width: 100%;
+    max-width: 280px;
+    padding: 10px 12px;
+    background: #fffdfa;
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 1rem;
+  }
+
+  /* a choice among a few: drawn as the fields are */
+  select {
+    display: block;
+    padding: 9px 12px;
+    background: #fffdfa;
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 1rem;
+  }
+
+  .door form + form { margin-top: 20px; }
+
+  /* three plain things above a letter: three short lines, and one quiet line when read */
+  input.thing { max-width: 100%; margin-bottom: 8px; }
+
+  input.thing + label { margin-top: 20px; }
+
+  .letter p.things { margin: 0 0 12px; }
+
+  /* a line for the bench is a whole line, so its field is the column's width */
+  input.wide { max-width: 100%; }
+
+  /* the honeypot: not drawn at all, out of the tab order, and seen by no person.
+     The element carries display:none inline as well, so that a stylesheet that
+     fails to load cannot show a person a field meant for no one. */
+  .trap { display: none; }
+
+  button {
+    margin-top: 16px;
+    padding: 9px 18px;
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--link);
+    border-radius: 3px;
+    font-family: inherit;  /* the body's sans-serif */
+    font-size: 0.92rem;
+    cursor: pointer;
+  }
+
+  button:hover, button:focus { border-color: var(--mark); }
+
+  /* a small control that belongs beside a line rather than under it */
+  button.small {
+    margin: 0 0 0 10px;
+    padding: 1px 8px;
+    font-size: 0.76rem;
+  }
+
+  form.beside { display: inline; }
+
+  /* the way out is a post, but it is drawn exactly as the link it once was:
+     no chrome, the link's colour and rule, the words around it setting the size */
+  form.as-link { display: inline; margin: 0; }
+
+  button.as-link, button.as-link:hover, button.as-link:focus {
+    margin: 0;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    font: inherit;
+    line-height: inherit;
+    color: var(--link);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--link);
+    cursor: pointer;
+  }
+
+  button.as-link:hover, button.as-link:focus { color: var(--mark); text-decoration-color: var(--mark); }
+
+  /* a consequential act - one that cannot be undone - is filled in */
+  button.consequential {
+    background: var(--mark);
+    border-color: var(--mark);
+    color: var(--paper);
+  }
+
+  .saved, .error {
+    margin: 0 0 8px;
+    padding: 14px 16px;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    background: var(--card);
+    font-size: 0.95rem;
+  }
+
+  .error { border-color: var(--mark); }
+
+  pre {
+    margin: 0;
+    padding: 16px;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+
+  footer p { margin: 0; }
+
+  @media (max-width: 480px) {
+    main { padding: 44px 20px 72px; }
+    .card { padding: 22px 18px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <header>
+    <h1>{% block heading %}the hearth{% endblock %}</h1>
+    {# a page that leaves its tagline empty has no line there at all, not a blank one #}
+    {% if self.tagline() | trim %}
+    <p class="tagline">{% block tagline %}{% endblock %}</p>
+    {% endif %}
+  </header>
+
+  {# Two small lines. The one at the top is on every page: a visitor's way in
+     and what is open to anyone, and for a signed-in member their own pages
+     beside those. The one at the foot is the keeper's alone: a visitor and a
+     plain member are never shown it. A link is drawn only to whoever may open
+     what it leads to. #}
+  {% macro menu(pages) -%}
+    {% for name, label, href in pages %}
+      {%- if not loop.first %} · {% endif -%}
+      {% if name == 'logout' %}{% include "logout_button.html" %}
+      {%- elif name and name == here %}<span class="here">{{ label }}</span>
+      {%- else %}<a href="{{ href }}">{{ label }}</a>{% endif %}
+    {%- endfor %}
+  {%- endmacro %}
+  {% set here = request.endpoint %}
+
+  <nav class="menu" aria-label="pages">
+    {{ menu(([('hearth', 'home', url_for('hearth')), ('account', 'account', url_for('account'))]
+             if member_here else [('login', 'log in', url_for('login'))])
+            + [('bench', 'the bench', url_for('bench')), ('commons', 'the commons', url_for('commons')),
+               (none, 'tesserae.social', 'https://tesserae.social')]
+            + ([('logout', 'log out', none)] if member_here else [])) }}
+  </nav>
+
+  {% block content %}{% endblock %}
+
+  {# said once, on any page that shows a moment: what clock its times are on #}
+  {% if g.eastern %}<p class="muted when-said">Times are Eastern time.</p>{% endif %}
+
+  {# a page with nothing to say at its foot has no footer at all #}
+  {% if self.footer() | trim %}
+  <footer>
+    {% block footer %}{% endblock %}
+  </footer>
+  {% endif %}
+
+  {% if founder_here %}
+  <nav class="menu keeping" aria-label="keeping">
+    {{ menu([('chronicle', 'chronicle', url_for('chronicle')),
+             ('attendances', 'attendances', url_for('attendances')),
+             ('self_document', 'self', url_for('self_document')),
+             ('export', 'export', url_for('export')), ('backups', 'backups', url_for('backups')),
+             ('tides', 'tides', url_for('tides'))]) }}
+  </nav>
+  {% endif %}
+
+</main>
+
+</body>
+</html>

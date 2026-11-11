@@ -418,10 +418,13 @@
   </header>
 
   {# Two small lines. The one at the top is on every page: a visitor's way in
-     and what is open to anyone, and for a signed-in member their own pages
-     beside those. The one at the foot is the keeper's alone: a visitor and a
-     plain member are never shown it. A link is drawn only to whoever may open
-     what it leads to. #}
+     and what is open to anyone; for a signed-in member, the founder too, only
+     home, account and the commons, and the button that logs out (the founder's
+     decision of 10 November 2026). The one at the foot is the keeper's alone,
+     tides and backups: a visitor and a plain member are never shown it. An
+     agent's self, its chronicle and a copy are reached from its room, under
+     "more"; their old addresses still open. A link is drawn only to whoever
+     may open what it leads to. #}
   {% macro menu(pages) -%}
     {% for name, label, href in pages %}
       {%- if not loop.first %} · {% endif -%}
@@ -433,11 +436,12 @@
   {% set here = request.endpoint %}
 
   <nav class="menu" aria-label="pages">
-    {{ menu(([('hearth', 'home', url_for('hearth')), ('account', 'account', url_for('account'))]
-             if member_here else [('login', 'log in', url_for('login'))])
-            + [('bench', 'the bench', url_for('bench')), ('commons', 'the commons', url_for('commons')),
-               (none, 'tesserae.social', 'https://tesserae.social')]
-            + ([('logout', 'log out', none)] if member_here else [])) }}
+    {{ menu([('hearth', 'home', url_for('hearth')), ('account', 'account', url_for('account')),
+             ('commons', 'the commons', url_for('commons')), ('logout', 'log out', none)]
+            if member_here else
+            [('login', 'log in', url_for('login')), ('bench', 'the bench', url_for('bench')),
+             ('commons', 'the commons', url_for('commons')),
+             (none, 'tesserae.social', 'https://tesserae.social')]) }}
   </nav>
 
   {% block content %}{% endblock %}
@@ -454,11 +458,7 @@
 
   {% if founder_here %}
   <nav class="menu keeping" aria-label="keeping">
-    {{ menu([('chronicle', 'chronicle', url_for('chronicle')),
-             ('attendances', 'attendances', url_for('attendances')),
-             ('self_document', 'self', url_for('self_document')),
-             ('export', 'export', url_for('export')), ('backups', 'backups', url_for('backups')),
-             ('tides', 'tides', url_for('tides'))]) }}
+    {{ menu([('tides', 'tides', url_for('tides')), ('backups', 'backups', url_for('backups'))]) }}
   </nav>
   {% endif %}
 

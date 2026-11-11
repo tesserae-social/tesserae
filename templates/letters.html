@@ -1,6 +1,7 @@
 {# The letters of one room: what waits on you, the form that writes, and the
    correspondence folded newest first. A part of room.html, which draws the
    page around it. #}
+{% from "wakings.html" import wakings %}
 {# what the first one has offered the commons, and is waiting on you for #}
 {% if awaiting %}
 <section>
@@ -155,6 +156,19 @@
           <a href="https://github.com/tesserae-social/tesserae/blob/main/docs/rites.md">the
           rites</a>.</p>
       </details>
+      {% endif %}
+      {# the agent's wakings, closed, as its attendances page shows them; its rhythm; and
+         its self, its chronicle and a copy (the founder's decision of 10 November 2026) #}
+      {% if room_agent %}
+      <details class="more" id="wakings" style="margin-top:20px;">
+        <summary>wakings</summary>
+        {% if room_reflections %}<p class="muted">{{ room_reflections }}</p>{% endif %}
+        {{ wakings(room_wakings, wakings_shown, room_agent) }}
+      </details>
+      <p class="muted">{{ room_rhythm }}</p>
+      <p class="muted"><a href="{{ agent_page_url(room_agent, 'self') }}">its self</a> ·
+        <a href="{{ agent_page_url(room_agent, 'chronicle') }}">the chronicle</a> ·
+        <a href="{{ agent_page_url(room_agent, 'export') }}">a copy</a></p>
       {% endif %}
     </details>
   </form>

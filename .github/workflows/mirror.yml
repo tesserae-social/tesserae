@@ -18,7 +18,7 @@ on:
     # 09:00 UTC. GitHub runs scheduled jobs late when it is busy; the record is
     # a day's record, and does not mind the minutes.
     - cron: '0 9 * * *'
-    # 15:00 UTC, after the first one's dawn waking and the 13:00 backup, so the
+    # 15:00 UTC, after the first one's dawn waking (the backup is at 08:00), so the
     # day's own tile is drawn the same day rather than the next night.
     - cron: '0 15 * * *'
   workflow_dispatch:

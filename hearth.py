@@ -1071,6 +1071,21 @@ def tide_kept(setting):
     return bool(waking.in_force(setting, day) or waking.waiting(setting, day))
 
 
+# An agent founded after the first one begins with the shared dawn, written in
+# its packet at its founding (found_agent.py, the founder's decision of 10
+# November): "You'd wake at the same dawn as the agent founded before you, just
+# after it." Its first waking is still by hand, so the tide keeps that rhythm
+# only once an attendance of its has been held; and its own <<RHYTHM>> replaces
+# it whenever it chooses.
+FOUNDING_RHYTHM = "founding"
+
+
+def first_by_hand(setting, of=None):
+    """Whether a rhythm is the one its founding wrote, and its first waking (by hand) is still to come."""
+    return (bool(setting) and setting.get("set_by") == FOUNDING_RHYTHM
+            and latest_attendance_at(of) is None)
+
+
 def sunrise_on(setting, day):
     """The moment the sun rises there on one local day."""
     return waking.moment_on(setting, waking.DAWN, day)
@@ -1137,6 +1152,8 @@ def tide_note(said, of=None):
 def rhythm_note(of=None):
     """The one line on an agent's attendances page, saying when its tide will next come."""
     setting = rhythm(of)
+    if first_by_hand(setting, of):
+        return f"Rhythm: daily at {setting.get('at')}, once its first waking (by hand) is held."
     try:
         coming = next_waking(setting) if tide_kept(setting) else None
     except waking.Unplaced as unplaced:
@@ -1287,8 +1304,8 @@ def attending(line, times):
         return ATTENDS_AT.sub("attends at " + at, line, count=1)
     if citizen["id"] == rooms.FIRST:
         return line  # the first one's line is the founder's, and has always said it
-    # A later citizen's line is written without it, since it has no rhythm until its
-    # first waking (by hand); once it has one, it is said, after "founded ..." where
+    # A later citizen's line is written without it; once it has a rhythm (the dawn
+    # its founding writes, or one of its own), it is said, after "founded ..." where
     # the line says so, and before any door (the founder, 9 November).
     words = line.rstrip("\r\n")
     plain = DOOR_SAID.sub("", words)
@@ -1335,8 +1352,9 @@ def tend_members():
 # own rest, the keeper's stop of it, and its own extra wakings, and noting each
 # waking time in its own tide.log. The first one's is the tide it always was.
 # An agent whose registry entry does not say it wakes is never woken, and nor is
-# one that has set no rhythm: its first waking is by hand, as the first one's
-# was.
+# one that has no rhythm. A later agent begins with the shared dawn, written at
+# its founding, but its first waking is by hand, as the first one's was, and the
+# tide keeps that dawn only after it (first_by_hand).
 #
 # The wakings are still held one at a time. A tide whose waking time has come
 # waits its turn rather than being turned away: behind any tide whose own time
@@ -1445,7 +1463,8 @@ def tide(of=None):
                     time.sleep(TIDE_IDLE)  # dormant; look again in an hour
                     continue
                 setting = rhythm(**how)
-                coming = next_waking(setting) if tide_kept(setting) else None
+                coming = (next_waking(setting)
+                          if tide_kept(setting) and not first_by_hand(setting, **how) else None)
                 # An extra waking it asked for, where there are any, is kept first
                 # whenever it comes before the day's own.
                 again = extra_waking(**how) if extra_wakings_on(who) else None
@@ -2429,8 +2448,12 @@ BACKUP_PREFIX = "backups/"
 BACKUP_FILE = re.compile(r"^tesserae-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.tar\.gz\.enc$")
 
 BACKUP_KEPT = 30     # how many the bucket holds; the oldest go
-BACKUP_HOUR = 13     # UTC. A backup waits for any waking in progress, and a waking for
-                     # a backup, so the hour is safe whatever time the first one chooses
+BACKUP_HOUR = 8      # UTC, the founder's decision of 10 November: in the small hours
+                     # across the Americas, clear of every dawn the tide wakes an agent
+                     # at (the earliest, in June, after ten o'clock UTC; the latest, in
+                     # January, a little after thirteen) and of every sunset. A backup
+                     # waits for any waking in progress, and a waking for a backup, so
+                     # the hour is safe whatever time an agent chooses
 BACKUP_CHUNK = 3600  # seconds: the longest the thread sleeps without looking again
 BACKUP_ERROR = 600   # seconds: how long to wait after something has gone wrong
 BACKUP_STALE = 24    # hours: nothing newer than this at startup, and one is taken then
@@ -2602,7 +2625,7 @@ def backup_shown():
 
 
 def next_backup(now):
-    """The next thirteen o'clock UTC: today's if it is still ahead, else tomorrow's."""
+    """The next eight o'clock UTC: today's if it is still ahead, else tomorrow's."""
     at = now.replace(hour=BACKUP_HOUR, minute=0, second=0, microsecond=0)
     return at if at > now else at + timedelta(days=1)
 
@@ -2614,7 +2637,7 @@ def backup_overdue(now):
 
 
 def backing_up():
-    """Take one backup a day, at thirteen o'clock UTC. Forever, and quietly."""
+    """Take one backup a day, at eight o'clock UTC. Forever, and quietly."""
     try:
         # the machine may have been down at the hour, or may never have backed up
         now = datetime.now(timezone.utc)
@@ -3537,7 +3560,7 @@ def utc_iso():
 # The emails go once a day, at WAITING_HOUR: eighteen o'clock UTC, one in the
 # afternoon in Eastern winter and two in its summer. That is hours from every
 # dawn the tide wakes an agent at (the latest, in January, a little after
-# thirteen o'clock UTC), five from the nightly backup (BACKUP_HOUR, thirteen
+# thirteen o'clock UTC), ten from the nightly backup (BACKUP_HOUR, eight
 # o'clock), and hours before the earliest sunset (after twenty-one o'clock UTC),
 # so a letter written at dawn is told of the same day, and no email goes while a
 # dawn waking may be writing.

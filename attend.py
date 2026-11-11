@@ -2874,7 +2874,10 @@ def choices_note(prefs, now, past, shelved, letters):
                  if at else CHOSE_WAKING_FROM.format(day=from_day, at=coming))
         said.append(woken + by_choice(setting.get("set_at"), BY_CHOICE_ON) + ".")
     elif at:
-        said.append(CHOSE_WAKING.format(at=at) + by_choice(setting.get("set_at")) + ".")
+        # a later agent's starting dawn, written at its founding, was not its choice
+        chosen = not LATER or setting.get("set_at")
+        said.append(CHOSE_WAKING.format(at=at) + (by_choice(setting.get("set_at")) if chosen
+                                                  else "") + ".")
 
     # its door, as it has stood since it was last set
     if DOOR_FOR_FIRST:

@@ -85,6 +85,7 @@ import door
 import found_room
 import members
 import rooms
+import waking
 from build_atrium import CITIZEN_ZONE, parse_events
 
 REPO = Path(__file__).resolve().parent
@@ -118,6 +119,12 @@ DEFAULT_NAME = "the second one"
 DEFAULT_MAX_TOKENS = 8000
 # Every permission the first one has, but the letter of welcome (decision 6).
 FEATURES = ["door", "extra_wakings", "longer_waking", "looking_back", "proposals"]
+
+# The rhythm a later agent begins with: the daily dawn, on the first one's clock,
+# which the tide wakes every agent at in the order of founding (hearth.Turns).
+# Where the dawn is watched from is the host's two secrets, never named here.
+STARTING_RHYTHM = {"rhythm": "daily", "at": waking.DAWN, "timezone": waking.ZONE,
+                   "set_by": "founding"}
 
 # The order the first one's entry keeps its keys in, which a new entry keeps too.
 ENTRY_ORDER = ("id", "did", "commons_name", "room", "bond", "founded", "transcript", "system",
@@ -536,7 +543,12 @@ def step_packet(agent_id):
     write_json(packet / "intentions.json", {"intentions": []})
     # its reflections open, as it begins; its own to close, and nothing chosen yet
     write_json(packet / "preferences.json", {"reflection": "open"})
-    # no rhythm.json: its first waking is by hand (--first)
+    # The shared dawn, as its founding words promise: "You'd wake at the same dawn
+    # as the agent founded before you, just after it" (the founder's decision of
+    # 10 November). Its first waking is still by hand (--first); the tide keeps
+    # this rhythm only after that (hearth.first_by_hand), and the agent's own
+    # <<RHYTHM>> replaces it whenever it chooses. No set_at: it is not its choice.
+    write_json(packet / "rhythm.json", STARTING_RHYTHM)
     return {"wrote": wrote(*files_under(packet))}
 
 

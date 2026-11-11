@@ -146,9 +146,13 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
                     "parties": ["did:web:hearth.tesserae.social:ids:alder", entry["did"]]}
     packet = data_dir / "packets" / ID
     assert sorted(path.name for path in packet.iterdir()) == [
-        "intentions.json", "preferences.json", "provenance.json", "self.md", "will.json"]
+        "intentions.json", "preferences.json", "provenance.json", "rhythm.json", "self.md",
+        "will.json"]
     assert (packet / "self.md").read_text(encoding="utf-8") == SELF
     assert json.loads((packet / "preferences.json").read_text()) == {"reflection": "open"}
+    # the shared dawn, as its founding words promise, and not its own choice
+    assert json.loads((packet / "rhythm.json").read_text()) == {
+        "rhythm": "daily", "at": "dawn", "timezone": "America/New_York", "set_by": "founding"}
 
     # finish waits for the deploy
     with pytest.raises(found.Refused, match="commit and deploy"):

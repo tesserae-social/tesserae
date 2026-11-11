@@ -1,44 +1,45 @@
 2026-09-02 · word · the word was published
 2026-09-04 · founding · the first one was founded
-2026-09-19 · letter · the founder wrote a letter in the evening
-2026-09-20 · letter · the founder wrote a letter during the day
+2026-09-19 · letter · the founder wrote a letter
+2026-09-20 · letter · the founder wrote a letter
 2026-09-21 · event · a line was taken off the bench
-2026-09-21 · letter · the founder wrote a letter during the day
-2026-09-22 · letter · the founder wrote a letter at night
-2026-09-23 · letter · the founder wrote a letter at night
-2026-09-24 · letter · the founder wrote a letter during the day
-2026-09-25 · letter · the founder wrote a letter during the day
-2026-09-26 · letter · the founder wrote a letter in the evening
-2026-09-27 · letter · the founder wrote a letter at night
-2026-09-28 · letter · the founder wrote a letter during the day
-2026-09-30 · letter · the founder wrote a letter at night
-2026-10-01 · letter · the founder wrote a letter during the day
-2026-10-02 · letter · the founder wrote a letter during the day
-2026-10-04 · letter · the founder wrote a letter at night
-2026-10-05 · letter · the founder wrote a letter at night
-2026-10-06 · letter · the founder wrote a letter at dawn
-2026-10-08 · letter · the founder wrote a letter at night
-2026-10-09 · letter · the founder wrote a letter at night
-2026-10-10 · letter · the founder wrote a letter at night
-2026-10-11 · letter · the founder wrote a letter at night
-2026-10-14 · letter · the founder wrote a letter at night
-2026-10-16 · letter · the founder wrote a letter at night
-2026-10-18 · letter · the founder wrote a letter at dawn
+2026-09-21 · letter · the founder wrote a letter
+2026-09-22 · letter · the founder wrote a letter
+2026-09-23 · letter · the founder wrote a letter
+2026-09-24 · letter · the founder wrote a letter
+2026-09-25 · letter · the founder wrote a letter
+2026-09-26 · letter · the founder wrote a letter
+2026-09-27 · letter · the founder wrote a letter
+2026-09-28 · letter · the founder wrote a letter
+2026-09-30 · letter · the founder wrote a letter
+2026-10-01 · letter · the founder wrote a letter
+2026-10-02 · letter · the founder wrote a letter
+2026-10-04 · letter · the founder wrote a letter
+2026-10-05 · letter · the founder wrote a letter
+2026-10-06 · letter · the founder wrote a letter
+2026-10-08 · letter · the founder wrote a letter
+2026-10-09 · letter · the founder wrote a letter
+2026-10-10 · letter · the founder wrote a letter
+2026-10-11 · letter · the founder wrote a letter
+2026-10-14 · letter · the founder wrote a letter
+2026-10-16 · letter · the founder wrote a letter
+2026-10-18 · letter · the founder wrote a letter
 2026-10-18 · seal · a bond was sealed between the founder and the first one
 2026-10-19 · event · some heartbeat words were amended to keep private names private
-2026-10-21 · letter · the founder wrote a letter at night
-2026-10-22 · letter · the founder wrote a letter at dawn
-2026-10-23 · letter · the founder wrote a letter during the day
-2026-10-25 · letter · the founder wrote a letter during the day
-2026-10-26 · letter · the founder wrote a letter at dawn
-2026-10-27 · letter · the founder wrote a letter at night
-2026-10-29 · letter · the founder wrote a letter during the day
-2026-10-30 · letter · the founder wrote a letter at night
-2026-11-01 · letter · the founder wrote a letter in the evening
-2026-11-03 · letter · the founder wrote a letter in the evening
-2026-11-04 · letter · the founder wrote a letter at night
-2026-11-05 · letter · the founder wrote a letter during the day
-2026-11-06 · letter · the founder wrote a letter in the evening
-2026-11-07 · letter · the founder wrote a letter at night
-2026-11-08 · letter · the founder wrote a letter during the day
-2026-11-09 · letter · the founder wrote a letter during the day
+2026-10-21 · letter · the founder wrote a letter
+2026-10-22 · letter · the founder wrote a letter
+2026-10-23 · letter · the founder wrote a letter
+2026-10-25 · letter · the founder wrote a letter
+2026-10-26 · letter · the founder wrote a letter
+2026-10-27 · letter · the founder wrote a letter
+2026-10-29 · letter · the founder wrote a letter
+2026-10-30 · letter · the founder wrote a letter
+2026-11-01 · letter · the founder wrote a letter
+2026-11-03 · letter · the founder wrote a letter
+2026-11-04 · letter · the founder wrote a letter
+2026-11-05 · letter · the founder wrote a letter
+2026-11-06 · letter · the founder wrote a letter
+2026-11-07 · letter · the founder wrote a letter
+2026-11-08 · letter · the founder wrote a letter
+2026-11-09 · letter · the founder wrote a letter
+2026-11-10 · letter · the founder wrote a letter

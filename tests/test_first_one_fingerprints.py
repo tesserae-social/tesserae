@@ -48,7 +48,7 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import (blocks, block, commons_pages_not_yet, letter_part_as_before, page,
+from conftest import (bench_link_not_yet, blocks, block, commons_pages_not_yet, letter_part_as_before, page,
                       pages_before_fewer, post, times_as_before, write, write_json)
 from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 
@@ -161,6 +161,10 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # 79774e49...); merged on thursday it is cut once more, for both lines. With the
 # commons' own pages taken out (conftest.commons_pages_not_yet) it is exactly
 # what it was, COMMONS_PAGES_BEFORE below.
+# /commons cut again on 11 November 2026, by the founder's decision that day, for
+# one plain link to the bench near its top and nothing else (a member's menu no
+# longer names the bench). With that link taken out (conftest.bench_link_not_yet)
+# it is exactly the page merged on thursday, BENCH_LINK_BEFORE below.
 PAGES = {
     "/": "80784337f7dfa7239a9dddaaa3f6e223cb658a48562c126f8a316a038d85de6e",
     "/rooms/first": "1e3a6c71c51abd655faa349b7769f10d51fb113f952b83d2741b165abfd614c9",
@@ -171,7 +175,7 @@ PAGES = {
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
     "/export": "2d1a0b80052372aab57e294ed88097781a9c91073f29632af2efb3a470a86f84",
     "/bonds": "4ecf5344ca11116214ba9d0243bdce15ceca1e370c53cf6ce0fc022d3b4ab13b",
-    "/commons": "1bf159dd2e82165bac327c813e10d52e3e861d00543f957f9b2483c77b72e11a",
+    "/commons": "8966b3335b8662dba1097fe2cda73a4eed2ef93b8fbcfde0af464be7fc8bdf6f",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
@@ -283,11 +287,17 @@ BOTH_BEFORE = {
     True: "7a4ba8cec6bdda76a213081227f2e15ea9cd6d781b0d076159e13ebe8d404e94",
 }
 
-# What /commons was before the changes to the charter were linked from it (11
-# November 2026), and is again with the commons' own pages taken out
-# (conftest.commons_pages_not_yet).
+# What /commons was before the ledger and the changes to the charter were linked
+# from it (11 November 2026), and is again with the commons' own pages and the
+# bench's link taken out (conftest.commons_pages_not_yet, bench_link_not_yet).
 COMMONS_PAGES_BEFORE = {
     "/commons": "14c9ca6d1849d7c8a9fa916fe09e9558a4e281cc0800f655cceef307742f77f2"}
+
+# What /commons was before the bench was linked near its top (11 November 2026),
+# merged on thursday with the ledger and the changes to the charter, and is again
+# with the bench's link taken out (conftest.bench_link_not_yet).
+BENCH_LINK_BEFORE = {
+    "/commons": "1bf159dd2e82165bac327c813e10d52e3e861d00543f957f9b2483c77b72e11a"}
 
 MEMBERS = ("citizen · the first one, unnamed by its own choosing · founded 4 September 2026, "
            "attends at 09:30\n"
@@ -454,9 +464,10 @@ def test_with_the_pages_as_before_each_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
     """The seven pages the fewer pages moved (10 November 2026), each drawn as before,
     and with the commons' own pages' links (the ledger, the changes to the
-    charter), which came after, taken out of the commons page."""
+    charter) and the bench's link, which came after, taken out of the commons page."""
     pages_before_fewer(hearth, monkeypatch)
     commons_pages_not_yet(hearth, monkeypatch)
+    bench_link_not_yet(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     answer = founder.get(address)
     shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
@@ -468,13 +479,27 @@ def test_with_the_pages_as_before_each_is_the_page_before(
 @pytest.mark.parametrize("address", list(COMMONS_PAGES_BEFORE))
 def test_with_the_commons_pages_not_yet_linked_the_commons_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
-    """The commons page its own pages' links moved (11 November 2026), without them."""
+    """The commons page its own pages' links moved (11 November 2026), without them,
+    and without the bench's link, which came after."""
     commons_pages_not_yet(hearth, monkeypatch)
+    bench_link_not_yet(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     answer = founder.get(address)
     shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
              + FORM_TOKEN.sub(r"\1\2", page(answer)))
     assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == COMMONS_PAGES_BEFORE[address]
+
+
+@pytest.mark.parametrize("address", list(BENCH_LINK_BEFORE))
+def test_with_the_bench_not_yet_linked_the_commons_is_the_page_merged_on_thursday(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """The commons page the bench's link moved (11 November 2026), without it."""
+    bench_link_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == BENCH_LINK_BEFORE[address]
 
 
 def test_with_both_put_back_the_chronicle_is_the_one_before_either(

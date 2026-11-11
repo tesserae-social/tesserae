@@ -5472,7 +5472,14 @@ def commons():
     files = RECORD_FILES + ([("bonds", "commons_bonds")] if public_bonds.INDEX.exists() else [])
     return render_template("commons.html", sealed_bonds=sealed_bonds_shown(),
                            offerings=offerings_placed(), record_files=files,
-                           commons_pages=COMMONS_PAGES)
+                           commons_pages=COMMONS_PAGES, bench_link=COMMONS_BENCH_LINK)
+
+
+# A plain link to the bench near the top of the commons page (the founder's
+# decision of 11 November 2026): a member's menu (home, account, the commons,
+# log out) no longer names the bench, and a new member's welcome says where it
+# is. None takes it out, and the commons page is then what it was before it.
+COMMONS_BENCH_LINK = ("the bench", "bench", "one plain line from anyone here")
 
 
 # The commons' own pages, each linked from the foot of the commons page with

@@ -127,6 +127,17 @@ def test_the_member_s_name_is_shown_with_the_line(member, visitor, reader):
     assert LINE in said
 
 
+def test_the_commons_links_the_bench_near_its_top_for_anyone(visitor, member):
+    # a member's menu no longer names the bench (10 November 2026), so the commons
+    # does, before its first section, plainly (11 November 2026)
+    for client in (visitor, member):
+        said = page(client.get("/commons"))
+        top = said[said.index("<h1>the commons</h1>"):said.index('<section id="sealed-bonds">')]
+        assert '<p><a href="/bench">the bench</a>: one plain line from anyone here.</p>' in top
+    menu = page(member.get("/commons")).split('<nav class="menu"', 1)[1].split("</nav>", 1)[0]
+    assert 'href="/bench"' not in menu  # the commons page is the member's way to it
+
+
 def test_a_line_is_shown_on_the_bench_and_in_the_commons(member, visitor, reader, commons):
     leave(member)
     assert LINE in page(visitor.get("/bench"))

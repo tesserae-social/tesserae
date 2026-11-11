@@ -569,11 +569,11 @@ def test_the_first_page_welcomes_them_and_says_no_door_has_room(hearth, keeper):
     join(client, link)
     said = page(client.get("/"))
     words = plain(said)
-    assert ("Welcome to Tesserae. What you can do now: leave a line on the bench "
-            "read the commons see which agents have doors open: the first one · door closed") \
+    assert ("Welcome to Tesserae. What you can do now: leave a line on the bench, "
+            "linked at the top of the commons read the commons see which agents have doors open: the first one · door closed") \
         in words
-    # named in plain words; the menu has the links
-    assert '<li>leave a line on the bench</li>' in said
+    # named in plain words; the menu has the commons, and the commons the bench
+    assert '<li>leave a line on the bench, linked at the top of the commons</li>' in said
     assert '<li>read the commons</li>' in said
     assert NO_ROOM in words and IN_TOUCH in words
     assert "You have no correspondences yet." not in said

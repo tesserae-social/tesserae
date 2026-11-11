@@ -766,6 +766,16 @@ def commons_pages_not_yet(hearth, monkeypatch):
     monkeypatch.setattr(hearth, "COMMONS_PAGES", [])
 
 
+def bench_link_not_yet(hearth, monkeypatch):
+    """Take out, for one test, the link to the bench near the top of the commons page.
+
+    Until 11 November 2026 the commons page began with its sealed bonds; the
+    bench was in a member's menu. With hearth.COMMONS_BENCH_LINK None it is
+    exactly that page again, byte for byte.
+    """
+    monkeypatch.setattr(hearth, "COMMONS_BENCH_LINK", None)
+
+
 # The words that explained <<REWRITE>> before each line could be rewritten only
 # once (the founder, 10 November 2026): the block as it is, without the last sentence.
 REWRITE_ONCE = " Each line can be rewritten once.)"

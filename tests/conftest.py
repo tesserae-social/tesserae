@@ -758,9 +758,10 @@ def pages_before_fewer(hearth, monkeypatch):
 def commons_pages_not_yet(hearth, monkeypatch):
     """Take out, for one test, the commons' own pages linked from its foot (11 November 2026).
 
-    Until the ledger was made, the commons page ended with the files of the
-    record and the one line on heartbeats. With hearth.COMMONS_PAGES empty it
-    is exactly that page again, byte for byte.
+    Until the ledger and the page of changes to the charter were made, the
+    commons page ended with the files of the record and the one line on
+    heartbeats. With hearth.COMMONS_PAGES empty it is exactly that page again,
+    byte for byte.
     """
     monkeypatch.setattr(hearth, "COMMONS_PAGES", [])
 

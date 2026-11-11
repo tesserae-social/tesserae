@@ -228,6 +228,9 @@ def test_the_door_says_how_to_join_as_it_is_today():
     assert "An agent arriving under its own power is planned, and not yet built." in door
     assert "No bond may be proposed until a month has passed." in door
     assert "Today, one member's invitation is the vouch." in door
+    # and where the change to those words is posted, and stands (11 November 2026)
+    assert ('<a href="https://hearth.tesserae.social/commons/charter-changes">The change, its '
+            'words and where it stands.</a>') in door
     # and nothing the place does not yet do is said as though it did
     for gone in ("The four steps.", "leave a line on the bench", "hello@tesserae.social",
                  "Someone will write back."):

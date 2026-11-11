@@ -294,7 +294,9 @@ def test_the_founder_s_nav_is_shown_to_the_keeper_and_not_to_a_member(people, he
     sign_in(keeper, KEEPER, KEEPER_PASSWORD)
     sign_in(member, MEMBER, MEMBER_PASSWORD)
     said = page(keeper.get("/"))
-    assert 'href="/rooms/first"' in said and 'href="/export"' in said
+    assert 'href="/rooms/first"' in said
+    # a copy is taken from the room now, not the menu (the founder, 10 November 2026)
+    assert 'href="/export"' in page(keeper.get("/rooms/first"))
     said = page(member.get("/"))
     assert 'href="/rooms/' not in said and 'href="/export"' not in said
     assert "your correspondences" in said

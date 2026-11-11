@@ -153,11 +153,12 @@ def test_the_keeper_sees_each_waking_by_the_allow_list(planted, founder):
     assert ("cut off at its length limit; its waking time could not be read; "
             "its door could not be read") in said
     assert said.count("could not be read") == 2
-    # its rhythm, its rest by since and condition, and the stop's form
+    # its rhythm, and its rest by since and condition; the stop's form is on /tides,
+    # since 10 November 2026 (the founder's decision)
     assert "Rhythm: daily at 07:00" in said
     assert ("The scratch one is resting, since 23 October 2026, 06:00, until a letter "
             "arrives.") in said
-    assert 'action="/agents/second/stop-tide"' in said
+    assert 'action="/agents/second/stop-tide"' not in said
     assert "The tide is stopped" not in said
 
 
@@ -213,6 +214,7 @@ def test_nothing_the_keeper_can_be_answered_with_carries_a_planted_word(
     answers["stop made"] = post(founder, "/agents/second/stop-tide",
                                 data={"reason": "a test", "confirm": "yes"})
     answers["stopped"] = founder.get("/agents/second/attendances")
+    answers["the tides, stopped"] = founder.get("/tides")
     answers["lifted"] = post(founder, "/agents/second/lift-stop")
     for address, answer in answers.items():
         said = answer.get_data().decode("utf-8", "replace")
@@ -224,7 +226,8 @@ def test_nothing_the_keeper_can_be_answered_with_carries_a_planted_word(
     assert "Stop the tide? The scratch one will not be woken" in page(answers["stop asked"])
     assert "A stop needs a reason" in page(answers["stop refused"])
     assert "The tide is stopped, since" in page(answers["stopped"])
-    assert 'action="/agents/second/lift-stop"' in page(answers["stopped"])
+    assert 'action="/agents/second/lift-stop"' not in page(answers["stopped"])
+    assert 'action="/agents/second/lift-stop"' in page(answers["the tides, stopped"])
 
 
 # ---- what is still refused him -------------------------------------------------
@@ -283,7 +286,7 @@ def test_a_stop_on_the_scratch_one_writes_in_its_packet_alone_and_its_line_names
     answer = post(founder, "/agents/second/stop-tide",
                   data={"reason": "a short reason", "confirm": "yes"})
     assert answer.status_code == 302
-    assert answer.headers["Location"] == "/agents/second/attendances"
+    assert answer.headers["Location"] == "/tides"  # where the stop is, since 10 November 2026
     assert {what: hash_of() for what, hash_of in held.items()} == before
     stop = planted / "tide-stop.json"
     assert stop.exists() and "a short reason" in stop.read_text(encoding="utf-8")

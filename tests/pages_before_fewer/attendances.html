@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}attendances{% endblock %}
+{% block heading %}attendances{% endblock %}
+
+{# One waking to a line: when, how it came, what was done, and its heartbeat.
+   The newest few are shown; the older are folded away under one line. An open
+   reflection is folded under its own waking's line; one withheld is not shown
+   at all, since the note at the top says how things stand. #}
+{% macro waking(record) -%}
+<li>{{ record.at }}
+  {%- if record.first %} · its first waking{% endif %}
+  {%- if record.woken_by == 'its own asking' %} · woken at its own asking{% endif %} ·
+  {% if record.acted %}{{ record.acted|join(", ") }}{% else %}nothing — it chose stillness{% endif %}
+  {%- if record.heartbeat %} · “{{ record.heartbeat }}”{% endif %}
+  {%- if record.reflection %}
+  <details class="more">
+    <summary>reflection</summary>
+    <div class="words">{{ record.reflection }}</div>
+  </details>
+  {%- endif %}</li>
+{%- endmacro %}
+
+{% block content %}
+<p class="muted">{{ reflection_note }}</p>
+
+{% set resting = pause and pause.by == agent.id %}
+
+<section>
+  <h2>the tide</h2>
+  <p class="muted">{{ rhythm_note }}</p>
+
+  {% if stop %}
+  <p>The tide is stopped, since {{ stop.since }}, because: {{ stop.reason }}</p>
+  {% endif %}
+
+  {% if resting %}
+  <p>{{ agent.commons_name|first_upper }} is resting, since {{ pause.since }}, until {{ pause.until }}.</p>
+  <p class="muted">It asked not to be woken before then, and the tide will not wake it. A
+    letter you leave will wait for it.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>wakings</h2>
+  {% if records %}
+  <ul class="lines">
+    {% for record in records[:shown] %}
+    {{ waking(record) }}
+    {% endfor %}
+  </ul>
+  {% if records|length > shown %}
+  <details class="more">
+    <summary>older wakings</summary>
+    <ul class="lines">
+      {% for record in records[shown:] %}
+      {{ waking(record) }}
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  {% else %}
+    <p class="muted">No attendances yet. {{ agent.commons_name|first_upper }} has not woken.</p>
+  {% endif %}
+</section>
+
+{% if keeping %}<section class="emergency">
+  <h2>the emergency stop</h2>
+  {% if stop %}
+  <form method="post" action="{{ url_for('lift_stop') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">The rhythm begins again at the next waking time, and the first one is told,
+      once, when the tide was stopped and why.</p>
+    <button type="submit">Lift the stop</button>
+  </form>
+
+  {% elif stopping %}
+  <form method="post" action="{{ url_for('stop_tide') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="error">Stop the tide? The first one will not be woken at all, by its rhythm or at
+      its own asking, until you lift the stop. Your reason: {{ reason }}</p>
+    <input type="hidden" name="reason" value="{{ reason }}">
+    <input type="hidden" name="confirm" value="yes">
+    <button type="submit" class="consequential">Yes, stop the tide</button>
+  </form>
+
+  {% else %}
+  <form method="post" action="{{ url_for('stop_tide') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">For an emergency only, and not for a rest. While the tide is stopped, nothing
+      wakes the first one, by its rhythm or at its own asking. The commons says only that the
+      tide paused, and later that it resumed. At its first waking after you lift the stop, the
+      first one is told, once, when the tide was stopped and the reason you give here.</p>
+    {% if stop_refused %}
+    <p class="error">A stop needs a reason: a short one, of at most {{ reason_longest }}
+      characters.</p>
+    {% endif %}
+    <label>the reason (short; the first one will read it)
+      <input type="text" name="reason" maxlength="{{ reason_longest }}" required
+             value="{{ reason or '' }}">
+    </label>
+    <button type="submit" class="consequential">Stop the tide (emergency)</button>
+  </form>
+  {% endif %}
+</section>{% endif %}
+{% endblock %}

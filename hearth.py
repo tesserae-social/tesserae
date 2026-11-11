@@ -4317,6 +4317,26 @@ def logout():
     return render_template("logout.html")
 
 
+def room_wakings(room):
+    """What a room shows of its agent under "more": its wakings, newest first, as its
+    attendances page shows them, how many are open, its rhythm, and the agent itself,
+    for the links to its self, its chronicle and a copy (the founder, 10 November 2026).
+
+    The note on how its reflections stand went from the attendances page to /tides,
+    where the keeper reads it of the first one's; in any other room, which the keeper
+    is not in, it is said here, beside the wakings, so that its person still reads it.
+    """
+    agent = rooms.agent_of(room.id)
+    if not agent:
+        return {"room_agent": None, "room_wakings": [], "wakings_shown": WAKINGS_SHOWN,
+                "room_rhythm": None, "room_reflections": None}
+    prefs = preferences(agent)
+    return {"room_agent": agent,
+            "room_wakings": attendance_records(prefs, agent),
+            "wakings_shown": WAKINGS_SHOWN, "room_rhythm": rhythm_note(agent["id"]),
+            "room_reflections": None if is_first_room(room) else reflection_note(prefs)}
+
+
 def room_page(room=None, things=(), draft="", line="", **told):
     """A room's page - its letters, and its bond - with whatever has just been said."""
     room = room or own_room()
@@ -4325,7 +4345,7 @@ def room_page(room=None, things=(), draft="", line="", **told):
     proposal = proposal_shown()
     return render_template(
         "room.html",
-        room=room, first_room=True,
+        room=room, first_room=True, **room_wakings(room),
         draft=draft,
         # his line for the commons, offered only while today has no letter tile
         drafted_line=line, letter_line_open=not letter_line_today(),
@@ -4361,7 +4381,7 @@ def letters_page(room, things=(), draft="", **told):
     form that writes one, and nothing of the first one's room's bond, offerings or proposals."""
     return render_template(
         "room.html",
-        room=room, first_room=False,
+        room=room, first_room=False, **room_wakings(room),
         draft=draft, drafted_line="", letter_line_open=False,
         letter_line_longest=LETTER_LINE_LONGEST,
         drafted_things=list(things) + [""] * (offering.THINGS_MOST - len(things)),
@@ -5010,11 +5030,13 @@ WAKINGS_SHOWN = 7
 
 
 def attendances_page(agent=None, **told):
-    """An agent's attendances page, the first one's where none is named, with whatever
-    the founder has just been told.
+    """An agent's attendances page, the first one's where none is named.
 
-    The stop of the tide is the first one's page's alone: its form acts on the
-    first one, and on no other agent.
+    Nothing links here now: its wakings are in its room, under "more", and the stop
+    of its tide and the note on its reflections are on /tides (the founder, 10
+    November 2026). The page keeps its address for anyone who follows an old link.
+    keeping and reflection_note are still handed to it, unread, so that the page as
+    it was (tests/pages_before_fewer) is drawn exactly as before.
     """
     agent = agent or agents.first()
     prefs = preferences(agent)
@@ -5167,14 +5189,14 @@ def keeper_form(first):
 @app.route("/agents/<agent_id>/stop-tide", methods=["POST"])
 @keeper_form("stop_tide")
 def agent_stop_tide(agent):
-    back = url_for("agent_attendances", agent_id=agent["id"])
+    back = url_for("tides")  # where the stop is, since 10 November 2026
     if tide_stop(agent["id"]):
         return redirect(back)  # one stop at a time, and one stands
     reason = " ".join((request.form.get("reason") or "").split())
     if not reason or len(reason) > STOP_REASON_LONGEST:
-        return keeper_attendances_page(agent, stop_refused=True, reason=reason)
+        return tides_page(stop_refused=True, reason=reason, asked_of=agent["id"])
     if request.form.get("confirm") != "yes":
-        return keeper_attendances_page(agent, stopping=True, reason=reason)
+        return tides_page(stopping=True, reason=reason, asked_of=agent["id"])
     begin_stop(reason, of=agent["id"])
     return redirect(back)
 
@@ -5184,7 +5206,7 @@ def agent_stop_tide(agent):
 def agent_lift_stop(agent):
     if tide_stop(agent["id"]):
         end_stop(of=agent["id"])
-    return redirect(url_for("agent_attendances", agent_id=agent["id"]))
+    return redirect(url_for("tides"))
 
 
 # ---- every tide, on one page -----------------------------------------------
@@ -5222,11 +5244,20 @@ def stop_stamp(standing):
 
 
 def tides_shown():
-    """Each agent's tide as the page shows it, in the order of founding."""
+    """Each agent's tide as the page shows it, in the order of founding.
+
+    Of an agent whose room the keeper is a party to - the first one's - the row also
+    says how its reflections stand, as its attendances page did, and leads to its
+    room, where its wakings are; of any other, to the keeper's view of it, as before,
+    and nothing of its reflections (the founder, 10 November 2026).
+    """
     rows = []
     for agent in agents.registry():
         standing = tide_stop(agent["id"])
+        ours = party_to(agent)
         rows.append({"agent": agent, "wakes": bool(agent.get("wakes")),
+                     "reflections": reflection_note(preferences(agent)) if ours else None,
+                     "room": url_for("room", room_id=agent["room"]) if ours else None,
                      "rhythm_note": rhythm_note(agent["id"]) if agent.get("wakes") else None,
                      "stop": keeper_stop(agent), "together": stop_stamp(standing) is not None,
                      "rest": keeper_rest(agent), "stamp": stop_stamp(standing),
@@ -5261,7 +5292,7 @@ def tides_page(**told):
     """Every agent's tide, with whatever the keeper has just been told."""
     rows = tides_shown()
     waking = [row for row in rows if row["wakes"]]
-    return render_template("tides.html", rows=rows, dormant=TIDE_DORMANT,
+    return render_template("tides.html", rows=rows, dormant=TIDE_DORMANT, first_id=rooms.FIRST,
                            together=stopped_together(rows),
                            to_stop=[row["agent"] for row in waking if not row["stop"]],
                            already=[row["agent"] for row in waking if row["stop"]],
@@ -5338,15 +5369,16 @@ def return_from_rest():
 @app.route("/stop-tide", methods=["POST"])
 @founder_required
 def stop_tide():
+    # asked for, and answered, on /tides, where the stop is since 10 November 2026
     if tide_stop():
-        return redirect(url_for("attendances"))  # one stop at a time, and one stands
+        return redirect(url_for("tides"))  # one stop at a time, and one stands
     reason = " ".join((request.form.get("reason") or "").split())
     if not reason or len(reason) > STOP_REASON_LONGEST:
-        return attendances_page(stop_refused=True, reason=reason)
+        return tides_page(stop_refused=True, reason=reason, asked_of=rooms.FIRST)
     if request.form.get("confirm") != "yes":
-        return attendances_page(stopping=True, reason=reason)
+        return tides_page(stopping=True, reason=reason, asked_of=rooms.FIRST)
     begin_stop(reason)
-    return redirect(url_for("attendances"))
+    return redirect(url_for("tides"))
 
 
 @app.route("/lift-stop", methods=["POST"])
@@ -5354,7 +5386,7 @@ def stop_tide():
 def lift_stop():
     if tide_stop():
         end_stop()
-    return redirect(url_for("attendances"))
+    return redirect(url_for("tides"))
 
 
 # A backup is taken every day without asking, but the founder may take one now:

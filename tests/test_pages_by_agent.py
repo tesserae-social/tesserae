@@ -167,8 +167,9 @@ def shown(answer):
 # The keeping menu's entry for every tide. Once it was there only where there was
 # more than one agent (stage 6d), and taken out here so that a page could be held
 # to stage 0's fingerprint; since the pages were tidied it is always there, for one
-# agent or many, and the fingerprints were cut again with it in.
-TIDES_ENTRY = ' · <a href="/tides">tides</a>'
+# agent or many, and the fingerprints were cut again with it in. Since there were
+# fewer pages (10 November 2026) it comes first in that menu, before backups.
+TIDES_ENTRY = '<a href="/tides">tides</a> · '
 
 
 def shown_with_the_tides(answer):
@@ -296,13 +297,19 @@ def test_an_agent_s_rest_and_stop_are_its_own_on_its_page(world, alder, founder,
     assert "The tide is stopped" not in first
 
 
-def test_a_reflection_kept_private_is_said_once_at_the_top(world, alder):
-    """Not under each waking: the note at the top of the page says how things stand."""
+def test_a_reflection_kept_private_is_said_once_beside_its_wakings(world, alder):
+    """Not under each waking: one note says how things stand, beside the wakings in its
+    room, where its person reads them since 10 November 2026; the keeper, who is not a
+    party, reads it nowhere."""
     write_json(world / "packets" / "second" / "preferences.json", {"reflection": "private"})
-    said = page(alder.get("/agents/second/attendances"))
+    said = page(alder.get("/rooms/second"))
     assert said.count("Reflections: private") == 1
+    wakings = said.split('<summary>wakings</summary>', 1)[1]
+    assert wakings.index("Reflections: private") < wakings.index("<ul")
     assert "kept private by" not in said and "<summary>reflection</summary>" not in said
     assert SECOND_SAYS["its reflection"] not in said
+    said = page(alder.get("/agents/second/attendances"))
+    assert "Reflections:" not in said and SECOND_SAYS["its reflection"] not in said
 
 
 def test_a_party_s_copy_is_its_agent_s_and_the_taking_is_written_in_its_packet(

@@ -6,6 +6,9 @@ Three rules hold across the whole suite, and this file is where they are kept:
     and every socket is closed off besides, so a call that slipped past a stub
     fails loudly instead of quietly going out. astral is pure arithmetic and runs
     for real.
+  * No call to Google, ever. No Gemini key is in the environment, and the one
+    place Google's client is made (gemini.sdk_client) refuses, as Google's own
+    Client does; a test of an agent on Gemini puts a FakeGoogle in its place.
   * No email, ever. The Resend key is taken out of the environment, the way an
     email goes is a fake that keeps each message (the outbox fixture), and the
     real post to Resend refuses if it is ever reached.
@@ -99,6 +102,69 @@ def no_network(monkeypatch):
     monkeypatch.setattr(socket.socket, "connect", refuse)
     monkeypatch.setattr(socket.socket, "connect_ex", refuse)
     monkeypatch.setattr(socket, "create_connection", refuse)
+
+
+# ---- no call to Google, ever ---------------------------------------------
+
+class WentToGoogle(RuntimeError):
+    """Raised if anything in a test reaches for Google's own client."""
+
+
+@pytest.fixture(autouse=True)
+def no_google(monkeypatch):
+    """Three guards: no Gemini key; gemini.sdk_client refuses; and so does Google's Client."""
+    import gemini
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+
+    def refuse(*args, **kwargs):
+        raise WentToGoogle("a test reached for Google's client")
+
+    monkeypatch.setattr(gemini, "sdk_client", refuse)
+    try:
+        from google import genai
+    except ImportError:
+        return
+    monkeypatch.setattr(genai, "Client", refuse)
+
+
+class FakeGoogle:
+    """Google's client, faked: each request kept, and each answer given from those it is told.
+
+    It stands where gemini.sdk_client's client stands, so everything gemini.py says
+    to Gemini is said to it. answers are Google's own response types, given in
+    turn; when they run out, the last is given again.
+    """
+
+    def __init__(self, *answers):
+        self.answers = list(answers) or [self.said("")]
+        self.asked = []
+        fake = self
+
+        class Models:
+            def generate_content(self, **asked):
+                fake.asked.append(asked)
+                return fake.answers.pop(0) if len(fake.answers) > 1 else fake.answers[0]
+
+        self.models = Models()
+
+    def __call__(self, api_key=None):
+        self.key = api_key
+        return self
+
+    @staticmethod
+    def said(text, finish="STOP", calls=(), usage=None, blocked=None, signature=None):
+        """One of Google's answers: text, any function calls, how it finished, what it cost."""
+        from google.genai import types
+        parts = [types.Part(text=text, thought_signature=signature)] if text is not None else []
+        parts += [types.Part(function_call=types.FunctionCall(name=name, args=args, id=its_id))
+                  for name, args, its_id in calls]
+        return types.GenerateContentResponse(
+            candidates=[] if blocked else [types.Candidate(
+                content=types.Content(role="model", parts=parts), finish_reason=finish)],
+            prompt_feedback=types.GenerateContentResponsePromptFeedback(block_reason=blocked)
+            if blocked else None,
+            usage_metadata=types.GenerateContentResponseUsageMetadata(**usage) if usage else None)
 
 
 # ---- no email, ever ------------------------------------------------------

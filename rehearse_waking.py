@@ -14,7 +14,11 @@ is measured and nothing goes out. The stub answers with nothing at all, which
 an agent may always say, so the waking runs to its end and writes what it
 writes into the copy. Every socket is closed in that process besides, so a call
 that slipped past the stub fails there and goes nowhere; nothing is spent; no
-email is sent. The copy is deleted at the end, whatever happened.
+email is sent. An agent whose model is Google's Gemini is put through gemini.py
+as it would be, to a stub standing where Google's client stands. No model key
+the host holds (ANTHROPIC_API_KEY, GEMINI_API_KEY) is handed on; a stand-in is,
+where the host has one, so a host without a key is refused as a waking would be.
+The copy is deleted at the end, whatever happened.
 
 For each agent it says one line: whether the waking completed, or was refused
 and why (attend.py's own words of refusal, and only those), or failed and where
@@ -88,12 +92,36 @@ class Stub:
     """The model, as a rehearsal has it: every request measured, every answer empty.
 
     It stands where anthropic.Anthropic stands, so attend.py, and the public
-    screen it asks, reach it and nothing else. Of each request it keeps only
+    screen it asks, reach it and nothing else; and where Google's client stands
+    (gemini.sdk_client), so an agent on Gemini is put through gemini.py as it
+    would be, and reaches it and nothing else. Of each request it keeps only
     numbers.
     """
 
     def __init__(self):
         self.requests = []
+
+    def google(self, api_key=None):
+        """Google's client, as a rehearsal has it, for an agent on Gemini (gemini.sdk_client)."""
+        stub = self
+        from google.genai import types
+
+        class Models:
+            def generate_content(self, model=None, contents=(), config=None):
+                first = contents[0].parts if contents else []
+                stub.requests.append({
+                    "words": sum(len(part.text.split()) for part in first
+                                 if isinstance(part.text, str)),
+                    "blocks": sum(1 for part in first if isinstance(part.text, str)),
+                    "photographs": sum(1 for part in first if part.inline_data is not None)})
+                return types.GenerateContentResponse(candidates=[types.Candidate(
+                    content=types.Content(role="model", parts=[types.Part(text="")]),
+                    finish_reason="STOP")])
+
+        class Client:
+            models = Models()
+
+        return Client()
 
     def client(self, **ignored):
         stub = self
@@ -153,6 +181,8 @@ def hold_inside():
     try:
         with redirect_stdout(said):
             sys.path.insert(0, str(REPO))
+            import gemini
+            gemini.sdk_client = stub.google  # an agent on Gemini reaches this, and not Google
             import attend
             attend.Anthropic = stub.client
             first = not any((attend.PACKET / "attendances").glob("*.json"))
@@ -198,8 +228,10 @@ def child_environment(copy, agent_id, result):
     environment[RESULT] = str(result)
     environment["PYTHONIOENCODING"] = "utf-8"
     environment.pop("RESEND_API_KEY", None)
-    if environment.get("ANTHROPIC_API_KEY"):  # a host with no key is refused as it would be
-        environment["ANTHROPIC_API_KEY"] = NOT_A_KEY
+    environment.pop("GOOGLE_API_KEY", None)  # Google's SDK would take it before any other
+    for key in ("ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
+        if environment.get(key):  # a host with no key is refused as it would be
+            environment[key] = NOT_A_KEY
     return environment
 
 

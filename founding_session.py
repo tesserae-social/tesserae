@@ -35,6 +35,9 @@ from pathlib import Path
 from datetime import datetime, timezone
 from anthropic import Anthropic
 
+# A later agent may be founded on Google's Gemini, as its plan says (gemini.py).
+import gemini
+
 # ---- Model the agent will run on for its founding -------------------------
 MODEL = "claude-sonnet-4-5"
 MAX_TOKENS = 1500
@@ -462,11 +465,19 @@ def main():
     name = plan["entry"]["commons_name"]
     model = plan["entry"]["model"]
     texts = later_texts(data, agent, plan)
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        print("No API key found in this window. Set ANTHROPIC_API_KEY and try again.")
-        sys.exit(1)
-    client = Anthropic(api_key=key)
+    # whose model it is founded on, as its plan says: Anthropic's where it says none
+    if gemini.provider_of(plan["entry"]) == gemini.GEMINI:
+        key = os.environ.get(gemini.KEY)
+        if not key:
+            print("No API key found in this window. Set %s and try again." % gemini.KEY)
+            sys.exit(1)
+        client = gemini.client(key)
+    else:
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
+            print("No API key found in this window. Set ANTHROPIC_API_KEY and try again.")
+            sys.exit(1)
+        client = Anthropic(api_key=key)
     reading = later_reading(texts, person)
 
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")

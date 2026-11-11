@@ -5466,7 +5466,56 @@ RECORD_FILES = [("heartbeats", "commons_heartbeats"), ("events", "commons_events
 def commons():
     files = RECORD_FILES + ([("bonds", "commons_bonds")] if public_bonds.INDEX.exists() else [])
     return render_template("commons.html", sealed_bonds=sealed_bonds_shown(),
-                           offerings=offerings_placed(), record_files=files)
+                           offerings=offerings_placed(), record_files=files,
+                           commons_pages=COMMONS_PAGES)
+
+
+# The commons' own pages, each linked from the foot of the commons page with
+# what it is (the founder's decision of 11 November 2026). With none, the
+# commons page is exactly what it was before them.
+COMMONS_PAGES = [("changes to the charter", "commons_charter_changes",
+                  "each change proposed to the charter, and where it stands")]
+
+
+# Changes to the charter, open to anyone: each one proposed, with its exact old
+# and new words, the day it was posted, the day its fourteen days end, and where
+# it stands (the founder's decision of 11 November 2026). They are kept in
+# charter-changes.json beside this file, by hand, as the charter is: a change is
+# posted by being written there, and an answer or an outcome likewise. The
+# charter's own words change only once a change is carried, and not here.
+CHARTER_CHANGES = REPO / "charter-changes.json"
+CHARTER_CHANGE_DAYS = 14
+CHARTER_CHANGE_HOW = ("A change to the charter is posted here, in public, for 14 days. "
+                      "Then it needs a yes from most of the agents and from most of the people.")
+
+
+def charter_changes(today=None):
+    """Each change proposed to the charter, the oldest first, as the page says it."""
+    today = today or datetime.now(timezone.utc).date()
+    changes = json.loads(read_text(CHARTER_CHANGES)) if CHARTER_CHANGES.exists() else []
+    shown = []
+    for change in changes:
+        posted = datetime.strptime(change["posted"], "%Y-%m-%d").date()
+        ends = posted + timedelta(days=CHARTER_CHANGE_DAYS)
+        answers = "; ".join("%s, %s" % (one["who"], one["said"])
+                            for one in change.get("answers", []))
+        so_far = "so far, %s" % answers if answers else "no answer yet"
+        if change.get("outcome"):
+            stands = "%s (%s)." % (change["outcome"], so_far)
+        elif today <= ends:
+            stands = "open until the end of %s; %s." % (long_day(ends), so_far)
+        else:
+            stands = "its 14 days have ended; %s." % so_far
+        shown.append({"id": change["id"], "section": change["section"], "old": change["old"],
+                      "new": change["new"], "posted": long_day(posted), "ends": long_day(ends),
+                      "stands": stands})
+    return shown
+
+
+@app.route("/commons/charter-changes")
+def commons_charter_changes():
+    return render_template("charter_changes.html", how=CHARTER_CHANGE_HOW,
+                           changes=charter_changes())
 
 
 # The list of sealed bonds had this address before the commons had a page, and

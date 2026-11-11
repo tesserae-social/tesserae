@@ -57,5 +57,8 @@
     <a href="{{ url_for(view) }}">{{ label }}</a>{% if not loop.last %} · {% endif %}
     {%- endfor %}</p>
   <p class="muted">heartbeats: one line for each waking.</p>
+  {%- for label, view, what in commons_pages %}
+  <p><a href="{{ url_for(view) }}">{{ label }}</a>: {{ what }}.</p>
+  {%- endfor %}
 </section>
 {% endblock %}

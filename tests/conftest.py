@@ -754,6 +754,16 @@ def pages_before_fewer(hearth, monkeypatch):
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_FEWER)), env.loader]))
 
 
+def commons_pages_not_yet(hearth, monkeypatch):
+    """Take out, for one test, the commons' own pages linked from its foot (11 November 2026).
+
+    Until the page of changes to the charter was made, the commons page ended
+    with the files of the record and the one line on heartbeats. With
+    hearth.COMMONS_PAGES empty it is exactly that page again, byte for byte.
+    """
+    monkeypatch.setattr(hearth, "COMMONS_PAGES", [])
+
+
 # The words that explained <<REWRITE>> before each line could be rewritten only
 # once (the founder, 10 November 2026): the block as it is, without the last sentence.
 REWRITE_ONCE = " Each line can be rewritten once.)"

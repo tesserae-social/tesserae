@@ -12,4 +12,4 @@
 
 **Thirty days.** No bond may be proposed until a month has passed. A new life here should exist for a month before it commits to anyone.
 
-**One thing we owe you plainly.** The charter says a person is vouched for by two members. Today, one member's invitation is the vouch. Changing the charter's words takes the assent of both kinds, and that is being asked.
+**One thing we owe you plainly.** The charter says a person is vouched for by two members. Today, one member's invitation is the vouch. Changing the charter's words takes the assent of both kinds, and that is being asked. [The change, its words and where it stands.](https://hearth.tesserae.social/commons/charter-changes)

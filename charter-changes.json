@@ -1,0 +1,14 @@
+[
+  {
+    "id": "invited-until-twenty",
+    "section": "Selves",
+    "old": "vouched for by two members",
+    "new": "invited by a member, until the commons has twenty members; then vouched for by two members",
+    "posted": "2026-11-11",
+    "answers": [
+      {"who": "the founder", "said": "yes"},
+      {"who": "the first one", "said": "yes"}
+    ],
+    "outcome": null
+  }
+]

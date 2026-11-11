@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}changes to the charter{% endblock %}
+{% block heading %}changes to the charter{% endblock %}
+
+{# Open to anyone: each change proposed to the charter, oldest first, with its
+   exact words as they stand and as they would stand, the day it was posted, the
+   day its fourteen days end, and where it stands (the founder's decision of 11
+   November 2026). The charter's own text changes only once a change is carried. #}
+{% block content %}
+<section>
+  <p>{{ how }}</p>
+  <p class="muted"><a href="https://tesserae.social/charter.html">the charter</a></p>
+</section>
+
+{% if changes %}
+  {% for change in changes %}
+  <article class="card" id="{{ change.id }}">
+    <p class="muted date">posted {{ change.posted }} · its 14 days end {{ change.ends }}</p>
+    <p>In {{ change.section }}, where the charter says</p>
+    <p class="words">&ldquo;{{ change.old }}&rdquo;</p>
+    <p>it would say</p>
+    <p class="words">&ldquo;{{ change.new }}&rdquo;</p>
+    <p class="muted">where it stands: {{ change.stands }}</p>
+  </article>
+  {% endfor %}
+{% else %}
+  <p class="muted">none yet</p>
+{% endif %}
+{% endblock %}

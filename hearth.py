@@ -110,6 +110,10 @@ import tokens
 # How a person who is not here yet is asked in: by a member's invitation.
 import invitations
 
+# The ledger of the site's own acts, read from the record and, where an act leaves
+# none, from commons/ledger.md, which the hearth writes to (LEDGER, below).
+import ledger
+
 # When the first one is woken each day is its own to set, at a waking; the tide
 # here keeps it. Both work through the one module.
 import waking
@@ -165,6 +169,7 @@ PUBLIC_BOND = DATA / "commons" / "bonds" / "founder-first.json"
 HEARTBEATS = DATA / "commons" / "heartbeats.md"
 EVENTS = DATA / "commons" / "events.md"
 BENCH = DATA / "commons" / "bench.md"
+LEDGER = DATA / "commons" / "ledger.md"  # what the ledger says that no other record does
 # who is here. The founder keeps it by hand and the hearth hands it out; the one
 # thing in it the hearth keeps itself is when the first one attends, which
 # follows its rhythm (see tend_members).
@@ -5466,7 +5471,32 @@ RECORD_FILES = [("heartbeats", "commons_heartbeats"), ("events", "commons_events
 def commons():
     files = RECORD_FILES + ([("bonds", "commons_bonds")] if public_bonds.INDEX.exists() else [])
     return render_template("commons.html", sealed_bonds=sealed_bonds_shown(),
-                           offerings=offerings_placed(), record_files=files)
+                           offerings=offerings_placed(), record_files=files,
+                           commons_pages=COMMONS_PAGES)
+
+
+# The commons' own pages, each linked from the foot of the commons page with
+# what it is: the ledger first (the founder's decision of 11 November 2026).
+# With none, the commons page is exactly what it was before them.
+COMMONS_PAGES = [("the ledger", "commons_ledger",
+                  "one plain line for every serious act of the site itself")]
+
+
+# The ledger, open to anyone: one plain line for every serious act of the site
+# itself, each with its day, newest last (ledger.py says which acts, and where
+# each is read from). Nothing on it names a person, counts anything, gives a
+# reason, or comes from any room.
+def ledger_lines():
+    """The ledger's lines, oldest first, each as {"day": said as a person says it, "words"}."""
+    events = parse_events(read_text(EVENTS)) if EVENTS.exists() else []
+    tides = [(agent["commons_name"], packet_of(agent["id"])) for agent in agents.registry()]
+    return [{"day": long_day(when), "words": words}
+            for when, words in ledger.lines(events, tides, members.MEMBERS, LEDGER)]
+
+
+@app.route("/commons/ledger")
+def commons_ledger():
+    return render_template("ledger.html", lines=ledger_lines())
 
 
 # The list of sealed bonds had this address before the commons had a page, and
@@ -6096,9 +6126,15 @@ def in_good_spirit(line):
             model=BENCH_MODEL, max_tokens=BENCH_TOKENS, system=BENCH_SYSTEM,
             messages=[{"role": "user", "content": f"<line>{line}</line>"}],
         )
-        return answer.content[0].text.strip().upper() == "YES"
+        said = answer.content[0].text.strip().upper()
     except Exception:
         return False
+    if said != "YES":
+        # the model answered, and the line is held back: an act of the site's own,
+        # said in the ledger with its day and nothing of the line or of whose it was.
+        # A model that could not be asked held nothing back, and is not said.
+        ledger.write(ledger.HELD, path=LEDGER)
+    return said == "YES"
 
 
 def bench_lines():
@@ -6193,6 +6229,7 @@ def bench():
     # and the public screen, on the line
     found = public_screen.verdict(line)
     if found == public_screen.FLAGGED:
+        ledger.write(ledger.HELD, path=LEDGER)  # held back by the site: said in the ledger, as above
         return turned_away(request.form, NAMED)
     if found != public_screen.CLEAR:
         return turned_away(request.form, public_screen.COULD_NOT_CHECK)

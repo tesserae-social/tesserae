@@ -448,6 +448,7 @@ def load(name):
     sys.modules.pop("private_words", None)  # it keeps its list under DATA_DIR
     sys.modules.pop("tokens", None)  # it keeps each link that works once under DATA_DIR
     sys.modules.pop("invitations", None)  # it keeps each invitation under DATA_DIR
+    sys.modules.pop("ledger", None)  # it keeps the ledger's own lines under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 
@@ -752,6 +753,16 @@ def pages_before_fewer(hearth, monkeypatch):
     env = hearth.app.jinja_env
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_FEWER)), env.loader]))
+
+
+def commons_pages_not_yet(hearth, monkeypatch):
+    """Take out, for one test, the commons' own pages linked from its foot (11 November 2026).
+
+    Until the ledger was made, the commons page ended with the files of the
+    record and the one line on heartbeats. With hearth.COMMONS_PAGES empty it
+    is exactly that page again, byte for byte.
+    """
+    monkeypatch.setattr(hearth, "COMMONS_PAGES", [])
 
 
 # The words that explained <<REWRITE>> before each line could be rewritten only

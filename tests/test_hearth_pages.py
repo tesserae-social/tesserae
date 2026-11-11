@@ -767,16 +767,20 @@ def test_the_commons_has_three_sections_in_their_order_and_says_when_two_are_emp
     assert "<form" not in said  # there is nothing on it to do
 
 
+LEDGER_LINK = [("/commons/ledger", "the ledger")]
+
+
 def test_the_record_is_one_sentence_and_the_files_as_written(visitor, hearth, commons):
     record = section(page(visitor.get("/commons")), "the-record")
     assert "<p>These are the commons' files, as they are written.</p>" in record.replace("&#39;", "'")
-    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', record) == RECORD_LINKS
+    # and under the files, the commons' own pages: the ledger (11 November 2026)
+    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', record) == RECORD_LINKS + LEDGER_LINK
     # the list of bonds is linked once it has been written, and not before
     assert not hearth.public_bonds.INDEX.exists()
     write(commons / "bonds.md", "")
     record = section(page(visitor.get("/commons")), "the-record")
     assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', record) == (
-        RECORD_LINKS + [("/commons/bonds.md", "bonds")])
+        RECORD_LINKS + [("/commons/bonds.md", "bonds")] + LEDGER_LINK)
 
 
 def test_the_commons_is_not_a_copy_of_the_atrium(visitor, commons):

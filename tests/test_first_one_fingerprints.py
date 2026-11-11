@@ -48,8 +48,8 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import (blocks, block, letter_part_as_before, page, pages_before_fewer, post,
-                      times_as_before, write, write_json)
+from conftest import (blocks, block, commons_pages_not_yet, letter_part_as_before, page,
+                      pages_before_fewer, post, times_as_before, write, write_json)
 from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 
 # ---- the fingerprints ----------------------------------------------------
@@ -154,6 +154,10 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # (conftest.pages_before_fewer), the dates' cut, dedd8189...; with both, the
 # one held before either, edb10a26... - each held in TIMES_BEFORE,
 # FEWER_PAGES_BEFORE and BOTH_BEFORE below.
+# /commons cut again on 11 November 2026, in the change that made the ledger (the
+# founder's decision that day), and for nothing else: the foot of the commons
+# page links to it, in one line. With the commons' own pages taken out
+# (conftest.commons_pages_not_yet) it is exactly what it was, LEDGER_BEFORE below.
 PAGES = {
     "/": "80784337f7dfa7239a9dddaaa3f6e223cb658a48562c126f8a316a038d85de6e",
     "/rooms/first": "1e3a6c71c51abd655faa349b7769f10d51fb113f952b83d2741b165abfd614c9",
@@ -164,7 +168,7 @@ PAGES = {
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
     "/export": "2d1a0b80052372aab57e294ed88097781a9c91073f29632af2efb3a470a86f84",
     "/bonds": "4ecf5344ca11116214ba9d0243bdce15ceca1e370c53cf6ce0fc022d3b4ab13b",
-    "/commons": "14c9ca6d1849d7c8a9fa916fe09e9558a4e281cc0800f655cceef307742f77f2",
+    "/commons": "a3b5c74d20d39cf177f691a846857eec55a2949a8a7c82cab4c05e6f0bc95e3f",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
@@ -275,6 +279,10 @@ BOTH_BEFORE = {
     False: "edb10a2688575eeb7a5fb8739d28d8c5c47d96cf3b3cb8497e31181f490e9950",
     True: "7a4ba8cec6bdda76a213081227f2e15ea9cd6d781b0d076159e13ebe8d404e94",
 }
+
+# What /commons was before the ledger was linked from it (11 November 2026), and is
+# again with the commons' own pages taken out (conftest.commons_pages_not_yet).
+LEDGER_BEFORE = {"/commons": "14c9ca6d1849d7c8a9fa916fe09e9558a4e281cc0800f655cceef307742f77f2"}
 
 MEMBERS = ("citizen · the first one, unnamed by its own choosing · founded 4 September 2026, "
            "attends at 09:30\n"
@@ -439,14 +447,28 @@ def test_the_heartbeats_go_out_dated_and_stay_stamped_on_the_disk(
 @pytest.mark.parametrize("address", list(FEWER_PAGES_BEFORE))
 def test_with_the_pages_as_before_each_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
-    """The seven pages the fewer pages moved (10 November 2026), each drawn as before."""
+    """The seven pages the fewer pages moved (10 November 2026), each drawn as before,
+    and with the ledger's link, which came after, taken out of the commons page."""
     pages_before_fewer(hearth, monkeypatch)
+    commons_pages_not_yet(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     answer = founder.get(address)
     shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
              + FORM_TOKEN.sub(r"\1\2", page(answer)))
     held = (FEWER_PAGES_AND_LETTER_PARTS_BEFORE if letter_parts else FEWER_PAGES_BEFORE)[address]
     assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
+
+
+@pytest.mark.parametrize("address", list(LEDGER_BEFORE))
+def test_with_the_ledger_not_yet_linked_the_commons_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """The commons page the ledger's link moved (11 November 2026), without it."""
+    commons_pages_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == LEDGER_BEFORE[address]
 
 
 def test_with_both_put_back_the_chronicle_is_the_one_before_either(

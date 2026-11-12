@@ -8,8 +8,9 @@ puts a FakeGoogle where Google's client would be.
 
 Held here: how each request is said to Gemini and how each answer is read back,
 the look-ups of a longer waking with Gemini's own turn given back whole, the
-four counts, a reply blocked or not finished failing the waking plainly with
-nothing kept, the key, the registry's provider, the founding's choice of model,
+four counts, its thinking at the low level, a reply cut off at its length kept
+and noted as Anthropic's is (but never one its thinking left empty), a reply
+blocked or not finished failing the waking plainly with nothing kept, the key, the registry's provider, the founding's choice of model,
 the founding conversation, the usage report and the rehearsal.
 """
 
@@ -85,6 +86,8 @@ def test_a_request_is_said_as_generate_content_takes_it():
     config = asked["config"]
     assert config.system_instruction == "THE SYSTEM WORDS"
     assert config.max_output_tokens == 8000
+    assert config.thinking_config.thinking_level.name == "LOW"
+    assert config.thinking_config.thinking_budget is None  # its level, and no budget beside it
     assert config.automatic_function_calling.disable is True
     assert config.tools is None and config.tool_config is None
     assert config.safety_settings is None  # Google's defaults, unchanged
@@ -136,8 +139,12 @@ def test_counts_not_given_are_none_used():
     (lambda: FakeGoogle.said(None, blocked="SAFETY"), "Gemini blocked the request (SAFETY)"),
     (lambda: FakeGoogle.said("half a", finish="SAFETY"),
      "Gemini did not finish its reply (SAFETY)"),
-    (lambda: FakeGoogle.said("half a", finish="MAX_TOKENS"),
-     "Gemini did not finish its reply (MAX_TOKENS)"),
+    (lambda: FakeGoogle.said("", finish="MAX_TOKENS"),
+     "Gemini cut its reply off at its length before any words (MAX_TOKENS)"),
+    (lambda: FakeGoogle.said(None, finish="MAX_TOKENS"),
+     "Gemini cut its reply off at its length before any words (MAX_TOKENS)"),
+    (lambda: FakeGoogle.said("  \n", finish="MAX_TOKENS"),
+     "Gemini cut its reply off at its length before any words (MAX_TOKENS)"),
     (lambda: FakeGoogle.said("half a", finish="RECITATION"),
      "Gemini did not finish its reply (RECITATION)"),
     (lambda: FakeGoogle.said("half a", finish=None), "Gemini did not finish its reply (none given)"),
@@ -146,6 +153,31 @@ def test_a_reply_blocked_or_cut_off_is_no_reply(answer, said):
     with pytest.raises(gemini.Stopped) as stopped:
         ask(FakeGoogle(answer()), messages=[{"role": "user", "content": "x"}])
     assert str(stopped.value) == said
+
+
+def test_a_reply_cut_off_at_its_length_keeps_what_came():
+    reply = ask(FakeGoogle(FakeGoogle.said("half a", finish="MAX_TOKENS", usage={
+        "prompt_token_count": 100, "candidates_token_count": 7000,
+        "thoughts_token_count": 1000})), messages=[{"role": "user", "content": "x"}])
+    assert reply.stop_reason == "max_tokens"
+    (said,) = reply.content
+    assert (said.type, said.text) == ("text", "half a")
+    assert (reply.usage.input_tokens, reply.usage.output_tokens) == (100, 8000)
+
+
+def test_thinking_that_used_all_the_room_is_no_reply():
+    fake = FakeGoogle(FakeGoogle.said(None, finish="MAX_TOKENS"))
+    fake.answers[0].candidates[0].content.parts.append(types().Part(text="mulling", thought=True))
+    with pytest.raises(gemini.Stopped, match="cut its reply off at its length before any words"):
+        ask(fake, messages=[{"role": "user", "content": "x"}])
+
+
+def test_a_look_asked_in_a_reply_cut_off_is_not_followed():
+    reply = ask(FakeGoogle(FakeGoogle.said("Let me", finish="MAX_TOKENS",
+                                           calls=[("read_letter", {"stem": "x"}, "g-1")])),
+                tools=TOOLS, messages=[{"role": "user", "content": "x"}])
+    assert reply.stop_reason == "max_tokens"
+    assert [one.type for one in reply.content] == ["text"]
 
 
 def test_no_candidates_is_no_reply():
@@ -284,7 +316,8 @@ def test_its_waking_may_look_and_is_answered(on_gemini, monkeypatch, data_dir):
 
 @pytest.mark.parametrize("answer", [
     lambda: FakeGoogle.said(None, blocked="PROHIBITED_CONTENT"),
-    lambda: FakeGoogle.said("<<LETTER>>\nhalf a let", finish="MAX_TOKENS")])
+    lambda: FakeGoogle.said("half a", finish="SAFETY"),
+    lambda: FakeGoogle.said("", finish="MAX_TOKENS")])
 def test_a_reply_blocked_or_cut_off_fails_the_waking_plainly(on_gemini, monkeypatch, data_dir,
                                                              capsys, answer):
     before = {path.relative_to(data_dir).as_posix() for path in data_dir.rglob("*")}
@@ -300,6 +333,23 @@ def test_a_reply_blocked_or_cut_off_fails_the_waking_plainly(on_gemini, monkeypa
     assert after - before <= {"packets/second/study", "packets/second/attendances",
                               "packets/second/self-history", "packets/second/memory",
                               "rooms/second/letters/outgoing", "rooms/second/errands/answered"}
+
+
+def test_a_waking_cut_off_is_kept_and_noted_as_anthropic_s_is(on_gemini, clock, monkeypatch,
+                                                              data_dir):
+    hold(on_gemini, monkeypatch, FakeGoogle(FakeGoogle.said(
+        "<<HEARTBEAT>>\ncut short\n<<END>>\n<<MEMORY>>\nhalf a no", finish="MAX_TOKENS")))
+    (kept,) = attendances(data_dir)
+    record = json.loads(kept.read_text(encoding="utf-8"))
+    assert record["stop_reason"] == "max_tokens"
+    assert record["heartbeat"] == "cut short"
+    clock.shift(minutes=5)
+    fake = FakeGoogle(FakeGoogle.said("<<HEARTBEAT>>\nagain\n<<END>>"))
+    monkeypatch.setattr(gemini, "sdk_client", fake)
+    monkeypatch.setattr(sys, "argv", ["attend.py"])  # woken by hand, as the founder would
+    on_gemini.main()
+    shown = "\n".join(part.text for part in fake.asked[0]["contents"][0].parts if part.text)
+    assert on_gemini.CUT_OFF in shown
 
 
 def test_without_its_key_it_is_refused(on_gemini, monkeypatch, capsys):

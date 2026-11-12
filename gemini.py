@@ -36,11 +36,26 @@ what it wrote, its thinking included, which Gemini bills as output;
 cache_read_input_tokens, what the implicit cache gave; and
 cache_creation_input_tokens, always 0, since nothing is written to a cache.
 
-A reply Gemini blocked, or ended for any reason but finishing (its safety, a
-recitation, its length, anything), is no reply: Stopped is raised, plainly
-saying which, and the waking fails before anything of it is kept, as it would
-if Anthropic's API had answered with an error. The tide notes it as it notes
-any failed waking, and the next waking time tries again.
+Its thinking is set to Gemini's low level (thinking_level LOW), and its
+max_output_tokens is its entry's max_tokens, the first one's 8,000 for every
+agent founded so far. Google's docs say the limit counts the thinking too ("the
+maximum number of tokens a response can generate, including thought tokens"),
+and a reply that reaches it while still thinking returns "truncated or empty
+output"; so low thinking leaves most of the room for its words.
+
+A reply cut off at that limit (MAX_TOKENS) is as one of Anthropic's cut off at
+max_tokens: what came is kept, its stop_reason is "max_tokens", and the next
+waking is told it was cut off (attend.CUT_OFF). Any look it began to ask for is
+not followed, as attend.py follows none when a reply stopped for its length.
+But a reply cut off with no words at all, its thinking having used the room,
+is no reply, and is never kept as an empty one.
+
+A reply Gemini blocked, or ended for any other reason than finishing or its
+length (its safety, a recitation, anything), or cut off with no words, is no
+reply: Stopped is raised, plainly saying which, and the waking fails before
+anything of it is kept, as it would if Anthropic's API had answered with an
+error. The tide notes it as it notes any failed waking, and the next waking
+time tries again.
 
 The key is GEMINI_API_KEY, a secret on the host, as ANTHROPIC_API_KEY is.
 """
@@ -61,8 +76,14 @@ MODEL_PREFIX = {GEMINI: "gemini-"}
 # Anthropic's client waits ten minutes.
 TIMEOUT_MS = 600_000
 
-# A finish of its own accord; anything else is a reply Gemini did not finish.
+# A finish of its own accord; a reply cut off at its length, kept as Anthropic's
+# is; anything else is a reply Gemini did not finish.
 FINISHED = "STOP"
+CUT_AT_LENGTH = "MAX_TOKENS"
+
+# How much it thinks before it answers: Gemini's low level, the same for every
+# agent on Gemini.
+THINKING_LEVEL = "LOW"
 
 
 def provider_of(agent):
@@ -153,6 +174,7 @@ class Messages:
                **ignored):
         _, types = sdk()
         config = {"max_output_tokens": max_tokens,
+                  "thinking_config": types.ThinkingConfig(thinking_level=THINKING_LEVEL),
                   "automatic_function_calling": types.AutomaticFunctionCallingConfig(disable=True)}
         if system:
             config["system_instruction"] = system
@@ -217,11 +239,19 @@ class Messages:
             raise Stopped("Gemini gave no reply")
         candidate = response.candidates[0]
         finish = named(candidate.finish_reason)
-        if finish != FINISHED:
+        if finish not in (FINISHED, CUT_AT_LENGTH):
             raise Stopped("Gemini did not finish its reply (%s)" % finish)
         parts = (candidate.content.parts or []) if candidate.content else []
-        said = Said([Text("".join(part.text for part in parts
-                                  if isinstance(part.text, str) and not part.thought))])
+        words = "".join(part.text for part in parts
+                        if isinstance(part.text, str) and not part.thought)
+        if finish == CUT_AT_LENGTH:
+            if not words.strip():  # its thinking used the room, and nothing was said
+                raise Stopped("Gemini cut its reply off at its length before any words (%s)"
+                              % finish)
+            # what came is kept, as Anthropic's is when cut off; no look is followed
+            return Reply(Said([Text(words)]), "max_tokens",
+                         Usage(getattr(response, "usage_metadata", None)))
+        said = Said([Text(words)])
         said.original = candidate.content
         for part in parts:
             if part.function_call is not None:

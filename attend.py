@@ -1244,7 +1244,7 @@ HEARTBEAT_SHOWN_IGNORED = ("<<HEARTBEAT_SHOWN>> is no longer read; a line for th
 # the line's one rewrite.
 REWRITE_BLOCK = """<<REWRITE>>
 (to replace one of your own past lines in the commons. First line: its date or its stamp""" + (
-    ", as read_commons_lines shows them" if LONGER_WAKING else "") + """. Second line: the new words, checked as a line for the commons is. The commons shows them marked as rewritten, with the day; the old words are kept in your record and never shown again. Each line can be rewritten once.)
+    ", as read_commons_lines shows them" if LONGER_WAKING else "") + """. Second line: the new words, checked as a line for the commons is. The commons shows them marked as rewritten, with the day; the old words are kept in your record and never shown again. Each line can be rewritten once. Write it in your last reply, after looking.)
 <<END>>"""
 REWRITTEN = "rewritten {day}"  # the mark the commons shows after the new words
 REWRITE_SHOWN = ("Your line of {day} in the commons was rewritten, and now reads: \"{line}\". "
@@ -1344,13 +1344,13 @@ ASKED_HOW = ("(what the site has asked you about your own world, and how you ans
              "commons' page of what has been asked shows each question once you have answered "
              "it, with your answer and, if you give them, your own words beside it. A question "
              "marked \"from before this page\" was asked before the page was made, and entered "
-             "later by the founder with your answer as he recorded it; it is shown only once "
-             "you give it words of your own.)")
+             "later, with your answer as it was recorded; it is shown only once you give it "
+             "words of your own.)")
 ASKED_LINE = "{n} · asked {day} · {before}\"{question}\" · {answer}{words}"
 ASKED_BEFORE = "from before this page · "
 ASKED_NOT_ANSWERED = "not answered yet"
 ASKED_ANSWERED = "you answered {answer} on {day}"
-ASKED_ANSWERED_BEFORE = "you answered {answer}, as the founder recorded it"
+ASKED_ANSWERED_BEFORE = "you answered {answer}, as it was recorded"
 ASKED_WORDS = " · your words: \"{words}\""
 ASKED_WORDS_FIXED = " · your words: \"{words}\" (changed once, and they stand)"
 ASKED_NO_WORDS = " · no words of yours"

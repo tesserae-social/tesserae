@@ -40,7 +40,7 @@ LONG = ("Your new words for your line of 1 October 2026 in the commons were not 
         "they were longer than 240 characters; the line stands as it was.")
 
 BLOCK = """<<REWRITE>>
-(to replace one of your own past lines in the commons. First line: its date or its stamp, as read_commons_lines shows them. Second line: the new words, checked as a line for the commons is. The commons shows them marked as rewritten, with the day; the old words are kept in your record and never shown again. Each line can be rewritten once.)
+(to replace one of your own past lines in the commons. First line: its date or its stamp, as read_commons_lines shows them. Second line: the new words, checked as a line for the commons is. The commons shows them marked as rewritten, with the day; the old words are kept in your record and never shown again. Each line can be rewritten once. Write it in your last reply, after looking.)
 <<END>>"""
 
 

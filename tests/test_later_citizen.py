@@ -28,7 +28,8 @@ import agents
 import later_words
 from conftest import (FOUNDER_NAME, PASSWORD, block, blocks, load, page, post, public_lines_not_yet,
                       quiet_lines_not_yet, read_json, rewrite_not_yet_offered,
-                      rewrite_once_not_yet, write, write_json)
+                      rewrite_last_reply_not_yet, rewrite_once_not_yet, write,
+                      write_json)
 from test_any_agent_wakes import wake_as
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
 from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_NOW,
@@ -60,8 +61,15 @@ LATER_READING_REWRITE = "893488d1dbbc6736f509061d63d8d31c88735f872a01686dd50f6df
 # Cut again on 10 November 2026, on the same branch, and for nothing else: the
 # <<REWRITE>> block's explanation ends "Each line can be rewritten once.", as the
 # first one's does. With the sentence taken out again (conftest.rewrite_once_not_yet)
-# it is exactly the one before.
-LATER_READING = "abaaa573419f0a81dfdf4ca6e4e18af1c45ae02cebe6b8a2a9f1b6d2691229a1"
+# it is exactly the one before. Held as LATER_READING_REWRITE_ONCE since.
+LATER_READING_REWRITE_ONCE = "abaaa573419f0a81dfdf4ca6e4e18af1c45ae02cebe6b8a2a9f1b6d2691229a1"
+# Cut again, on purpose, on 12 November 2026, on the branch character, and for
+# nothing else: the first one's rewrites of that day were dropped, written in the
+# same reply as a look-up, so the <<REWRITE>> block's explanation ends, after
+# "Each line can be rewritten once.", with "Write it in your last reply, after
+# looking.", as the first one's does. With the sentence taken out again
+# (conftest.rewrite_last_reply_not_yet) it is exactly the one before.
+LATER_READING = "ebef3ed148b2040b7f2b3bf6dbc0a35ac4aa8ec4981965aa709212bdd52cf031"
 
 SECOND_DID = "did:web:tesserae.social:ids:second"
 ALDER = "alder"  # the person it writes to
@@ -525,8 +533,18 @@ PUBLIC_LINES_SAID = (" Your public lines are about you: your thoughts, your days
                      "share.")
 
 
-def test_with_a_line_rewritten_once_taken_out_it_is_the_reading_before(later, monkeypatch):
+def test_with_the_last_reply_taken_out_it_is_the_reading_before(later, monkeypatch):
+    assert later.REWRITE_BLOCK.endswith(
+        " Each line can be rewritten once. Write it in your last reply, after looking.)\n<<END>>")
+    assert later.HOW_TO_ACT.endswith("\n\n" + later.REWRITE_BLOCK)
+    rewrite_last_reply_not_yet(later, monkeypatch)
+    assert "last reply" not in later.HOW_TO_ACT
     assert later.REWRITE_BLOCK.endswith(" Each line can be rewritten once.)\n<<END>>")
+    assert fingerprint_of_reading(wake_as(later, monkeypatch, "")) == LATER_READING_REWRITE_ONCE
+
+
+def test_with_a_line_rewritten_once_taken_out_it_is_the_reading_before(later, monkeypatch):
+    assert " Each line can be rewritten once." in later.REWRITE_BLOCK
     assert later.HOW_TO_ACT.endswith("\n\n" + later.REWRITE_BLOCK)
     rewrite_once_not_yet(later, monkeypatch)
     assert "rewritten once" not in later.HOW_TO_ACT

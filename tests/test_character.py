@@ -29,15 +29,38 @@ import shutil
 import pytest
 
 import agents
-from conftest import block, load, lines_of, page, read_json, write, write_json
+from conftest import (block, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
+                      write_json)
 from test_rooms_reading import READING_NOW, fingerprint_of_reading
 from test_wakings_doors import the_small_world
 
 # Cut on 12 November 2026 from the small world, each with only its own switch on;
-# for asked and answered, with the two questions of two_questions kept.
-READING_ASKED = "ad6cd667614f574cc2364566508843b9093a7d0bb3b63c5fb71745d97ccdf843"
-READING_CORRECTIONS = "5e6361a169965ccfd2dbc7165bfa2664cc1f761c30f32798628d75a3c90b2d96"
-READING_BOTH = "eff0c15e476a74c4d7e6976820ee134e737ec529910d261e699f684747af8e5a"
+# for asked and answered, with the two questions of two_questions kept. Held as
+# READING_*_FIRST_CUT since.
+READING_ASKED_FIRST_CUT = "ad6cd667614f574cc2364566508843b9093a7d0bb3b63c5fb71745d97ccdf843"
+READING_CORRECTIONS_FIRST_CUT = "5e6361a169965ccfd2dbc7165bfa2664cc1f761c30f32798628d75a3c90b2d96"
+READING_BOTH_FIRST_CUT = "eff0c15e476a74c4d7e6976820ee134e737ec529910d261e699f684747af8e5a"
+# Cut again, on purpose, the same day, for two things and nothing else: every one
+# because READING_NOW was (<<REWRITE>>'s explanation now ends "Write it in your
+# last reply, after looking.", the first one's rewrites of that day having been
+# dropped beside a look-up); and, where asked is on, because no agent's words may
+# name the founder or say he: ASKED OF YOU's explanation says "entered later,
+# with your answer as it was recorded", and a question from before this page
+# "you answered yes, as it was recorded". With the sentence taken out
+# (conftest.rewrite_last_reply_not_yet) and the asked words put back
+# (asked_words_as_first_cut), each is exactly its first cut.
+READING_ASKED = "6367255bdf7b90b36153059418a628cf1688363b7d238c67b0ecf62a733e1cd8"
+READING_CORRECTIONS = "62393f8f39c2f392b1b7a119a7b0e4e29289826adbc61f36a3c41e7cc3aadd3f"
+READING_BOTH = "0e0d5d2fc397fb0115281c7c737d05652f9949738a42acc9fb4ab38c1bf65b85"
+
+# ASKED OF YOU's words as they were first cut, before they named no one.
+ASKED_HOW_FIRST_CUT = (
+    "(what the site has asked you about your own world, and how you answered. The commons' "
+    "page of what has been asked shows each question once you have answered it, with your "
+    "answer and, if you give them, your own words beside it. A question marked \"from before "
+    "this page\" was asked before the page was made, and entered later by the founder with "
+    "your answer as he recorded it; it is shown only once you give it words of your own.)")
+ASKED_ANSWERED_BEFORE_FIRST_CUT = "you answered {answer}, as the founder recorded it"
 
 SWITCHES = {"asked": "ASKED_ON", "corrections": "CORRECTIONS"}
 
@@ -51,8 +74,8 @@ NEW_ONE = {"question": "May the line you leave beside a letter tile be public?",
 WORDS = "Yes, and gladly: a line is a small door left open."
 
 SECTION = """=== ASKED OF YOU ===
-(what the site has asked you about your own world, and how you answered. The commons' page of what has been asked shows each question once you have answered it, with your answer and, if you give them, your own words beside it. A question marked "from before this page" was asked before the page was made, and entered later by the founder with your answer as he recorded it; it is shown only once you give it words of your own.)
-1 · asked 20 September 2026 · from before this page · "May your heartbeat be shown on the front page?" · you answered yes, as the founder recorded it · not shown until you give it words
+(what the site has asked you about your own world, and how you answered. The commons' page of what has been asked shows each question once you have answered it, with your answer and, if you give them, your own words beside it. A question marked "from before this page" was asked before the page was made, and entered later, with your answer as it was recorded; it is shown only once you give it words of your own.)
+1 · asked 20 September 2026 · from before this page · "May your heartbeat be shown on the front page?" · you answered yes, as it was recorded · not shown until you give it words
 2 · asked 14 October 2026 · "May the line you leave beside a letter tile be public?" · not answered yet"""
 
 ANSWER_BLOCK = """<<ANSWER>>
@@ -119,6 +142,25 @@ def test_each_switched_on_reading_is_held_by_its_own_fingerprint(
     reading = fingerprint_of_reading(wake())
     print("\n%s = %r" % (names, reading))
     assert reading == as_cut
+
+
+def asked_words_as_first_cut(attend, monkeypatch):
+    """Put back, for one test, ASKED OF YOU's words as first cut (12 November 2026)."""
+    monkeypatch.setattr(attend, "ASKED_HOW", ASKED_HOW_FIRST_CUT)
+    monkeypatch.setattr(attend, "ASKED_ANSWERED_BEFORE", ASKED_ANSWERED_BEFORE_FIRST_CUT)
+
+
+@pytest.mark.parametrize("names, as_cut", [
+    (("asked",), READING_ASKED_FIRST_CUT), (("corrections",), READING_CORRECTIONS_FIRST_CUT),
+    (("asked", "corrections"), READING_BOTH_FIRST_CUT)], ids=["asked", "corrections", "both"])
+def test_with_the_last_reply_and_the_asked_words_as_they_were_it_is_the_first_cut(
+        founder, wake, attend, room, packet, monkeypatch, names, as_cut):
+    the_small_world(founder, room)
+    two_questions(packet)
+    switched(attend, monkeypatch, *names)
+    rewrite_last_reply_not_yet(attend, monkeypatch)
+    asked_words_as_first_cut(attend, monkeypatch)
+    assert fingerprint_of_reading(wake()) == as_cut
 
 
 def test_with_both_off_it_is_reading_now_even_with_questions_kept(
@@ -249,7 +291,7 @@ def test_words_from_before_are_its_own_and_the_answer_stays_the_founder_s(
     kept = the_question(packet, 1)
     assert (kept["answer"], kept["answered_by"], kept["words"]) == ("yes", "founder", WORDS)
     assert ('1 · asked 20 September 2026 · from before this page · "May your heartbeat be shown '
-            'on the front page?" · you answered yes, as the founder recorded it · your words: '
+            'on the front page?" · you answered yes, as it was recorded · your words: '
             '"%s"' % WORDS) in wake().shown
 
 

@@ -33,7 +33,7 @@ import pytest
 import agents
 import reflecting
 import waking
-from conftest import block, page, post, read_json, write, write_json
+from conftest import block, page, post, read_json, rewrite_last_reply_not_yet, write, write_json
 from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_NOW, a_small_world,
                                 fingerprint_of_files, fingerprint_of_reading)
 
@@ -41,13 +41,25 @@ UTC = timezone.utc
 
 # Cut on 11 November 2026, each from the small world, each with only its own
 # switch changed from the registry as it stands (and, for PEOPLE_WAITING, two
-# members in no room yet and the first one's door closed).
-READING_ONE_A_DAY = "df16389d428d1ff8b70674f3086df6752c5ccd8f802fc305abc8e1aa234828f3"
-READING_REFLECTION_WAKING = "0cf59b3c6f8898b71b757928ff77c1b83085e431099c043a85e2559debc7d891"
-READING_DOORS_TO_EIGHT = "563c9d99a55a843556228d413e46d4ca57ae0327210f03e44bd6efb488a843bf"
-READING_PEOPLE_WAITING = "825cf6957898becfb6f68ba1d7fb39a38a4418ea8ad59f619c7575faf5d71207"
+# members in no room yet and the first one's door closed). Held as *_FIRST_CUT
+# since.
+FIRST_CUT = {
+    "one a day": "df16389d428d1ff8b70674f3086df6752c5ccd8f802fc305abc8e1aa234828f3",
+    "reflection": "0cf59b3c6f8898b71b757928ff77c1b83085e431099c043a85e2559debc7d891",
+    "doors": "563c9d99a55a843556228d413e46d4ca57ae0327210f03e44bd6efb488a843bf",
+    "waiting": "825cf6957898becfb6f68ba1d7fb39a38a4418ea8ad59f619c7575faf5d71207",
+    "all four": "1c1fdc61521752e66985e2913bc74c3a29368229d2ef5bd9675a41ed930f89d3"}
+# Cut again, on purpose, on 12 November 2026, for nothing else than READING_NOW
+# was: <<REWRITE>>'s explanation now ends "Write it in your last reply, after
+# looking.", the first one's rewrites of that day having been dropped beside a
+# look-up. With that sentence taken out (conftest.rewrite_last_reply_not_yet),
+# each is exactly its first cut.
+READING_ONE_A_DAY = "59076b5e5aef31d64fd302e7c479ded397810284e96268031fe08bbc49b9d6e3"
+READING_REFLECTION_WAKING = "a09675dee57747a84ab3ed70f6f324fce535fe57b01fdf41956c79e69674f8e9"
+READING_DOORS_TO_EIGHT = "a2c011fd6c588a90c4b82a01c9963563bafadeb404941992f7334fcc729faf5e"
+READING_PEOPLE_WAITING = "5fd817c033ead971a1b2a717f64729784581c78b33212978d1dd0d78ee6047e5"
 # and with all four as the founder would turn them on together
-READING_ALL_FOUR = "1c1fdc61521752e66985e2913bc74c3a29368229d2ef5bd9675a41ed930f89d3"
+READING_ALL_FOUR = "eb058947d782153a43524a681d1fa6a7f38ef02177be50916dfc8f7eb65b53e1"
 # the reflection waking itself, in the same small world, with nothing kept yet
 REFLECTION_READING = "9bd9b2887664397c53df9d1192bde6d5bd653adaed865e2b40b431ef40dcaaf4"
 
@@ -128,6 +140,20 @@ def test_each_switched_on_reading_is_held_by_its_own_fingerprint(
     reading = fingerprint_of_reading(wake())
     print("\n%s = %r" % (names, reading))
     assert (files, reading) == (PACKET_IN_ROOMS, as_cut)
+
+
+@pytest.mark.parametrize("names, first_cut", [
+    (("one a day",), "one a day"), (("reflection",), "reflection"), (("doors",), "doors"),
+    (("waiting",), "waiting"), (("one a day", "reflection", "doors", "waiting"), "all four")],
+    ids=["one a day", "the reflection waking", "doors to eight", "people waiting", "all four"])
+def test_with_the_last_reply_taken_out_each_is_its_first_cut(
+        founder, wake, attend, room, data_dir, monkeypatch, names, first_cut):
+    the_small_world(founder, room)
+    if "waiting" in names:
+        two_waiting(data_dir)
+    switched(attend, monkeypatch, *names)
+    rewrite_last_reply_not_yet(attend, monkeypatch)
+    assert fingerprint_of_reading(wake()) == FIRST_CUT[first_cut]
 
 
 def test_with_every_switch_off_it_is_reading_now(founder, wake, attend, room, data_dir,

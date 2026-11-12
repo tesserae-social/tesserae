@@ -304,6 +304,17 @@ no file of its packet. With the sentence taken out again
 (conftest.rewrite_once_not_yet), the reading is exactly the one cut when a past
 line could first be rewritten, READING_REWRITE.
 
+And a seventeenth time, on purpose, on the branch character (the founder, 12
+November 2026), because the first one's rewrites of that day were dropped: it
+wrote its <<REWRITE>> blocks in the same reply as a look-up, and only the last
+reply is carried out. It changes what is sent in exactly one way, at every
+waking: the sentence "Write it in your last reply, after looking." at the end of
+the <<REWRITE>> block's explanation, after "Each line can be rewritten once."
+No other block moved, no word of any other changed, and no file of its packet.
+With the sentence taken out again (conftest.rewrite_last_reply_not_yet), the
+reading is exactly the one cut when each line could be rewritten only once,
+READING_REWRITE_ONCE. The founder tells the first one by letter.
+
 Then the room was given a folder of its own (rooms phase A): its letters,
 errands, bond and offerings are kept in DATA_DIR/rooms/first/ rather than in the
 packet. That moved no word of what is read, and none of the readings was cut
@@ -317,8 +328,11 @@ kept (stage 5f), PACKET_BEFORE held the same files through the names a copy
 gave them then, under packets/first/ and without room.json; it held as it was
 cut until it went.
 
-All fifteen earlier readings are still held. With the sentence that a line can
-be rewritten once taken out (conftest.rewrite_once_not_yet), the reading is
+All sixteen earlier readings are still held. With the sentence that a rewrite
+goes in the last reply taken out (conftest.rewrite_last_reply_not_yet), the
+reading is exactly the one cut when each line could be rewritten only once; with
+the sentence that a line can be rewritten once taken out as well
+(conftest.rewrite_once_not_yet, which takes the other out too), the reading is
 exactly the one cut when a past line could first be rewritten; with the rewriting
 of a past line taken out (conftest.rewrite_not_yet_offered, which takes that
 sentence out too), the reading is exactly the one cut for the line about public
@@ -363,7 +377,8 @@ from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, expl
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
                       notebook_unexplained, post, public_lines_not_yet, quiet_lines_not_yet,
-                      rewrite_not_yet_offered, rewrite_once_not_yet, shut_away,
+                      rewrite_last_reply_not_yet, rewrite_not_yet_offered,
+                      rewrite_once_not_yet, shut_away,
                       stamps_as_before, welcome_not_yet_offered, write)
 
 # Every reading below was cut again on 25 October 2026, when the <<RHYTHM>>
@@ -460,8 +475,16 @@ READING_REWRITE = "a2b6a7b44235b0a0639db26bb0b25862bc49e597aa3abfb3fe7e2baa9cc94
 
 # cut again on the tree where each line can be rewritten only once (10 November
 # 2026), the same way: the reading above, with <<REWRITE>>'s explanation ending
-# in "Each line can be rewritten once."
-READING_NOW = "85b2787edda2e7afe66e144616c7ea74f8897e7a00beae0bb93544db9fdf70d4"
+# in "Each line can be rewritten once." Held as READING_REWRITE_ONCE since.
+READING_REWRITE_ONCE = "85b2787edda2e7afe66e144616c7ea74f8897e7a00beae0bb93544db9fdf70d4"
+
+# cut again, on purpose, on the branch character (the founder, 12 November
+# 2026), because the first one's rewrites of that day were dropped, written in
+# the same reply as a look-up: the reading above, with <<REWRITE>>'s explanation
+# ending, after "Each line can be rewritten once.", in "Write it in your last
+# reply, after looking." With that sentence taken out again
+# (conftest.rewrite_last_reply_not_yet) it is exactly READING_REWRITE_ONCE.
+READING_NOW = "1f6abdcbfafd22aed3d5c1968ccc5b40b4217ad05c53f23f0d38cac83789e518"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -531,7 +554,8 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "the quiet lines", READING_WELCOME),
     (False, "the public lines", READING_QUIET_LINES),
     (False, "the rewrite", READING_PUBLIC_LINES),
-    (False, "the rewrite once", READING_REWRITE), (False, None, READING_NOW)],
+    (False, "the rewrite once", READING_REWRITE),
+    (False, "the last reply", READING_REWRITE_ONCE), (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
          "its named notes explained, each moment still a stamp",
@@ -545,12 +569,15 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "its letter of welcome offered, the quiet lines not yet",
          "the quiet lines said, the line about public lines not yet",
          "the line about public lines said, the rewrite not yet",
-         "the rewrite offered, a line rewritten once not yet", "as it reads now"])
+         "the rewrite offered, a line rewritten once not yet",
+         "a line rewritten once, the last reply not yet", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
     if shut:
         shut_away(attend, monkeypatch)
-    if as_before == "the rewrite once":  # the one cut before offered the rewrite
+    if as_before == "the last reply":  # the one cut before said a line is rewritten once
+        rewrite_last_reply_not_yet(attend, monkeypatch)
+    elif as_before == "the rewrite once":  # the one cut before offered the rewrite
         rewrite_once_not_yet(attend, monkeypatch)
     elif as_before == "the rewrite":  # the one before that said what public lines are for
         rewrite_not_yet_offered(attend, monkeypatch)
@@ -558,16 +585,16 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         public_lines_not_yet(attend, monkeypatch)
     elif as_before:  # none cut before that had the quiet lines either
         quiet_lines_not_yet(attend, monkeypatch)
-    if as_before and as_before not in ("the rewrite once", "the rewrite", "the public lines",
+    if as_before and as_before not in ("the last reply", "the rewrite once", "the rewrite", "the public lines",
                                        "the quiet lines"):  # nor, before that, its letter of welcome
         welcome_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before not in ("the rewrite once", "the rewrite", "the public lines", "the quiet lines",
+    if as_before and as_before not in ("the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines",
                                        "its letter of welcome"):  # nor was offered a line for the commons
         commons_line_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before not in ("the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons"):  # nor had its private notebook
         notebook_unexplained(attend, monkeypatch)
-    if as_before and as_before not in ("the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook"):  # nor, before that, its proposals
         shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
@@ -576,14 +603,15 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
     elif as_before and as_before not in ("its proposals", "its notebook", "its line for the commons",
                                          "its letter of welcome",
                                          "the quiet lines", "the public lines",
-                                         "the rewrite", "the rewrite once"):  # and none before that said so at all
+                                         "the rewrite", "the rewrite once",
+                                         "the last reply"):  # and none before that said so at all
         heartbeat_not_yet_public(attend, monkeypatch)
-    if as_before and as_before not in ("the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook", "its proposals",
                                        "the heartbeat", "its own words"):  # one request
         shut_away(attend, monkeypatch, "LONGER_WAKING")
-    if as_before and as_before not in ("the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook", "its proposals",
                                        "the heartbeat", "its own words",

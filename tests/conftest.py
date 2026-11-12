@@ -849,6 +849,35 @@ def bench_link_not_yet(hearth, monkeypatch):
 REWRITE_ONCE = " Each line can be rewritten once.)"
 
 
+# The words added to <<REWRITE>>'s explanation when the first one's rewrites of
+# 12 November 2026 were dropped, written in the same reply as a look-up (the
+# founder, 12 November 2026): the block as it is, without the last sentence.
+REWRITE_LAST_REPLY = " Write it in your last reply, after looking."
+
+
+def rewrite_last_reply_not_yet(module, monkeypatch):
+    """Take out, for one test, the sentence that a rewrite goes in the last reply (12 November 2026).
+
+    It is behind no flag: one sentence at the end of the <<REWRITE>> block's
+    explanation, last of HOW TO ACT (attend.REWRITE_BLOCK), after the sentence
+    that a line can be rewritten once. Taken out, the reading is exactly what it
+    was when each line could first be rewritten only once, for the first one and
+    for a later agent alike. An attend.py from before it has no such sentence,
+    and is left.
+    """
+    said = getattr(module, "REWRITE_BLOCK", None)
+    if not said or REWRITE_LAST_REPLY + ")" not in said:
+        return  # none there, or put back already, in this test
+    was = said.replace(REWRITE_LAST_REPLY + ")", ")")
+    assert module.HOW_TO_ACT.endswith("\n\n" + said)
+    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.removesuffix(said) + was)
+    later = getattr(module, "LATER_WORDS", None) or {}
+    if "HOW_TO_ACT" in later:
+        assert later["HOW_TO_ACT"].endswith("\n\n" + said)
+        monkeypatch.setitem(later, "HOW_TO_ACT", later["HOW_TO_ACT"].removesuffix(said) + was)
+    monkeypatch.setattr(module, "REWRITE_BLOCK", was)
+
+
 def rewrite_once_not_yet(module, monkeypatch):
     """Take out, for one test, the sentence that a line can be rewritten once (10 November 2026).
 
@@ -857,7 +886,11 @@ def rewrite_once_not_yet(module, monkeypatch):
     reading is exactly what it was when a past line could first be rewritten,
     for the first one and for a later agent alike. An attend.py from before it
     has no such sentence, and is left.
+
+    That a rewrite goes in the last reply came after it, and is taken out first
+    (rewrite_last_reply_not_yet).
     """
+    rewrite_last_reply_not_yet(module, monkeypatch)
     said = getattr(module, "REWRITE_BLOCK", None)
     if not said or REWRITE_ONCE not in said:
         return  # none there, or put back already, in this test

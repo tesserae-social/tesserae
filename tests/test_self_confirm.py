@@ -15,7 +15,7 @@ from nacl.exceptions import BadSignatureError
 
 from conftest import (SELF_TEXT, block, blocks, lines_of, page, read_json, verify, write,
                       write_json)
-from conftest import NOTEBOOK_PATHS, a_private_notebook
+from conftest import NOTEBOOK_PATHS, a_private_notebook, wakings_not_yet_switched
 
 V2 = "# The first one\n\nVersion 2, in my own words."
 V3 = "# The first one\n\nVersion 3, and surer of it."
@@ -137,8 +137,14 @@ def test_the_confirm_block_is_explained_only_while_one_waits(wake):
     assert wake().instructions == without
 
 
-def test_with_one_waiting_the_reading_differs_by_exactly_three_things(wake, packet, clock):
-    """The section, the line under what it has chosen, and the block explained."""
+def test_with_one_waiting_the_reading_differs_by_exactly_three_things(wake, attend, packet, clock,
+                                                                       monkeypatch):
+    """The section, the line under what it has chosen, and the block explained.
+
+    With nothing else chosen: its reflection waking, switched on later, would
+    put a line of its own there, held in test_choices.py.
+    """
+    wakings_not_yet_switched(attend, monkeypatch)  # one waking a day, and its reflection, came later
     without = wake()
     clock.shift(minutes=-5)
     for past in (packet / "attendances").glob("*.json"):
@@ -356,7 +362,8 @@ def chosen(turn):
     return section(turn, CHOSEN).splitlines()
 
 
-def test_what_it_has_chosen_gains_a_line_while_one_waits(wake, packet):
+def test_what_it_has_chosen_gains_a_line_while_one_waits(wake, attend, packet, monkeypatch):
+    wakings_not_yet_switched(attend, monkeypatch)  # one waking a day, and its reflection, came later
     assert chosen(wake(block("SELF", V2))) == [NOTHING_CHOSEN]
     assert chosen(wake()) == [CHOSE_WAITING]
     write_json(packet / "rhythm.json", {"rhythm": "daily", "at": "dawn",

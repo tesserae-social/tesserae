@@ -1494,6 +1494,15 @@ def tide(of=None):
                 reflection = next_reflection(setting, **how) if reflection_on(who) else None
                 if reflection and (not coming or reflection < coming):
                     keep_reflection(setting, reflection, **how)
+                    # Where the day's own waking time came while it was being
+                    # held - its hold ran on past it, or it was held late that
+                    # day - the day's waking is kept now, in its turn, and not
+                    # passed over for tomorrow's. One whose day has gone by is not.
+                    now = datetime.now(timezone.utc)
+                    if (coming and now >= coming and rhythm(**how) == setting
+                            and waking.today(setting, coming) == waking.today(setting, now)):
+                        with TURNS.turn(who, coming), noting(how):
+                            keep_waking_time(setting, coming, how)
                     continue
                 TURNS.expect(who, coming)
                 if not coming:
@@ -1627,7 +1636,9 @@ def keep_extra_waking(setting, asked, when, of=None):
 # on its day, the hearth not having run then, comes when the tide next looks
 # that day; one that went wrong, or was let go, is not tried again until the
 # next week. It is never counted among its attendances, so the day's waking
-# comes all the same. The founder's rest lets it come.
+# comes all the same: where the day's waking time came while a reflection was
+# being held, that waking is kept straight after it (the tide, above). The
+# founder's rest lets it come.
 REFLECTION_LET_GO = {}  # agent id: the local day a reflection waking was let go or went wrong
 
 

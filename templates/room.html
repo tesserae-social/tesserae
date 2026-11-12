@@ -10,7 +10,8 @@
    first one's that waits for an answer comes first of all, in the same way;
    otherwise its proposals, where it has made any, come last. The bond, like the
    proposals and the offerings, is the first one's room's alone for now. #}
-{% block content %}
+{% block content %}{% if guide %}
+{% include "guide.html" %}{% endif %}
 {% if proposal_waits %}
 {% include "room_proposals.html" %}
 {% endif %}

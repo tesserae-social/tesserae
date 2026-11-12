@@ -30,7 +30,8 @@
         src="{{ url_for('bond_tessera', bond_id=card.bond.tessera, size=24) }}"
         width="24" height="24" alt="the tile of this bond">{% endif %}
       {{- card.bond.words }}</p>
-    <p><a href="{{ url_for('room', room_id=card.id) }}">open</a></p>
+    <p><a href="{{ url_for('room', room_id=card.id) }}">open</a>
+      {%- if card.guide %} · <a href="{{ url_for('room', room_id=card.id, guide=1) }}#how-this-works">how this works</a>{% endif %}</p>
   </article>
   {% else %}
   {# someone with no correspondence yet, as anyone is on the day they join: what they

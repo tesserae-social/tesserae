@@ -486,6 +486,32 @@ def writing_of(person):
     return _folder(person) / WRITING
 
 
+# ---------------------------------------------------------------- the guide
+
+# "How this works", shown at the top of a person's room page until they close it
+# (the founder, 12 November 2026). Whether they have closed it is theirs alone,
+# kept beside their record: only when, and nothing else. It is never shown in
+# the founder's room with the first one, and never read by any agent.
+GUIDE = "guide.json"
+
+
+def guide_closed(pseudonym):
+    """Whether a person has closed the guide. What cannot be read is not closed."""
+    try:
+        held = json.loads((_folder(pseudonym) / GUIDE).read_text(encoding="utf-8"))
+    except (OSError, ValueError, MemberError):
+        return False
+    return isinstance(held, dict) and isinstance(held.get("closed_at"), str)
+
+
+def close_guide(pseudonym, now=None):
+    """Keep that a person has closed the guide. Only a member who is there is written for."""
+    folder = _folder(pseudonym)
+    if not (folder / RECORD).is_file():
+        raise MemberError("there is no member by that name")
+    _write_json(folder / GUIDE, {"closed_at": _stamp(now)})
+
+
 # ---------------------------------------------------------------- an email address
 
 # A person's email address is a personal detail. It is kept beside their record,

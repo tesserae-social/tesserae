@@ -3164,13 +3164,13 @@ def room_card(room):
         waiting.append(ERRAND_ASKED)
     if not is_first_room(room):
         return {"id": room.id, "other": room.other, "latest": latest, "waiting": waiting,
-                "bond": bond_standing(room), "ready": None}
+                "bond": bond_standing(room), "ready": None, "guide": True}
     if offering.awaiting("founder"):
         waiting.append(OFFERING_WAITS)
     if the_waking.PROPOSALS and proposals.waiting(PROPOSALS_KEPT):
         waiting.append(PROPOSAL_WAITS)
     return {"id": room.id, "other": room.other, "latest": latest, "waiting": waiting,
-            "bond": bond_standing(room), "ready": ready_to_seal()}
+            "bond": bond_standing(room), "ready": ready_to_seal(), "guide": False}
 
 
 def ready_to_seal():
@@ -4516,6 +4516,7 @@ def room_page(room=None, things=(), draft="", line="", **told):
     room = room or own_room()
     if not is_first_room(room):
         return letters_page(room, things, draft, **told)
+    told.pop("guide", None)  # never in the founder's room with the first one
     proposal = proposal_shown()
     return render_template(
         "room.html",
@@ -4550,12 +4551,26 @@ def room_page(room=None, things=(), draft="", line="", **told):
         **told)
 
 
-def letters_page(room, things=(), draft="", **told):
+def guide_shown(room, asked=False):
+    """The guide, "How this works", as a room other than the first one's shows it at its
+    top: the agent's commons name to begin it with, or None once its person has closed it
+    and has not asked to see it again (the founder, 12 November 2026)."""
+    if is_first_room(room):
+        return None
+    if not asked and members.guide_closed(room.mine):
+        return None
+    agent = agents.by_id(room.parties[1])
+    return {"agent": first_upper(agent["commons_name"] if agent else room.other),
+            "asked": asked}
+
+
+def letters_page(room, things=(), draft="", guide=None, **told):
     """The page of a room other than the first one's: its letters, its errands, and the
     form that writes one, and nothing of the first one's room's bond, offerings or proposals."""
     return render_template(
         "room.html",
         room=room, first_room=False, **room_wakings(room),
+        guide=guide_shown(room, asked=bool(guide)),
         draft=draft, drafted_line="", letter_line_open=False,
         letter_line_longest=LETTER_LINE_LONGEST,
         drafted_things=list(things) + [""] * (offering.THINGS_MOST - len(things)),
@@ -4731,7 +4746,21 @@ def room_view(room):
                      stepped_back=said("stepped_back"),
                      # and about a proposal
                      proposal_answered=said("proposal_answered"),
-                     proposal_built=said("proposal_built"))
+                     proposal_built=said("proposal_built"),
+                     # the guide, asked for again from the home page once closed
+                     guide=said("guide"))
+
+
+# The guide is closed by its person, from the top of their room, and stays closed
+# for them in every room until they ask for it again from their home page.
+@app.route("/rooms/<room_id>/close-the-guide", methods=["POST"])
+@room_required
+def close_the_guide(room):
+    try:
+        members.close_guide(room.mine)
+    except MemberError:
+        pass
+    return redirect(url_for("room", room_id=room.id))
 
 
 # Where the letters were before there were rooms. A letter posted here is still

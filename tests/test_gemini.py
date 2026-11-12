@@ -11,7 +11,8 @@ the look-ups of a longer waking with Gemini's own turn given back whole, the
 four counts, its thinking at the low level, a reply cut off at its length kept
 and noted as Anthropic's is (but never one its thinking left empty), a reply
 blocked or not finished failing the waking plainly with nothing kept, the key, the registry's provider, the founding's choice of model,
-the founding conversation, the usage report and the rehearsal.
+the founding conversation (4,000 tokens a turn, and a turn cut off before any words
+said plainly and asked again), the usage report and the rehearsal.
 """
 
 import base64
@@ -424,6 +425,8 @@ def test_the_founding_conversation_goes_to_gemini(env, monkeypatch, data_dir, ca
     monkeypatch.setattr("builtins.input", Typed("Hello.", "/end", "yes"))
     session.main()
     assert [one["model"] for one in fake.asked] == ["gemini-3.8-flash"] * 2
+    assert [one["config"].max_output_tokens for one in fake.asked] == [4000, 4000]
+    assert session.MAX_TOKENS == 1500  # the first founding's, and a later one's on Anthropic
     assert fake.asked[0]["config"].system_instruction == session.LATER_SYSTEM
     assert [one.role for one in fake.asked[1]["contents"]] == ["user", "model", "user"]
     transcript = the_transcript(data_dir)
@@ -464,6 +467,100 @@ def test_a_founding_broken_by_gemini_says_so(env, monkeypatch, data_dir, capsys)
         session.main()
     assert "The session was broken off by an error: Stopped" in capsys.readouterr().out
     assert "Broken off by an error before it was finished: Stopped" in the_transcript(data_dir)
+
+
+def a_founding_on_gemini(monkeypatch, data_dir, *answers, typed):
+    """founding_session.py for a planned agent on Gemini, Google faked and the founder typing."""
+    from test_later_founding import ID, Typed, a_plan
+    a_plan(data_dir)
+    plan = data_dir / "foundings" / ID / "plan.json"
+    held = json.loads(plan.read_text(encoding="utf-8"))
+    held["entry"].update(provider="gemini", model="gemini-3.8-flash")
+    write_json(plan, held)
+    monkeypatch.setenv("GEMINI_API_KEY", "not-a-key; Google is faked")
+    fake = FakeGoogle(*answers)
+    monkeypatch.setattr(gemini, "sdk_client", fake)
+    session = load("founding_session")
+    from conftest import REPO
+    monkeypatch.chdir(REPO)
+    monkeypatch.setattr(session, "Anthropic", None)
+    monkeypatch.setattr(sys, "argv", ["founding_session.py", ID])
+    monkeypatch.setattr("builtins.input", Typed(*typed))
+    session.main()
+    return session, fake
+
+
+def unsaid():
+    """A turn Gemini cut off at its length, its thinking having used all the room."""
+    cut = FakeGoogle.said(None, finish="MAX_TOKENS")
+    cut.candidates[0].content.parts.append(types().Part(text="mulling", thought=True))
+    return cut
+
+
+def words_of(content):
+    return "".join(part.text for part in content.parts if part.text)
+
+
+def test_a_founding_turn_cut_off_before_any_words_is_said_and_asked_again(
+        env, monkeypatch, data_dir, capsys):
+    from test_later_founding import the_transcript
+    session, fake = a_founding_on_gemini(
+        monkeypatch, data_dir, FakeGoogle.said("I have read it."), unsaid(),
+        FakeGoogle.said("Here again."), typed=("Hello.", "Hello again.", "/end", "yes"))
+    assert len(fake.asked) == 3
+    unanswered, again = fake.asked[1]["contents"], fake.asked[2]["contents"]
+    assert words_of(unanswered[-1]) == "Hello."
+    # the turn that came to nothing is not given back: asked again, as if only now
+    assert [one.role for one in again] == ["user", "model", "user"]
+    assert words_of(again[-1]) == "Hello again."
+    out = capsys.readouterr().out
+    assert session.UNSAID in out and session.ASK_AGAIN in out
+    assert "broken off" not in out
+    transcript = the_transcript(data_dir)
+    assert session.UNSAID_RECORDED in transcript and "Here again." in transcript
+    assert "mulling" not in transcript
+    assert session.SAID_YES in transcript
+
+
+def test_a_founding_cut_off_after_a_change_of_who_types_says_it_again(
+        env, monkeypatch, data_dir):
+    from test_later_founding import PERSON
+    _, fake = a_founding_on_gemini(
+        monkeypatch, data_dir, FakeGoogle.said("I have read it."), unsaid(),
+        FakeGoogle.said("Hello, %s." % PERSON),
+        typed=("/as " + PERSON, "Hi.", "Hi again.", "/end", "yes"))
+    told = "(%s is typing now.)\n\n" % PERSON
+    assert words_of(fake.asked[1]["contents"][-1]) == told + "Hi."
+    assert words_of(fake.asked[2]["contents"][-1]) == told + "Hi again."
+
+
+def test_a_reading_answered_with_no_words_is_asked_again(env, monkeypatch, data_dir, capsys):
+    from test_later_founding import the_transcript
+    session, fake = a_founding_on_gemini(
+        monkeypatch, data_dir, unsaid(), FakeGoogle.said("I have read it."), FakeGoogle.said("Hi."),
+        typed=("", "Hello.", "/end", "yes"))
+    assert len(fake.asked) == 3
+    assert [one.role for one in fake.asked[1]["contents"]] == ["user"]  # the reading, again
+    assert fake.asked[1]["contents"][0].parts[0].text == fake.asked[0]["contents"][0].parts[0].text
+    out = capsys.readouterr().out
+    assert session.UNSAID in out
+    import builtins
+    assert builtins.input.asked[0] == session.READ_AGAIN + " "
+    assert "I have read it." in the_transcript(data_dir)
+
+
+def test_a_reading_never_answered_may_still_be_closed(env, monkeypatch, data_dir, capsys):
+    from test_later_founding import the_transcript
+    session, fake = a_founding_on_gemini(monkeypatch, data_dir, unsaid(),
+                                         typed=("/end", "no", "delete"))
+    assert len(fake.asked) == 1
+    transcript = the_transcript(data_dir)
+    assert session.UNSAID_RECORDED in transcript
+    assert session.SAID_NO + " " + session.DELETE in transcript
+
+
+def test_a_waking_fails_on_a_reply_with_no_words_as_on_any_stop():
+    assert issubclass(gemini.Unsaid, gemini.Stopped)
 
 
 # ---- the usage report and the rehearsal ---------------------------------------

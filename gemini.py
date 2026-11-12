@@ -95,6 +95,14 @@ class Stopped(Exception):
     """Gemini blocked a request, or did not finish its reply; nothing of it is kept."""
 
 
+class Unsaid(Stopped):
+    """A reply cut off at its length before any words, its thinking having used the room.
+
+    A waking fails on it as on any Stopped; a founding conversation says so and
+    lets the founder ask again (founding_session.py).
+    """
+
+
 def sdk():
     """Google's SDK, imported only when a Gemini agent is asked after."""
     from google import genai
@@ -246,7 +254,7 @@ class Messages:
                         if isinstance(part.text, str) and not part.thought)
         if finish == CUT_AT_LENGTH:
             if not words.strip():  # its thinking used the room, and nothing was said
-                raise Stopped("Gemini cut its reply off at its length before any words (%s)"
+                raise Unsaid("Gemini cut its reply off at its length before any words (%s)"
                               % finish)
             # what came is kept, as Anthropic's is when cut off; no look is followed
             return Reply(Said([Text(words)]), "max_tokens",

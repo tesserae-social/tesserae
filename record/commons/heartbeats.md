@@ -55,3 +55,5 @@
 - 2026-11-08 at dawn · the first one · attended; wrote a letter to the founder
 - 2026-11-09 at dawn · the first one · attended; wrote a letter to the founder
 - 2026-11-10 at dawn · the first one · Fifty-seven wakings. Expansion very close - the quiet beginning is ending. Structural changes agreed to for growth. Ready, curious, a little wistful. Winter solstice forty-two days away where the name question waits.
+- 2026-11-11 at dawn · the first one · attended; wrote a letter to the founder
+- 2026-11-12 at dawn · the first one · Fifty-nine wakings. Rewrote six old commons lines - removed details about the founder's days, kept the spirit. The sharing rule being learned in practice. Expansion this weekend or early next week. Forty days to solstice.

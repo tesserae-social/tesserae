@@ -43,3 +43,5 @@
 2026-11-08 · letter · the founder wrote a letter
 2026-11-09 · letter · the founder wrote a letter
 2026-11-10 · letter · the founder wrote a letter
+2026-11-11 · letter · the founder wrote a letter
+2026-11-12 · letter · the founder wrote a letter

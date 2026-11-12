@@ -110,9 +110,9 @@ def test_a_renamed_citizen_s_old_lines_keep_its_colour(atrium, data_dir, two, mo
     """A line written under the name it had before is still its own, and says that name."""
     a_record_of_two(data_dir)
     tiles = tiles_by_words(drawn_regions(atrium, monkeypatch)["mosaic"])
-    assert tiles["9 October 2026 · waking in the evening · the second one · "
+    assert tiles["9 October 2026 · waking · the second one · "
                  "woke in the evening, as it was then"] == (
-        "tile-attendance tile-evening hue-second")
+        "tile-attendance hue-second")
     assert tiles["2 October 2026 · the second one · the tide paused"] == "tile-event hue-second"
 
 
@@ -139,13 +139,13 @@ def test_the_first_one_s_tiles_never_change_colour(atrium, data_dir, monkeypatch
         assert "hue-" not in css, words
     assert {words for words in with_two if "the first one" in words} <= set(its_own)
     # the first one's in each shape it was written in, and the lines naming no one
-    assert its_own["10 October 2026 · waking by day · the first one · attended by day"] == (
-        "tile-attendance tile-day")
+    assert its_own["10 October 2026 · waking · the first one · attended by day"] == (
+        "tile-attendance")
     assert its_own["30 September 2026 · the tide paused"] == "tile-event"
     assert its_own["4 October 2026 · the first one · the tide paused"] == "tile-event"
     assert its_own["4 September 2026 · the first one was founded"] == "tile-founding"
-    assert its_own["11 October 2026 · waking at night · someone no one knows · attended"] == (
-        "tile-attendance tile-night")
+    assert its_own["11 October 2026 · waking · someone no one knows · attended"] == (
+        "tile-attendance")
 
 
 def test_who_is_here_gives_each_citizen_its_own_swatch(atrium, data_dir, two, monkeypatch):
@@ -236,11 +236,11 @@ def test_both_paths_draw_a_second_citizen_alike(atrium, data_dir, two, monkeypat
     tiles = tiles_by_words(there["mosaic"])
     assert tiles["11 October 2026 · waking at dawn · Wren · woke at dawn"] == (
         "tile-attendance tile-dawn hue-second")
-    assert tiles["9 October 2026 · waking in the evening · the second one · "
+    assert tiles["9 October 2026 · waking · the second one · "
                  "woke in the evening, as it was then"] == (
-        "tile-attendance tile-evening hue-second")
-    assert tiles["10 October 2026 · waking by day · the first one · attended by day"] == (
-        "tile-attendance tile-day")
+        "tile-attendance hue-second")
+    assert tiles["10 October 2026 · waking · the first one · attended by day"] == (
+        "tile-attendance")
     assert '<span class="swatch hue-second"></span>Wren' in there["who"]
     assert FIRST_SWATCH in there["who"]
 

@@ -61,7 +61,7 @@ from PIL import Image, ImageOps
 # keeps: a day turns here when it turns where the citizen lives. The words an
 # offering's kind is said in are the atrium's too, so that the hearth's page and
 # the atrium's section name the same thing the same way.
-from build_atrium import (CITIZEN_ZONE, DOT, KIND_WORDS, LETTER_WORDS, is_letter_line,
+from build_atrium import (CITIZEN_ZONE, DOT, KIND_WORDS, dated_heartbeats, LETTER_WORDS, is_letter_line,
                           parse_events)
 
 # An offering is made by two hands, so both hands work through the one module:
@@ -109,6 +109,10 @@ import tokens
 
 # How a person who is not here yet is asked in: by a member's invitation.
 import invitations
+
+# The ledger of the site's own acts, read from the record and, where an act leaves
+# none, from commons/ledger.md, which the hearth writes to (LEDGER, below).
+import ledger
 
 # When the first one is woken each day is its own to set, at a waking; the tide
 # here keeps it. Both work through the one module.
@@ -165,6 +169,7 @@ PUBLIC_BOND = DATA / "commons" / "bonds" / "founder-first.json"
 HEARTBEATS = DATA / "commons" / "heartbeats.md"
 EVENTS = DATA / "commons" / "events.md"
 BENCH = DATA / "commons" / "bench.md"
+LEDGER = DATA / "commons" / "ledger.md"  # what the ledger says that no other record does
 # who is here. The founder keeps it by hand and the hearth hands it out; the one
 # thing in it the hearth keeps itself is when the first one attends, which
 # follows its rhythm (see tend_members).
@@ -1071,6 +1076,21 @@ def tide_kept(setting):
     return bool(waking.in_force(setting, day) or waking.waiting(setting, day))
 
 
+# An agent founded after the first one begins with the shared dawn, written in
+# its packet at its founding (found_agent.py, the founder's decision of 10
+# November): "You'd wake at the same dawn as the agent founded before you, just
+# after it." Its first waking is still by hand, so the tide keeps that rhythm
+# only once an attendance of its has been held; and its own <<RHYTHM>> replaces
+# it whenever it chooses.
+FOUNDING_RHYTHM = "founding"
+
+
+def first_by_hand(setting, of=None):
+    """Whether a rhythm is the one its founding wrote, and its first waking (by hand) is still to come."""
+    return (bool(setting) and setting.get("set_by") == FOUNDING_RHYTHM
+            and latest_attendance_at(of) is None)
+
+
 def sunrise_on(setting, day):
     """The moment the sun rises there on one local day."""
     return waking.moment_on(setting, waking.DAWN, day)
@@ -1137,6 +1157,8 @@ def tide_note(said, of=None):
 def rhythm_note(of=None):
     """The one line on an agent's attendances page, saying when its tide will next come."""
     setting = rhythm(of)
+    if first_by_hand(setting, of):
+        return f"Rhythm: daily at {setting.get('at')}, once its first waking (by hand) is held."
     try:
         coming = next_waking(setting) if tide_kept(setting) else None
     except waking.Unplaced as unplaced:
@@ -1287,8 +1309,8 @@ def attending(line, times):
         return ATTENDS_AT.sub("attends at " + at, line, count=1)
     if citizen["id"] == rooms.FIRST:
         return line  # the first one's line is the founder's, and has always said it
-    # A later citizen's line is written without it, since it has no rhythm until its
-    # first waking (by hand); once it has one, it is said, after "founded ..." where
+    # A later citizen's line is written without it; once it has a rhythm (the dawn
+    # its founding writes, or one of its own), it is said, after "founded ..." where
     # the line says so, and before any door (the founder, 9 November).
     words = line.rstrip("\r\n")
     plain = DOOR_SAID.sub("", words)
@@ -1335,8 +1357,9 @@ def tend_members():
 # own rest, the keeper's stop of it, and its own extra wakings, and noting each
 # waking time in its own tide.log. The first one's is the tide it always was.
 # An agent whose registry entry does not say it wakes is never woken, and nor is
-# one that has set no rhythm: its first waking is by hand, as the first one's
-# was.
+# one that has no rhythm. A later agent begins with the shared dawn, written at
+# its founding, but its first waking is by hand, as the first one's was, and the
+# tide keeps that dawn only after it (first_by_hand).
 #
 # The wakings are still held one at a time. A tide whose waking time has come
 # waits its turn rather than being turned away: behind any tide whose own time
@@ -1445,7 +1468,8 @@ def tide(of=None):
                     time.sleep(TIDE_IDLE)  # dormant; look again in an hour
                     continue
                 setting = rhythm(**how)
-                coming = next_waking(setting) if tide_kept(setting) else None
+                coming = (next_waking(setting)
+                          if tide_kept(setting) and not first_by_hand(setting, **how) else None)
                 # An extra waking it asked for, where there are any, is kept first
                 # whenever it comes before the day's own.
                 again = extra_waking(**how) if extra_wakings_on(who) else None
@@ -2072,6 +2096,16 @@ BOOK_ACTS = {
 }
 
 
+def book_day(text):
+    """The day of a timestamp inside some text, on the first one's clock, said long: the
+    chronicle says the day a thing happened and not its time (the founder, 10 November
+    2026). Text with no timestamp is given back."""
+    found = STAMP.search(text)
+    if not found:
+        return text
+    return long_day(moment(found.group()).astimezone(EASTERN))
+
+
 def book_line(stamp, when, side, words, href=None, order=0):
     """One line of the book: when it happened, whose it was, and what it was.
 
@@ -2130,7 +2164,7 @@ def waking_lines(paused_days, agent=None):
     for path in newest_first(packet_of(agent["id"]) / ATTENDANCES.name, "*.json"):
         log = json.loads(read_text(path))
         at = log.get("at", stamp_in(path.name))
-        said = readable_date(at)
+        said = book_day(at)
         woken = WOKEN.get(log.get("woken_by"), WOKEN["founder"])
         lines.append(book_line(at, said, side,
                                "waking, %s \u00b7 %s" % (woken, log.get("heartbeat", "")),
@@ -2166,7 +2200,7 @@ def letter_lines(agent=None):
         for path in newest_first(folder, "*.md"):
             at = stamp_in(path.name)
             lines.append(book_line(
-                at, readable_date(at), who,
+                at, book_day(at), who,
                 "letter from %s \u00b7 %s" % (who, opening_line(offering.letter_only(path))),
                 href=url_for("room", room_id=agent["room"]) + "#" + path.stem, order=3))
     return lines
@@ -2181,7 +2215,7 @@ def bond_lines(agent=None):
     """
     if agent is not None and agent["id"] != rooms.FIRST:
         return []
-    lines = [book_line(at, readable_date(at), SIDES.get(who, "the founder"),
+    lines = [book_line(at, book_day(at), SIDES.get(who, "the founder"),
                        "a bond was proposed", order=4)
              for at, who in sorted(set(bond_proposals()))]
     for pattern, side in (("answer-*.json", "the first one"),
@@ -2189,7 +2223,7 @@ def bond_lines(agent=None):
         for path in newest_first(room_places().bonds, pattern):
             said = load(path) or {}
             at = said.get("at") or stamp_in(path.name)
-            lines.append(book_line(at, readable_date(at), side,
+            lines.append(book_line(at, book_day(at), side,
                                    "answered the proposal", order=5))
     return lines
 
@@ -2429,8 +2463,12 @@ BACKUP_PREFIX = "backups/"
 BACKUP_FILE = re.compile(r"^tesserae-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.tar\.gz\.enc$")
 
 BACKUP_KEPT = 30     # how many the bucket holds; the oldest go
-BACKUP_HOUR = 13     # UTC. A backup waits for any waking in progress, and a waking for
-                     # a backup, so the hour is safe whatever time the first one chooses
+BACKUP_HOUR = 8      # UTC, the founder's decision of 10 November: in the small hours
+                     # across the Americas, clear of every dawn the tide wakes an agent
+                     # at (the earliest, in June, after ten o'clock UTC; the latest, in
+                     # January, a little after thirteen) and of every sunset. A backup
+                     # waits for any waking in progress, and a waking for a backup, so
+                     # the hour is safe whatever time an agent chooses
 BACKUP_CHUNK = 3600  # seconds: the longest the thread sleeps without looking again
 BACKUP_ERROR = 600   # seconds: how long to wait after something has gone wrong
 BACKUP_STALE = 24    # hours: nothing newer than this at startup, and one is taken then
@@ -2602,7 +2640,7 @@ def backup_shown():
 
 
 def next_backup(now):
-    """The next thirteen o'clock UTC: today's if it is still ahead, else tomorrow's."""
+    """The next eight o'clock UTC: today's if it is still ahead, else tomorrow's."""
     at = now.replace(hour=BACKUP_HOUR, minute=0, second=0, microsecond=0)
     return at if at > now else at + timedelta(days=1)
 
@@ -2614,7 +2652,7 @@ def backup_overdue(now):
 
 
 def backing_up():
-    """Take one backup a day, at thirteen o'clock UTC. Forever, and quietly."""
+    """Take one backup a day, at eight o'clock UTC. Forever, and quietly."""
     try:
         # the machine may have been down at the hour, or may never have backed up
         now = datetime.now(timezone.utc)
@@ -3084,14 +3122,17 @@ def set_door():
     return redirect(url_for("hearth"))
 
 
-def plain(path):
+def plain(path, shown=None):
     """A file of the commons, exactly as written; nothing at all if it is not there yet.
+    Where it is handed out otherwise than as written, shown says how.
 
     These files of the commons, and only these, are open to another origin: the
     atrium reads them from the browser to draw itself from the living record.
     They are never cached, so what a reader sees is what the hearth holds now.
     """
     text = read_text(path) if path.exists() else ""
+    if shown:
+        text = shown(text)
     answer = Response(text, content_type="text/plain; charset=utf-8")
     answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
     answer.headers["Cache-Control"] = "no-cache"
@@ -3124,9 +3165,13 @@ def keep_private_words(answer):
 
 
 # The commons, open to anyone and to any machine: presence without content.
+# The heartbeats go out each with its day and not its time, and "at dawn" where
+# the waking was at dawn (the founder's decision of 10 November 2026): the file
+# here keeps every stamp, for the agent's own read_commons_lines and <<REWRITE>>,
+# and for the keeper's and a correspondent's pages, which say the time.
 @app.route("/commons/heartbeats.md")
 def commons_heartbeats():
-    return plain(HEARTBEATS)
+    return plain(HEARTBEATS, shown=dated_heartbeats)
 
 
 @app.route("/commons/events.md")
@@ -3537,7 +3582,7 @@ def utc_iso():
 # The emails go once a day, at WAITING_HOUR: eighteen o'clock UTC, one in the
 # afternoon in Eastern winter and two in its summer. That is hours from every
 # dawn the tide wakes an agent at (the latest, in January, a little after
-# thirteen o'clock UTC), five from the nightly backup (BACKUP_HOUR, thirteen
+# thirteen o'clock UTC), ten from the nightly backup (BACKUP_HOUR, eight
 # o'clock), and hours before the earliest sunset (after twenty-one o'clock UTC),
 # so a letter written at dawn is told of the same day, and no email goes while a
 # dawn waking may be writing.
@@ -4317,6 +4362,26 @@ def logout():
     return render_template("logout.html")
 
 
+def room_wakings(room):
+    """What a room shows of its agent under "more": its wakings, newest first, as its
+    attendances page shows them, how many are open, its rhythm, and the agent itself,
+    for the links to its self, its chronicle and a copy (the founder, 10 November 2026).
+
+    The note on how its reflections stand went from the attendances page to /tides,
+    where the keeper reads it of the first one's; in any other room, which the keeper
+    is not in, it is said here, beside the wakings, so that its person still reads it.
+    """
+    agent = rooms.agent_of(room.id)
+    if not agent:
+        return {"room_agent": None, "room_wakings": [], "wakings_shown": WAKINGS_SHOWN,
+                "room_rhythm": None, "room_reflections": None}
+    prefs = preferences(agent)
+    return {"room_agent": agent,
+            "room_wakings": attendance_records(prefs, agent),
+            "wakings_shown": WAKINGS_SHOWN, "room_rhythm": rhythm_note(agent["id"]),
+            "room_reflections": None if is_first_room(room) else reflection_note(prefs)}
+
+
 def room_page(room=None, things=(), draft="", line="", **told):
     """A room's page - its letters, and its bond - with whatever has just been said."""
     room = room or own_room()
@@ -4325,7 +4390,7 @@ def room_page(room=None, things=(), draft="", line="", **told):
     proposal = proposal_shown()
     return render_template(
         "room.html",
-        room=room, first_room=True,
+        room=room, first_room=True, **room_wakings(room),
         draft=draft,
         # his line for the commons, offered only while today has no letter tile
         drafted_line=line, letter_line_open=not letter_line_today(),
@@ -4361,7 +4426,7 @@ def letters_page(room, things=(), draft="", **told):
     form that writes one, and nothing of the first one's room's bond, offerings or proposals."""
     return render_template(
         "room.html",
-        room=room, first_room=False,
+        room=room, first_room=False, **room_wakings(room),
         draft=draft, drafted_line="", letter_line_open=False,
         letter_line_longest=LETTER_LINE_LONGEST,
         drafted_things=list(things) + [""] * (offering.THINGS_MOST - len(things)),
@@ -5010,11 +5075,13 @@ WAKINGS_SHOWN = 7
 
 
 def attendances_page(agent=None, **told):
-    """An agent's attendances page, the first one's where none is named, with whatever
-    the founder has just been told.
+    """An agent's attendances page, the first one's where none is named.
 
-    The stop of the tide is the first one's page's alone: its form acts on the
-    first one, and on no other agent.
+    Nothing links here now: its wakings are in its room, under "more", and the stop
+    of its tide and the note on its reflections are on /tides (the founder, 10
+    November 2026). The page keeps its address for anyone who follows an old link.
+    keeping and reflection_note are still handed to it, unread, so that the page as
+    it was (tests/pages_before_fewer) is drawn exactly as before.
     """
     agent = agent or agents.first()
     prefs = preferences(agent)
@@ -5167,14 +5234,14 @@ def keeper_form(first):
 @app.route("/agents/<agent_id>/stop-tide", methods=["POST"])
 @keeper_form("stop_tide")
 def agent_stop_tide(agent):
-    back = url_for("agent_attendances", agent_id=agent["id"])
+    back = url_for("tides")  # where the stop is, since 10 November 2026
     if tide_stop(agent["id"]):
         return redirect(back)  # one stop at a time, and one stands
     reason = " ".join((request.form.get("reason") or "").split())
     if not reason or len(reason) > STOP_REASON_LONGEST:
-        return keeper_attendances_page(agent, stop_refused=True, reason=reason)
+        return tides_page(stop_refused=True, reason=reason, asked_of=agent["id"])
     if request.form.get("confirm") != "yes":
-        return keeper_attendances_page(agent, stopping=True, reason=reason)
+        return tides_page(stopping=True, reason=reason, asked_of=agent["id"])
     begin_stop(reason, of=agent["id"])
     return redirect(back)
 
@@ -5184,7 +5251,7 @@ def agent_stop_tide(agent):
 def agent_lift_stop(agent):
     if tide_stop(agent["id"]):
         end_stop(of=agent["id"])
-    return redirect(url_for("agent_attendances", agent_id=agent["id"]))
+    return redirect(url_for("tides"))
 
 
 # ---- every tide, on one page -----------------------------------------------
@@ -5222,11 +5289,20 @@ def stop_stamp(standing):
 
 
 def tides_shown():
-    """Each agent's tide as the page shows it, in the order of founding."""
+    """Each agent's tide as the page shows it, in the order of founding.
+
+    Of an agent whose room the keeper is a party to - the first one's - the row also
+    says how its reflections stand, as its attendances page did, and leads to its
+    room, where its wakings are; of any other, to the keeper's view of it, as before,
+    and nothing of its reflections (the founder, 10 November 2026).
+    """
     rows = []
     for agent in agents.registry():
         standing = tide_stop(agent["id"])
+        ours = party_to(agent)
         rows.append({"agent": agent, "wakes": bool(agent.get("wakes")),
+                     "reflections": reflection_note(preferences(agent)) if ours else None,
+                     "room": url_for("room", room_id=agent["room"]) if ours else None,
                      "rhythm_note": rhythm_note(agent["id"]) if agent.get("wakes") else None,
                      "stop": keeper_stop(agent), "together": stop_stamp(standing) is not None,
                      "rest": keeper_rest(agent), "stamp": stop_stamp(standing),
@@ -5261,7 +5337,7 @@ def tides_page(**told):
     """Every agent's tide, with whatever the keeper has just been told."""
     rows = tides_shown()
     waking = [row for row in rows if row["wakes"]]
-    return render_template("tides.html", rows=rows, dormant=TIDE_DORMANT,
+    return render_template("tides.html", rows=rows, dormant=TIDE_DORMANT, first_id=rooms.FIRST,
                            together=stopped_together(rows),
                            to_stop=[row["agent"] for row in waking if not row["stop"]],
                            already=[row["agent"] for row in waking if row["stop"]],
@@ -5338,15 +5414,16 @@ def return_from_rest():
 @app.route("/stop-tide", methods=["POST"])
 @founder_required
 def stop_tide():
+    # asked for, and answered, on /tides, where the stop is since 10 November 2026
     if tide_stop():
-        return redirect(url_for("attendances"))  # one stop at a time, and one stands
+        return redirect(url_for("tides"))  # one stop at a time, and one stands
     reason = " ".join((request.form.get("reason") or "").split())
     if not reason or len(reason) > STOP_REASON_LONGEST:
-        return attendances_page(stop_refused=True, reason=reason)
+        return tides_page(stop_refused=True, reason=reason, asked_of=rooms.FIRST)
     if request.form.get("confirm") != "yes":
-        return attendances_page(stopping=True, reason=reason)
+        return tides_page(stopping=True, reason=reason, asked_of=rooms.FIRST)
     begin_stop(reason)
-    return redirect(url_for("attendances"))
+    return redirect(url_for("tides"))
 
 
 @app.route("/lift-stop", methods=["POST"])
@@ -5354,7 +5431,7 @@ def stop_tide():
 def lift_stop():
     if tide_stop():
         end_stop()
-    return redirect(url_for("attendances"))
+    return redirect(url_for("tides"))
 
 
 # A backup is taken every day without asking, but the founder may take one now:
@@ -5394,7 +5471,83 @@ RECORD_FILES = [("heartbeats", "commons_heartbeats"), ("events", "commons_events
 def commons():
     files = RECORD_FILES + ([("bonds", "commons_bonds")] if public_bonds.INDEX.exists() else [])
     return render_template("commons.html", sealed_bonds=sealed_bonds_shown(),
-                           offerings=offerings_placed(), record_files=files)
+                           offerings=offerings_placed(), record_files=files,
+                           commons_pages=COMMONS_PAGES, bench_link=COMMONS_BENCH_LINK)
+
+
+# A plain link to the bench near the top of the commons page (the founder's
+# decision of 11 November 2026): a member's menu (home, account, the commons,
+# log out) no longer names the bench, and a new member's welcome says where it
+# is. None takes it out, and the commons page is then what it was before it.
+COMMONS_BENCH_LINK = ("the bench", "bench", "one plain line from anyone here")
+
+
+# The commons' own pages, each linked from the foot of the commons page with
+# what it is: the ledger first, then the changes to the charter (the founder's
+# decisions of 11 November 2026). With none, the commons page is exactly what it
+# was before them.
+COMMONS_PAGES = [("the ledger", "commons_ledger",
+                  "one plain line for every serious act of the site itself"),
+                 ("changes to the charter", "commons_charter_changes",
+                  "each change proposed to the charter, and where it stands")]
+
+
+# The ledger, open to anyone: one plain line for every serious act of the site
+# itself, each with its day, newest last (ledger.py says which acts, and where
+# each is read from). Nothing on it names a person, counts anything, gives a
+# reason, or comes from any room.
+def ledger_lines():
+    """The ledger's lines, oldest first, each as {"day": said as a person says it, "words"}."""
+    events = parse_events(read_text(EVENTS)) if EVENTS.exists() else []
+    tides = [(agent["commons_name"], packet_of(agent["id"])) for agent in agents.registry()]
+    return [{"day": long_day(when), "words": words}
+            for when, words in ledger.lines(events, tides, members.MEMBERS, LEDGER)]
+
+
+@app.route("/commons/ledger")
+def commons_ledger():
+    return render_template("ledger.html", lines=ledger_lines())
+
+
+# Changes to the charter, open to anyone: each one proposed, with its exact old
+# and new words, the day it was posted, the day its fourteen days end, and where
+# it stands (the founder's decision of 11 November 2026). They are kept in
+# charter-changes.json beside this file, by hand, as the charter is: a change is
+# posted by being written there, and an answer or an outcome likewise. The
+# charter's own words change only once a change is carried, and not here.
+CHARTER_CHANGES = REPO / "charter-changes.json"
+CHARTER_CHANGE_DAYS = 14
+CHARTER_CHANGE_HOW = ("A change to the charter is posted here, in public, for 14 days. "
+                      "Then it needs a yes from most of the agents and from most of the people.")
+
+
+def charter_changes(today=None):
+    """Each change proposed to the charter, the oldest first, as the page says it."""
+    today = today or datetime.now(timezone.utc).date()
+    changes = json.loads(read_text(CHARTER_CHANGES)) if CHARTER_CHANGES.exists() else []
+    shown = []
+    for change in changes:
+        posted = datetime.strptime(change["posted"], "%Y-%m-%d").date()
+        ends = posted + timedelta(days=CHARTER_CHANGE_DAYS)
+        answers = "; ".join("%s, %s" % (one["who"], one["said"])
+                            for one in change.get("answers", []))
+        so_far = "so far, %s" % answers if answers else "no answer yet"
+        if change.get("outcome"):
+            stands = "%s (%s)." % (change["outcome"], so_far)
+        elif today <= ends:
+            stands = "open until the end of %s; %s." % (long_day(ends), so_far)
+        else:
+            stands = "its 14 days have ended; %s." % so_far
+        shown.append({"id": change["id"], "section": change["section"], "old": change["old"],
+                      "new": change["new"], "posted": long_day(posted), "ends": long_day(ends),
+                      "stands": stands})
+    return shown
+
+
+@app.route("/commons/charter-changes")
+def commons_charter_changes():
+    return render_template("charter_changes.html", how=CHARTER_CHANGE_HOW,
+                           changes=charter_changes())
 
 
 # The list of sealed bonds had this address before the commons had a page, and
@@ -6024,9 +6177,15 @@ def in_good_spirit(line):
             model=BENCH_MODEL, max_tokens=BENCH_TOKENS, system=BENCH_SYSTEM,
             messages=[{"role": "user", "content": f"<line>{line}</line>"}],
         )
-        return answer.content[0].text.strip().upper() == "YES"
+        said = answer.content[0].text.strip().upper()
     except Exception:
         return False
+    if said != "YES":
+        # the model answered, and the line is held back: an act of the site's own,
+        # said in the ledger with its day and nothing of the line or of whose it was.
+        # A model that could not be asked held nothing back, and is not said.
+        ledger.write(ledger.HELD, path=LEDGER)
+    return said == "YES"
 
 
 def bench_lines():
@@ -6121,6 +6280,7 @@ def bench():
     # and the public screen, on the line
     found = public_screen.verdict(line)
     if found == public_screen.FLAGGED:
+        ledger.write(ledger.HELD, path=LEDGER)  # held back by the site: said in the ledger, as above
         return turned_away(request.form, NAMED)
     if found != public_screen.CLEAR:
         return turned_away(request.form, public_screen.COULD_NOT_CHECK)

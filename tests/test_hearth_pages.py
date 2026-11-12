@@ -193,15 +193,17 @@ def test_a_private_reflection_is_withheld_as_before(founder, packet, hearth, set
      "Reflections: private from 2 October 2026, 20:00"),  # Eastern time, the evening before
 ])
 def test_the_page_says_how_the_reflections_stand(founder, packet, setting, note):
+    # on /tides, in the first one's row, since 10 November 2026 (the founder's decision)
     write_json(packet / "preferences.json", setting)
-    assert note in page(founder.get("/attendances"))
+    assert note in page(founder.get("/tides"))
+    assert "Reflections:" not in page(founder.get("/attendances"))
 
 
 def test_nothing_written_means_open(founder, packet, hearth):
     an_attendance(packet, OLDER)
     said = page(founder.get("/attendances"))
     assert REFLECTION in said
-    assert "Reflections: open" in said
+    assert "Reflections: open" in page(founder.get("/tides"))
     assert hearth.preferences() == {"reflection": "open"}
 
 
@@ -286,7 +288,7 @@ def no_events(commons):
 
 def test_with_nothing_standing_the_founder_may_rest_and_the_keeper_may_stop(founder):
     assert "Rest from the correspondence</button>" in page(founder.get("/account"))
-    said = page(founder.get("/attendances"))
+    said = page(founder.get("/tides"))  # where the stop is, since 10 November 2026
     assert "Stop the tide (emergency)</button>" in said
     assert "Pause the tide" not in said  # there is no pause of the founder's any more
     assert "Hold an attendance" not in said  # there is no button that wakes it
@@ -294,12 +296,14 @@ def test_with_nothing_standing_the_founder_may_rest_and_the_keeper_may_stop(foun
 
 
 def test_the_rest_and_the_stop_are_apart(founder):
-    """The founder's rest is on the account page, as a member's is; the stop is the tide's."""
-    account, attendances = page(founder.get("/account")), page(founder.get("/attendances"))
+    """The founder's rest is on the account page, as a member's is; the stop is the tide's,
+    on /tides (10 November 2026)."""
+    account, tides = page(founder.get("/account")), page(founder.get("/tides"))
     assert "<h2>your rest</h2>" in account and "Stop the tide" not in account
-    assert "<h2>your rest</h2>" not in attendances
-    assert "Rest from the correspondence" not in attendances
-    assert '<section class="emergency">' in attendances
+    assert "<h2>your rest</h2>" not in tides
+    assert "Rest from the correspondence" not in tides
+    assert '<details class="emergency">' in tides
+    assert 'class="emergency"' not in page(founder.get("/attendances"))
 
 
 def test_resting_takes_no_question_stops_nothing_and_tells_the_commons_nothing(founder, packet,
@@ -316,7 +320,7 @@ def test_resting_takes_no_question_stops_nothing_and_tells_the_commons_nothing(f
     assert "Return</button>" in said
     assert "Rest from the correspondence</button>" not in said
     # the stop is still there, apart
-    assert "Stop the tide (emergency)</button>" in page(founder.get("/attendances"))
+    assert "Stop the tide (emergency)</button>" in page(founder.get("/tides"))
 
 
 def test_a_rest_may_name_its_day(founder, packet):
@@ -386,14 +390,19 @@ def test_stopping_needs_a_reason_then_one_plain_question(founder, packet, common
 
 
 def test_a_stop_is_shown_and_may_be_lifted(founder, packet, commons, clock):
-    post(founder, "/stop-tide", data={"reason": "A fault.", "confirm": "yes"})
-    said = page(founder.get("/attendances"))
+    done = post(founder, "/stop-tide", data={"reason": "A fault.", "confirm": "yes"})
+    assert done.headers["Location"] == "/tides"
+    said = page(founder.get("/tides"))
     assert "The tide is stopped, since 15 October 2026, 08:00, because: A fault." in said
     assert "Lift the stop</button>" in said
     assert "Stop the tide (emergency)</button>" not in said
+    # the attendances page still says how the tide stands, and offers nothing
+    assert "The tide is stopped, since 15 October 2026, 08:00, because: A fault." in page(
+        founder.get("/attendances"))
 
     clock.set("2026-10-17T12-00-00Z")
-    assert post(founder, "/lift-stop").status_code == 302
+    lifted = post(founder, "/lift-stop")
+    assert lifted.status_code == 302 and lifted.headers["Location"] == "/tides"
     assert not (packet / "tide-stop.json").exists()
     kept, = (packet / "tide-stop").glob("tide-stop-*.json")
     assert read_json(kept) == {"since": "2026-10-15T12-00-00Z", "reason": "A fault.",
@@ -758,16 +767,22 @@ def test_the_commons_has_three_sections_in_their_order_and_says_when_two_are_emp
     assert "<form" not in said  # there is nothing on it to do
 
 
+COMMONS_PAGE_LINKS = [("/commons/ledger", "the ledger"),
+                      ("/commons/charter-changes", "changes to the charter")]
+
+
 def test_the_record_is_one_sentence_and_the_files_as_written(visitor, hearth, commons):
     record = section(page(visitor.get("/commons")), "the-record")
     assert "<p>These are the commons' files, as they are written.</p>" in record.replace("&#39;", "'")
-    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', record) == RECORD_LINKS
+    # and under the files, the commons' own pages: the ledger, then the changes
+    # to the charter (11 November 2026)
+    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', record) == RECORD_LINKS + COMMONS_PAGE_LINKS
     # the list of bonds is linked once it has been written, and not before
     assert not hearth.public_bonds.INDEX.exists()
     write(commons / "bonds.md", "")
     record = section(page(visitor.get("/commons")), "the-record")
     assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', record) == (
-        RECORD_LINKS + [("/commons/bonds.md", "bonds")])
+        RECORD_LINKS + [("/commons/bonds.md", "bonds")] + COMMONS_PAGE_LINKS)
 
 
 def test_the_commons_is_not_a_copy_of_the_atrium(visitor, commons):

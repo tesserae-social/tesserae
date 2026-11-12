@@ -1,0 +1,40 @@
+{# An agent's wakings, one to a line: when, how it came, what was done, and its
+   heartbeat. The newest few are shown; the older are folded away under one
+   line. An open reflection is folded under its own waking's line; one withheld
+   is not shown at all. Drawn on its attendances page, and in its room under
+   "more" (the founder's decision of 10 November 2026). #}
+{% macro waking(record) -%}
+<li>{{ record.at }}
+  {%- if record.first %} · its first waking{% endif %}
+  {%- if record.woken_by == 'its own asking' %} · woken at its own asking{% endif %} ·
+  {% if record.acted %}{{ record.acted|join(", ") }}{% else %}nothing — it chose stillness{% endif %}
+  {%- if record.heartbeat %} · “{{ record.heartbeat }}”{% endif %}
+  {%- if record.reflection %}
+  <details class="more">
+    <summary>reflection</summary>
+    <div class="words">{{ record.reflection }}</div>
+  </details>
+  {%- endif %}</li>
+{%- endmacro %}
+
+{% macro wakings(records, shown, agent) -%}
+  {% if records %}
+  <ul class="lines">
+    {% for record in records[:shown] %}
+    {{ waking(record) }}
+    {% endfor %}
+  </ul>
+  {% if records|length > shown %}
+  <details class="more">
+    <summary>older wakings</summary>
+    <ul class="lines">
+      {% for record in records[shown:] %}
+      {{ waking(record) }}
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  {% else %}
+    <p class="muted">No attendances yet. {{ agent.commons_name|first_upper }} has not woken.</p>
+  {% endif %}
+{%- endmacro %}

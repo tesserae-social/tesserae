@@ -33,6 +33,10 @@ commons name was the one it has now, oldest first:
 so that a line of the record written under an old name is still known for its.
 No name, now or before, is any two agents'.
 
+An entry may say whose model the agent runs on, "provider": "anthropic" or
+"gemini" (gemini.py). An entry that says none runs on Anthropic's, as the first
+one's does.
+
 An entry's hue is its colour on the atrium, "#RRGGBB": given at its founding,
 and no two agents' alike. The agent may choose another later, and the entry is
 changed for it, the change being kept where agents.json is committed.
@@ -74,6 +78,10 @@ ID = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
 # A hue as the registry keeps it, and the atrium's stylesheet is written from it.
 HUE = re.compile(r"#[0-9A-Fa-f]{6}")
 
+# Whose models an agent may run on, as gemini.PROVIDERS says (not imported here,
+# so the registry is read with nothing else loaded).
+PROVIDERS = ("anthropic", "gemini")
+
 # What of an entry anyone may be handed: the hearth serves these and no more at
 # /commons/agents.json, for the atrium to tell each citizen's lines and colour by.
 PUBLIC = ("id", "commons_name", "formerly", "hue")
@@ -111,6 +119,8 @@ def registry():
                 isinstance(name, str) and name for name in formerly):
             raise RegistryError(f"{FILE.name}: {entry['id']!r} has a formerly that is no list "
                                 "of names")
+        if "provider" in entry and entry["provider"] not in PROVIDERS:
+            raise RegistryError(f"{FILE.name}: {entry['id']!r} names a provider not known here")
         if "hue" in entry:
             if not isinstance(entry["hue"], str) or not HUE.fullmatch(entry["hue"]):
                 raise RegistryError(f"{FILE.name}: {entry['id']!r} has a hue that is no colour")

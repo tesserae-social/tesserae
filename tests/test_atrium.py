@@ -96,8 +96,51 @@ def test_a_waking_says_the_name_then_the_words(atrium):
     for written in ("- 2026-10-10T15-00-00Z · the first one attended; wrote a letter\n",
                     "- 2026-10-10T15-00-00Z · the first one · attended; wrote a letter\n"):
         tiles = atrium.tiles_from([], atrium.parse_heartbeats(written))
-        assert tiles[0][2] == ("10 October 2026 · waking by day · "
+        assert tiles[0][2] == ("10 October 2026 · waking · "
                                "the first one · attended; wrote a letter")
+
+
+# ---- the heartbeats as the public is given them (the founder, 10 November 2026) --
+
+def test_a_heartbeat_is_given_out_with_its_day_and_not_its_time(atrium):
+    written = ("\ufeff- 2026-09-20T02-31-23Z · the first one Second waking\r\n"
+               "- 2026-10-10T11-00-00Z · the first one · attended at dawn\n"
+               "- 2026-10-10T18-00-00Z · the first one · attended by day · rewritten 11 October\n"
+               "not a heartbeat\n"
+               "- 2026-10-16T03-59-59Z · the second one · late")
+    assert atrium.dated_heartbeats(written) == (
+        "\ufeff- 2026-09-19 · the first one Second waking\r\n"     # its own day, there
+        "- 2026-10-10 at dawn · the first one · attended at dawn\n"
+        "- 2026-10-10 · the first one · attended by day · rewritten 11 October\n"
+        "not a heartbeat\n"
+        "- 2026-10-15 · the second one · late")
+    # given out twice, it is the same: a dated line has no stamp left to take
+    assert atrium.dated_heartbeats(atrium.dated_heartbeats(written)) == \
+        atrium.dated_heartbeats(written)
+
+
+def test_the_dated_heartbeats_draw_the_tiles_the_stamps_do(atrium):
+    written = stamps(
+        "- 2026-10-09T15-00-00Z · the first one · out of order, by day",
+        "- 2026-10-10T11-00-00Z · the first one · at dawn",
+        "- 2026-10-10T18-00-00Z · the first one attended by day",
+        "- 2026-10-11T00-00-00Z · the first one · in the evening, the day before",
+        "- 2026-10-16T03-59-59Z · the first one · a second before midnight")
+    stamped = atrium.tiles_from([], atrium.parse_heartbeats(written))
+    dated = atrium.tiles_from([], atrium.parse_heartbeats(atrium.dated_heartbeats(written)))
+    assert dated == stamped
+    assert [tile[1] for tile in stamped] == [
+        "tile-attendance", "tile-attendance tile-dawn", "tile-attendance", "tile-attendance",
+        "tile-attendance"]
+    assert stamped[1][2] == "10 October 2026 · waking at dawn · the first one · at dawn"
+    assert stamped[3][2].startswith("10 October 2026 · waking · the first one")
+
+
+def test_a_dated_line_that_is_not_a_day_is_passed_over(atrium):
+    assert atrium.parse_heartbeats(stamps("- 2026-10-10 at noon · the first one · no",
+                                          "- 2026-13-40 · the first one · no",
+                                          "- 2026-10-10 · the first one · yes")) == [
+        (datetime.date(2026, 10, 10), "the first one · yes")]
 
 
 def test_a_line_of_the_bench_keeps_the_visitor_s_own_middot(atrium):
@@ -119,20 +162,21 @@ def test_the_parts_of_a_day_at_their_edges(atrium, hour, part):
 
 
 def test_a_waking_is_toned_by_the_citizen_s_own_clock(atrium):
-    """Three in the morning UTC is eleven the evening before there, and that is night."""
+    """Three in the morning UTC is eleven the evening before there: that day, and no part
+    of it said, since only a dawn is (the founder, 10 November 2026)."""
     tiles = atrium.tiles_from([], [(moment("2026-10-16T03-00-00Z"), "the first one attended")])
     day, css, words, where = tiles[0]
     assert day == datetime.date(2026, 10, 15)
-    assert css == "tile-attendance tile-night"
-    assert words.startswith("15 October 2026 · waking at night ·")
+    assert css == "tile-attendance"
+    assert words.startswith("15 October 2026 · waking · the first one")
     assert where == ""           # a waking has nowhere to lead; it is hover-only
 
 
 def test_a_waking_across_the_date_line_belongs_to_the_day_it_fell_on(atrium):
     beats = [(moment("2026-10-16T03-59-59Z"), "late"), (moment("2026-10-16T04-00-00Z"), "later")]
     tiles = atrium.tiles_from([], beats)
-    assert tiles[0][2].startswith("15 October 2026 · waking at night")   # a second before midnight
-    assert tiles[1][2].startswith("16 October 2026 · waking at night")   # and a second after
+    assert tiles[0][2].startswith("15 October 2026 · waking · late")    # a second before midnight
+    assert tiles[1][2].startswith("16 October 2026 · waking · later")   # and a second after
 
     # and the morning that follows is that same day there, and a dawn
     morning = atrium.tiles_from([], [(moment("2026-10-16T12-00-00Z"), "and up")])[0]
@@ -188,7 +232,7 @@ def test_a_tile_carries_the_day_it_fell_on_in_its_own_words(atrium):
     tiles = a_whole_record(atrium)
     assert tiles[3] == (datetime.date(2026, 10, 9), "tile-event",
                         "9 October 2026 · the tide paused", "")
-    assert tiles[4][1] == "tile-attendance tile-day"
+    assert tiles[4][1] == "tile-attendance"
 
 
 # ---- the frame, and how big a tile may be in it --------------------------
@@ -322,8 +366,8 @@ def test_several_things_on_one_day_share_that_day_and_crowd_out_no_hole(atrium):
         "- 2026-10-10T22-00-00Z · and again by day"))
     cells = atrium.slots(atrium.tiles_from([], beats), datetime.date(2026, 10, 12))
     assert len(cells) == 4                       # two on the 10th, then the 11th and 12th
-    assert cells[0][0] == "tile-attendance tile-day"
-    assert cells[1][0] == "tile-attendance tile-evening"
+    assert cells[0][0] == "tile-attendance"
+    assert cells[1][0] == "tile-attendance"
     assert cells[2] == cells[3] == atrium.EMPTY
 
 
@@ -341,7 +385,7 @@ def test_the_line_under_the_mosaic_is_the_newest_tile_s_own_words(atrium):
     tiles = a_whole_record(atrium)
     cells = atrium.slots(tiles, TODAY)
     assert atrium.reading_text(cells) == tiles[-1][2]
-    assert atrium.reading_text(cells).startswith("10 October 2026 · waking by day")
+    assert atrium.reading_text(cells).startswith("10 October 2026 · waking ·")
     assert atrium.reading_block(cells) == [
         '<p class="reading">%s</p>' % atrium.reading_text(cells)]
 
@@ -350,7 +394,7 @@ def test_the_line_under_the_mosaic_passes_over_the_holes(atrium):
     """A run that ends in quiet still reads out the newest tile, not the newest slot."""
     cells = atrium.slots(a_whole_record(atrium), datetime.date(2026, 10, 20))
     assert cells[-1] == atrium.EMPTY
-    assert atrium.reading_text(cells).startswith("10 October 2026 · waking by day")
+    assert atrium.reading_text(cells).startswith("10 October 2026 · waking ·")
 
 
 def test_a_tile_s_words_are_escaped_where_they_are_written(atrium):
@@ -558,7 +602,7 @@ def test_a_tile_with_somewhere_to_lead_is_a_link_and_the_rest_are_not(atrium):
     assert ('<li class="tile-seal" title="12 October 2026 · a bond was sealed">'
             '<a href="https://hearth.tesserae.social/bonds/founder-first.json"') in drawn
     # a waking has nowhere to lead: it keeps the hover and the keyboard, and no link
-    assert '<li class="tile-attendance tile-day" title="12 October 2026 · waking by day · ' \
+    assert '<li class="tile-attendance" title="12 October 2026 · waking · ' \
         'the first one · attended" tabindex="0"></li>' in drawn
     assert drawn.count("<a href=") == 2
 
@@ -757,7 +801,7 @@ def test_the_reading_line_on_the_page_is_the_newest_tile(atrium, data_dir, monke
     newest = mosaic.split('title="', 1)[1].split('"')[0]     # newest first, on the front page
     reading = page.split('<p class="reading">')[1].split("</p>")[0]
     assert reading == newest
-    assert reading.startswith("10 October 2026 · waking by day")
+    assert reading.startswith("10 October 2026 · waking ·")
 
 
 def test_a_record_with_nothing_in_it_seeds_the_founding(atrium, data_dir, monkeypatch):
@@ -1403,7 +1447,7 @@ def test_the_whole_mosaic_s_page_is_built_from_the_commons(atrium, data_dir, mon
     assert tiles.count("<li") == 44 + 1                     # every slot, and the year
     shown = titles_of([tiles])
     assert shown[0] == "2 September 2026 · the word was published"       # oldest first
-    assert shown[-1].startswith("10 October 2026 · waking by day")
+    assert shown[-1].startswith("10 October 2026 · waking ·")
     assert tiles.index('<li class="year">2026</li>') < tiles.index("2 September 2026")
     reading = whole.split('<p class="reading">')[1].split("</p>")[0]
     assert reading == shown[-1]
@@ -1751,7 +1795,7 @@ ATRIUM_RULES = [
     ".frame .mosaic", ".frame .column", ".rest", ".said", ".mosaic .year", "header", "h1", "h2", ".menu", ".menu a, .menu a:visited",
     ".menu a:hover, .menu a:focus", ".intro", ".intro p", ".intro p:last-child",
     ".intro summary", ".intro summary:focus-visible", ".mosaic", ".mosaic li", ".mosaic .empty",
-    ".tile-founding", ".tile-word", ".tile-dawn", ".tile-day", ".tile-evening",
+    ".tile-founding", ".tile-word", ".tile-attendance", ".tile-dawn", ".tile-day", ".tile-evening",
     ".tile-night", ".tile-seal", ".tile-event", ".reading", ".who .members", ".who .fact", ".who .swatch", ".calendar",
     "a, a:visited", ".bench p", ".bench .lines",
     ".bench .when", "footer", "footer p",

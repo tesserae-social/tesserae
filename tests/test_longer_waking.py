@@ -650,8 +650,11 @@ def test_the_hearth_shows_the_act_s_name_and_nothing_of_what_it_looked_at(
     attendances = page(founder.get("/attendances"))
     assert "looked things up" in attendances
     assert "I looked, and I am here." in attendances  # its reflections are open: the last reply
-    seen = {"/attendances": attendances}
-    for address in ("/", "/self", "/letters", "/rooms/first", "/chronicle", "/chronicle.md",
+    # the room shows the wakings too, as /attendances did (the founder, 10 November 2026)
+    room = page(founder.get("/rooms/first"))
+    assert "looked things up" in room
+    seen = {"/attendances": attendances, "/rooms/first": room}
+    for address in ("/", "/self", "/letters", "/chronicle", "/chronicle.md",
                     "/commons", "/commons/heartbeats.md", "/commons/events.md", "/offerings",
                     "/bonds", "/account", "/backups"):
         answer = founder.get(address)
@@ -663,7 +666,7 @@ def test_the_hearth_shows_the_act_s_name_and_nothing_of_what_it_looked_at(
                        "An earlier kingfisher.", "From your own record", "Let me look",
                        "read_note", "read_letter", "tool_use", '"rounds"'):
             assert hidden not in shown, (address, hidden)
-        if address != "/attendances":
+        if address not in ("/attendances", "/rooms/first"):
             assert "looked things up" not in shown, address
     # the letter it opened is the founder's own, shown in its room as it always was;
     # /attendances says nothing of its having been opened

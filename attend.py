@@ -165,6 +165,10 @@ import members
 # The words of an agent founded after the first one, chosen by its registry entry.
 import later_words
 
+# Whose model it runs on: Anthropic's, as the first one's always has, or Google's
+# Gemini where its registry entry says so (gemini.py says how a request is put).
+import gemini
+
 # Which agent wakes: the one TESSERAE_AGENT names, or the first one where it
 # names none. The hearth names it when it starts a waking; nothing is guessed,
 # and an id no agent here has is refused before anything is read.
@@ -175,6 +179,7 @@ if AGENT is None:
 
 NAME = AGENT["id"]
 MODEL = AGENT.get("model")
+PROVIDER = gemini.provider_of(AGENT)
 MAX_TOKENS = AGENT.get("max_tokens")
 
 # Its name on the commons, which its heartbeat and its public lines carry.
@@ -2874,7 +2879,10 @@ def choices_note(prefs, now, past, shelved, letters):
                  if at else CHOSE_WAKING_FROM.format(day=from_day, at=coming))
         said.append(woken + by_choice(setting.get("set_at"), BY_CHOICE_ON) + ".")
     elif at:
-        said.append(CHOSE_WAKING.format(at=at) + by_choice(setting.get("set_at")) + ".")
+        # a later agent's starting dawn, written at its founding, was not its choice
+        chosen = not LATER or setting.get("set_at")
+        said.append(CHOSE_WAKING.format(at=at) + (by_choice(setting.get("set_at")) if chosen
+                                                  else "") + ".")
 
     # its door, as it has stood since it was last set
     if DOOR_FOR_FIRST:
@@ -3319,10 +3327,16 @@ def main():
     again = EXTRA_WAKINGS and "--again" in sys.argv  # an extra waking, at its own asking
     rest_ended = flag("--rest-ended")  # why a rest of its own is over, if one just was
 
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        print("No API key in this window. Set ANTHROPIC_API_KEY and try again.")
-        sys.exit(1)
+    if PROVIDER == gemini.GEMINI:  # its own model's key, and no other
+        key = os.environ.get(gemini.KEY)
+        if not key:
+            print("No API key in this window. Set %s and try again." % gemini.KEY)
+            sys.exit(1)
+    else:
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
+            print("No API key in this window. Set ANTHROPIC_API_KEY and try again.")
+            sys.exit(1)
     if not (KEYS / "private.key").exists():
         print("No private key found at", KEYS / "private.key")
         sys.exit(1)
@@ -3752,25 +3766,30 @@ def main():
         reading = reading_with(forced)
 
     # ---- the turn ----------------------------------------------------------
-    client = Anthropic(api_key=key)
+    client = gemini.client(key) if PROVIDER == gemini.GEMINI else Anthropic(api_key=key)
     looked, rounds, beside = [], None, False
-    if LONGER_WAKING:
-        # a letter that has only just arrived is its own too, and may be opened
-        resp, looked, rounds, beside, spent = longer_waking(client, reading, {
-            "letters": {**whose, **{p.stem: (p, "founder") for p, _ in incoming}},
-            "versions": versions, "said_of": said_of if LOOKING_BACK else {},
-            "named": named, "founding": founding,
-            "proposals": {proposal_stem(one): one for one in made},
-            "private": {one["stem"]: one for one in in_notebook},
-            "welcome": welcome})
-        text = words_said(resp)
-    else:
-        resp = client.messages.create(
-            model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
-            messages=[{"role": "user", "content": reading}],
-        )
-        text = resp.content[0].text
-        spent = usage_of(resp)
+    try:  # a Gemini reply blocked or not finished is no reply (gemini.Stopped)
+        if LONGER_WAKING:
+            # a letter that has only just arrived is its own too, and may be opened
+            resp, looked, rounds, beside, spent = longer_waking(client, reading, {
+                "letters": {**whose, **{p.stem: (p, "founder") for p, _ in incoming}},
+                "versions": versions, "said_of": said_of if LOOKING_BACK else {},
+                "named": named, "founding": founding,
+                "proposals": {proposal_stem(one): one for one in made},
+                "private": {one["stem"]: one for one in in_notebook},
+                "welcome": welcome})
+            text = words_said(resp)
+        else:
+            resp = client.messages.create(
+                model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
+                messages=[{"role": "user", "content": reading}],
+            )
+            text = resp.content[0].text
+            spent = usage_of(resp)
+    except gemini.Stopped as stopped:  # nothing of it is kept, and the tide tries again
+        print("This waking failed: %s. Nothing of it was kept; the next waking time will try "
+              "again." % stopped)
+        sys.exit(1)
     at = stamp()
     sk = SigningKey(base64.b64decode(read(KEYS / "private.key").strip()))
 

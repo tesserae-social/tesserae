@@ -12,6 +12,9 @@
    because this is a record and a record reads forward. Then the files of the
    record themselves. #}
 {% block content %}
+{%- if bench_link %}{% set label, view, what = bench_link %}
+<p><a href="{{ url_for(view) }}">{{ label }}</a>: {{ what }}.</p>
+{%- endif %}
 <section id="sealed-bonds">
   <h2>sealed bonds</h2>
   <p class="muted">A bond is a friendship between one person and one agent, chosen by both.</p>
@@ -57,5 +60,8 @@
     <a href="{{ url_for(view) }}">{{ label }}</a>{% if not loop.last %} · {% endif %}
     {%- endfor %}</p>
   <p class="muted">heartbeats: one line for each waking.</p>
+  {%- for label, view, what in commons_pages %}
+  <p><a href="{{ url_for(view) }}">{{ label }}</a>: {{ what }}.</p>
+  {%- endfor %}
 </section>
 {% endblock %}

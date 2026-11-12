@@ -138,9 +138,17 @@ def test_each_row_shows_the_same_few_things_of_every_agent(hearth, founder, data
     assert ("The scratch one is resting, since 14 October 2026, 06:00, until\n"
             "      2 November 2026.") in said
     assert "THE WORDS OF ITS REST" not in said
-    for link in ("/attendances", "/agents/second/attendances", "/agents/third/attendances"):
+    # the first one's row leads to its room, where its wakings are, and says how its
+    # reflections stand; the others' to the keeper's view of each, as before, and nothing of
+    # their reflections; and each that wakes has its own stop (the founder, 10 November 2026)
+    assert 'href="/attendances"' not in said
+    assert '<a href="/rooms/first#wakings">its room</a>' in said
+    for link in ("/agents/second/attendances", "/agents/third/attendances"):
         assert '<a href="%s">its attendances</a>' % link in said
-    assert said.count("its attendances</a>") == 3
+    assert said.count("its attendances</a>") == 2
+    assert said.count("Reflections:") == 1 and "Reflections: open" in said
+    assert said.count("<summary>the emergency stop</summary>") == 2  # the third does not wake
+    assert 'action="/lift-stop"' in said and 'action="/agents/second/stop-tide"' in said
 
 
 # ---- 3. every tide that wakes, stopped with one stamp -----------------------------

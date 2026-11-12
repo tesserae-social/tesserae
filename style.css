@@ -230,7 +230,10 @@
   .tile-founding   { background: #D85A30; }
   /* hollow: the word was said, and said is not done */
   .tile-word       { background: transparent; border: 2px solid #D85A30; }
-  /* a waking is toned by the hour it fell on, on the citizen's own clock */
+  /* a waking at dawn, on the citizen's own clock, is toned as one; any other
+     waking says nothing of the part of the day (the founder, 10 November 2026)
+     and is drawn in the day's tone. The other parts are kept for the record. */
+  .tile-attendance { background: #EFBBA3; }
   .tile-dawn       { background: #F6DDD1; }
   .tile-day        { background: #EFBBA3; }
   .tile-evening    { background: #E5906C; }

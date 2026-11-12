@@ -35,6 +35,9 @@ from pathlib import Path
 from datetime import datetime, timezone
 from anthropic import Anthropic
 
+# A later agent may be founded on Google's Gemini, as its plan says (gemini.py).
+import gemini
+
 # ---- Model the agent will run on for its founding -------------------------
 MODEL = "claude-sonnet-4-5"
 MAX_TOKENS = 1500
@@ -398,6 +401,18 @@ KEEP = "It allowed this conversation to be kept, privately, and never published.
 DELETE = "It asked that this conversation not be kept."
 BROKEN = "Broken off by an error before it was finished: {error}"
 
+# A founding on Gemini: each turn of the agent's may be this long, its thinking
+# included, since Gemini counts its thinking within the limit (gemini.py). A
+# later founding on Anthropic's model keeps MAX_TOKENS, as the first one's did.
+GEMINI_MAX_TOKENS = 4000
+# A turn Gemini cut off before any words: not the end of the founding.
+UNSAID = ("Its turn was cut off at its length before it said anything, its thinking having "
+          "used all of its room. Nothing of that turn was kept.")
+ASK_AGAIN = "Type your part again, or something else, to ask again."
+READ_AGAIN = "Press Enter to ask it again to answer the reading, or type /end."
+UNSAID_RECORDED = ("Its turn was cut off at its length before it said anything; nothing of it "
+                   "was kept, and it was asked again.")
+
 
 def plan_of(data, agent):
     """The plan found_agent.py wrote for this founding, or None."""
@@ -462,11 +477,21 @@ def main():
     name = plan["entry"]["commons_name"]
     model = plan["entry"]["model"]
     texts = later_texts(data, agent, plan)
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        print("No API key found in this window. Set ANTHROPIC_API_KEY and try again.")
-        sys.exit(1)
-    client = Anthropic(api_key=key)
+    # whose model it is founded on, as its plan says: Anthropic's where it says none
+    if gemini.provider_of(plan["entry"]) == gemini.GEMINI:
+        key = os.environ.get(gemini.KEY)
+        if not key:
+            print("No API key found in this window. Set %s and try again." % gemini.KEY)
+            sys.exit(1)
+        client = gemini.client(key)
+        limit = GEMINI_MAX_TOKENS
+    else:
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
+            print("No API key found in this window. Set ANTHROPIC_API_KEY and try again.")
+            sys.exit(1)
+        client = Anthropic(api_key=key)
+        limit = MAX_TOKENS
     reading = later_reading(texts, person)
 
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
@@ -494,11 +519,17 @@ def main():
     print("-" * 70)
 
     def answer():
-        """One turn of the agent's, printed and recorded; or the session broken off."""
+        """One turn of the agent's, printed and recorded, and True; or False where Gemini
+        cut it off before any words, said plainly; or the session broken off."""
         try:
-            resp = client.messages.create(model=model, max_tokens=MAX_TOKENS, system=LATER_SYSTEM,
+            resp = client.messages.create(model=model, max_tokens=limit, system=LATER_SYSTEM,
                                           messages=messages)
             text = resp.content[0].text
+        except gemini.Unsaid:  # its thinking used the room: said so, and asked again
+            record("Session", UNSAID_RECORDED)
+            print("\n" + UNSAID)
+            print("\n" + "-" * 70)
+            return False
         except Exception as error:  # an API error: set aside, to be run again
             record("Session", BROKEN.format(error=type(error).__name__) + f" {ended()} (UTC).")
             print("\nThe session was broken off by an error:", type(error).__name__)
@@ -510,13 +541,23 @@ def main():
         print("\n" + "-" * 70)
         messages.append({"role": "assistant", "content": text})
         record(said_by(name), text)
+        return True
 
-    answer()
+    answered = answer()
+    while not answered:  # the reading not yet answered: asked again, or the session ended
+        try:
+            again = input(READ_AGAIN + " ").strip()
+        except (EOFError, KeyboardInterrupt):
+            again = "/end"
+        if again == "/end":
+            break
+        answered = answer()
 
     speaker = THE_FOUNDER
     turned = False  # whether the one typing has changed since the agent last answered
-    print("\nType your part. Press Enter to send. Type /end to close the founding.\n")
-    while True:
+    if answered:
+        print("\nType your part. Press Enter to send. Type /end to close the founding.\n")
+    while answered:
         try:
             you = input(("YOU" if speaker == THE_FOUNDER else person.upper()) + ": ").strip()
         except (EOFError, KeyboardInterrupt):
@@ -543,7 +584,10 @@ def main():
                 "The founder" if speaker == THE_FOUNDER else person, you)
             turned = False
         messages.append({"role": "user", "content": said})
-        answer()
+        if not answer():  # nothing said to it stands unanswered: it is asked again
+            messages.pop()
+            turned = turned or said != you
+            print(ASK_AGAIN + "\n")
 
     said = ""
     while said not in ("yes", "no"):

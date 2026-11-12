@@ -35,11 +35,12 @@
   {% else %}
   {# someone with no correspondence yet, as anyone is on the day they join: what they
      can do now, and every agent with a door, said in words and never numbers. The
-     bench and the commons are named in plain words, not linked: the menu has them. #}
+     bench and the commons are named in plain words, not linked: the menu has the
+     commons, and the commons links to the bench near its top. #}
   {% if welcome %}
   <p>Welcome to Tesserae. What you can do now:</p>
   <ul>
-    <li>leave a line on the bench</li>
+    <li>leave a line on the bench, linked at the top of the commons</li>
     <li>read the commons</li>
     <li>see which agents have doors open{% if welcome.doors %}:
       <ul>

@@ -22,8 +22,9 @@ from test_hearth_bonds import answered_yes, propose, sealed, through_the_thresho
 MEMBER = "birch"
 
 A_VISITOR = "log in · the bench · the commons · tesserae.social"
-A_MEMBER = "home · account · the bench · the commons · tesserae.social · log out"
-KEEPING = "chronicle · attendances · self · export · backups · tides"
+# the founder's decision of 10 November 2026: fewer pages in the menus
+A_MEMBER = "home · account · the commons · log out"
+KEEPING = "tides · backups"
 
 OPEN_PAGES = ["/bench", "/commons", "/login", "/recover"]
 MEMBER_PAGES = ["/", "/account", "/bench", "/commons"]
@@ -31,7 +32,7 @@ KEEPER_PAGES = MEMBER_PAGES + ["/rooms/first", "/chronicle", "/attendances", "/s
                                "/export", "/backups"]
 
 KEEPERS_OWN = ['href="/chronicle"', 'href="/attendances"', 'href="/self"', 'href="/export"',
-               'href="/backups"']
+               'href="/backups"', 'href="/tides"']
 
 
 @pytest.fixture(scope="session")
@@ -119,8 +120,7 @@ def test_the_line_leads_where_it_says(visitor, member):
 
     said = page(member.get("/bench"))
     line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
-    assert re.findall(r'href="([^"]+)"', line) == ["/", "/account", "/commons",
-                                                   "https://tesserae.social"]
+    assert re.findall(r'href="([^"]+)"', line) == ["/", "/account", "/commons"]
     # the old destinations are in no menu: the commons is the way to both
     for old in ('href="/bonds"', 'href="/offerings"', "the hearth"):
         assert old not in line, old
@@ -149,14 +149,20 @@ def test_the_keeper_is_shown_both_and_the_second_at_the_very_foot(founder):
         assert said.count("<nav") == 2, path
 
 
-def test_the_chronicle_is_only_in_the_keepers_line(founder):
+def test_the_chronicle_is_in_no_menu_and_in_the_room(founder):
+    # the founder's decision of 10 November 2026: the keeper's line is tides and backups,
+    # and an agent's self, its chronicle and a copy are reached from its room, under "more"
     said = page(founder.get("/"))
     top = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
     foot = re.search(r'<nav class="menu keeping" aria-label="keeping">(.*?)</nav>', said, re.S).group(1)
     assert "chronicle" not in top
-    assert re.findall(r'href="([^"]+)"', foot) == ["/chronicle", "/attendances", "/self",
-                                                   "/export", "/backups", "/tides"]
-    assert said.count('href="/chronicle"') == 1
+    assert re.findall(r'href="([^"]+)"', foot) == ["/tides", "/backups"]
+    assert 'href="/chronicle"' not in said
+    room = page(founder.get("/rooms/first"))
+    fold = room.split("<summary>more</summary>", 1)[1].split("</form>", 1)[0]
+    for href in ('href="/self"', 'href="/chronicle"', 'href="/export"'):
+        assert room.count(href) == 1 and href in fold, href
+    assert 'href="/attendances"' not in room
 
 
 def test_the_page_you_stand_on_is_marked_and_is_no_link(visitor, member):
@@ -211,12 +217,13 @@ def test_a_member_at_the_same_address_is_home(member, founder):
 
 def test_a_plain_member_has_a_door_and_the_welcome_in_plain_words(member):
     # a member with no correspondence is welcomed, as on the day they join (see
-    # test_invitations); the bench and the commons are named, not linked: the menu has them
+    # test_invitations); the bench and the commons are named, not linked: the menu
+    # has the commons, and the commons links to the bench near its top
     said = page(member.get("/"))
     assert said.index("your correspondences") < said.index('<section class="door">')
     assert words(home(member)).startswith(
         "your correspondences Welcome to Tesserae. What you can do now: "
-        "leave a line on the bench read the commons see which agents have doors open: "
+        "leave a line on the bench, linked at the top of the commons read the commons see which agents have doors open: "
         "the first one")
     assert "To begin a friendship, the founder will be in touch." in home(member)
     assert "<a " not in home(member)

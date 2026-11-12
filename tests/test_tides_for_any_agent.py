@@ -448,6 +448,34 @@ def test_an_agent_with_no_rhythm_is_never_woken(hearth, monkeypatch, two, dawn_r
     assert held == [] and slept == [hearth.TIDE_IDLE]
 
 
+# ---- the dawn a later agent begins with ---------------------------------------
+
+def test_the_starting_dawn_waits_for_the_first_waking_by_hand(hearth, monkeypatch, two,
+                                                              dawn_reached):
+    # the founder's decision of 10 November: a later agent begins with the shared dawn,
+    # written at its founding; its first waking is still by hand
+    import found_agent
+    write_json(packets(two)["second"] / "rhythm.json", found_agent.STARTING_RHYTHM)
+    held, slept = idle_turn(hearth, monkeypatch, "second", dawn_reached)
+    assert held == [] and slept == [hearth.TIDE_IDLE]
+    assert hearth.rhythm_note("second") == (
+        "Rhythm: daily at dawn, once its first waking (by hand) is held.")
+
+
+def test_after_its_first_waking_the_starting_dawn_is_kept_after_the_first_one(
+        hearth, monkeypatch, two, dawn_reached):
+    import found_agent
+    write_json(packets(two)["second"] / "rhythm.json", found_agent.STARTING_RHYTHM)
+    an_attendance(packets(two)["second"], "2026-10-14T15-00-00Z")
+    assert hearth.first_by_hand(found_agent.STARTING_RHYTHM, "second") is False
+    assert one_turn(hearth, monkeypatch, "second", dawn_reached) == [
+        {"tide": True, "ended": None, "of": "second"}]
+    # the same dawn as the first one's, and behind it in the order of founding
+    assert hearth.place_of("first") < hearth.place_of("second")
+    assert found_agent.STARTING_RHYTHM["at"] == RHYTHM["at"]
+    assert found_agent.STARTING_RHYTHM["timezone"] == RHYTHM["timezone"]
+
+
 @pytest.mark.parametrize("wakes", [True, False])
 def test_a_tide_is_set_going_for_each_agent_that_wakes(hearth, monkeypatch, tmp_path, two, wakes):
     registry_of(monkeypatch, tmp_path, wakes=wakes)

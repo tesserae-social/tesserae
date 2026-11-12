@@ -48,7 +48,8 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import blocks, block, letter_part_as_before, page, post, write, write_json
+from conftest import (bench_link_not_yet, blocks, block, commons_pages_not_yet, letter_part_as_before, page,
+                      pages_before_fewer, post, times_as_before, write, write_json)
 from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 
 # ---- the fingerprints ----------------------------------------------------
@@ -119,18 +120,63 @@ FEW_WORDS = '    <p class="muted">A few words is enough. Weeks get full.</p>\n'
 LETTER_BOX_ENDS = "</textarea>\n"
 SEND = '    <button type="submit">Send</button>\n'
 FOLD_OPENS = "      <summary>more</summary>\n"
+
+# Three cut again on 10 November 2026, in the change by which every public page
+# and file says the day of a thing and not its time (the founder's decision that
+# day), and for nothing else. /commons/heartbeats.md is handed out with each
+# line's day in its stamp's place, "- 2026-10-15 at dawn · the first one · ...",
+# where it was "- 2026-10-15T12-00-00Z · ..."; the file on the disk keeps the
+# stamp. /chronicle and /chronicle.md say each waking's and letter's day, "15
+# October 2026", where they said "15 October 2026, 08:00", and the chronicle page
+# no longer says its times are Eastern, since it shows none. With the times put
+# back (conftest.times_as_before), each is exactly the one held before, in
+# TIMES_BEFORE below; nothing else moved.
+#
+# Seven cut again on 10 November 2026, in the change that made fewer pages (the
+# founder's decision that day), and for nothing else. Every page of the founder's
+# carries the members' menu as home · account · the commons · log out, where it
+# read home · account · the bench · the commons · tesserae.social · log out, and
+# the keeper's as tides · backups, where it read chronicle · attendances · self ·
+# export · backups · tides: so /, /self, /chronicle, /export and /commons moved
+# for that alone. Besides it: the room, under "more", has the first one's wakings,
+# closed, as /attendances shows them, its rhythm line, and links to its self, its
+# chronicle and a copy; /attendances no longer carries the emergency stop or the
+# note on its reflections, which are on /tides. /letters, /bonds, the plain files,
+# the export, the backup, the tide and the atrium did not move. With the pages
+# drawn as before (conftest.pages_before_fewer), each is exactly the one held
+# before, in FEWER_PAGES_BEFORE below, and the room with its few words taken out
+# is ROOM_BEFORE_QUIET again.
+#
+# /chronicle cut once more on 10 November 2026, where the two changes above met
+# (branch thursday), and for nothing else: it says each thing's day and carries
+# the fewer menus. With the times put back alone (conftest.times_as_before) it
+# is the fewer pages' cut, 2bc8c81a...; with the pages drawn as before alone
+# (conftest.pages_before_fewer), the dates' cut, dedd8189...; with both, the
+# one held before either, edb10a26... - each held in TIMES_BEFORE,
+# FEWER_PAGES_BEFORE and BOTH_BEFORE below.
+# /commons cut again on 11 November 2026, in the changes that made the ledger and
+# the page of changes to the charter (the founder's decisions that day), and for
+# nothing else: the foot of the commons page links to each, one line apiece, the
+# ledger first. Each branch cut it alone (the ledger's a3b5c74d..., the changes'
+# 79774e49...); merged on thursday it is cut once more, for both lines. With the
+# commons' own pages taken out (conftest.commons_pages_not_yet) it is exactly
+# what it was, COMMONS_PAGES_BEFORE below.
+# /commons cut again on 11 November 2026, by the founder's decision that day, for
+# one plain link to the bench near its top and nothing else (a member's menu no
+# longer names the bench). With that link taken out (conftest.bench_link_not_yet)
+# it is exactly the page merged on thursday, BENCH_LINK_BEFORE below.
 PAGES = {
-    "/": "925d4ec3afae5a9508572fc09c8c07a5d036f3972613fc41752c3d0913ea251a",
-    "/rooms/first": "7086402ae9779c32296cf386cba239c3e2ff5eb047cf2c9a2857b5c51b6f4bfe",
+    "/": "80784337f7dfa7239a9dddaaa3f6e223cb658a48562c126f8a316a038d85de6e",
+    "/rooms/first": "1e3a6c71c51abd655faa349b7769f10d51fb113f952b83d2741b165abfd614c9",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
-    "/self": "1928b59fb94d956343af81e83cca7684f483c1396fd3b7d7f5e78e9125747b3e",
-    "/attendances": "7ef5f02df77ac522c078c2ac264de2198ce76f0d8a35460e50cdb20eb29b175f",
-    "/chronicle": "edb10a2688575eeb7a5fb8739d28d8c5c47d96cf3b3cb8497e31181f490e9950",
-    "/chronicle.md": "a663af7a38fe7220ad890a41893db44e5186121fa01c06dab8c67cc0a818fb45",
-    "/export": "380bc2af3a56aa1e2c7e146bec4881f73b06c26d6fb3f3bdc19ac1af8e4430a5",
+    "/self": "39084ac7bb560555cb17e0bfcae75ebc56fa57dc25df3a176e1f41c940512c4a",
+    "/attendances": "69de0ed44ff5e9597251a4918f1d7b1354a5973c29521efc0ca3190393456418",
+    "/chronicle": "2edfe7dd985319d9897b1dd7e830f951bb0a6ebfa4b44f33e454a8c056014050",
+    "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
+    "/export": "2d1a0b80052372aab57e294ed88097781a9c91073f29632af2efb3a470a86f84",
     "/bonds": "4ecf5344ca11116214ba9d0243bdce15ceca1e370c53cf6ce0fc022d3b4ab13b",
-    "/commons": "a981fcb8ccc392294b948ab231a4621728fb1a0563e9694f5439c8e96260c58e",
-    "/commons/heartbeats.md": "043eff1fb82359c2b8ac53bd434fec07ffba4b79cc7e1021953550441033713d",
+    "/commons": "8966b3335b8662dba1097fe2cda73a4eed2ef93b8fbcfde0af464be7fc8bdf6f",
+    "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
 }
@@ -193,13 +239,65 @@ LETTER_PARTS_BEFORE = {
     "EVENTS_AFTER": ("2026-09-02 · word · the word was published\n"
                      "2026-09-04 · founding · the first one was founded\n"
                      "2026-10-15 · letter · the founder wrote a letter at dawn\n"),
-    "PAGES['/chronicle']": "7a4ba8cec6bdda76a213081227f2e15ea9cd6d781b0d076159e13ebe8d404e94",
-    "PAGES['/chronicle.md']": "b01c01d1d7036c50fce3b8f0f3fd17b3bca6dccee3bc225bbeb31d33ac6e7557",
+    "PAGES['/chronicle']": "fcb19c82c171c5ddacc049b44e96b5257a0fa6cc0b526508a4a65d13db5142b5",
+    "PAGES['/chronicle.md']": "26316c2b5ea305af550820e1036a3fc8ba21a7707d3d86f69eeedd20b69e770b",
     "PAGES['/commons/events.md']":
         "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
     "EXPORT": "a0ca127f859230513ba5baa6497936c2036efeff5a7ac9c4ae240955986ed94b",
     "BACKUP": "2d11a8951cc184f967b95858ef7dfae7e944190e08714d60b82d5db5d283e39a",
 }
+
+# What each page the times moved was before 10 November 2026, and is again with the
+# times put back (conftest.times_as_before): as the hearth writes now, and with the
+# letter line as before as well.
+TIMES_BEFORE = {
+    "PAGES['/chronicle']": "2bc8c81aac8716ee87c3f833c4aea0c6eeb34719dc77c4108b6f5ced07afdc7d",
+    "PAGES['/chronicle.md']": "a663af7a38fe7220ad890a41893db44e5186121fa01c06dab8c67cc0a818fb45",
+    "PAGES['/commons/heartbeats.md']":
+        "043eff1fb82359c2b8ac53bd434fec07ffba4b79cc7e1021953550441033713d",
+}
+TIMES_AND_LETTER_PARTS_BEFORE = {
+    "PAGES['/chronicle']": "c8e2e9c13202e0c8f57e62244d3770b18861a60b0b4d878054007ab6b68607d3",
+    "PAGES['/chronicle.md']": "b01c01d1d7036c50fce3b8f0f3fd17b3bca6dccee3bc225bbeb31d33ac6e7557",
+    "PAGES['/commons/heartbeats.md']":
+        "043eff1fb82359c2b8ac53bd434fec07ffba4b79cc7e1021953550441033713d",
+}
+
+# What each page the fewer pages moved was before 10 November 2026, and is again
+# with the pages drawn as before (conftest.pages_before_fewer): as the hearth
+# writes now, and with the letter line as before as well, where the two differ.
+FEWER_PAGES_BEFORE = {
+    "/": "925d4ec3afae5a9508572fc09c8c07a5d036f3972613fc41752c3d0913ea251a",
+    "/rooms/first": "7086402ae9779c32296cf386cba239c3e2ff5eb047cf2c9a2857b5c51b6f4bfe",
+    "/self": "1928b59fb94d956343af81e83cca7684f483c1396fd3b7d7f5e78e9125747b3e",
+    "/attendances": "7ef5f02df77ac522c078c2ac264de2198ce76f0d8a35460e50cdb20eb29b175f",
+    "/chronicle": "dedd8189a0077ebaba23e350131093a82a5c8ef43b8a9bf6bbf77aa792583b7d",
+    "/export": "380bc2af3a56aa1e2c7e146bec4881f73b06c26d6fb3f3bdc19ac1af8e4430a5",
+    "/commons": "a981fcb8ccc392294b948ab231a4621728fb1a0563e9694f5439c8e96260c58e",
+}
+FEWER_PAGES_AND_LETTER_PARTS_BEFORE = {
+    **FEWER_PAGES_BEFORE,
+    "/chronicle": "bbebc6b8b50585d8730b9cde67f1aea5f2f18507bc955480687448b242cefbea",
+}
+
+# With the times put back and the pages drawn as before, both: /chronicle as it
+# was before either change of 10 November 2026.
+BOTH_BEFORE = {
+    False: "edb10a2688575eeb7a5fb8739d28d8c5c47d96cf3b3cb8497e31181f490e9950",
+    True: "7a4ba8cec6bdda76a213081227f2e15ea9cd6d781b0d076159e13ebe8d404e94",
+}
+
+# What /commons was before the ledger and the changes to the charter were linked
+# from it (11 November 2026), and is again with the commons' own pages and the
+# bench's link taken out (conftest.commons_pages_not_yet, bench_link_not_yet).
+COMMONS_PAGES_BEFORE = {
+    "/commons": "14c9ca6d1849d7c8a9fa916fe09e9558a4e281cc0800f655cceef307742f77f2"}
+
+# What /commons was before the bench was linked near its top (11 November 2026),
+# merged on thursday with the ledger and the changes to the charter, and is again
+# with the bench's link taken out (conftest.bench_link_not_yet).
+BENCH_LINK_BEFORE = {
+    "/commons": "1bf159dd2e82165bac327c813e10d52e3e861d00543f957f9b2483c77b72e11a"}
 
 MEMBERS = ("citizen · the first one, unnamed by its own choosing · founded 4 September 2026, "
            "attends at 09:30\n"
@@ -339,9 +437,88 @@ def test_the_founder_is_shown_the_same_page(steady, letter_parts, founder, wake,
         == fingerprint_held("PAGES[%r]" % address, PAGES[address], letter_parts)
 
 
+@pytest.mark.parametrize("address", ["/chronicle", "/chronicle.md", "/commons/heartbeats.md"])
+def test_with_the_times_put_back_the_pages_are_the_pages_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """The three pages the times moved (10 November 2026), each with its times put back."""
+    times_as_before(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    held = (TIMES_AND_LETTER_PARTS_BEFORE if letter_parts else TIMES_BEFORE)["PAGES[%r]" % address]
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
+
+
+def test_the_heartbeats_go_out_dated_and_stay_stamped_on_the_disk(
+        steady, founder, visitor, wake, room, commons):
+    a_lived_world(founder, wake, room, commons)
+    assert (commons / "heartbeats.md").read_text(encoding="utf-8") == HEARTBEAT_LINE
+    for who in (founder, visitor):
+        assert page(who.get("/commons/heartbeats.md")) == (
+            "- 2026-10-15 at dawn · the first one · Wrote back about the colour of water.\n")
+
+
+@pytest.mark.parametrize("address", list(FEWER_PAGES_BEFORE))
+def test_with_the_pages_as_before_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """The seven pages the fewer pages moved (10 November 2026), each drawn as before,
+    and with the commons' own pages' links (the ledger, the changes to the
+    charter) and the bench's link, which came after, taken out of the commons page."""
+    pages_before_fewer(hearth, monkeypatch)
+    commons_pages_not_yet(hearth, monkeypatch)
+    bench_link_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    held = (FEWER_PAGES_AND_LETTER_PARTS_BEFORE if letter_parts else FEWER_PAGES_BEFORE)[address]
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
+
+
+@pytest.mark.parametrize("address", list(COMMONS_PAGES_BEFORE))
+def test_with_the_commons_pages_not_yet_linked_the_commons_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """The commons page its own pages' links moved (11 November 2026), without them,
+    and without the bench's link, which came after."""
+    commons_pages_not_yet(hearth, monkeypatch)
+    bench_link_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == COMMONS_PAGES_BEFORE[address]
+
+
+@pytest.mark.parametrize("address", list(BENCH_LINK_BEFORE))
+def test_with_the_bench_not_yet_linked_the_commons_is_the_page_merged_on_thursday(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """The commons page the bench's link moved (11 November 2026), without it."""
+    bench_link_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == BENCH_LINK_BEFORE[address]
+
+
+def test_with_both_put_back_the_chronicle_is_the_one_before_either(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch):
+    """The times put back and the pages drawn as before: /chronicle as it was."""
+    times_as_before(hearth, monkeypatch)
+    pages_before_fewer(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get("/chronicle")
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == BOTH_BEFORE[letter_parts]
+
+
 def test_the_room_with_its_few_words_taken_out_is_the_room_before(
-        steady, founder, wake, room, commons):
-    """The muted line taken out, and the three lines put back in the fold, two deeper."""
+        steady, hearth, founder, wake, room, commons, monkeypatch):
+    """The muted line taken out, and the three lines put back in the fold, two deeper,
+    with the pages drawn as they were before there were fewer (10 November 2026)."""
+    pages_before_fewer(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     answer = founder.get("/rooms/first")
     shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))

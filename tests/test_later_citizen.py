@@ -276,6 +276,21 @@ def test_it_says_the_one_i_write_to_and_keeps_its_clock(later, monkeypatch):
     assert not re.search(r"dawn is yours|move your dawn|yours to move", shown, re.I)
 
 
+def test_its_starting_dawn_is_not_said_to_be_its_choice(later, data_dir, monkeypatch):
+    # the founder's decision of 10 November: the dawn written at its founding is said as
+    # its waking time, and never "by your choice", until it chooses one of its own
+    import found_agent
+    write_json(data_dir / "packets" / "second" / "rhythm.json", found_agent.STARTING_RHYTHM)
+    shown = wake_as(later, monkeypatch, SAID).shown
+    assert "You wake daily at dawn." in shown
+    assert "You wake daily at dawn, by your choice" not in shown
+    assert not re.search(r"dawn is yours|move your dawn|yours to move", shown, re.I)
+    write_json(data_dir / "packets" / "second" / "rhythm.json",
+               {**found_agent.STARTING_RHYTHM, "set_at": "2026-10-14T09-00-00Z"})
+    shown = wake_as(later, monkeypatch, "").shown
+    assert "You wake daily at dawn, by your choice" in shown
+
+
 # ---- what must never be in its reading -----------------------------------
 
 def proposal_asked_of_it(home):

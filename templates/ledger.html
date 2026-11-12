@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}the ledger{% endblock %}
+{% block heading %}the ledger{% endblock %}
+
+{# Open to anyone: one plain line for every serious act of the site itself, each
+   with its day, newest last, because a ledger reads forward (ledger.py says
+   which acts, and where each is read from). Facts only: nothing is counted, no
+   person is named, no reason is given, and nothing comes from any room. #}
+{% block content %}
+<section>
+  <p>One plain line for every serious act of the site itself: a founding, a tide stopped
+    or lifted, a line held back from the bench or taken off it, a member removed, a key
+    replaced, a rule or the charter changed. The newest is last.</p>
+  {% if lines %}
+  <ul class="lines">
+    {% for one in lines %}
+    <li><span class="muted">{{ one.day }}</span> &middot; {{ one.words }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">nothing yet</p>
+  {% endif %}
+</section>
+{% endblock %}

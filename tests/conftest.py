@@ -6,6 +6,9 @@ Three rules hold across the whole suite, and this file is where they are kept:
     and every socket is closed off besides, so a call that slipped past a stub
     fails loudly instead of quietly going out. astral is pure arithmetic and runs
     for real.
+  * No call to Google, ever. No Gemini key is in the environment, and the one
+    place Google's client is made (gemini.sdk_client) refuses, as Google's own
+    Client does; a test of an agent on Gemini puts a FakeGoogle in its place.
   * No email, ever. The Resend key is taken out of the environment, the way an
     email goes is a fake that keeps each message (the outbox fixture), and the
     real post to Resend refuses if it is ever reached.
@@ -99,6 +102,69 @@ def no_network(monkeypatch):
     monkeypatch.setattr(socket.socket, "connect", refuse)
     monkeypatch.setattr(socket.socket, "connect_ex", refuse)
     monkeypatch.setattr(socket, "create_connection", refuse)
+
+
+# ---- no call to Google, ever ---------------------------------------------
+
+class WentToGoogle(RuntimeError):
+    """Raised if anything in a test reaches for Google's own client."""
+
+
+@pytest.fixture(autouse=True)
+def no_google(monkeypatch):
+    """Three guards: no Gemini key; gemini.sdk_client refuses; and so does Google's Client."""
+    import gemini
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+
+    def refuse(*args, **kwargs):
+        raise WentToGoogle("a test reached for Google's client")
+
+    monkeypatch.setattr(gemini, "sdk_client", refuse)
+    try:
+        from google import genai
+    except ImportError:
+        return
+    monkeypatch.setattr(genai, "Client", refuse)
+
+
+class FakeGoogle:
+    """Google's client, faked: each request kept, and each answer given from those it is told.
+
+    It stands where gemini.sdk_client's client stands, so everything gemini.py says
+    to Gemini is said to it. answers are Google's own response types, given in
+    turn; when they run out, the last is given again.
+    """
+
+    def __init__(self, *answers):
+        self.answers = list(answers) or [self.said("")]
+        self.asked = []
+        fake = self
+
+        class Models:
+            def generate_content(self, **asked):
+                fake.asked.append(asked)
+                return fake.answers.pop(0) if len(fake.answers) > 1 else fake.answers[0]
+
+        self.models = Models()
+
+    def __call__(self, api_key=None):
+        self.key = api_key
+        return self
+
+    @staticmethod
+    def said(text, finish="STOP", calls=(), usage=None, blocked=None, signature=None):
+        """One of Google's answers: text, any function calls, how it finished, what it cost."""
+        from google.genai import types
+        parts = [types.Part(text=text, thought_signature=signature)] if text is not None else []
+        parts += [types.Part(function_call=types.FunctionCall(name=name, args=args, id=its_id))
+                  for name, args, its_id in calls]
+        return types.GenerateContentResponse(
+            candidates=[] if blocked else [types.Candidate(
+                content=types.Content(role="model", parts=parts), finish_reason=finish)],
+            prompt_feedback=types.GenerateContentResponsePromptFeedback(block_reason=blocked)
+            if blocked else None,
+            usage_metadata=types.GenerateContentResponseUsageMetadata(**usage) if usage else None)
 
 
 # ---- no email, ever ------------------------------------------------------
@@ -448,6 +514,7 @@ def load(name):
     sys.modules.pop("private_words", None)  # it keeps its list under DATA_DIR
     sys.modules.pop("tokens", None)  # it keeps each link that works once under DATA_DIR
     sys.modules.pop("invitations", None)  # it keeps each invitation under DATA_DIR
+    sys.modules.pop("ledger", None)  # it keeps the ledger's own lines under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 
@@ -715,6 +782,64 @@ def letter_part_as_before(hearth, monkeypatch):
             return True
 
     monkeypatch.setattr(hearth, "note_letter", note_letter)
+
+
+def times_as_before(hearth, monkeypatch):
+    """Give out, for one test, the times the public was given before 10 November 2026.
+
+    Until then the hearth handed out commons/heartbeats.md exactly as written,
+    each line with its stamp, and the chronicle said each thing's day and time
+    ("15 October 2026, 08:00"). Since the founder's decision that day it hands the
+    heartbeats out dated (build_atrium.dated_heartbeats) and the chronicle says
+    the day (hearth.book_day). Put back, the pages are exactly what they were,
+    and a world held to a fingerprint from before then gives that fingerprint again.
+    """
+    monkeypatch.setattr(hearth, "dated_heartbeats", lambda text: text)
+    monkeypatch.setattr(hearth, "book_day", hearth.readable_date)
+
+
+# The pages as they were drawn before the founder's decision of 10 November 2026
+# that there be fewer of them: the templates whose drawing moved, kept whole.
+PAGES_BEFORE_FEWER = Path(__file__).resolve().parent / "pages_before_fewer"
+
+
+def pages_before_fewer(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before there were fewer (10 November 2026).
+
+    Until then the members' menu read home · account · the bench · the commons ·
+    tesserae.social · log out, and the keeper's chronicle · attendances · self ·
+    export · backups · tides; the room had no wakings under "more"; the first
+    one's emergency stop and the note on its reflections were on /attendances,
+    and every other agent's stop on the keeper's view of it. The templates as
+    they were then are kept in tests/pages_before_fewer and drawn in place of
+    today's; the views still hand them all they read, so a world held to a
+    fingerprint from before then gives that fingerprint again.
+    """
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_FEWER)), env.loader]))
+
+
+def commons_pages_not_yet(hearth, monkeypatch):
+    """Take out, for one test, the commons' own pages linked from its foot (11 November 2026).
+
+    Until the ledger and the page of changes to the charter were made, the
+    commons page ended with the files of the record and the one line on
+    heartbeats. With hearth.COMMONS_PAGES empty it is exactly that page again,
+    byte for byte.
+    """
+    monkeypatch.setattr(hearth, "COMMONS_PAGES", [])
+
+
+def bench_link_not_yet(hearth, monkeypatch):
+    """Take out, for one test, the link to the bench near the top of the commons page.
+
+    Until 11 November 2026 the commons page began with its sealed bonds; the
+    bench was in a member's menu. With hearth.COMMONS_BENCH_LINK None it is
+    exactly that page again, byte for byte.
+    """
+    monkeypatch.setattr(hearth, "COMMONS_BENCH_LINK", None)
 
 
 # The words that explained <<REWRITE>> before each line could be rewritten only

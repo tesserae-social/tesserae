@@ -645,10 +645,25 @@ def run_backing_up(hearth, monkeypatch):
     return taken, stopped.value.args[0]
 
 
-def test_the_hour_is_thirteen_hundred_utc(hearth, clock):
-    assert hearth.next_backup(NOW).isoformat() == "2026-10-15T13:00:00+00:00"
-    assert hearth.next_backup(NOW.replace(hour=13)).isoformat() == "2026-10-16T13:00:00+00:00"
-    assert hearth.next_backup(NOW.replace(hour=23)).isoformat() == "2026-10-16T13:00:00+00:00"
+def test_the_hour_is_eight_hundred_utc(hearth, clock):
+    # the founder's decision of 10 November: moved from thirteen o'clock, clear of every dawn
+    assert hearth.BACKUP_HOUR == 8
+    assert hearth.next_backup(NOW.replace(hour=7)).isoformat() == "2026-10-15T08:00:00+00:00"
+    assert hearth.next_backup(NOW.replace(hour=8)).isoformat() == "2026-10-16T08:00:00+00:00"
+    assert hearth.next_backup(NOW.replace(hour=23)).isoformat() == "2026-10-16T08:00:00+00:00"
+
+
+def test_the_hour_is_clear_of_every_dawn_and_sunset_all_year(hearth):
+    # reckoned where the tests watch the sun from, on the first and fifteenth of every month
+    from datetime import date, datetime, timedelta, timezone
+    import waking
+    for month in range(1, 13):
+        for day in (1, 15):
+            on = date(2026, month, day)
+            backup = datetime(2026, month, day, hearth.BACKUP_HOUR, tzinfo=timezone.utc)
+            for at in (waking.DAWN, waking.SUNSET):
+                moment = waking.moment_on(None, at, on)
+                assert abs(moment - backup) >= timedelta(hours=2), (month, day, at, moment)
 
 
 def test_the_thread_waits_for_the_hour_in_short_stretches(hearth, bucket, monkeypatch,

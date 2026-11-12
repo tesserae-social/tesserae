@@ -17,8 +17,14 @@ from test_named_events import RECORD, SECOND, THIRD, THREE_FOUNDINGS, book, regi
 
 REPO = Path(__file__).resolve().parent.parent
 
-# The record as it stands today, as kept in the repository and as the commons copy has it.
-TODAY = [REPO / "record" / "commons" / "events.md", REPO / "commons" / "events.md"]
+# The record as it stands today: as kept in the repository, and as the commons copy at
+# the repository's root had it. That copy, a stale one from local work and public
+# through the site, left the repository on 10 November 2026; its three lines are kept
+# here as the scratch copy the test reads.
+COMMONS_COPY = ("2026-09-02 · word · the word was published\n"
+                "2026-09-04 · founding · the first one was founded\n"
+                "2026-09-21 · event · a line was taken off the bench\n")
+TODAY = [(REPO / "record" / "commons" / "events.md").read_text(encoding="utf-8"), COMMONS_COPY]
 
 
 def by_place(hearth, agent_id=None):
@@ -84,7 +90,7 @@ def test_a_renamed_agent_is_found_through_formerly():
 
 @pytest.mark.parametrize("record", TODAY, ids=["record", "commons"])
 def test_today_s_record_gives_the_same_day_and_book(record, hearth, attend, commons):
-    write(commons / "events.md", record.read_text(encoding="utf-8"))
+    write(commons / "events.md", record)
     assert attend.founding_day() == day_by_place(attend)
     assert attend.founding_day().isoformat() == "2026-09-04"
     assert book(hearth) == by_place(hearth)

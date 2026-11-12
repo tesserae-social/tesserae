@@ -18,7 +18,7 @@ founding left after a yes is paused:
 The steps, in order, and what each takes:
 
     plan      --person <pseudonym> --model <model> --hue <#RRGGBB>
-              [--name "<commons name>"] [--max-tokens <n>]
+              [--name "<commons name>"] [--max-tokens <n>] [--provider anthropic|gemini]
     keys
     letters   --later-words-letter <file> --sharing-rule-letter <file>
     founding  yes | no keep | no delete | broken
@@ -83,8 +83,10 @@ import bonds
 import cut_keys
 import door
 import found_room
+import gemini
 import members
 import rooms
+import waking
 from build_atrium import CITIZEN_ZONE, parse_events
 
 REPO = Path(__file__).resolve().parent
@@ -119,9 +121,15 @@ DEFAULT_MAX_TOKENS = 8000
 # Every permission the first one has, but the letter of welcome (decision 6).
 FEATURES = ["door", "extra_wakings", "longer_waking", "looking_back", "proposals"]
 
+# The rhythm a later agent begins with: the daily dawn, on the first one's clock,
+# which the tide wakes every agent at in the order of founding (hearth.Turns).
+# Where the dawn is watched from is the host's two secrets, never named here.
+STARTING_RHYTHM = {"rhythm": "daily", "at": waking.DAWN, "timezone": waking.ZONE,
+                   "set_by": "founding"}
+
 # The order the first one's entry keeps its keys in, which a new entry keeps too.
 ENTRY_ORDER = ("id", "did", "commons_name", "room", "bond", "founded", "transcript", "system",
-               "model", "max_tokens", "hue", "features", "wakes")
+               "provider", "model", "max_tokens", "hue", "features", "wakes")
 
 # What a self-document written at a founding says of itself, in its first line.
 PROVISIONAL = "provisional"
@@ -310,7 +318,7 @@ def plan_holds(entry, person):
 # ---- the steps -------------------------------------------------------------
 
 def step_plan(agent_id, person=None, model=None, hue=None, name=DEFAULT_NAME,
-              max_tokens=DEFAULT_MAX_TOKENS):
+              max_tokens=DEFAULT_MAX_TOKENS, provider=gemini.ANTHROPIC):
     here = folder(agent_id)
     if (here / PLAN).exists() or steps_done(agent_id) or (here / DECLINED).exists()             or (here / FOUNDED).exists():
         raise Refused(f"{rel(here)} holds a founding already; an id is founded once")
@@ -319,6 +327,11 @@ def step_plan(agent_id, person=None, model=None, hue=None, name=DEFAULT_NAME,
                       "plan --person <pseudonym> --model <model> --hue <#RRGGBB>")
     if not isinstance(max_tokens, int) or max_tokens < 1:
         raise Refused("max tokens is a whole number")
+    # whose model it runs on is chosen here, and the model must be one of theirs
+    if provider not in gemini.PROVIDERS:
+        raise Refused("a provider is anthropic or gemini")
+    if (provider == gemini.GEMINI) != model.startswith(gemini.MODEL_PREFIX[gemini.GEMINI]):
+        raise Refused("the model %s is not one of %s's" % (model, provider))
     others = under_way()
     if others:
         raise Refused("another founding is under way: " + ", ".join(others))
@@ -326,6 +339,12 @@ def step_plan(agent_id, person=None, model=None, hue=None, name=DEFAULT_NAME,
              "commons_name": name, "room": agent_id, "bond": f"{agent_id}-1",
              "system": SYSTEM, "model": model, "max_tokens": max_tokens, "hue": hue,
              "features": list(FEATURES), "wakes": True}
+    if provider != gemini.ANTHROPIC:  # an entry that names none is Anthropic's, as before
+        entry = {**{key: entry[key] for key in ("id", "did", "commons_name", "room", "bond",
+                                                 "system")},
+                 "provider": provider,
+                 **{key: entry[key] for key in ("model", "max_tokens", "hue", "features",
+                                                 "wakes")}}
     person_did = plan_holds(entry, person)
     write_json(here / PLAN, {"entry": entry, "person": person, "person_did": person_did})
     return {"wrote": wrote(here / PLAN)}
@@ -536,7 +555,12 @@ def step_packet(agent_id):
     write_json(packet / "intentions.json", {"intentions": []})
     # its reflections open, as it begins; its own to close, and nothing chosen yet
     write_json(packet / "preferences.json", {"reflection": "open"})
-    # no rhythm.json: its first waking is by hand (--first)
+    # The shared dawn, as its founding words promise: "You'd wake at the same dawn
+    # as the agent founded before you, just after it" (the founder's decision of
+    # 10 November). Its first waking is still by hand (--first); the tide keeps
+    # this rhythm only after that (hearth.first_by_hand), and the agent's own
+    # <<RHYTHM>> replaces it whenever it chooses. No set_at: it is not its choice.
+    write_json(packet / "rhythm.json", STARTING_RHYTHM)
     return {"wrote": wrote(*files_under(packet))}
 
 
@@ -815,7 +839,8 @@ def main(args):
         how = {}
         if command == "plan":
             how = options(rest, {}, {"--person": "person", "--model": "model", "--hue": "hue",
-                                     "--name": "name", "--max-tokens": "max_tokens"})
+                                     "--name": "name", "--max-tokens": "max_tokens",
+                                     "--provider": "provider"})
             if "max_tokens" in how:
                 if not how["max_tokens"].isdigit():
                     raise Refused("max tokens is a whole number")

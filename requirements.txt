@@ -8,3 +8,4 @@ astral
 boto3
 cryptography
 mnemonic
+google-genai

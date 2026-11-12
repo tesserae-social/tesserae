@@ -183,12 +183,14 @@ def test_what_is_kept_is_still_utc(founder, wake, clock, hearth, room):
     assert "UTC" not in words(page(founder.get("/chronicle")))     # the page
 
 
-def test_the_chronicle_taken_away_is_in_eastern_time_too(founder, wake, clock, room):
+def test_the_chronicle_taken_away_says_the_eastern_day_and_no_time(founder, wake, clock, room):
+    # the chronicle says the day of a thing and not its time (the founder, 10 November 2026)
     answered_yes(founder, wake, room, clock)  # asked at 12:00 UTC, answered at 12:06
     taken = page(founder.get("/chronicle.md"))
     assert "UTC" not in taken
-    assert "15 October 2026, 08:00 · a bond was proposed" in taken.splitlines()
-    assert "15 October 2026, 08:06 · answered the proposal" in taken.splitlines()
+    assert "15 October 2026 · a bond was proposed" in taken.splitlines()
+    assert "15 October 2026 · answered the proposal" in taken.splitlines()
+    assert "08:0" not in taken
 
 
 # ---- 4. the seal, and what is in progress, at the top --------------------

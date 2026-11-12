@@ -63,6 +63,9 @@
     <h3>{{ row.agent.commons_name|first_upper }}</h3>
     {% if row.wakes %}
     <p class="muted">{{ row.rhythm_note }}</p>
+    {% if row.reflection_time %}
+    <p class="muted">{{ row.reflection_time }}</p>
+    {% endif %}
     {% else %}
     <p class="muted">{{ dormant }}</p>
     {% endif %}

@@ -1189,6 +1189,27 @@ def rhythm_note(of=None):
     return said
 
 
+def reflection_time_note(of=None):
+    """The line on an agent's card on /tides saying its weekly reflection waking, where it has
+    one: its day and time, and when the tide will next hold it, worked out as the tide does
+    (next_reflection), or None where it has none (the founder, 12 November 2026)."""
+    who = of or rooms.FIRST
+    if not reflection_on(who):
+        return None
+    choice = reflecting.read(packet_of(of), who)
+    if not choice:
+        return None
+    said = f"Reflection: {reflecting.said(choice)}"
+    setting = rhythm(of)
+    if first_by_hand(setting, of) or latest_attendance_at(of) is None:
+        return said + ", once its first waking (by hand) is held."
+    try:
+        coming = next_reflection(setting, of) if setting and tide_kept(setting) else None
+    except waking.Unplaced as unplaced:
+        return f"{said} · cannot be kept. {unplaced}"
+    return f"{said} · next: {said_moment(coming)}" if coming else said
+
+
 # ---- who is here, as the rhythm and the doors have it ----------------------
 
 # commons/members.md is the founder's to write, and two phrases in it are kept
@@ -5412,6 +5433,8 @@ def tides_shown():
                      "reflections": reflection_note(preferences(agent)) if ours else None,
                      "room": url_for("room", room_id=agent["room"]) if ours else None,
                      "rhythm_note": rhythm_note(agent["id"]) if agent.get("wakes") else None,
+                     "reflection_time": (reflection_time_note(agent["id"])
+                                         if agent.get("wakes") else None),
                      "stop": keeper_stop(agent), "together": stop_stamp(standing) is not None,
                      "rest": keeper_rest(agent), "stamp": stop_stamp(standing),
                      "since": standing.get("since") if isinstance(standing, dict) else None,

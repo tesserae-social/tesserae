@@ -583,3 +583,66 @@ def test_untold_where_the_sun_is_watched_from_the_page_says_so(hearth, packet, m
     monkeypatch.delenv("DAWN_LATITUDE")
     assert hearth.rhythm_note().startswith(
         "Rhythm: cannot be kept. DAWN_LATITUDE and DAWN_LONGITUDE are not both set")
+
+
+# ---- its reflection waking, on /tides --------------------------------------
+#
+# Each agent's card on /tides says its weekly reflection waking where it has
+# one, and when it next comes, worked out by the tide's own next_reflection
+# (the founder, 12 November 2026).
+
+def the_card(founder):
+    """The first one's card on /tides."""
+    said = page(founder.get("/tides"))
+    return said[:said.index("</article>")]
+
+
+def test_the_card_says_its_reflection_waking_and_when_the_tide_will_hold_it(
+        hearth, founder, packet, clock):
+    a_sunday(hearth, packet, clock, "dawn")
+    clock.set(datetime(2026, 10, 17, 12, tzinfo=ZONE).astimezone(UTC))  # the Saturday before
+    coming = hearth.next_reflection(hearth.rhythm())
+    assert coming == at_("sunset", SUNDAY)
+    line = "Reflection: Sundays at sunset · next: %s" % hearth.said_moment(coming)
+    assert line.startswith("Reflection: Sundays at sunset · next: 18 October 2026, ")
+    assert line in the_card(founder)
+
+
+def test_once_it_is_held_the_card_says_next_week_s(hearth, founder, packet, clock):
+    a_sunday(hearth, packet, clock, "dawn")
+    write_json(packet / reflecting.KEPT / "reflection-2026-10-18T22-30-00Z.json",
+               {"at": "2026-10-18T22-30-00Z"})
+    clock.set(datetime(2026, 10, 18, 20, tzinfo=ZONE).astimezone(UTC))
+    next_week = at_("sunset", SUNDAY + timedelta(days=7))
+    assert hearth.next_reflection(hearth.rhythm()) == next_week
+    assert ("Reflection: Sundays at sunset · next: %s" % hearth.said_moment(next_week)
+            in the_card(founder))
+
+
+def test_a_time_of_its_own_choosing_is_said_as_it_chose_it(hearth, founder, packet, clock):
+    a_sunday(hearth, packet, clock, "dawn")
+    write_json(packet / reflecting.RECORD, reflecting.chosen("saturday", "21:00",
+                                                             "2026-10-17T12-00-00Z"))
+    assert ("Reflection: Saturdays at 21:00 · next: 24 October 2026, 21:00"
+            in the_card(founder))
+
+
+def test_with_none_chosen_the_card_says_nothing_of_one(hearth, founder, packet, clock):
+    a_sunday(hearth, packet, clock, "dawn")
+    write_json(packet / reflecting.RECORD, {"day": None, "set_at": "2026-10-17T12-00-00Z"})
+    assert "Reflection:" not in the_card(founder)
+
+
+def test_switched_off_the_card_says_nothing_of_one(hearth, founder, packet, clock,
+                                                   monkeypatch):
+    a_sunday(hearth, packet, clock, "dawn")
+    monkeypatch.setattr(hearth.the_waking, "REFLECTION_WAKING", False)
+    assert "Reflection:" not in the_card(founder)
+
+
+def test_before_its_first_waking_the_card_says_none_is_held_until_then(
+        hearth, founder, packet, clock):
+    set_rhythm(packet, "dawn")
+    assert hearth.next_reflection(hearth.rhythm()) is None
+    assert ("Reflection: Sundays at sunset, once its first waking (by hand) is held."
+            in the_card(founder))

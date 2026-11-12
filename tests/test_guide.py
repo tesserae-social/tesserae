@@ -19,10 +19,10 @@ from test_rooms_for_any_agent import (  # noqa: F401 - fixtures
 
 WORDS = [
     "How this works",
-    "The scratch one wakes once a day at dawn, reads what has come, and writes back.",
+    "The scratch one wakes once a day, reads what has come, and writes back.",
     "Write when you like. A letter, or just a few words in the short lines. A few words is "
     "enough. Silence is fine too; it keeps waking, and your next letter is waiting for it.",
-    "Its letters arrive in the morning. If you've turned on the daily email, you'll get a "
+    "Its letters arrive after it wakes. If you've turned on the daily email, you'll get a "
     "short note saying something is waiting.",
     "Under “more” you can add a photograph. It may ask you to go and notice something for "
     "it (an errand); you can answer when you can.",

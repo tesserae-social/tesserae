@@ -122,6 +122,9 @@ import waking
 # one module. Whether the first one has a door yet at all is said in one place,
 # attend.DOOR_FOR_FIRST, and read from there each time it is wanted.
 import attend as the_waking
+# Each agent's weekly reflection waking, which it chooses at a waking and the
+# tide keeps here, through the one module (reflecting.py).
+import reflecting
 import door
 
 # The first one's proposals: made at its wakings and answered here, both through
@@ -753,7 +756,7 @@ WAKING = threading.Lock()
 ATTEND_LOCK = threading.Lock()
 
 
-def hold_attendance(tide=False, ended=None, again=False, of=None):
+def hold_attendance(tide=False, ended=None, again=False, of=None, reflect=False):
     """Wake an agent once, and wait for it: by the tide, or at its own asking.
 
     The first one where no other agent is named. None if the attendance was
@@ -768,8 +771,10 @@ def hold_attendance(tide=False, ended=None, again=False, of=None):
         raise
     try:
         command = [sys.executable, "attend.py"]
-        if not newest_first(packet_of(of) / ATTENDANCES.name, "*.json"):
+        if not reflect and not newest_first(packet_of(of) / ATTENDANCES.name, "*.json"):
             command.append("--first")
+        if reflect:
+            command.append("--reflect")  # its weekly reflection waking (attend.REFLECTION_WAKING)
         if tide:
             command.append("--tide")
         if ended:
@@ -1476,6 +1481,13 @@ def tide(of=None):
                 if again and (not coming or again[1] < coming):
                     keep_extra_waking(setting, *again, **how)
                     continue
+                # Its weekly reflection waking, where it has one, is kept first
+                # whenever it comes before the day's own: in addition to it, never
+                # in its place.
+                reflection = next_reflection(setting, **how) if reflection_on(who) else None
+                if reflection and (not coming or reflection < coming):
+                    keep_reflection(setting, reflection, **how)
+                    continue
                 TURNS.expect(who, coming)
                 if not coming:
                     time.sleep(TIDE_IDLE)  # nothing is asked of us; look again in an hour
@@ -1597,6 +1609,77 @@ def keep_extra_waking(setting, asked, when, of=None):
             trouble = hold_attendance(again=True, **how)
             tide_note("ran, at its own asking" if trouble is None else f"error: {trouble[0]}",
                       **how)
+
+
+# A reflection waking: once a week, on the day and at the time an agent chose
+# (reflecting.py, attend.REFLECTION_WAKING), in addition to that day's waking and
+# never in its place, through the same hold_attendance as every other waking,
+# in its turn. It is kept only for an agent that has attended at least once.
+# The keeper's stop and a rest of the agent's own come first: one that falls
+# while either stands is let go, and tide.log says so. One whose time has passed
+# on its day, the hearth not having run then, comes when the tide next looks
+# that day; one that went wrong, or was let go, is not tried again until the
+# next week. It is never counted among its attendances, so the day's waking
+# comes all the same. The founder's rest lets it come.
+REFLECTION_LET_GO = {}  # agent id: the local day a reflection waking was let go or went wrong
+
+
+def reflection_on(who):
+    """Whether an agent's reflection waking is kept: the first one's by
+    attend.REFLECTION_WAKING, another's by its registry entry naming it among its features."""
+    if who == rooms.FIRST:
+        return the_waking.REFLECTION_WAKING
+    return reflecting.on(agents.by_id(who))
+
+
+def reflection_held_on(setting, of=None):
+    """The latest local day an agent's reflection waking was held, let go, or went wrong."""
+    held = reflecting.last_held(packet_of(of))
+    days = [moment(held).astimezone(waking.zone(setting)).date()] if held else []
+    if (of or rooms.FIRST) in REFLECTION_LET_GO:
+        days.append(REFLECTION_LET_GO[of or rooms.FIRST])
+    return max(days) if days else None
+
+
+def next_reflection(setting, of=None):
+    """When an agent's next reflection waking comes, or None where none is due."""
+    if latest_attendance_at(of) is None:  # its first waking is by hand, and comes first
+        return None
+    choice = reflecting.read(packet_of(of), of or rooms.FIRST)
+    return reflecting.due(choice, setting, datetime.now(timezone.utc),
+                          reflection_held_on(setting, of))
+
+
+def keep_reflection(setting, when, of=None):
+    """Wait for a reflection waking, then hold it in its turn - or let it go, where a stop or
+    its own rest stands."""
+    who = of or rooms.FIRST
+    how = {} if who == rooms.FIRST else {"of": who}
+    TURNS.expect(who, when)
+    changed = False
+    while not changed:
+        left = (when - datetime.now(timezone.utc)).total_seconds()
+        if left <= 0:
+            break
+        time.sleep(min(left, TIDE_CHUNK))
+        tend_members()
+        changed = (next_reflection(setting, **how) != when or rhythm(**how) != setting
+                   or not reflection_on(who))
+    if changed:
+        return  # begin again from whatever is written now
+    with TURNS.turn(who, when), noting(how):
+        day = when.astimezone(waking.zone(setting)).date()
+        if tide_stop(**how):
+            REFLECTION_LET_GO[who] = day
+            tide_note("reflection waking let go: stopped by the keeper", **how)
+        elif pause(**how):
+            REFLECTION_LET_GO[who] = day
+            tide_note("reflection waking let go: resting", **how)
+        else:
+            trouble = hold_attendance(tide=True, reflect=True, **how)
+            if trouble is not None:
+                REFLECTION_LET_GO[who] = day
+            tide_note("reflected" if trouble is None else f"error: {trouble[0]}", **how)
 
 
 # One set of tides for the life of the process, and no more. Gunicorn runs a
@@ -3086,7 +3169,8 @@ def door_shown():
         line = DOOR_STANDS.format(state=held["state"], room=held["room"],
                                   used=door.in_use(name))
     return {"line": line, "state": held["state"], "room": held["room"],
-            "rooms": range(door.ROOM_LEAST, door.ROOM_MOST + 1)}
+            "rooms": range(door.ROOM_LEAST, door.ROOM_MOST + 1),
+            "usually": door.USUALLY if door.any_to_eight() else None}
 
 
 def door_asked(form):

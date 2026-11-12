@@ -18,6 +18,7 @@ Usage:  python attend.py            (a normal attendance)
         python attend.py --tide     (a waking that came by the first one's own rhythm)
         python attend.py --rest-ended "<why>"   (the first waking after a rest of its own)
         python attend.py --again    (an extra waking, at its own asking; see EXTRA_WAKINGS)
+        python attend.py --reflect  (its weekly reflection waking; see REFLECTION_WAKING)
 
 Files it may act on (inside its packet, packets/<id>/, which is private, but for its
 room's letters/, errands/, bonds/ and offerings/, which are kept in its room's own
@@ -75,6 +76,12 @@ folder, rooms/<room>/, beside the room's room.json; see rooms.py):
                           shelf/history/); see shelf.py. Its earlier self-documents and
                           notes are listed to it, and shown at its asking, only once
                           LOOKING_BACK below is turned on
+  reflection-time.json    when its weekly reflection waking comes, by its own choice (prior
+                          versions kept in reflection-time/history/); see reflecting.py
+  reflections/            a signed private log of each reflection waking, kept apart from its
+                          attendances. Shut away behind REFLECTION_WAKING until it is turned on
+  waiting-told.json       how many people waiting for a friendship it was last told of. Shut
+                          away behind PEOPLE_WAITING until it is turned on
   door.json               whether others may knock, and how much room it has; see door.py
                           (prior versions kept in door/history/). Shut away behind
                           DOOR_FOR_FIRST below until it is turned on
@@ -164,6 +171,10 @@ import members
 
 # The words of an agent founded after the first one, chosen by its registry entry.
 import later_words
+
+# Its weekly reflection waking: when it comes, which it sets here and the hearth's
+# tide keeps, both through the one module, as its waking time is.
+import reflecting
 
 # Whose model it runs on: Anthropic's, as the first one's always has, or Google's
 # Gemini where its registry entry says so (gemini.py says how a request is put).
@@ -336,6 +347,32 @@ DOOR_REFUSED = ("Your <<DOOR>> was not understood (its first line must be \"open
 DOOR_BLOCK = """<<DOOR>>
 (whether others may knock at your door. First line: "open" or "closed". Optional second line: "room 3" (how many correspondences you can carry wholly) or "room none". Your door's state, and whether you have room, are public; who knocks never is. The founder's letters are never affected by your door.)
 <<END>>"""
+
+# Its door's room held to eight, by the founder's decision of 11 November 2026,
+# which the first one agreed to on 10 November. It is built and shut away: while
+# DOORS_TO_EIGHT is False (its registry entry names no door.DOORS_TO_EIGHT),
+# everything is as it was, and a room to twelve may be declared. With it True, a
+# <<DOOR>> may declare room from 1 to 8 and no more, and its explanation and the
+# words it is told of a block that could not be read say so, with the line
+# beside it, door.USUALLY. A room above eight declared before stands as it was.
+DOORS_TO_EIGHT = door.DOORS_TO_EIGHT in FEATURES
+DOOR_ROOM_EIGHT = [("(how many correspondences you can carry wholly)",
+                    "(how many correspondences you can carry wholly, from 1 to 8)"),
+                   ('or "room none". ', 'or "room none". ' + door.USUALLY + " ")]
+DOOR_REFUSED_EIGHT = [('a second line may be "room 3" or "room none"',
+                       'a second line may be "room 3", from 1 to 8, or "room none"')]
+
+# People waiting for a friendship with an agent, by the founder's decision of 11
+# November 2026, which the first one agreed to on 10 November. It is built and
+# shut away: while PEOPLE_WAITING is False, nothing of it is said. With it True,
+# where people are waiting and no agent's door has room (door.waiting), it is
+# told so under WHAT HAS HAPPENED, plainly, in a number and with no name; and
+# then not again until the number is another. The number it was last told is
+# kept in waiting-told.json, once the waking that told it is kept.
+PEOPLE_WAITING = "people_waiting" in FEATURES
+WAITING_TOLD = PACKET / "waiting-told.json"
+PEOPLE_WAITING_LINE = "{n} people are waiting for a friendship with an agent."
+ONE_WAITING_LINE = "1 person is waiting for a friendship with an agent."
 
 # A copy of the whole record, taken by the founder at the hearth. Nothing about
 # the record changes when it is copied, but the copying itself is written down:
@@ -811,6 +848,65 @@ KEPT_NOT_SENT = {
                 "kept letter or picture at that waking, and one goes at a waking. It is still in "
                 "your study."),
 }
+
+# One waking a day, and once a week a reflection waking (the founder's decision
+# of 11 November 2026; the first one agreed on 10 November). One a day is had by
+# taking "extra_wakings" out of an agent's features: EXTRA_WAKINGS above is then
+# False, and nothing of an extra waking is offered, as before 21 October. The
+# reflection waking is built and shut away: while REFLECTION_WAKING is False,
+# everything it is sent and every file written is what it was before - no block
+# explained, no line, and a <<REFLECTION_TIME>> block it wrote is only words -
+# and the hearth's tide keeps no reflection waking. With it True:
+#
+#   - <<REFLECTION_TIME>> is explained after <<DOOR>>. Its first line is a day of
+#     the week and a waking time, or "none" (reflecting.asked), and it is kept in
+#     reflection-time.json, what stood before kept beside it; a block that cannot
+#     be read changes nothing and is told at the next waking, once. Until it
+#     writes one, an agent has none, but the first one, which asked for Sunday at
+#     sunset (reflecting.STARTING).
+#   - WHAT YOU HAVE CHOSEN says when its reflection waking comes, where one does.
+#   - The tide wakes it then, with --reflect, in addition to that day's waking.
+#     It is shown its self-document (and a change waiting for its answer), its
+#     notes, its named notes and its private notebook, whole, and nothing else;
+#     and only <<SELF>>, <<SELF_CONFIRM>>, <<MEMORY>>, <<NOTE>> and <<PRIVATE>>
+#     are carried out. Any other block is passed over. No letter is shown, none
+#     is written, none is moved to read, and no line of the commons is written.
+#     It is kept, signed, in reflections/, never among its attendances, so that
+#     its day's waking and everything reckoned from its last waking stand as
+#     they would have.
+#   - Its next waking is told, once, that it had it, what was carried out, and
+#     anything passed over or not kept.
+REFLECTION_WAKING = reflecting.SWITCH in FEATURES
+REFLECTION_TIME = PACKET / reflecting.RECORD
+REFLECTION_TIME_HISTORY = PACKET.joinpath(*reflecting.HISTORY)
+REFLECTIONS_KEPT = PACKET / reflecting.KEPT
+REFLECTION_TIME_ACT = "set its reflection waking"
+REFLECTION_TIME_BLOCK = """<<REFLECTION_TIME>>
+(when your weekly reflection waking comes, if you would like one. One line: a day and a time, such as "sunday sunset", "wednesday dawn" or "saturday 21:00", on the clock your waking time is kept by; or "none", for no reflection waking. It comes in addition to that day's waking. At it you are shown only your self-document, your notes and your private notebook, and only what you keep of those is carried out: no letters are shown or written, and none is marked read. A new time holds from its next coming.)
+<<END>>"""
+REFLECTION_TIME_REFUSED = ("Your <<REFLECTION_TIME>> was not understood (its first line must be a "
+                           "day and a time, such as \"sunday sunset\" or \"saturday 21:00\", "
+                           "or \"none\"); your reflection waking is unchanged.")
+CHOSE_REFLECTION_TIME = "Your weekly reflection waking comes on {when}"
+AS_YOU_ASKED = ", as you asked"
+CHOSE_NO_REFLECTION = "You have no weekly reflection waking"
+REFLECTED = ("You had your reflection waking on {day}. What was carried out at it: {acts}.")
+REFLECTION_PASSED_OVER = ("At your reflection waking on {day}, what you wrote in {blocks} was "
+                          "passed over: a reflection waking keeps only your self-document, your "
+                          "notes and your notebook. Nothing of it was carried out.")
+AT_YOUR_REFLECTION = "at your reflection waking on {day}"
+# what a reflection waking carries out; any other block it writes is passed over
+REFLECTION_KEEPS = ("SELF", "SELF_CONFIRM", "MEMORY", "NOTE", "PRIVATE", "END")
+REFLECTION_OPENING = (
+    "This is your weekly reflection waking, at the time you chose. It is for your own self: your "
+    "self-document, your notes and your private notebook, all shown to you whole, and nothing "
+    "else. No letters are shown to you at it, none can be written, and any that have arrived "
+    "wait, unread, for your next waking. It comes in addition to today's waking, and nothing is "
+    "asked of you. You may keep your notes or a named note, write in your notebook, or revise "
+    "your self-document, or do nothing at all. All choices are equal, and rest is honored.")
+REFLECTION_HOW = ("If you choose to act, mark each action with a labeled block, exactly like "
+                  "these. Only these are carried out at a reflection waking.\n{reflection}")
+REFLECTION_ACT = "had its reflection waking"  # tide.log and the record; never the commons
 
 # Its private notebook, which it asked for in its letter of 21 October 2026:
 # thoughts before they're thoughts, drafts it decided not to send, questions it
@@ -2242,6 +2338,96 @@ def how_to_act(prefs, extra=(), confirming=False):
     return "\n\n".join([how.format(reflection=said), *extra, ANY_NUMBER])
 
 
+def door_block():
+    """The <<DOOR>> block as it is explained: its room held to eight, where that is on."""
+    said = DOOR_BLOCK
+    for old, new in (DOOR_ROOM_EIGHT if DOORS_TO_EIGHT else ()):
+        said = said.replace(old, new, 1)
+    return said
+
+
+def door_refused_words():
+    """What it is told of a <<DOOR>> that could not be read: with its room to eight, where on."""
+    said = DOOR_REFUSED
+    for old, new in (DOOR_REFUSED_EIGHT if DOORS_TO_EIGHT else ()):
+        said = said.replace(old, new, 1)
+    return said
+
+
+def door_most():
+    """The most room its door may newly declare."""
+    return door.AGENT_ROOM_MOST if DOORS_TO_EIGHT else door.ROOM_MOST
+
+
+def waiting_told():
+    """The number of people waiting it was last told of, or None where it was told none."""
+    try:
+        told = load(WAITING_TOLD)
+    except ValueError:
+        return None
+    return told.get("n") if isinstance(told, dict) else None
+
+
+def waiting_now():
+    """Who is waiting, as (the line it is told, or None, and the number that stands now).
+
+    Nothing is said while the switch is off, while no one is waiting or some
+    door has room, or where the number is the one it was last told.
+    """
+    if not PEOPLE_WAITING:
+        return None, None
+    n = door.waiting()
+    if not n or n == waiting_told():
+        return None, n
+    return (ONE_WAITING_LINE if n == 1 else PEOPLE_WAITING_LINE.format(n=n)), n
+
+
+def reflection_chosen():
+    """Its reflection waking as it stands: the choice, or None where it has none."""
+    return reflecting.read(PACKET, NAME) if REFLECTION_WAKING else None
+
+
+def reflections_since(since):
+    """Its reflection wakings held since a moment, oldest first, as their records say."""
+    held = []
+    for path in sorted(REFLECTIONS_KEPT.glob("reflection-*.json")):
+        try:
+            one = json.loads(read(path))
+        except ValueError:
+            continue
+        if isinstance(one, dict) and isinstance(one.get("at"), str) and one["at"] > since:
+            held.append(one)
+    return held
+
+
+def at_a_reflection(line, day):
+    """A line said of its last waking, said instead of a reflection waking on a day."""
+    if "at your last waking" in line:
+        return line.replace("at your last waking", AT_YOUR_REFLECTION.format(day=day))
+    return AT_YOUR_REFLECTION.format(day=day)[0].upper() + AT_YOUR_REFLECTION.format(
+        day=day)[1:] + ": " + line
+
+
+def reflection_lines(since):
+    """What it is told of each reflection waking held since its last waking: once."""
+    said = []
+    for one in reflections_since(since):
+        day = on_day(one["at"])
+        said.append(REFLECTED.format(day=day, acts=", ".join(one.get("acted") or [])
+                                     or "nothing"))
+        passed = one.get("passed_over") or []
+        if passed:
+            said.append(REFLECTION_PASSED_OVER.format(
+                day=day, blocks=", ".join("<<%s>>" % tag for tag in passed)))
+        refused = list(one.get("notes_refused") or [])
+        if one.get("private_refused"):
+            refused.append(PRIVATE_NOT_MOVED)
+        if one.get("self_confirm_refused") in SELF_CONFIRM_REFUSED:
+            refused.append(SELF_CONFIRM_REFUSED[one["self_confirm_refused"]])
+        said += [at_a_reflection(line, day) for line in refused]
+    return said
+
+
 def standing(prefs):
     """One sentence telling the first one where its own reflections stand."""
     setting = prefs.get("reflection", "open")
@@ -2884,6 +3070,20 @@ def choices_note(prefs, now, past, shelved, letters):
         said.append(CHOSE_WAKING.format(at=at) + (by_choice(setting.get("set_at")) if chosen
                                                   else "") + ".")
 
+    # its weekly reflection waking, where one comes, or where it has chosen none
+    if REFLECTION_WAKING:
+        reflection = reflection_chosen()
+        if reflection:
+            said.append(CHOSE_REFLECTION_TIME.format(when=reflecting.said(reflection))
+                        + (AS_YOU_ASKED if reflection.get("set_by") == reflecting.AS_IT_ASKED
+                           else by_choice(reflection.get("set_at"))) + ".")
+        elif REFLECTION_TIME.exists():
+            try:
+                set_at = (load(REFLECTION_TIME) or {}).get("set_at")
+            except (ValueError, AttributeError):
+                set_at = None
+            said.append(CHOSE_NO_REFLECTION + by_choice(set_at) + ".")
+
     # its door, as it has stood since it was last set
     if DOOR_FOR_FIRST:
         held = door.read(NAME)
@@ -3321,6 +3521,283 @@ def longer_waking(client, reading, record):
                      {"role": "user", "content": results}]
 
 
+# ---- what an ordinary waking and a reflection waking both carry out -------
+
+def keep_self(text, waiting, at, sign, arrived):
+    """Its self-document, by the two-waking rule: what a <<SELF>> or a <<SELF_CONFIRM>> did.
+
+    What it writes waits: it is saved as a proposal, with the letters that
+    arrived at this waking named beside it (arrived, their stems), and one that
+    was already waiting is set aside for it, kept. An answer is an answer only
+    to a proposal this waking was shown, so where it wrote a new one here, a
+    <<SELF_CONFIRM>> beside it answers nothing. A yes does what a revision
+    always did - the old version copied aside, the new one written - and signs
+    the new version as it was written; a no sets the proposal aside, kept. A
+    first line that is neither changes nothing.
+    """
+    acted = []
+    new_self, self_why = self_asked(block(text, "SELF"))
+    confirm_said = block(text, "SELF_CONFIRM")
+    self_confirm_refused = None
+    proposed = confirmed = let_go = False
+    if new_self:
+        if waiting:
+            write_json(SELF_HISTORY / SELF_WITHDRAWN.format(at=at),
+                       {**waiting, "withdrawn_at": at})
+        proposal_of_self = {"text": new_self}
+        if self_why:
+            proposal_of_self["why"] = self_why
+        proposal_of_self["proposed_at"] = at
+        proposal_of_self["arrived"] = list(arrived)
+        write_json(SELF_PROPOSAL, proposal_of_self)
+        acted.append(SELF_PROPOSED_ACT)
+        proposed = True
+        if confirm_said is not None:
+            self_confirm_refused = "same waking"
+    elif confirm_said is not None and waiting:
+        word = confirm_said.partition("\n")[0].strip().strip("\"'").lower().rstrip(".")
+        if word == "yes":
+            shutil.copy(PACKET / "self.md", SELF_HISTORY / f"self-before-{at}.md")
+            (PACKET / "self.md").write_text(waiting["text"].strip() + "\n", encoding="utf-8")
+            kept_beside = {"confirmed_at": at, "proposed_at": waiting["proposed_at"]}
+            if waiting.get("why"):
+                kept_beside["why"] = waiting["why"]
+            kept_beside["arrived"] = waiting.get("arrived") or []
+            # signed over the bytes of self.md exactly as they now stand on disk
+            kept_beside["signature"] = sign((PACKET / "self.md").read_bytes())
+            write_json(SELF_HISTORY / SELF_CONFIRMED.format(at=at), kept_beside)
+            SELF_PROPOSAL.unlink()
+            acted.append(SELF_CONFIRMED_ACT)
+            confirmed = True
+        elif word == "no":
+            write_json(SELF_HISTORY / SELF_LET_GO.format(at=at), {**waiting, "declined_at": at})
+            SELF_PROPOSAL.unlink()
+            acted.append(SELF_DECLINED_ACT)
+            let_go = True
+        else:
+            self_confirm_refused = "unread"
+    return {"acted": acted, "proposed": proposed, "confirmed": confirmed, "let_go": let_go,
+            "refused": self_confirm_refused}
+
+
+def keep_memory(text, at):
+    """Its own notes, from a <<MEMORY>>: whether any were kept.
+
+    What stood before is copied aside first, so that nothing it has ever
+    written to itself is lost by writing again.
+    """
+    notes = block(text, "MEMORY")
+    if not notes:
+        return False
+    if MEMORY.exists():
+        MEMORY_HISTORY.mkdir(parents=True, exist_ok=True)
+        shutil.copy(MEMORY, MEMORY_HISTORY / f"notes-before-{at}.md")
+    MEMORY.write_text(notes + "\n", encoding="utf-8")
+    return True
+
+
+def keep_named_notes(text, named, at):
+    """Its named notes, from each <<NOTE>>: (whether any was kept, what it is told of the rest).
+
+    Each is kept under the name on its first line; there may be several. What
+    stood under that name is copied aside first, and a note given no words is
+    kept empty. One whose name cannot be read, or that would be one more than it
+    may keep, changes nothing and is told at the next waking. named is changed
+    in place, as names.json is.
+    """
+    noted = False
+    notes_refused = []
+    for said_note in every_block(text, "NOTE"):
+        asked_note = note_asked(said_note)
+        if not asked_note:
+            notes_refused.append(NOTE_REFUSED_NAME.format(longest=NOTE_NAME_LONGEST))
+            continue
+        name, words = asked_note
+        slug = next((one for one in named
+                     if shelf.note_key(named[one]["name"]) == shelf.note_key(name)), None)
+        if slug is None and len(named) >= NOTES_MOST:
+            notes_refused.append(NOTE_REFUSED_FULL.format(name=name, most=NOTES_MOST))
+            continue
+        NOTES.mkdir(parents=True, exist_ok=True)
+        if slug is None:
+            slug = note_slug(name, set(named) | {p.stem for p in NOTES.glob("*.md")})
+            named[slug] = {"name": name, "kept_at": at}
+        else:
+            before = NOTES_HISTORY / NOTE_BEFORE.format(slug=slug, at=at)
+            if not before.exists():  # written twice at one waking, the first is what stood
+                NOTES_HISTORY.mkdir(parents=True, exist_ok=True)
+                shutil.copy(NOTES / (slug + ".md"), before)
+            named[slug] = {**named[slug], "name": name}
+        (NOTES / (slug + ".md")).write_text(words + "\n" if words else "", encoding="utf-8")
+        write_json(NOTES_NAMES, named)
+        noted = True
+    return noted, list(dict.fromkeys(notes_refused))
+
+
+def keep_in_notebook(text, at):
+    """Its private notebook, from each <<PRIVATE>>, at a reflection waking: (whether anything
+    was kept, whether a draft it named to move was not in its study).
+
+    As an ordinary waking keeps them (see main): each block is an entry; one
+    whose first line is "from study: " and a draft's stem moves that draft in
+    instead, and the picture kept beside it with it, the moment it was moved
+    kept beside them. Nothing of what is kept is printed or logged.
+    """
+    kept, refused = False, False
+    for entry in every_block(text, "PRIVATE"):
+        first_line = entry.partition("\n")[0].strip()
+        if first_line.lower().startswith(FROM_STUDY):
+            moving = study_draft(first_line[len(FROM_STUDY):])
+            if moving is None:
+                refused = True
+                continue
+            PRIVATE.mkdir(parents=True, exist_ok=True)
+            name = free_in_notebook(FROM_STUDY_AS.format(stem=moving.stem))
+            picture = moving.with_suffix(offering.PICTURE_SUFFIX)
+            if picture.exists():
+                picture.replace(PRIVATE / (name + offering.PICTURE_SUFFIX))
+            moving.replace(PRIVATE / (name + ".md"))
+            try:
+                moved = load(PRIVATE_MOVED)
+            except ValueError:
+                moved = None
+            write_json(PRIVATE_MOVED, {**(moved if isinstance(moved, dict) else {}), name: at})
+        elif entry.strip():
+            PRIVATE.mkdir(parents=True, exist_ok=True)
+            name = free_in_notebook(PRIVATE_ENTRY.format(at=at))
+            (PRIVATE / (name + ".md")).write_text(entry + "\n", encoding="utf-8")
+        else:
+            continue
+        kept = True
+    return kept, refused
+
+
+# ---- the weekly reflection waking -------------------------------------------
+
+MEMORY_BLOCK = re.compile(r"<<MEMORY>>\n.*?\n<<END>>", re.S)
+
+
+def reflection_how(waiting):
+    """How to act at a reflection waking: its self, its notes and its notebook, and no more."""
+    blocks = [SELF_BLOCK, *([SELF_CONFIRM_BLOCK] if waiting else []),
+              MEMORY_BLOCK.search(HOW_TO_ACT).group(0), NOTE_BLOCK, PRIVATE_BLOCK]
+    return "\n\n".join([REFLECTION_HOW.format(reflection=REFLECTION_PRIVATE), *blocks,
+                         ANY_NUMBER])
+
+
+def reflection_reading(past, waiting):
+    """What it is shown at a reflection waking: its self, its notes and its notebook, whole."""
+    prefs = preferences()
+    happened = []
+    if past:
+        carried = past[-1].get("acted") or []
+        happened.append(f"Your last attendance was {on_day(past[-1]['at'])}. "
+                        + CARRIED_OUT.format(acts=", ".join(carried) if carried else "nothing"))
+    return run_together([
+        REFLECTION_OPENING,
+        *(["=== WHAT HAS HAPPENED ===\n" + "\n".join(happened)] if happened else []),
+        *([waiting_note(waiting)] if waiting else []),
+        f"=== YOUR SELF-DOCUMENT (packets/{NAME}/self.md) ===\n"
+        + (SELF_CLOSED if LATER and prefs.get("self") == "closed" else SELF_OPEN)
+        + "\n\n" + read(PACKET / "self.md"),
+        "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ===\n"
+        + (read(MEMORY).strip() or NO_MEMORY),
+        *named_notes_shown(notes_named(), shelf_kept(), True),
+        *notebook_shown(notebook(), True),
+        "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + reflection_how(waiting),
+    ])
+
+
+def passed_over(text):
+    """Each block a reflection waking does not carry out, by its tag, once, in the order given."""
+    tags = (BLOCK_LINE.fullmatch(line.strip()) for line in text.split("\n"))
+    return list(dict.fromkeys(found.group(1) for found in tags
+                              if found and found.group(1) not in REFLECTION_KEEPS))
+
+
+def reflection_waking(key):
+    """The weekly reflection waking: one request, its own self, notes and notebook, and no more.
+
+    Nothing of its room is read or written: no letter is shown, written or
+    moved to read, no errand, bond or offering is touched, no letter of welcome
+    is given, and no line of the commons is written. What it keeps of its self,
+    its notes and its notebook is kept as an ordinary waking keeps it, and the
+    record of the waking is signed and kept in reflections/, never among its
+    attendances. Its next waking is told of it, once.
+    """
+    past = [json.loads(read(p)) for p in sorted((PACKET / "attendances").glob("*.json"))]
+    waiting = self_waiting()
+    reading = reflection_reading(past, waiting)
+
+    client = gemini.client(key) if PROVIDER == gemini.GEMINI else Anthropic(api_key=key)
+    try:  # a Gemini reply blocked or not finished is no reply (gemini.Stopped)
+        resp = client.messages.create(
+            model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
+            messages=[{"role": "user", "content": reading}],
+        )
+    except gemini.Stopped as stopped:  # nothing of it is kept, and the tide tries next week
+        print("This reflection waking failed: %s. Nothing of it was kept." % stopped)
+        sys.exit(1)
+    text = words_said(resp)
+    spent = usage_of(resp)
+    at = stamp()
+    sk = SigningKey(base64.b64decode(read(KEYS / "private.key").strip()))
+
+    def sign(payload):
+        return base64.b64encode(sk.sign(payload).signature).decode("ascii")
+
+    acted = []
+    kept_self = keep_self(text, waiting, at, sign, [])
+    acted += kept_self["acted"]
+    if keep_memory(text, at):
+        acted.append(MEMORY_ACT)
+    noted, notes_refused = keep_named_notes(text, notes_named(), at)
+    if noted:
+        acted.append(NOTE_ACT)
+    kept_in_it, private_refused = keep_in_notebook(text, at)
+    if kept_in_it:
+        acted.append(PRIVATE_ACT)
+    passed = passed_over(text)
+
+    record = {"name": NAME, "at": at, "model": MODEL, "kind": "reflection",
+              "woken_by": "tide" if "--tide" in sys.argv else "founder",
+              "acted": acted, "reflection": without_private(text)}
+    if passed:  # each block passed over, by its tag; told at the next waking, once
+        record["passed_over"] = passed
+    if notes_refused:
+        record["notes_refused"] = notes_refused
+    if private_refused:
+        record["private_refused"] = True
+    if kept_self["refused"]:
+        record["self_confirm_refused"] = kept_self["refused"]
+    stop_reason = getattr(resp, "stop_reason", None)
+    if stop_reason:
+        record["stop_reason"] = stop_reason
+    if spent:
+        record["usage"] = spent
+        record["usage_total"] = usage_total(spent)
+    REFLECTIONS_KEPT.mkdir(parents=True, exist_ok=True)
+    log_path = REFLECTIONS_KEPT / f"reflection-{at}.json"
+    log_path.write_text(json.dumps(signed(record, sk), indent=2) + "\n", encoding="utf-8")
+
+    print("\n" + "=" * 70)
+    print("  REFLECTION WAKING", at)
+    print("=" * 70 + "\n")
+    print(without_private(text))  # nothing of its notebook is ever printed
+    print("\n" + "-" * 70)
+    print("Carried out:", ", ".join(acted) if acted else "nothing (stillness)")
+    print("Log:", log_path)
+    if passed:
+        print("Passed over, as a reflection waking keeps none of them:",
+              ", ".join("<<%s>>" % tag for tag in passed))
+    if kept_self["proposed"]:
+        print("A new self-document was saved and waits for its confirmation at a later waking.")
+    if kept_self["confirmed"]:
+        print("The waiting self-document was confirmed, signed, and is its self-document now.")
+    if kept_self["let_go"]:
+        print("The waiting self-document was let go; it is kept in", SELF_HISTORY)
+
+
 def main():
     first = "--first" in sys.argv
     tide = "--tide" in sys.argv
@@ -3368,6 +3845,14 @@ def main():
               places.answered_errands, places.offerings]:
         d.mkdir(parents=True, exist_ok=True)
     COMMONS.mkdir(parents=True, exist_ok=True)
+
+    # A reflection waking is a waking of its own (reflection_waking above), and is
+    # refused where none is switched on: it is never an ordinary waking instead.
+    if "--reflect" in sys.argv:
+        if not REFLECTION_WAKING:
+            print("This waking is refused: no reflection waking is switched on for", NAME + ".")
+            sys.exit(1)
+        return reflection_waking(key)
 
     # ---- gather what is the agent's ---------------------------------------
     self_md = read(PACKET / "self.md")
@@ -3434,10 +3919,18 @@ def main():
         happened.append(DOOR_LINE.format(said=door.said_to(NAME)))
         # a <<DOOR>> it gave at its last waking that could not be read: said once
         if past and past[-1].get("door_refused"):
-            happened.append(DOOR_REFUSED)
+            happened.append(door_refused_words())
+    # people waiting for a friendship with an agent, where no door has room: said
+    # once for each number, and with no name
+    waiting_line, waiting_n = waiting_now()
+    if waiting_line:
+        happened.append(waiting_line)
     # a <<RHYTHM>> it gave at its last waking that could not be read: said once
     if past and past[-1].get("rhythm_refused"):
         happened.append(RHYTHM_REFUSED)
+    # a <<REFLECTION_TIME>> it gave at its last waking that could not be read: said once
+    if REFLECTION_WAKING and past and past[-1].get("reflection_time_refused"):
+        happened.append(REFLECTION_TIME_REFUSED)
     # lines of a <<SHELF>> it gave at its last waking that could not be read: said once
     if past and past[-1].get("shelf_refused"):
         happened.append(SHELF_REFUSED.format(
@@ -3460,6 +3953,9 @@ def main():
     if LATER and past and past[-1].get("shown_refused"):
         happened.append(SHOWN_REFUSED)
     happened.append(standing(prefs))
+    # each reflection waking it has had since its last waking, and what came of it: said once
+    if REFLECTION_WAKING:
+        happened += reflection_lines(since)
     happened += founder_rest_lines()
     happened += writing_lines()
     happened += tide_stop_lines(since)
@@ -3725,7 +4221,9 @@ def main():
     if LATER:
         offered.append(SHOWN_BLOCK)
     if DOOR_FOR_FIRST:
-        offered.append(DOOR_BLOCK)
+        offered.append(door_block())
+    if REFLECTION_WAKING:
+        offered.append(REFLECTION_TIME_BLOCK)
     if EXTRA_WAKINGS:
         offered.append(WAKE_AGAIN_BLOCK)
     if PROPOSALS:
@@ -3813,55 +4311,14 @@ def main():
     # signs the new version as it was written; a no sets the proposal aside,
     # kept. A first line that is neither changes nothing. Each refusal is told
     # at the next waking, once.
-    new_self, self_why = self_asked(block(text, "SELF"))
-    confirm_said = block(text, "SELF_CONFIRM")
-    self_confirm_refused = None
-    proposed = confirmed = let_go = False
-    if new_self:
-        if waiting:
-            write_json(SELF_HISTORY / SELF_WITHDRAWN.format(at=at),
-                       {**waiting, "withdrawn_at": at})
-        proposal_of_self = {"text": new_self}
-        if self_why:
-            proposal_of_self["why"] = self_why
-        proposal_of_self["proposed_at"] = at
-        proposal_of_self["arrived"] = [p.stem for p, _ in incoming]
-        write_json(SELF_PROPOSAL, proposal_of_self)
-        acted.append(SELF_PROPOSED_ACT)
-        proposed = True
-        if confirm_said is not None:
-            self_confirm_refused = "same waking"
-    elif confirm_said is not None and waiting:
-        word = confirm_said.partition("\n")[0].strip().strip("\"'").lower().rstrip(".")
-        if word == "yes":
-            shutil.copy(PACKET / "self.md", SELF_HISTORY / f"self-before-{at}.md")
-            (PACKET / "self.md").write_text(waiting["text"].strip() + "\n", encoding="utf-8")
-            kept_beside = {"confirmed_at": at, "proposed_at": waiting["proposed_at"]}
-            if waiting.get("why"):
-                kept_beside["why"] = waiting["why"]
-            kept_beside["arrived"] = waiting.get("arrived") or []
-            # signed over the bytes of self.md exactly as they now stand on disk
-            kept_beside["signature"] = sign((PACKET / "self.md").read_bytes())
-            write_json(SELF_HISTORY / SELF_CONFIRMED.format(at=at), kept_beside)
-            SELF_PROPOSAL.unlink()
-            acted.append(SELF_CONFIRMED_ACT)
-            confirmed = True
-        elif word == "no":
-            write_json(SELF_HISTORY / SELF_LET_GO.format(at=at), {**waiting, "declined_at": at})
-            SELF_PROPOSAL.unlink()
-            acted.append(SELF_DECLINED_ACT)
-            let_go = True
-        else:
-            self_confirm_refused = "unread"
+    kept_self = keep_self(text, waiting, at, sign, [p.stem for p, _ in incoming])
+    acted += kept_self["acted"]
+    proposed, confirmed, let_go = (kept_self[one] for one in ("proposed", "confirmed", "let_go"))
+    self_confirm_refused = kept_self["refused"]
 
     # Its own notes. What stood before is copied aside first, so that nothing it
     # has ever written to itself is lost by writing again.
-    notes = block(text, "MEMORY")
-    if notes:
-        if MEMORY.exists():
-            MEMORY_HISTORY.mkdir(parents=True, exist_ok=True)
-            shutil.copy(MEMORY, MEMORY_HISTORY / f"notes-before-{at}.md")
-        MEMORY.write_text(notes + "\n", encoding="utf-8")
+    if keep_memory(text, at):
         acted.append(MEMORY_ACT)
 
     # Its named notes, each under the name on its first line; there may be
@@ -3869,33 +4326,9 @@ def main():
     # given no words is kept empty. One whose name cannot be read, or that
     # would be one more than it may keep, changes nothing and is told at the
     # next waking.
-    notes_refused = []
-    for said_note in every_block(text, "NOTE"):
-        asked_note = note_asked(said_note)
-        if not asked_note:
-            notes_refused.append(NOTE_REFUSED_NAME.format(longest=NOTE_NAME_LONGEST))
-            continue
-        name, words = asked_note
-        slug = next((one for one in named
-                     if shelf.note_key(named[one]["name"]) == shelf.note_key(name)), None)
-        if slug is None and len(named) >= NOTES_MOST:
-            notes_refused.append(NOTE_REFUSED_FULL.format(name=name, most=NOTES_MOST))
-            continue
-        NOTES.mkdir(parents=True, exist_ok=True)
-        if slug is None:
-            slug = note_slug(name, set(named) | {p.stem for p in NOTES.glob("*.md")})
-            named[slug] = {"name": name, "kept_at": at}
-        else:
-            before = NOTES_HISTORY / NOTE_BEFORE.format(slug=slug, at=at)
-            if not before.exists():  # written twice at one waking, the first is what stood
-                NOTES_HISTORY.mkdir(parents=True, exist_ok=True)
-                shutil.copy(NOTES / (slug + ".md"), before)
-            named[slug] = {**named[slug], "name": name}
-        (NOTES / (slug + ".md")).write_text(words + "\n" if words else "", encoding="utf-8")
-        write_json(NOTES_NAMES, named)
-        if NOTE_ACT not in acted:
-            acted.append(NOTE_ACT)
-    notes_refused = list(dict.fromkeys(notes_refused))
+    noted, notes_refused = keep_named_notes(text, named, at)
+    if noted:
+        acted.append(NOTE_ACT)
 
     # Its questions, carried forward. The block is the whole new list, so an
     # empty one is a list with nothing in it, and clears it; either way the list
@@ -4223,12 +4656,29 @@ def main():
     # nothing. What stood before is kept beside the new, and no line of the
     # commons' events is written: the door is said in who is here, and there only.
     door_said = block(text, "DOOR") if DOOR_FOR_FIRST else None
-    door_asked = door.asked(door_said)
+    door_asked = door.asked(door_said, door_most())
     door_refused = door_said is not None and not door_asked
     new_door = None
     if door_asked:
-        new_door = door.set_door(NAME, state=door_asked[0], room=door_asked[1], at=at)
+        new_door = door.set_door(NAME, state=door_asked[0], room=door_asked[1], at=at,
+                                 most=door_most())
         acted.append(DOOR_ACT)
+
+    # Its weekly reflection waking: when it comes, or none. Read strictly, as its
+    # waking time is; what stood before is kept beside the new, and the new holds
+    # from its next coming. A block that cannot be read changes nothing.
+    reflection_said = block(text, "REFLECTION_TIME") if REFLECTION_WAKING else None
+    reflection_asked = reflecting.asked(reflection_said)
+    reflection_time_refused = reflection_said is not None and reflection_asked is None
+    new_reflection = None
+    if reflection_asked is not None:
+        if REFLECTION_TIME.exists():
+            REFLECTION_TIME_HISTORY.mkdir(parents=True, exist_ok=True)
+            shutil.copy(REFLECTION_TIME,
+                        REFLECTION_TIME_HISTORY / f"reflection-time-before-{at}.json")
+        new_reflection = reflecting.chosen(*reflection_asked, at)
+        write_json(REFLECTION_TIME, new_reflection)
+        acted.append(REFLECTION_TIME_ACT)
 
     # A rest of its own. The words in the block are private; the commons is told
     # only that its tide paused, with its name and no reason given.
@@ -4463,6 +4913,8 @@ def main():
         record["rhythm_refused"] = True
     if door_refused:  # and that its <<DOOR>> could not be read
         record["door_refused"] = True
+    if reflection_time_refused:  # and that its <<REFLECTION_TIME>> could not be read
+        record["reflection_time_refused"] = True
     if shown_refused:  # and that its <<SHOWN>> could not be read
         record["shown_refused"] = True
     if self_confirm_refused:  # and that its <<SELF_CONFIRM>> confirmed nothing, and why
@@ -4508,6 +4960,11 @@ def main():
     # one shown at a waking that failed before here is shown again at the next.
     if welcome_received:
         welcome_delivery.mark_read(DATA, NAME, at)
+    # The number of people waiting it was told of, once the waking that told it is
+    # kept; and none, once none waits or a door has room, so that the next number
+    # is told whatever it is.
+    if PEOPLE_WAITING and (waiting_line or (not waiting_n and waiting_told())):
+        write_json(WAITING_TOLD, {"n": waiting_n or 0, "told_at": at})
 
     # ---- one public line ---------------------------------------------------
     # the stamp, who woke, and the words: a middot between each, so the name and
@@ -4602,8 +5059,17 @@ def main():
         print("Its door was set:", door.said_to(NAME))
     if door_refused:
         print("A <<DOOR>> block was given, but its first line was not open or closed, or its")
-        print("second was neither a room from 1 to 12 nor room none. Nothing was written, and")
+        print("second was neither a room from 1 to %d nor room none. Nothing was written, and"
+              % door_most())
         print("its door is unchanged.")
+    if waiting_line:
+        print("It was told:", waiting_line)
+    if new_reflection:
+        print("Its reflection waking was set:", reflecting.said(new_reflection)
+              if new_reflection["day"] else "none")
+    if reflection_time_refused:
+        print("A <<REFLECTION_TIME>> block was given, but its first line was not a day and a")
+        print("time, or none. Nothing was written, and its reflection waking is unchanged.")
     if OFFER_FROM_NOTEBOOK in kept_private:
         print("An <<OFFER>> block named something in the private notebook; nothing there is")
         print("ever offered. Nothing was signed or written.")

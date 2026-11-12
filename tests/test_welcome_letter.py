@@ -26,7 +26,7 @@ import zipfile
 
 import pytest
 
-from conftest import rhythm_clock_as_now
+from conftest import rhythm_clock_as_now, wakings_not_yet_switched
 from conftest import (REPO, Turn, block, blocks, lines_of, page, post, quiet_lines_not_yet,
                       read_json, shut_away, verify, write, write_json)
 from test_backup import bucket  # noqa: F401  (the bucket in memory, as a fixture)
@@ -134,6 +134,7 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
 
     The first waking writes a <<WELCOME>> block, which shut away is only words.
     """
+    wakings_not_yet_switched(attend, monkeypatch)  # one waking a day, and its reflection, came later
     shut_away(attend, monkeypatch, "WELCOME_LETTER")
     # the two lines its opening words end with came after its letter of welcome,
     # so the attend.py from before it has neither: they are taken out here too

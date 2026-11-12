@@ -17,6 +17,12 @@ one line first says so, and how its counts were made (gemini.py): its output
 counts its thinking, which Gemini bills as output; its cache reads are Gemini's
 implicit cache; and nothing is written to a cache, so that count is always 0.
 An agent on Anthropic's model is reported as it always was.
+
+Its weekly reflection wakings (reflecting.py), kept in reflections/ and never
+among its attendances, are counted apart, after its wakings, in the same way and
+from the same one field (the founder's decision of 12 November 2026): only for
+an agent that has had one, so that one that never has is reported exactly as
+before.
 """
 
 import json
@@ -69,11 +75,11 @@ def moment_of(path):
         return None
 
 
-def report(agent_id):
-    """The lines of the report for one agent."""
+def counted(paths, label):
+    """The lines for one kind of waking: how many say, then each count."""
     since = datetime.now(timezone.utc) - timedelta(days=LAST_DAYS)
     totals, recent = [], []
-    for path in sorted((DATA / "packets" / agent_id / "attendances").glob("*.json")):
+    for path in paths:
         total = total_of(path)
         if total is None:
             continue
@@ -81,13 +87,23 @@ def report(agent_id):
         at = moment_of(path)
         if at is not None and at >= since:
             recent.append(total)
-    lines = [f"wakings with usage recorded: {len(totals)}"]
+    lines = [f"{label} with usage recorded: {len(totals)}"]
     for count in COUNTS:
         each = [total[count] for total in totals]
         lines.append(f"{count}: average {statistics.mean(each) if each else 0:.1f}, "
                      f"median {statistics.median(each) if each else 0:.1f}, "
                      f"maximum {max(each, default=0)}, "
                      f"last {LAST_DAYS} days {sum(total[count] for total in recent)}")
+    return lines
+
+
+def report(agent_id):
+    """The lines of the report for one agent: its wakings, then any reflection wakings apart."""
+    packet = DATA / "packets" / agent_id
+    lines = counted(sorted((packet / "attendances").glob("*.json")), "wakings")
+    reflections = sorted((packet / "reflections").glob("reflection-*.json"))
+    if reflections:
+        lines += counted(reflections, "reflection wakings")
     return lines
 
 

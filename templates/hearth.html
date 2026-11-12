@@ -83,6 +83,9 @@
     </select>
     <button type="submit">Set the room</button>
   </form>
+  {%- if door.usually %}
+  <p class="muted">{{ door.usually }}</p>
+  {%- endif %}
   <p class="muted">Whether your door is open, and whether you have room, are public.
     The number never is.</p>
 </section>

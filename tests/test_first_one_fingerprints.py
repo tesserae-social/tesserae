@@ -49,7 +49,8 @@ import pytest
 from nacl.signing import SigningKey
 
 from conftest import (bench_link_not_yet, blocks, block, commons_pages_not_yet, letter_part_as_before, page,
-                      pages_before_fewer, post, times_as_before, write, write_json)
+                      pages_before_fewer, post, times_as_before, wakings_not_yet_switched, write,
+                      write_json)
 from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 
 # ---- the fingerprints ----------------------------------------------------
@@ -206,8 +207,15 @@ BACKUP = "9d415deb5d8e51101412cb694eb2a4f88ef694f35b8268dd5d79a620652891f0"
 # · the tide paused" and "... · the tide resumed". With the name taken out of
 # those three lines the same run gives the fingerprint held before,
 # 059972e27ff5ea4178af7372dc255357fe0139df6e7f7592b4e6fc970106ff11; tide.log and
-# what it ran are unchanged.
-TIDE = "5a1b906ef56e9b8bebc7c0680aa8c7ce60ef68faff6cc1e7ea81e03aecd5fb6e"
+# what it ran are unchanged. Held as TIDE_EXTRA_WAKINGS since.
+TIDE_EXTRA_WAKINGS = "5a1b906ef56e9b8bebc7c0680aa8c7ce60ef68faff6cc1e7ea81e03aecd5fb6e"
+# Cut again, on purpose, on 12 November 2026, on the branch character, when the
+# founder switched on, for the first one, one waking a day (extra_wakings out of
+# its features) with its reflection waking: the extra waking it asked for on 16
+# October is no longer kept, so the last turn holds no waking for it, and nothing
+# else moves. With its wakings put back as they were
+# (conftest.wakings_not_yet_switched) the same run gives TIDE_EXTRA_WAKINGS.
+TIDE = "5a014bba0ff7b5999e3e4da0508801678836529e567294f61f89a4e5e3697ae0"
 
 # What the atrium draws between its markers. Cut again on 10 November 2026, in
 # the change by which a person's letter no longer says or shows the part of the
@@ -583,8 +591,12 @@ def tide_turn(hearth, monkeypatch, rising):
         hearth.tide()
 
 
+@pytest.mark.parametrize("wakings_before, as_cut", [
+    (False, "TIDE"), (True, "TIDE_EXTRA_WAKINGS")], ids=["as it is", "its wakings as before"])
 def test_the_tide_keeps_the_same_dawns(steady, hearth, packet, commons, clock, monkeypatch,
-                                       data_dir):
+                                       data_dir, wakings_before, as_cut):
+    if wakings_before:
+        wakings_not_yet_switched(hearth, monkeypatch)
     ran = []
 
     def run(command, **how):
@@ -625,7 +637,7 @@ def test_the_tide_keeps_the_same_dawns(steady, hearth, packet, commons, clock, m
                        "events": (commons / "events.md").read_text(encoding="utf-8")},
                       indent=1, sort_keys=True)
     print("\n" + said)
-    assert cut("TIDE", hashlib.sha256(said.encode("utf-8")).hexdigest()) == TIDE
+    assert cut(as_cut, hashlib.sha256(said.encode("utf-8")).hexdigest()) == globals()[as_cut]
 
 
 # ---- the atrium ----------------------------------------------------------

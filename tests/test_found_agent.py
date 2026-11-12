@@ -130,7 +130,7 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         "room": ID, "bond": ID + "-1", "founded": "2026-10-15",
         "transcript": f"transcripts/{ID}/{SESSION}", "system": "later-citizen",
         "model": "a-model-for-the-tests", "max_tokens": 8000, "hue": HUE,
-        "features": ["door", "extra_wakings", "longer_waking", "looking_back", "proposals"],
+        "features": ["door", "longer_waking", "looking_back", "proposals", "reflection_waking"],
         "wakes": True}
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
     assert registry == [agents.first(), entry]

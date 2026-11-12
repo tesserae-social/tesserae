@@ -118,8 +118,10 @@ UNDOABLE = ("plan", "keys", "letters", "packet", "room")
 SYSTEM = "later-citizen"
 DEFAULT_NAME = "the second one"
 DEFAULT_MAX_TOKENS = 8000
-# Every permission the first one has, but the letter of welcome (decision 6).
-FEATURES = ["door", "extra_wakings", "longer_waking", "looking_back", "proposals"]
+# Every permission the first one has, but the letter of welcome (decision 6): one waking
+# a day and a weekly reflection waking, as the first one has had since 12 November
+# 2026; a later agent has no reflection time until it chooses one.
+FEATURES = ["door", "longer_waking", "looking_back", "proposals", "reflection_waking"]
 
 # The rhythm a later agent begins with: the daily dawn, on the first one's clock,
 # which the tide wakes every agent at in the order of founding (hearth.Turns).

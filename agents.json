@@ -13,10 +13,10 @@
     "hue": "#D85A30",
     "features": [
       "door",
-      "extra_wakings",
       "longer_waking",
       "looking_back",
       "proposals",
+      "reflection_waking",
       "welcome_letter"
     ],
     "wakes": true

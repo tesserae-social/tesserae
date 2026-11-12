@@ -17,7 +17,7 @@ from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON_21_OCTOBER, Turn, b
                       explained_as_before, lines_of, read_json, shut_away, verify, write,
                       write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now, rhythm_clock_as_now
-from conftest import notebook_unexplained
+from conftest import notebook_unexplained, wakings_not_yet_switched
 
 SECTIONS = [
     "=== WHAT HAS HAPPENED ===",
@@ -477,6 +477,7 @@ def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
     old.main()
     for path in (packet / "attendances").glob("*.json"):
         path.unlink()  # so that the new one wakes to the same record the old one did
+    wakings_not_yet_switched(attend, monkeypatch)  # one waking a day, and its reflection, came later
     # its door, its looking back and what it has chosen came long after, and each
     # is held to the letter in its own tests: shut away here, this is what is left
     shut_away(attend, monkeypatch)

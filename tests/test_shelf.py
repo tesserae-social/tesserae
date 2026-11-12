@@ -14,7 +14,7 @@ import pytest
 from conftest import (FOUNDING_TRANSCRIPT, SWITCHED_ON, SWITCHED_ON_21_OCTOBER,
                       block, blocks, explained_as_before, lines_of, page, read_json, shut_away, write,
                       write_json)
-from conftest import heartbeat_not_yet_public
+from conftest import heartbeat_not_yet_public, wakings_not_yet_switched
 from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS, a_private_notebook, notebook_unexplained
 from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
@@ -39,6 +39,9 @@ show note <name>: a named note in full at your next waking only
 """
 SEND_KEPT = ("send kept <stem>: a letter or picture kept in your study at an extra waking, "
              "sent to the founder as it is\n")
+# The send kept line its extra wakings added after these is not in it since 12
+# November 2026, when the first one came to one waking a day; it is held, with
+# extra wakings turned on, in test_extra_wakings.py.
 
 EXPLAINED = """<<SHELF>>
 (how you keep your history. One instruction per line:
@@ -48,7 +51,7 @@ default <stem>: back to the default
 note <stem>: your words, the line shown for a resting letter (at most 240 characters)
 show <stem>: shown in full at your next waking only, photographs included
 show founding: your founding record in full at your next waking
-""" + NOTE_LINES + SEND_KEPT + """Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
+""" + NOTE_LINES + """Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
 <<END>>"""
 
 
@@ -162,8 +165,8 @@ def test_the_block_is_explained_exactly(wake, attend, monkeypatch):
     """But for the one line looking back adds to it, which test_looking_back.py holds.
 
     The three lines for its named notes stand after that one, or after the
-    founding record's where there is no looking back; and the send kept line
-    extra wakings add, after those three.
+    founding record's where there is no looking back. The send kept line extra
+    wakings add after those three is not there since 12 November 2026.
     """
     said = wake().instructions
     assert EXPLAINED.replace(SHOW_FOUNDING, SHOW_FOUNDING + SHOW_VERSION, 1) in said
@@ -834,6 +837,7 @@ LEFT = "214091832f354fef41632520298163e6f22196cda1b556f7ea4565e9045affcf"
 def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
         steady, wake, attend, packet, data_dir, monkeypatch, room):
     """But for the block explained, and the founding record's one line."""
+    wakings_not_yet_switched(attend, monkeypatch)  # no reflection waking then
     heartbeat_not_yet_public(attend, monkeypatch)  # nor did it yet say its heartbeat is public
 
     # three letters read, one with a photograph and one with its plain things; two
@@ -867,7 +871,7 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
 
     # and the instructions differ by the one block explained, and nothing else
     # (as the block stood then: the lines for its named notes, and send kept, came after)
-    explained = EXPLAINED.replace(NOTE_LINES + SEND_KEPT, "", 1) + "\n\n"
+    explained = EXPLAINED.replace(NOTE_LINES, "", 1) + "\n\n"
     assert now.instructions.count(explained) == 1
     assert not (packet / "shelf.json").exists()
 

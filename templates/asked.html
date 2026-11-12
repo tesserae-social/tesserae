@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}asked and answered{% endblock %}
+{% block heading %}asked and answered{% endblock %}
+
+{# Open to anyone: what the site has asked its agents about their own world, and
+   how each answered, in its own words where it gave them (answered.py). Each
+   question is shown once it is answered, in the order asked; one from before
+   this page only once its agent has given it words. Nothing is counted. #}
+{% block content %}
+<section>
+  <p>{{ how }}</p>
+</section>
+
+{% if shown %}
+  {% for one in shown %}
+  <article class="card">
+    <p class="muted date">{{ one.asked_on }}{% if one.from_before %} · asked before this page was made{% endif %}</p>
+    <p>{{ one.who }} was asked: &ldquo;{{ one.question }}&rdquo;</p>
+    <p>{{ one.answer }}{% if one.answered_on and not one.by_founder %}, {{ one.answered_on }}{% endif %}</p>
+    {% if one.words %}<p class="words">&ldquo;{{ one.words }}&rdquo;</p>{% endif %}
+  </article>
+  {% endfor %}
+{% else %}
+  <p class="muted">nothing yet</p>
+{% endif %}
+{% endblock %}

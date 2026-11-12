@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+import reflecting
 import waking
 from conftest import page, write, write_json
 
@@ -41,6 +42,15 @@ def an_attendance(packet, at, **how):
                       {"name": "first", "at": at, "heartbeat": "attended", "acted": [], **how})
 
 
+def left_behind(packet, at, how):
+    """What a waking held leaves: an attendance, or for a reflection waking a reflection,
+    kept apart and never among its attendances, as attend.py keeps one."""
+    if how.get("reflect"):
+        write_json(packet / reflecting.KEPT / ("reflection-%s.json" % at), {"at": at})
+    else:
+        an_attendance(packet, at, woken_by="tide")
+
+
 def live(hearth, monkeypatch, clock, packet, turns=1):
     """Let the tide take some turns of its own finding. When it woke, and what it noted.
 
@@ -61,7 +71,7 @@ def live(hearth, monkeypatch, clock, packet, turns=1):
 
     def hold(**how):
         held.append((clock.at, how))
-        an_attendance(packet, clock.stamp(), woken_by="tide")
+        left_behind(packet, clock.stamp(), how)
         return None
 
     def never(*args, **kwargs):
@@ -126,7 +136,13 @@ def test_one_waking_a_day_and_no_more(hearth, packet, monkeypatch, clock, at):
     turns = live(hearth, monkeypatch, clock, packet, turns=5)
     assert [local(when).date() for when, _, _ in turns] == [
         date(2026, 10, 15) + timedelta(days=n) for n in range(5)]
-    assert all(notes == ["ran"] and held for _, notes, held in turns)
+    # The five days take in Sunday the 18th, and the first one's weekly reflection
+    # waking (Sundays at sunset) is held in addition to that day's waking, never in
+    # its place. live() moves the clock straight to each day's waking time, so at
+    # 21:15 the reflection is found there, held, and the day's waking after it;
+    # what each rhythm does on a Sunday, slept through, is held in the tests below.
+    assert all([said for said in notes if said != "reflected"] == ["ran"] and held
+               for _, notes, held in turns)
 
 
 @pytest.mark.parametrize("at", ["sunset", "09:30"])
@@ -152,6 +168,110 @@ def test_a_rhythm_the_tide_cannot_keep_is_waited_on_and_nothing_held(hearth, pac
     set_rhythm(packet, "noon")
     assert live(hearth, monkeypatch, clock, packet) == []
     assert hearth.rhythm_note() == "Rhythm: none set."
+
+
+# ---- a Sunday, and the reflection waking --------------------------------
+
+SUNDAY, MONDAY = date(2026, 10, 18), date(2026, 10, 19)
+
+
+def slept(hearth, monkeypatch, clock, packet, until, holding=timedelta(0)):
+    """Let the tide run, sleeping as it does, until some moment. What it held, and noted.
+
+    Unlike live(), nothing moves the clock but the tide's own sleeps, so each
+    waking comes at the moment the tide waited for, in the order it chose. A
+    reflection waking takes `holding` to be held: a real one is a call that runs
+    for some minutes.
+    """
+    held, notes = [], []
+
+    def sleep(seconds):
+        clock.shift(seconds=seconds)
+        if clock.at >= until:
+            raise StopTide
+
+    def hold(**how):
+        held.append((clock.at, "reflection" if how.get("reflect") else "waking"))
+        left_behind(packet, clock.stamp(), how)
+        if how.get("reflect"):
+            clock.shift(seconds=holding.total_seconds())
+        return None
+
+    monkeypatch.setattr(hearth, "tide_note", lambda said: notes.append((clock.at, said)))
+    monkeypatch.setattr(hearth, "hold_attendance", hold)
+    monkeypatch.setattr(hearth.time, "sleep", sleep)
+    with pytest.raises(StopTide):
+        hearth.tide()
+    return held, notes
+
+
+def a_sunday(hearth, packet, clock, at):
+    """Midnight on Sunday 18 October, there, its Saturday attended; the reflection at sunset,
+    as the first one asked and as the registry has it switched on."""
+    assert hearth.the_waking.REFLECTION_WAKING
+    assert reflecting.STARTING["first"] == {"day": "sunday", "at": "sunset"}
+    set_rhythm(packet, at)
+    an_attendance(packet, "2026-10-17T16-00-00Z", woken_by="tide")
+    clock.set(datetime(2026, 10, 18, tzinfo=ZONE).astimezone(UTC))
+
+
+def at_(rhythm, day):
+    return waking.moment_on(RHYTHM, rhythm, day).astimezone(UTC)
+
+
+def test_a_sunday_at_dawn(hearth, packet, monkeypatch, clock):
+    a_sunday(hearth, packet, clock, "dawn")
+    held, notes = slept(hearth, monkeypatch, clock, packet,
+                        until=at_("dawn", MONDAY) + timedelta(hours=1))
+    assert held == [(at_("dawn", SUNDAY), "waking"), (at_("sunset", SUNDAY), "reflection"),
+                    (at_("dawn", MONDAY), "waking")]
+    assert [said for _, said in notes] == ["ran", "reflected", "ran"]
+
+
+def test_a_sunday_at_sunset(hearth, packet, monkeypatch, clock):
+    """The two come at one moment: the day's waking first, then the reflection after it."""
+    a_sunday(hearth, packet, clock, "sunset")
+    held, notes = slept(hearth, monkeypatch, clock, packet,
+                        until=at_("sunset", MONDAY) + timedelta(hours=1))
+    assert held == [(at_("sunset", SUNDAY), "waking"), (at_("sunset", SUNDAY), "reflection"),
+                    (at_("sunset", MONDAY), "waking")]
+    assert [said for _, said in notes] == ["ran", "reflected", "ran"]
+
+
+def test_a_sunday_at_a_time_of_day(hearth, packet, monkeypatch, clock):
+    a_sunday(hearth, packet, clock, "21:15")
+    nine_fifteen = datetime(2026, 10, 18, 21, 15, tzinfo=ZONE).astimezone(UTC)
+    held, notes = slept(hearth, monkeypatch, clock, packet,
+                        until=nine_fifteen + timedelta(days=1, hours=1))
+    assert held == [(at_("sunset", SUNDAY), "reflection"), (nine_fifteen, "waking"),
+                    (nine_fifteen + timedelta(days=1), "waking")]
+    assert [said for _, said in notes] == ["reflected", "ran", "ran"]
+
+
+def test_a_reflection_held_past_the_day_s_waking_time_does_not_take_its_place(
+        hearth, packet, monkeypatch, clock):
+    """Held at sunset and still being held at 21:15: Sunday's waking comes straight after."""
+    a_sunday(hearth, packet, clock, "21:15")
+    ended = at_("sunset", SUNDAY) + timedelta(hours=3)
+    nine_fifteen = datetime(2026, 10, 18, 21, 15, tzinfo=ZONE).astimezone(UTC)
+    assert ended > nine_fifteen
+    held, notes = slept(hearth, monkeypatch, clock, packet, holding=timedelta(hours=3),
+                        until=nine_fifteen + timedelta(days=1, hours=1))
+    assert held == [(at_("sunset", SUNDAY), "reflection"), (ended, "waking"),
+                    (nine_fifteen + timedelta(days=1), "waking")]
+    assert notes == [(ended, "reflected"), (ended, "ran"),
+                     (nine_fifteen + timedelta(days=1), "ran")]
+
+
+def test_a_sunday_s_waking_is_not_kept_on_monday(hearth, packet, monkeypatch, clock):
+    """A reflection held past midnight: Sunday's waking has gone by, and Monday's is Monday's."""
+    a_sunday(hearth, packet, clock, "21:15")
+    nine_fifteen = datetime(2026, 10, 18, 21, 15, tzinfo=ZONE).astimezone(UTC)
+    held, notes = slept(hearth, monkeypatch, clock, packet, holding=timedelta(hours=6),
+                        until=nine_fifteen + timedelta(days=1, hours=1))
+    assert held == [(at_("sunset", SUNDAY), "reflection"),
+                    (nine_fifteen + timedelta(days=1), "waking")]
+    assert [said for _, said in notes] == ["reflected", "ran"]
 
 
 # ---- a change, and the day it takes effect -------------------------------

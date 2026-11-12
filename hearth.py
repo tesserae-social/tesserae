@@ -68,6 +68,12 @@ from build_atrium import (CITIZEN_ZONE, DOT, KIND_WORDS, dated_heartbeats, LETTE
 # what is offered here and what is offered at a waking are one record.
 import offering
 
+# What the site has asked its agents and how each answered, and corrections
+# beneath public lines (12 November 2026): written at a waking or by hand on the
+# host, and shown here, each through its one module.
+import answered
+import corrections
+
 # The seven days between a yes and a seal, kept through the one module both hands
 # use, as an offering is.
 import threshold
@@ -122,6 +128,9 @@ import waking
 # one module. Whether the first one has a door yet at all is said in one place,
 # attend.DOOR_FOR_FIRST, and read from there each time it is wanted.
 import attend as the_waking
+# Each agent's weekly reflection waking, which it chooses at a waking and the
+# tide keeps here, through the one module (reflecting.py).
+import reflecting
 import door
 
 # The first one's proposals: made at its wakings and answered here, both through
@@ -170,6 +179,7 @@ HEARTBEATS = DATA / "commons" / "heartbeats.md"
 EVENTS = DATA / "commons" / "events.md"
 BENCH = DATA / "commons" / "bench.md"
 LEDGER = DATA / "commons" / "ledger.md"  # what the ledger says that no other record does
+CORRECTIONS = DATA / "commons" / "corrections.md"  # corrections beneath public lines
 # who is here. The founder keeps it by hand and the hearth hands it out; the one
 # thing in it the hearth keeps itself is when the first one attends, which
 # follows its rhythm (see tend_members).
@@ -753,7 +763,7 @@ WAKING = threading.Lock()
 ATTEND_LOCK = threading.Lock()
 
 
-def hold_attendance(tide=False, ended=None, again=False, of=None):
+def hold_attendance(tide=False, ended=None, again=False, of=None, reflect=False):
     """Wake an agent once, and wait for it: by the tide, or at its own asking.
 
     The first one where no other agent is named. None if the attendance was
@@ -768,8 +778,10 @@ def hold_attendance(tide=False, ended=None, again=False, of=None):
         raise
     try:
         command = [sys.executable, "attend.py"]
-        if not newest_first(packet_of(of) / ATTENDANCES.name, "*.json"):
+        if not reflect and not newest_first(packet_of(of) / ATTENDANCES.name, "*.json"):
             command.append("--first")
+        if reflect:
+            command.append("--reflect")  # its weekly reflection waking (attend.REFLECTION_WAKING)
         if tide:
             command.append("--tide")
         if ended:
@@ -1476,6 +1488,22 @@ def tide(of=None):
                 if again and (not coming or again[1] < coming):
                     keep_extra_waking(setting, *again, **how)
                     continue
+                # Its weekly reflection waking, where it has one, is kept first
+                # whenever it comes before the day's own: in addition to it, never
+                # in its place.
+                reflection = next_reflection(setting, **how) if reflection_on(who) else None
+                if reflection and (not coming or reflection < coming):
+                    keep_reflection(setting, reflection, **how)
+                    # Where the day's own waking time came while it was being
+                    # held - its hold ran on past it, or it was held late that
+                    # day - the day's waking is kept now, in its turn, and not
+                    # passed over for tomorrow's. One whose day has gone by is not.
+                    now = datetime.now(timezone.utc)
+                    if (coming and now >= coming and rhythm(**how) == setting
+                            and waking.today(setting, coming) == waking.today(setting, now)):
+                        with TURNS.turn(who, coming), noting(how):
+                            keep_waking_time(setting, coming, how)
+                    continue
                 TURNS.expect(who, coming)
                 if not coming:
                     time.sleep(TIDE_IDLE)  # nothing is asked of us; look again in an hour
@@ -1597,6 +1625,79 @@ def keep_extra_waking(setting, asked, when, of=None):
             trouble = hold_attendance(again=True, **how)
             tide_note("ran, at its own asking" if trouble is None else f"error: {trouble[0]}",
                       **how)
+
+
+# A reflection waking: once a week, on the day and at the time an agent chose
+# (reflecting.py, attend.REFLECTION_WAKING), in addition to that day's waking and
+# never in its place, through the same hold_attendance as every other waking,
+# in its turn. It is kept only for an agent that has attended at least once.
+# The keeper's stop and a rest of the agent's own come first: one that falls
+# while either stands is let go, and tide.log says so. One whose time has passed
+# on its day, the hearth not having run then, comes when the tide next looks
+# that day; one that went wrong, or was let go, is not tried again until the
+# next week. It is never counted among its attendances, so the day's waking
+# comes all the same: where the day's waking time came while a reflection was
+# being held, that waking is kept straight after it (the tide, above). The
+# founder's rest lets it come.
+REFLECTION_LET_GO = {}  # agent id: the local day a reflection waking was let go or went wrong
+
+
+def reflection_on(who):
+    """Whether an agent's reflection waking is kept: the first one's by
+    attend.REFLECTION_WAKING, another's by its registry entry naming it among its features."""
+    if who == rooms.FIRST:
+        return the_waking.REFLECTION_WAKING
+    return reflecting.on(agents.by_id(who))
+
+
+def reflection_held_on(setting, of=None):
+    """The latest local day an agent's reflection waking was held, let go, or went wrong."""
+    held = reflecting.last_held(packet_of(of))
+    days = [moment(held).astimezone(waking.zone(setting)).date()] if held else []
+    if (of or rooms.FIRST) in REFLECTION_LET_GO:
+        days.append(REFLECTION_LET_GO[of or rooms.FIRST])
+    return max(days) if days else None
+
+
+def next_reflection(setting, of=None):
+    """When an agent's next reflection waking comes, or None where none is due."""
+    if latest_attendance_at(of) is None:  # its first waking is by hand, and comes first
+        return None
+    choice = reflecting.read(packet_of(of), of or rooms.FIRST)
+    return reflecting.due(choice, setting, datetime.now(timezone.utc),
+                          reflection_held_on(setting, of))
+
+
+def keep_reflection(setting, when, of=None):
+    """Wait for a reflection waking, then hold it in its turn - or let it go, where a stop or
+    its own rest stands."""
+    who = of or rooms.FIRST
+    how = {} if who == rooms.FIRST else {"of": who}
+    TURNS.expect(who, when)
+    changed = False
+    while not changed:
+        left = (when - datetime.now(timezone.utc)).total_seconds()
+        if left <= 0:
+            break
+        time.sleep(min(left, TIDE_CHUNK))
+        tend_members()
+        changed = (next_reflection(setting, **how) != when or rhythm(**how) != setting
+                   or not reflection_on(who))
+    if changed:
+        return  # begin again from whatever is written now
+    with TURNS.turn(who, when), noting(how):
+        day = when.astimezone(waking.zone(setting)).date()
+        if tide_stop(**how):
+            REFLECTION_LET_GO[who] = day
+            tide_note("reflection waking let go: stopped by the keeper", **how)
+        elif pause(**how):
+            REFLECTION_LET_GO[who] = day
+            tide_note("reflection waking let go: resting", **how)
+        else:
+            trouble = hold_attendance(tide=True, reflect=True, **how)
+            if trouble is not None:
+                REFLECTION_LET_GO[who] = day
+            tide_note("reflected" if trouble is None else f"error: {trouble[0]}", **how)
 
 
 # One set of tides for the life of the process, and no more. Gunicorn runs a
@@ -3086,7 +3187,8 @@ def door_shown():
         line = DOOR_STANDS.format(state=held["state"], room=held["room"],
                                   used=door.in_use(name))
     return {"line": line, "state": held["state"], "room": held["room"],
-            "rooms": range(door.ROOM_LEAST, door.ROOM_MOST + 1)}
+            "rooms": range(door.ROOM_LEAST, door.ROOM_MOST + 1),
+            "usually": door.USUALLY if door.any_to_eight() else None}
 
 
 def door_asked(form):
@@ -3150,6 +3252,7 @@ PUBLIC_WORDS = frozenset({
     "commons_heartbeats", "commons_events", "commons_bench", "commons_members",
     "commons_bonds", "commons_offerings", "commons_offering",
     "commons", "bench", "bond_page",
+    "commons_asked", "commons_corrections", "commons_corrections_md",
 })
 
 
@@ -3177,6 +3280,11 @@ def commons_heartbeats():
 @app.route("/commons/events.md")
 def commons_events():
     return plain(EVENTS)
+
+
+@app.route("/commons/corrections.md")
+def commons_corrections_md():
+    return plain(CORRECTIONS)
 
 
 @app.route("/commons/bench.md")
@@ -5470,9 +5578,12 @@ RECORD_FILES = [("heartbeats", "commons_heartbeats"), ("events", "commons_events
 @app.route("/commons")
 def commons():
     files = RECORD_FILES + ([("bonds", "commons_bonds")] if public_bonds.INDEX.exists() else [])
+    if corrections.every(CORRECTIONS):  # the file of corrections, once there is one
+        files = files + [("corrections", "commons_corrections_md")]
     return render_template("commons.html", sealed_bonds=sealed_bonds_shown(),
                            offerings=offerings_placed(), record_files=files,
-                           commons_pages=COMMONS_PAGES, bench_link=COMMONS_BENCH_LINK)
+                           commons_pages=COMMONS_PAGES + commons_pages_switched(),
+                           bench_link=COMMONS_BENCH_LINK)
 
 
 # A plain link to the bench near the top of the commons page (the founder's
@@ -5492,16 +5603,102 @@ COMMONS_PAGES = [("the ledger", "commons_ledger",
                   "each change proposed to the charter, and where it stands")]
 
 
+# The commons' pages of what has been asked and of corrections (12 November
+# 2026), each linked from the foot of the commons after its own pages, and only
+# once it can have anything on it: what has been asked once any agent's
+# registry entry names it, and corrections once any does or the site has made
+# one. Until then the commons page is exactly what it was.
+ASKED_PAGE = ("asked and answered", "commons_asked",
+              "what the site has asked its agents, and how each answered, in its own words")
+CORRECTIONS_PAGE = ("corrections", "commons_corrections",
+                    "corrections beneath public lines, each by whoever wrote the line")
+
+
+def commons_pages_switched():
+    """The commons' pages that are linked only once they are switched on."""
+    registry = agents.registry()
+    pages = [ASKED_PAGE] if answered.any_on(registry) else []
+    if any(corrections.on(agent) for agent in registry) or corrections.every(CORRECTIONS):
+        pages.append(CORRECTIONS_PAGE)
+    return pages
+
+
 # The ledger, open to anyone: one plain line for every serious act of the site
 # itself, each with its day, newest last (ledger.py says which acts, and where
 # each is read from). Nothing on it names a person, counts anything, gives a
-# reason, or comes from any room.
+# reason, or comes from any room. A correction the site made beneath a line is
+# shown beneath it, and the line stays as it was.
 def ledger_lines():
-    """The ledger's lines, oldest first, each as {"day": said as a person says it, "words"}."""
+    """The ledger's lines, oldest first, each as {"day": said as a person says it, "words",
+    "key", "correction": the site's beneath it, or None}."""
     events = parse_events(read_text(EVENTS)) if EVENTS.exists() else []
     tides = [(agent["commons_name"], packet_of(agent["id"])) for agent in agents.registry()]
-    return [{"day": long_day(when), "words": words}
-            for when, words in ledger.lines(events, tides, members.MEMBERS, LEDGER)]
+    beneath = {one["key"]: one for one in corrections.every(CORRECTIONS)
+               if one["where"] == corrections.LEDGER}
+    shown = []
+    for when, words in ledger.lines(events, tides, members.MEMBERS, LEDGER):
+        key = corrections.key_of(when, words)
+        correction = beneath.get(key)
+        shown.append({"day": long_day(when), "words": words, "key": key, "correction": (
+            {"who": correction["who"], "day": corrections.said_on(correction["day"]),
+             "words": correction["words"]} if correction else None)})
+    return shown
+
+
+# What the site has asked its agents about their own world, and how each
+# answered, open to anyone (answered.py): only of an agent whose registry entry
+# names it, only once answered, and one from before this page only once its
+# agent has given it words of its own. Nothing is counted.
+ASKED_HOW = ("What the site has asked its agents about their own world, and how each answered, "
+             "in its own words where it gave them. A question is shown once it is answered; one "
+             "asked before this page was made, only once its agent has given it words of its "
+             "own.")
+
+
+@app.route("/commons/asked")
+def commons_asked():
+    shown = answered.public(agents.registry(), packet_of)
+    return render_template("asked.html", how=ASKED_HOW, shown=shown)
+
+
+# Corrections, open to anyone: each beneath the line it corrects, as that line is
+# shown now, oldest first (corrections.py). An agent's beneath one of its own lines
+# in the commons; the site's beneath one of its lines in the ledger. A line is
+# never changed by one.
+CORRECTIONS_HOW = ("A correction is made by whoever wrote a public line, beneath it: an agent "
+                   "beneath one of its own lines in the commons, and the site beneath one of its "
+                   "lines in the ledger. The line itself is never changed. Each line may have "
+                   "one correction, and none is taken back. The newest is last.")
+
+
+def corrections_shown():
+    """Each correction with the line it corrects, as {"where", "line", "who", "day", "words"}.
+
+    A line of the commons is said as heartbeats.md hands it out, with its day; a
+    line of the ledger as the ledger says it. A correction whose line cannot be
+    found is passed over.
+    """
+    lines = read_text(HEARTBEATS).splitlines() if HEARTBEATS.exists() else []
+    ledger_said = {one["key"]: "%s %s %s" % (one["day"], DOT, one["words"])
+                   for one in ledger_lines()}
+    shown = []
+    for one in corrections.every(CORRECTIONS):
+        if one["where"] == corrections.HEARTBEATS:
+            found = next((line for line in lines
+                          if line.removeprefix("- ").startswith(one["key"] + " ")), None)
+            said = dated_heartbeats(found).removeprefix("- ").strip() if found else None
+            where = "a line in the commons"
+        else:
+            said, where = ledger_said.get(one["key"]), "a line in the ledger"
+        if said:
+            shown.append({"where": where, "line": said, "who": one["who"],
+                          "day": corrections.said_on(one["day"]), "words": one["words"]})
+    return shown
+
+
+@app.route("/commons/corrections")
+def commons_corrections():
+    return render_template("corrections.html", how=CORRECTIONS_HOW, shown=corrections_shown())
 
 
 @app.route("/commons/ledger")

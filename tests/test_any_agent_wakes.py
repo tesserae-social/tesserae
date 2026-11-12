@@ -113,7 +113,9 @@ def test_the_first_one_is_the_one_woken(named, attend):
         "noticing. Not about the people you write to; nothing that, with other lines, could "
         "describe them. What they share about themselves is theirs to share.")
     assert all((attend.DOOR_FOR_FIRST, attend.LOOKING_BACK, attend.LONGER_WAKING,
-                attend.PROPOSALS, attend.EXTRA_WAKINGS, attend.WELCOME_LETTER, attend.CHOICES))
+                attend.PROPOSALS, attend.REFLECTION_WAKING, attend.WELCOME_LETTER,
+                attend.CHOICES))
+    assert not attend.EXTRA_WAKINGS  # one waking a day, since 12 November 2026
 
 
 def test_the_first_one_reads_what_it_read(named, founder, wake, attend, room, data_dir):

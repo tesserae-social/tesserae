@@ -24,7 +24,7 @@ import pytest
 from conftest import (FOUNDING_TRANSCRIPT, SWITCHED_ON_21_OCTOBER, Turn, block, blocks,
                       lines_of, page, read_json, shut_away, write, write_json)
 from conftest import heartbeat_not_yet_public
-from conftest import notebook_unexplained
+from conftest import notebook_unexplained, wakings_not_yet_switched
 from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
 # Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
@@ -188,6 +188,7 @@ def test_shut_away_nothing_of_it_is_sent_or_kept(wake, attend, world, packet, mo
 def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_does(
         steady, attend, world, room, data_dir, clock, monkeypatch):
     """Two wakings, in one world: this one shut away, as the committed attend.py was."""
+    wakings_not_yet_switched(attend, monkeypatch)  # one waking a day, and its reflection, came later
     shut_away(attend, monkeypatch, "LONGER_WAKING", *SWITCHED_ON_21_OCTOBER)  # they came after
     notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
     heartbeat_not_yet_public(attend, monkeypatch)  # nor did it yet say its heartbeat is public

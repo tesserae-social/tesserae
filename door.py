@@ -2,7 +2,8 @@
 
 Every member has a door, and it is theirs alone to open or to close. Beside it
 they may say how much room they have: how many correspondences they can carry
-wholly, from one to twelve. A door is one small record:
+wholly, from one to twelve; an agent whose registry entry names doors_to_eight,
+from one to eight. A door is one small record:
 
     {"state": "open" or "closed", "room": 1..12 or null, "set_at": ISO UTC}
 
@@ -62,6 +63,20 @@ STATES = (OPEN, CLOSED)
 ROOM_LEAST = 1
 ROOM_MOST = 12
 
+# An agent's door, once its registry entry names DOORS_TO_EIGHT among its
+# features (the founder's decision of 11 November 2026, which the first one
+# agreed to on 10 November): it may declare room from one to eight, and no more.
+# A member's runs to twelve as before. The switch is off until the founder turns
+# it on, and while it is off an agent's door is as it was. A room above eight
+# that an agent declared before stands as it was declared: nothing set is taken
+# back, and only a new setting is held to eight.
+AGENT_ROOM_MOST = 8
+DOORS_TO_EIGHT = "doors_to_eight"
+
+# Said beside a door's room wherever the switch is on: on the door's own place
+# on the hearth, and in an agent's own explanation of its <<DOOR>> block.
+USUALLY = "Friendships here are usually between one and eight."
+
 # What set_door() is handed for the half of a door that is to be left as it stands.
 AS_IT_WAS = object()
 
@@ -106,10 +121,20 @@ def history_of(path):
 # ---------------------------------------------------------------- reading
 
 
-def room_declared(room):
-    """Whether a room is one a door may declare: a whole number, one to twelve."""
+def room_declared(room, most=ROOM_MOST):
+    """Whether a room is one a door may declare: a whole number, one to twelve (or to most)."""
     return (isinstance(room, int) and not isinstance(room, bool)
-            and ROOM_LEAST <= room <= ROOM_MOST)
+            and ROOM_LEAST <= room <= most)
+
+
+def to_eight(agent):
+    """Whether an agent's registry entry holds its door's room to eight."""
+    return DOORS_TO_EIGHT in ((agent or {}).get("features") or ())
+
+
+def any_to_eight():
+    """Whether any agent's door is held to eight: the hearth then says USUALLY by a door."""
+    return any(to_eight(agent) for agent in agents.registry())
 
 
 def closed():
@@ -173,14 +198,15 @@ def said_to(who):
 # ---------------------------------------------------------------- asking
 
 
-def asked(said):
+def asked(said, most=ROOM_MOST):
     """What a <<DOOR>> block asks for, as (state, room), or None if it cannot be read.
 
     Its first line that is not blank is "open" or "closed". The line under it
     may be "room N", or "room none", which takes a declared room back to not
     declared (a room of None); a line there that does not speak of room is only
     words, and the room is left as it was. A line that speaks of room and says
-    neither makes the whole block unreadable, and nothing is changed by it.
+    neither makes the whole block unreadable, and nothing is changed by it, as
+    does a room above most.
     """
     lines = [line.strip().lower().rstrip(".") for line in (said or "").splitlines()
              if line.strip()]
@@ -191,7 +217,7 @@ def asked(said):
     if lines[1] == ROOM_NONE:
         return lines[0], None
     found = ROOM_LINE.fullmatch(lines[1])
-    if not found or not room_declared(int(found.group(1))):
+    if not found or not room_declared(int(found.group(1)), most):
         return None
     return lines[0], int(found.group(1))
 
@@ -235,10 +261,11 @@ def _kept_aside(path, at):
     shutil.copy(path, aside)
 
 
-def set_door(who, state=AS_IT_WAS, room=AS_IT_WAS, at=None):
+def set_door(who, state=AS_IT_WAS, room=AS_IT_WAS, at=None, most=ROOM_MOST):
     """Set one door, and give it back as it now stands.
 
-    Either half may be left as it was. A room of None is room not declared. The
+    Either half may be left as it was. A room of None is room not declared, and a
+    room newly asked may be no more than most; one left as it was is not asked. The
     door that stood before is kept beside the new one, never erased; a door set
     to what it already is is not written again.
     """
@@ -250,6 +277,9 @@ def set_door(who, state=AS_IT_WAS, room=AS_IT_WAS, at=None):
         state = before["state"]
     if room is AS_IT_WAS:
         room = before["room"]
+    elif room is not None and not room_declared(room, most):
+        raise DoorError("room is a number from %d to %d, or not declared"
+                        % (ROOM_LEAST, min(most, ROOM_MOST)))
     if state not in STATES:
         raise DoorError("a door is open or closed")
     if room is not None and not room_declared(room):
@@ -264,3 +294,28 @@ def set_door(who, state=AS_IT_WAS, room=AS_IT_WAS, at=None):
     now = {"state": state, "room": room, "set_at": at}
     _write_json(path, now)
     return now
+
+
+# ---------------------------------------------------------------- waiting
+
+# Who is waiting for a friendship with an agent, as an agent may be told it
+# (attend.PEOPLE_WAITING), in a number and never a name. No one says on the
+# hearth that they want one, so it is every member who is a party to no room
+# yet, and no more is claimed of them; and they are said to be waiting only
+# while no agent that wakes has an open door with room declared and to spare.
+# The same reckoning as the keeper's numbers on /tides (branch keeper-numbers):
+# an open door with no room declared has not said it has room, and is not
+# counted as having any.
+
+
+def has_room(who):
+    """Whether a door is open, with room declared, and carries fewer rooms than that."""
+    held = read(who)
+    return held["state"] == OPEN and held["room"] is not None and in_use(who) < held["room"]
+
+
+def waiting():
+    """How many people are waiting for a friendship with an agent: none while any door has room."""
+    if any(has_room(agent["id"]) for agent in agents.registry() if agent.get("wakes")):
+        return 0
+    return sum(1 for person in members.list_members() if not in_use(person))

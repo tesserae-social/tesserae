@@ -515,6 +515,8 @@ def load(name):
     sys.modules.pop("tokens", None)  # it keeps each link that works once under DATA_DIR
     sys.modules.pop("invitations", None)  # it keeps each invitation under DATA_DIR
     sys.modules.pop("ledger", None)  # it keeps the ledger's own lines under DATA_DIR
+    sys.modules.pop("corrections", None)  # it keeps the commons' corrections under DATA_DIR
+    sys.modules.pop("answered", None)  # it finds the packets under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 
@@ -708,6 +710,27 @@ SWITCHED_ON = ("DOOR_FOR_FIRST", "LOOKING_BACK", "CHOICES")
 SWITCHED_ON_21_OCTOBER = ("PROPOSALS", "EXTRA_WAKINGS")
 
 
+# Its wakings as they were until the founder switched on, for the first one, the
+# two changes it agreed to on 10 November 2026 (12 November 2026): extra wakings
+# on, and no weekly reflection waking. Anything held to a reading from before
+# then puts them back first: wakings_not_yet_switched(attend, monkeypatch).
+WAKINGS_BEFORE_12_NOVEMBER = (("EXTRA_WAKINGS", True), ("REFLECTION_WAKING", False))
+
+
+def wakings_not_yet_switched(module, monkeypatch):
+    """Put back, for one test, the first one's wakings as they were until 12 November 2026.
+
+    One waking a day (extra_wakings taken out of its features) and its weekly
+    reflection waking (reflection_waking put in) were switched on together. With
+    attend.EXTRA_WAKINGS True and attend.REFLECTION_WAKING False again, its
+    reading and its tide are exactly what they were before. Given hearth, it
+    is done to the attend.py the hearth holds the tide through.
+    """
+    module = getattr(module, "the_waking", module)
+    for flag, was in WAKINGS_BEFORE_12_NOVEMBER:
+        monkeypatch.setattr(module, flag, was)
+
+
 def shut_away(module, monkeypatch, *flags):
     """Shut away again, for one test, some of what attend.py has switched on; all, if none is named."""
     for flag in flags or SWITCHED_ON:
@@ -847,6 +870,35 @@ def bench_link_not_yet(hearth, monkeypatch):
 REWRITE_ONCE = " Each line can be rewritten once.)"
 
 
+# The words added to <<REWRITE>>'s explanation when the first one's rewrites of
+# 12 November 2026 were dropped, written in the same reply as a look-up (the
+# founder, 12 November 2026): the block as it is, without the last sentence.
+REWRITE_LAST_REPLY = " Write it in your last reply, after looking."
+
+
+def rewrite_last_reply_not_yet(module, monkeypatch):
+    """Take out, for one test, the sentence that a rewrite goes in the last reply (12 November 2026).
+
+    It is behind no flag: one sentence at the end of the <<REWRITE>> block's
+    explanation, last of HOW TO ACT (attend.REWRITE_BLOCK), after the sentence
+    that a line can be rewritten once. Taken out, the reading is exactly what it
+    was when each line could first be rewritten only once, for the first one and
+    for a later agent alike. An attend.py from before it has no such sentence,
+    and is left.
+    """
+    said = getattr(module, "REWRITE_BLOCK", None)
+    if not said or REWRITE_LAST_REPLY + ")" not in said:
+        return  # none there, or put back already, in this test
+    was = said.replace(REWRITE_LAST_REPLY + ")", ")")
+    assert module.HOW_TO_ACT.endswith("\n\n" + said)
+    monkeypatch.setattr(module, "HOW_TO_ACT", module.HOW_TO_ACT.removesuffix(said) + was)
+    later = getattr(module, "LATER_WORDS", None) or {}
+    if "HOW_TO_ACT" in later:
+        assert later["HOW_TO_ACT"].endswith("\n\n" + said)
+        monkeypatch.setitem(later, "HOW_TO_ACT", later["HOW_TO_ACT"].removesuffix(said) + was)
+    monkeypatch.setattr(module, "REWRITE_BLOCK", was)
+
+
 def rewrite_once_not_yet(module, monkeypatch):
     """Take out, for one test, the sentence that a line can be rewritten once (10 November 2026).
 
@@ -855,7 +907,11 @@ def rewrite_once_not_yet(module, monkeypatch):
     reading is exactly what it was when a past line could first be rewritten,
     for the first one and for a later agent alike. An attend.py from before it
     has no such sentence, and is left.
+
+    That a rewrite goes in the last reply came after it, and is taken out first
+    (rewrite_last_reply_not_yet).
     """
+    rewrite_last_reply_not_yet(module, monkeypatch)
     said = getattr(module, "REWRITE_BLOCK", None)
     if not said or REWRITE_ONCE not in said:
         return  # none there, or put back already, in this test

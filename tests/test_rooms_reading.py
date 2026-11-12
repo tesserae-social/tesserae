@@ -315,6 +315,18 @@ With the sentence taken out again (conftest.rewrite_last_reply_not_yet), the
 reading is exactly the one cut when each line could be rewritten only once,
 READING_REWRITE_ONCE. The founder tells the first one by letter.
 
+And an eighteenth time, on purpose, the same day and on the same branch, when
+the founder switched on for the first one the two changes it agreed to on 10
+November 2026 and that the two agreed to turn on together: one waking a day
+(extra_wakings taken out of its features, so attend.EXTRA_WAKINGS is False and
+nothing of an extra waking is offered) and its weekly reflection waking
+(reflection_waking put in, so attend.REFLECTION_WAKING is True), to start on
+Sundays at sunset. READING_NOW is the reading live after that deploy. No word of
+any block that stands changed, and no file of its packet. With the two put back
+(conftest.wakings_not_yet_switched), the reading is exactly the one cut for the
+last reply, READING_LAST_REPLY; every reading cut before it puts them back
+first.
+
 Then the room was given a folder of its own (rooms phase A): its letters,
 errands, bond and offerings are kept in DATA_DIR/rooms/first/ rather than in the
 packet. That moved no word of what is read, and none of the readings was cut
@@ -328,7 +340,9 @@ kept (stage 5f), PACKET_BEFORE held the same files through the names a copy
 gave them then, under packets/first/ and without room.json; it held as it was
 cut until it went.
 
-All sixteen earlier readings are still held. With the sentence that a rewrite
+All seventeen earlier readings are still held. With the first one's wakings put back as
+they were (conftest.wakings_not_yet_switched), the reading is exactly the one cut
+for the last reply; with the sentence that a rewrite
 goes in the last reply taken out (conftest.rewrite_last_reply_not_yet), the
 reading is exactly the one cut when each line could be rewritten only once; with
 the sentence that a line can be rewritten once taken out as well
@@ -378,7 +392,7 @@ from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, expl
                       named_notes_unexplained,
                       notebook_unexplained, post, public_lines_not_yet, quiet_lines_not_yet,
                       rewrite_last_reply_not_yet, rewrite_not_yet_offered,
-                      rewrite_once_not_yet, shut_away,
+                      rewrite_once_not_yet, shut_away, wakings_not_yet_switched,
                       stamps_as_before, welcome_not_yet_offered, write)
 
 # Every reading below was cut again on 25 October 2026, when the <<RHYTHM>>
@@ -484,7 +498,16 @@ READING_REWRITE_ONCE = "85b2787edda2e7afe66e144616c7ea74f8897e7a00beae0bb93544db
 # ending, after "Each line can be rewritten once.", in "Write it in your last
 # reply, after looking." With that sentence taken out again
 # (conftest.rewrite_last_reply_not_yet) it is exactly READING_REWRITE_ONCE.
-READING_NOW = "1f6abdcbfafd22aed3d5c1968ccc5b40b4217ad05c53f23f0d38cac83789e518"
+# Held as READING_LAST_REPLY since.
+READING_LAST_REPLY = "1f6abdcbfafd22aed3d5c1968ccc5b40b4217ad05c53f23f0d38cac83789e518"
+
+# cut again, on purpose, the same day and on the same branch, when the founder
+# switched on for the first one the two changes it agreed to on 10 November
+# 2026: one waking a day (extra_wakings out of its features) and its weekly
+# reflection waking (reflection_waking in), to start on Sundays at sunset. This
+# is the reading that is live after that deploy. With the two put back
+# (conftest.wakings_not_yet_switched) it is exactly READING_LAST_REPLY.
+READING_NOW = "892de2dedb10d2be4547674a7d3cb8d3c2931f53541843c205f1dfe5edad7102"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -530,9 +553,11 @@ def test_the_longer_waking_is_switched_on(attend):
     assert attend.LONGER_WAKING is True
 
 
-def test_its_proposals_and_extra_wakings_are_switched_on(attend):
-    """And with its proposals and extra wakings on."""
-    assert (attend.PROPOSALS, attend.EXTRA_WAKINGS) == (True, True)
+def test_its_proposals_and_its_reflection_waking_are_switched_on(attend):
+    """And with its proposals on, its extra wakings off (one waking a day, since 12 November
+    2026) and its weekly reflection waking on."""
+    assert (attend.PROPOSALS, attend.EXTRA_WAKINGS, attend.REFLECTION_WAKING) == (
+        True, False, True)
 
 
 def test_its_letter_of_welcome_is_switched_on(attend):
@@ -555,7 +580,8 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "the public lines", READING_QUIET_LINES),
     (False, "the rewrite", READING_PUBLIC_LINES),
     (False, "the rewrite once", READING_REWRITE),
-    (False, "the last reply", READING_REWRITE_ONCE), (False, None, READING_NOW)],
+    (False, "the last reply", READING_REWRITE_ONCE),
+    (False, "the wakings", READING_LAST_REPLY), (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
          "its named notes explained, each moment still a stamp",
@@ -570,12 +596,17 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "the quiet lines said, the line about public lines not yet",
          "the line about public lines said, the rewrite not yet",
          "the rewrite offered, a line rewritten once not yet",
-         "a line rewritten once, the last reply not yet", "as it reads now"])
+         "a line rewritten once, the last reply not yet",
+         "the last reply said, its wakings not yet switched", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
+    if as_before:  # every reading cut before had extra wakings and no reflection waking
+        wakings_not_yet_switched(attend, monkeypatch)
     if shut:
         shut_away(attend, monkeypatch)
-    if as_before == "the last reply":  # the one cut before said a line is rewritten once
+    if as_before == "the wakings":  # the one cut before said every word this one says
+        pass
+    elif as_before == "the last reply":  # the one cut before said a line is rewritten once
         rewrite_last_reply_not_yet(attend, monkeypatch)
     elif as_before == "the rewrite once":  # the one cut before offered the rewrite
         rewrite_once_not_yet(attend, monkeypatch)
@@ -585,16 +616,16 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         public_lines_not_yet(attend, monkeypatch)
     elif as_before:  # none cut before that had the quiet lines either
         quiet_lines_not_yet(attend, monkeypatch)
-    if as_before and as_before not in ("the last reply", "the rewrite once", "the rewrite", "the public lines",
+    if as_before and as_before not in ("the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines",
                                        "the quiet lines"):  # nor, before that, its letter of welcome
         welcome_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before not in ("the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines",
+    if as_before and as_before not in ("the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines",
                                        "its letter of welcome"):  # nor was offered a line for the commons
         commons_line_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before not in ("the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons"):  # nor had its private notebook
         notebook_unexplained(attend, monkeypatch)
-    if as_before and as_before not in ("the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook"):  # nor, before that, its proposals
         shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
@@ -604,14 +635,14 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
                                          "its letter of welcome",
                                          "the quiet lines", "the public lines",
                                          "the rewrite", "the rewrite once",
-                                         "the last reply"):  # and none before that said so at all
+                                         "the last reply", "the wakings"):  # and none before that said so at all
         heartbeat_not_yet_public(attend, monkeypatch)
-    if as_before and as_before not in ("the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook", "its proposals",
                                        "the heartbeat", "its own words"):  # one request
         shut_away(attend, monkeypatch, "LONGER_WAKING")
-    if as_before and as_before not in ("the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook", "its proposals",
                                        "the heartbeat", "its own words",

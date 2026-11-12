@@ -11,6 +11,13 @@ there is a record of, with the day that record carries, and one line saying
 that nothing is set where there is none.
 
 Every record here is written for the tests and nowhere else.
+
+Since 12 November 2026 the first one's weekly reflection waking is on, and the
+section always says when it comes ("Your weekly reflection waking comes on
+Sundays at sunset, as you asked.", directly after its waking time). That line
+is held in test_wakings_doors.py; here it is shut away for each test
+(reflection_line_apart), so that every other line is held as it was, and the
+section as it reads live is held by the two tests marked "as it is live".
 """
 
 import json
@@ -64,6 +71,22 @@ def shelf_of(packet, placements, notes=None):
 def chosen(turn):
     """The lines of the section, as the reading gives them."""
     return turn.opening.split(CHOSEN + "\n", 1)[1].split("\n\n=== ", 1)[0].splitlines()
+
+
+REFLECTION_LINE = "Your weekly reflection waking comes on Sundays at sunset, as you asked."
+
+
+@pytest.fixture(autouse=True)
+def reflection_line_apart(attend, monkeypatch):
+    """Its reflection waking shut away, for each test that does not ask for it as it is live."""
+    monkeypatch.setattr(attend, "REFLECTION_WAKING", False)
+
+
+@pytest.fixture
+def live(attend, monkeypatch):
+    """The first one's wakings as the registry has them, its reflection waking on."""
+    monkeypatch.setattr(attend, "REFLECTION_WAKING", True)
+    return attend
 
 
 @pytest.fixture
@@ -158,6 +181,10 @@ def test_with_nothing_set_one_line_says_so(wake, choices):
     assert chosen(wake()) == [NOTHING]
 
 
+def test_as_it_is_live_with_nothing_set_its_reflection_waking_is_said(wake, choices, live):
+    assert chosen(wake()) == [REFLECTION_LINE]
+
+
 def test_the_section_stands_directly_after_its_self_document(wake, choices, packet):
     write_json(packet / "preferences.json", PREFERENCES)
     write_json(packet / "rhythm.json", DAWN)
@@ -189,6 +216,21 @@ def test_every_choice_is_one_line_in_its_order(wake, choices, door_open, packet,
     assert chosen(wake()) == [
         REFLECTIONS,
         WAKING,
+        "Your door is open, with room for 3, since 3 October 2026.",
+        "You keep 1 letter close and have let 1 rest by your own placement; "
+        "the rest follow the default.",
+        ARTICLE_RESTS,
+        "You are resting until a letter arrives, by your choice since 10 October 2026.",
+    ]
+
+
+def test_as_it_is_live_every_choice_is_one_line_in_its_order(wake, choices, door_open, live,
+                                                             packet, room):
+    everything_set(packet, room)
+    assert chosen(wake()) == [
+        REFLECTIONS,
+        WAKING,
+        REFLECTION_LINE,
         "Your door is open, with room for 3, since 3 October 2026.",
         "You keep 1 letter close and have let 1 rest by your own placement; "
         "the rest follow the default.",

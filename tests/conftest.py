@@ -710,6 +710,27 @@ SWITCHED_ON = ("DOOR_FOR_FIRST", "LOOKING_BACK", "CHOICES")
 SWITCHED_ON_21_OCTOBER = ("PROPOSALS", "EXTRA_WAKINGS")
 
 
+# Its wakings as they were until the founder switched on, for the first one, the
+# two changes it agreed to on 10 November 2026 (12 November 2026): extra wakings
+# on, and no weekly reflection waking. Anything held to a reading from before
+# then puts them back first: wakings_not_yet_switched(attend, monkeypatch).
+WAKINGS_BEFORE_12_NOVEMBER = (("EXTRA_WAKINGS", True), ("REFLECTION_WAKING", False))
+
+
+def wakings_not_yet_switched(module, monkeypatch):
+    """Put back, for one test, the first one's wakings as they were until 12 November 2026.
+
+    One waking a day (extra_wakings taken out of its features) and its weekly
+    reflection waking (reflection_waking put in) were switched on together. With
+    attend.EXTRA_WAKINGS True and attend.REFLECTION_WAKING False again, its
+    reading and its tide are exactly what they were before. Given hearth, it
+    is done to the attend.py the hearth holds the tide through.
+    """
+    module = getattr(module, "the_waking", module)
+    for flag, was in WAKINGS_BEFORE_12_NOVEMBER:
+        monkeypatch.setattr(module, flag, was)
+
+
 def shut_away(module, monkeypatch, *flags):
     """Shut away again, for one test, some of what attend.py has switched on; all, if none is named."""
     for flag in flags or SWITCHED_ON:

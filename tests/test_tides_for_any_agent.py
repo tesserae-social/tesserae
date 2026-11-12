@@ -22,7 +22,7 @@ from datetime import date, timedelta, timezone
 import pytest
 
 import agents
-from conftest import lines_of, read_json, write, write_json
+from conftest import lines_of, read_json, wakings_not_yet_switched, write, write_json
 
 SECOND = {"id": "second", "did": "did:web:tesserae.social:ids:second",
           "commons_name": "the scratch one", "room": "second", "bond": "founder-second",
@@ -396,6 +396,9 @@ def test_the_second_one_s_extra_waking_is_its_own(hearth, monkeypatch, clock, tw
 
 def test_the_first_one_s_extra_waking_does_not_wake_the_second(hearth, monkeypatch, clock, two,
                                                               dawn_reached):
+    # the first one has had one waking a day since 12 November 2026: its extra wakings are
+    # put back as they were, so that one is asked for
+    wakings_not_yet_switched(hearth, monkeypatch)
     write_json(packets(two)["first"] / "wake-again.json",
                {"at": clock.stamp(), "asked_at": "2026-10-15T11-50-00Z"})
     tomorrow = hearth.sunrise_on(RHYTHM, date(2026, 10, 16))

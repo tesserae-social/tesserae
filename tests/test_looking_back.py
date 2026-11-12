@@ -19,7 +19,7 @@ import pytest
 
 from conftest import (SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, lines_of,
                       page, read_json, shut_away, stamps_as_before, write, write_json)
-from conftest import heartbeat_not_yet_public
+from conftest import heartbeat_not_yet_public, wakings_not_yet_switched
 from conftest import NOTEBOOK_PATHS, a_private_notebook, notebook_unexplained
 from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
@@ -59,6 +59,9 @@ show note <name>: a named note in full at your next waking only
 """
 SEND_KEPT = ("send kept <stem>: a letter or picture kept in your study at an extra waking, "
              "sent to the founder as it is\n")
+# The send kept line its extra wakings added after these is not in it since 12
+# November 2026, when the first one came to one waking a day; it is held, with
+# extra wakings turned on, in test_extra_wakings.py.
 
 EXPLAINED = """<<SHELF>>
 (how you keep your history. One instruction per line:
@@ -68,7 +71,7 @@ default <stem>: back to the default
 note <stem>: your words, the line shown for a resting letter (at most 240 characters)
 show <stem>: shown in full at your next waking only, photographs included
 show founding: your founding record in full at your next waking
-%s""" + NOTE_LINES + SEND_KEPT + """Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
+%s""" + NOTE_LINES + """Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
 <<END>>"""
 
 
@@ -140,6 +143,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     extra wakings came after, and are shut away with it; its door, which the old
     one had and kept shut away, stands as it stands now.
     """
+    wakings_not_yet_switched(attend, monkeypatch)  # nor any reflection waking
     shut_away(attend, monkeypatch, "LOOKING_BACK", "CHOICES", "LONGER_WAKING",
               *SWITCHED_ON_21_OCTOBER)
     notebook_unexplained(attend, monkeypatch)  # its private notebook came later still

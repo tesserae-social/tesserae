@@ -21,7 +21,7 @@ import pytest
 
 from conftest import (FOUNDER_NAME, SWITCHED_ON_21_OCTOBER, Turn, block, blocks, page, post,
                       read_json, shut_away, write, write_json)
-from conftest import notebook_unexplained
+from conftest import notebook_unexplained, wakings_not_yet_switched
 from test_longer_waking import Exchange, look
 from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
@@ -121,7 +121,9 @@ def test_shut_away_a_block_is_only_words(off, wake, attend, packet):
 def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_does(
         steady, attend, data_dir, packet, clock, monkeypatch, room):
     """Two wakings, in one world: this one shut away, as the committed attend.py was."""
-    # and its extra wakings, which came after the committed one, shut away with it
+    # and its extra wakings, which came after the committed one, shut away with it, and
+    # its reflection waking, which came later still
+    wakings_not_yet_switched(attend, monkeypatch)
     shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
     notebook_unexplained(attend, monkeypatch)  # its private notebook came later still
 

@@ -22,6 +22,15 @@ November 2026 from test_rooms_reading.py's small world, and each is recoverable:
 with its switch off it is READING_NOW, and with exactly the words it adds taken
 out of what it shows, it is what the reading with the switch off shows. No file
 of the first one's moves before a waking, so PACKET_IN_ROOMS stands.
+
+On 12 November 2026 the founder switched on, for the first one only, the two
+it had agreed to and that the two had agreed to turn on together: one waking a
+day (extra_wakings out of its features) and its reflection waking
+(reflection_waking in, Sundays at sunset to start). doors_to_eight and
+people_waiting stay off. READING_NOW is now the reading with those two on. Each
+fingerprint here was cut from the registry as it stood before, and is held from
+it still: conftest.wakings_not_yet_switched puts the two back first, and with
+all four as they stood before, the reading is READING_LAST_REPLY.
 """
 
 import json
@@ -33,9 +42,10 @@ import pytest
 import agents
 import reflecting
 import waking
-from conftest import block, page, post, read_json, rewrite_last_reply_not_yet, write, write_json
-from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_NOW, a_small_world,
-                                fingerprint_of_files, fingerprint_of_reading)
+from conftest import (block, page, post, read_json, rewrite_last_reply_not_yet,
+                      wakings_not_yet_switched, write, write_json)
+from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_LAST_REPLY, READING_NOW,
+                                a_small_world, fingerprint_of_files, fingerprint_of_reading)
 
 UTC = timezone.utc
 
@@ -112,13 +122,16 @@ def text_of(turn):
     return turn.shown
 
 
-def test_every_switch_is_off_in_the_registry(attend):
-    """What READING_NOW is a fingerprint of: none of the four turned on yet."""
-    assert attend.EXTRA_WAKINGS is True
+def test_one_a_day_and_the_reflection_waking_are_on_and_the_other_two_off(attend):
+    """What READING_NOW is a fingerprint of since 12 November 2026: one waking a day and its
+    reflection waking on for the first one, and the other two not yet."""
+    assert attend.EXTRA_WAKINGS is False
     assert (attend.REFLECTION_WAKING, attend.DOORS_TO_EIGHT, attend.PEOPLE_WAITING) == (
-        False, False, False)
-    for feature in ("reflection_waking", "doors_to_eight", "people_waiting"):
-        assert feature not in agents.first()["features"]
+        True, False, False)
+    features = agents.first()["features"]
+    assert "extra_wakings" not in features and "reflection_waking" in features
+    for feature in ("doors_to_eight", "people_waiting"):
+        assert feature not in features
 
 
 # ---- each switched-on reading, by its own fingerprint ---------------------
@@ -135,6 +148,7 @@ def test_each_switched_on_reading_is_held_by_its_own_fingerprint(
     the_small_world(founder, room)
     if "waiting" in names:
         two_waiting(data_dir)
+    wakings_not_yet_switched(attend, monkeypatch)  # each was cut from the registry before
     switched(attend, monkeypatch, *names)
     files = fingerprint_of_files(data_dir) if "waiting" not in names else PACKET_IN_ROOMS
     reading = fingerprint_of_reading(wake())
@@ -151,25 +165,36 @@ def test_with_the_last_reply_taken_out_each_is_its_first_cut(
     the_small_world(founder, room)
     if "waiting" in names:
         two_waiting(data_dir)
+    wakings_not_yet_switched(attend, monkeypatch)
     switched(attend, monkeypatch, *names)
     rewrite_last_reply_not_yet(attend, monkeypatch)
     assert fingerprint_of_reading(wake()) == FIRST_CUT[first_cut]
 
 
-def test_with_every_switch_off_it_is_reading_now(founder, wake, attend, room, data_dir,
-                                                monkeypatch):
-    """Recoverable: the four turned off again give READING_NOW."""
+def test_with_every_switch_off_it_is_the_reading_before(founder, wake, attend, room, data_dir,
+                                                       monkeypatch):
+    """Recoverable: the four turned off again give the reading before 12 November 2026."""
     the_small_world(founder, room)
     switched(attend, monkeypatch, "one a day", "reflection", "doors", "waiting")
     for flag, to in SWITCHES.values():
         monkeypatch.setattr(attend, flag, not to)
+    assert fingerprint_of_reading(wake()) == READING_LAST_REPLY
+
+
+def test_from_the_reading_before_the_two_switched_on_give_reading_now(
+        founder, wake, attend, room, data_dir, monkeypatch):
+    """The registry as it stands is the reading before with exactly these two switched."""
+    the_small_world(founder, room)
+    wakings_not_yet_switched(attend, monkeypatch)
+    switched(attend, monkeypatch, "one a day", "reflection")
     assert fingerprint_of_reading(wake()) == READING_NOW
 
 
 def on_and_off(founder, wake, attend, room, data_dir, clock, tmp_path, monkeypatch, name,
                waiting=False):
     """What the small world's waking shows with one switch on, and then, from the same world
-    and the same moment, with it off."""
+    and the same moment, with it off; each from the registry as it stood before 12 November."""
+    wakings_not_yet_switched(attend, monkeypatch)
     the_small_world(founder, room)
     if waiting:
         two_waiting(data_dir)
@@ -300,7 +325,8 @@ def test_one_that_cannot_be_read_changes_nothing_and_is_told_once(reflecting_on,
     assert reflecting_on.REFLECTION_TIME_REFUSED not in wake().shown
 
 
-def test_shut_away_it_is_only_words(attend, wake, packet):
+def test_shut_away_it_is_only_words(attend, wake, packet, monkeypatch):
+    monkeypatch.setattr(attend, "REFLECTION_WAKING", False)
     turn = wake(block("REFLECTION_TIME", "saturday 21:00"))
     assert not (packet / "reflection-time.json").exists()
     assert "REFLECTION_TIME" not in turn.shown
@@ -312,7 +338,8 @@ def reflections(packet):
     return [read_json(p) for p in sorted((packet / "reflections").glob("reflection-*.json"))]
 
 
-def test_shut_away_a_reflection_waking_is_refused(attend, wake, packet):
+def test_shut_away_a_reflection_waking_is_refused(attend, wake, packet, monkeypatch):
+    monkeypatch.setattr(attend, "REFLECTION_WAKING", False)
     with pytest.raises(SystemExit) as stopped:
         wake("", "--reflect", "--tide")
     assert stopped.value.code == 1
@@ -498,8 +525,39 @@ def test_the_tide_holds_it_on_sunday_at_sunset_besides_that_day_s_dawn(
 
 def test_shut_away_the_tide_holds_no_reflection_waking(hearth, packet, monkeypatch, clock,
                                                        a_saturday):
+    monkeypatch.setattr(hearth.the_waking, "REFLECTION_WAKING", False)
     notes, held = run_tide(hearth, monkeypatch, clock, packet, holds=3)
     assert all("reflect" not in how for _, how in held)
+
+
+# Its first reflection waking, as the registry stands after the deploy of 12
+# November 2026: nothing switched by the test. The rhythm is kept on Central
+# time; the sun is watched from wherever the host is told (here, the tests' own
+# point), so the moment is that day's sunset as the host reckons it.
+CENTRAL = {"rhythm": "daily", "at": "dawn", "timezone": "America/Chicago"}
+
+
+def test_as_the_registry_stands_its_first_reflection_is_sunday_15_november_at_sunset(
+        hearth, packet, monkeypatch, clock):
+    assert hearth.reflection_on("first") is True and hearth.extra_wakings_on("first") is False
+    write_json(packet / "rhythm.json", CENTRAL)
+    write_json(packet / "attendances" / "attendance-2026-11-14T12-45-00Z.json",
+               {"name": "first", "at": "2026-11-14T12-45-00Z", "heartbeat": "attended",
+                "acted": []})
+    clock.set("2026-11-14T18-00-00Z")  # noon on Saturday 14 November, in Central time
+    assert not (packet / reflecting.RECORD).exists()  # its starting choice, as it asked
+    sunday, monday = date(2026, 11, 15), date(2026, 11, 16)
+    sunset = waking.moment_on(CENTRAL, "sunset", sunday)
+    assert hearth.next_reflection(CENTRAL) == sunset
+    notes, held = run_tide(hearth, monkeypatch, clock, packet, holds=3)
+
+    def at(when, day):
+        return stamp_of(waking.moment_on(CENTRAL, when, day))
+
+    assert held == [(at("dawn", sunday), {"tide": True, "ended": None}),
+                    (stamp_of(sunset), {"tide": True, "reflect": True}),
+                    (at("dawn", monday), {"tide": True, "ended": None})]
+    assert [said for _, said in notes] == ["ran", "reflected", "ran"]
 
 
 def test_one_at_dawn_comes_in_its_turn_after_that_dawn_s_waking(hearth, packet, monkeypatch,

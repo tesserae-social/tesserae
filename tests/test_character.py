@@ -30,7 +30,7 @@ import pytest
 
 import agents
 from conftest import (block, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
-                      write_json)
+                      wakings_not_yet_switched, write_json)
 from test_rooms_reading import READING_NOW, fingerprint_of_reading
 from test_wakings_doors import the_small_world
 
@@ -48,7 +48,10 @@ READING_BOTH_FIRST_CUT = "eff0c15e476a74c4d7e6976820ee134e737ec529910d261e699f68
 # with your answer as it was recorded", and a question from before this page
 # "you answered yes, as it was recorded". With the sentence taken out
 # (conftest.rewrite_last_reply_not_yet) and the asked words put back
-# (asked_words_as_first_cut), each is exactly its first cut.
+# (asked_words_as_first_cut), each is exactly its first cut. All six are held from
+# the registry as it stood before the first one's wakings were switched the same
+# day (one waking a day, its reflection waking on): conftest.wakings_not_yet_switched
+# puts them back first, and with both switches here off it is READING_NOW.
 READING_ASKED = "6367255bdf7b90b36153059418a628cf1688363b7d238c67b0ecf62a733e1cd8"
 READING_CORRECTIONS = "62393f8f39c2f392b1b7a119a7b0e4e29289826adbc61f36a3c41e7cc3aadd3f"
 READING_BOTH = "0e0d5d2fc397fb0115281c7c737d05652f9949738a42acc9fb4ab38c1bf65b85"
@@ -138,6 +141,7 @@ def test_each_switched_on_reading_is_held_by_its_own_fingerprint(
         founder, wake, attend, room, packet, monkeypatch, names, as_cut):
     the_small_world(founder, room)
     two_questions(packet)
+    wakings_not_yet_switched(attend, monkeypatch)  # cut from the registry before 12 November
     switched(attend, monkeypatch, *names)
     reading = fingerprint_of_reading(wake())
     print("\n%s = %r" % (names, reading))
@@ -157,6 +161,7 @@ def test_with_the_last_reply_and_the_asked_words_as_they_were_it_is_the_first_cu
         founder, wake, attend, room, packet, monkeypatch, names, as_cut):
     the_small_world(founder, room)
     two_questions(packet)
+    wakings_not_yet_switched(attend, monkeypatch)  # cut from the registry before 12 November
     switched(attend, monkeypatch, *names)
     rewrite_last_reply_not_yet(attend, monkeypatch)
     asked_words_as_first_cut(attend, monkeypatch)

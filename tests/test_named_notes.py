@@ -29,8 +29,9 @@ SHELF_LINES = """show version <stem>: an earlier self-document or notes in full 
 keep note <name>: a named note always shown in full
 rest note <name>: a named note shown as one line
 show note <name>: a named note in full at your next waking only
-send kept <stem>: a letter or picture kept in your study at an extra waking, sent to the founder as it is
 Letters you haven't placed follow the default:"""
+# (the send kept line its extra wakings added before the last line is not there
+# since 12 November 2026, when the first one came to one waking a day)
 
 FOUNDER_NOTE = ("WHAT I KNOW OF THE FOUNDER: he writes in the morning.\n\n"
                 "And a second paragraph of it.")
@@ -432,14 +433,16 @@ def chosen(turn):
 
 
 def test_what_it_has_chosen_says_how_many_named_notes_it_keeps(wake):
-    nothing = "You have not set anything here yet; everything follows the defaults."
-    assert chosen(wake(note("about the founder", FOUNDER_NOTE))) == [nothing]
-    assert chosen(wake(note("the river", RIVER))) == ["You keep 1 named note; none of them rest."]
+    # its weekly reflection waking, on since 12 November 2026, is always said first
+    sunday = "Your weekly reflection waking comes on Sundays at sunset, as you asked."
+    assert chosen(wake(note("about the founder", FOUNDER_NOTE))) == [sunday]
+    assert chosen(wake(note("the river", RIVER))) == [
+        sunday, "You keep 1 named note; none of them rest."]
     assert chosen(wake(block("SHELF", "rest note the river"))) == [
-        "You keep 2 named notes; none of them rest."]
+        sunday, "You keep 2 named notes; none of them rest."]
     assert chosen(wake(block("SHELF", "show note the river"))) == [
-        "You keep 2 named notes; 1 of them rest."]
-    assert chosen(wake()) == ["You keep 2 named notes; 1 of them rest."]
+        sunday, "You keep 2 named notes; 1 of them rest."]
+    assert chosen(wake()) == [sunday, "You keep 2 named notes; 1 of them rest."]
 
 
 def test_shut_away_what_it_has_chosen_says_nothing_of_them(wake, attend, monkeypatch):

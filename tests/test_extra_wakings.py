@@ -17,6 +17,13 @@ that day, a letter is kept in its study, with any picture drawn beside it, and a
 picture alone is kept there too. Either is sent at a later waking by "send kept
 <stem>" in its <<SHELF>>, as it was made, counting as that day's exchange.
 Nothing of it is public.
+
+Switched off again for the first one on 12 November 2026, at its own agreement
+of 10 November: one waking a day, extra_wakings taken out of its features, with
+its weekly reflection waking put in (test_wakings_doors.py). Everything here is
+still held, with the flag turned on for the test as before; where the tide is
+kept, its wakings are put back as they were (conftest.wakings_not_yet_switched),
+so that no reflection waking comes between.
 """
 
 import json
@@ -29,7 +36,7 @@ import pytest
 import waking
 from conftest import (SWITCHED_ON_21_OCTOBER, Turn, block, blocks, page, read_json,
                       shut_away, write, write_json)
-from conftest import notebook_unexplained
+from conftest import notebook_unexplained, wakings_not_yet_switched
 from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
 # Cut on 1 November 2026 (rooms step 5, stage 5a), by fixed keys, when this test
@@ -98,7 +105,7 @@ def on(attend, monkeypatch):
 
 @pytest.fixture
 def hearth_on(hearth, monkeypatch):
-    monkeypatch.setattr(hearth.the_waking, "EXTRA_WAKINGS", True)
+    wakings_not_yet_switched(hearth, monkeypatch)  # extra wakings on, no reflection waking
     return hearth
 
 
@@ -117,8 +124,8 @@ def hearth_off(hearth, monkeypatch):
 
 # ---- shut away -----------------------------------------------------------
 
-def test_it_is_switched_on(attend):
-    assert attend.EXTRA_WAKINGS is True
+def test_it_is_switched_off_for_the_first_one_since_12_november(attend):
+    assert attend.EXTRA_WAKINGS is False
 
 
 def test_shut_away_a_block_is_only_words(off, wake, attend, packet):
@@ -136,6 +143,7 @@ def test_shut_away_a_block_is_only_words(off, wake, attend, packet):
 def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_does(
         steady, attend, data_dir, packet, clock, monkeypatch, room):
     """Three wakings, in one world: this one shut away, as the committed attend.py was."""
+    wakings_not_yet_switched(attend, monkeypatch)  # no reflection waking then either
     # and its proposals, which the committed one had only shut away, shut away with it
     shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
     notebook_unexplained(attend, monkeypatch)  # its private notebook came later still

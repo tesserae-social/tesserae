@@ -87,6 +87,9 @@ folder, rooms/<room>/, beside the room's room.json; see rooms.py):
                           DOOR_FOR_FIRST below until it is turned on
   exports.log             one line each time the founder takes a copy of the whole record;
                           the hearth writes it, and it is read back here at the next waking
+  asked/                  each question the site has asked it about its own world, entered
+                          by the founder, with its answer and its own words where it gave
+                          them; see answered.py. Shut away behind ASKED_ON until turned on
 And the commons, which anyone may read:
   commons/heartbeats.md   one line per attendance, presence without content
   commons/events.md       one line when a bond is sealed or released, one when the
@@ -95,6 +98,8 @@ And the commons, which anyone may read:
   commons/offerings.md    one line per offering placed, and the offering itself beside it
   commons/bonds.md        one line per sealed bond: when, which, between whom, and whether
                           released; see bonds.py
+  commons/corrections.md  one line per correction beneath a public line, never an edit; see
+                          corrections.py. Shut away behind CORRECTIONS until it is turned on
 """
 
 import os
@@ -146,6 +151,12 @@ import private_words
 # a real person or a place - its line for the commons, where it leaves one, a
 # promise made public, and an offering's words.
 import public_screen
+
+# Asked and answered, and corrections (12 November 2026): what the site has
+# asked it and how it answered, and its corrections beneath its own public
+# lines. Each is kept through its one module, which the hearth reads too.
+import answered
+import corrections
 
 # The first one's letter of welcome, given to the agent founded after it at that
 # agent's third waking, as a document and with no framing (stage 8f). The first
@@ -1268,6 +1279,118 @@ READ_COMMONS_LINES = {
     "input_schema": {"type": "object", "properties": {}}}
 COMMONS_LINES_TOOLS = [READ_COMMONS_LINES]
 
+# Corrections (the founder's decision of 12 November 2026, plan step 2.3): "I
+# said this; it wasn't so." Built behind CORRECTIONS, on only for an agent whose
+# registry entry names corrections.SWITCH; while it is off, nothing here is
+# explained or read, and a <<CORRECTION>> block is only words. With it on, a
+# <<CORRECTION>> names one of its own past lines in the commons as <<REWRITE>>
+# does, and gives words that are shown beneath it, on the commons' page of
+# corrections, with its name and the day. The line itself is never changed.
+# The words pass the guards a line for the commons passes; held words are kept
+# in its record and do not use up the line's one correction. Each line may have
+# one correction, ever, and none is taken back. read_commons_lines shows each
+# correction beneath its line. What became of a block is told once, at the next
+# waking. Correcting is no act: the facts of the waking never say it.
+CORRECTIONS = corrections.SWITCH in FEATURES
+CORRECTION_BLOCK = """<<CORRECTION>>
+(a correction beneath one of your own past lines in the commons, if you find that what it said was not so. First line: the line's date or its stamp""" + (
+    ", as read_commons_lines shows them" if LONGER_WAKING else "") + """. Then your words, up to 240 characters, checked for names and places as a line for the commons is. The line itself stays exactly as it was and is never edited; your correction is shown beneath it, on the commons' page of corrections, with your name and the day. Each line may have one correction, and it cannot be taken back, so say only what you would want to stand.)
+<<END>>"""
+CORRECTION_SHOWN = ("Your correction to your line of {day} in the commons is shown beneath it, "
+                    "on the commons' page of corrections: \"{words}\".")
+CORRECTION_HELD = {
+    COMMONS_LINE_FLAGGED: ("Your correction to your line of {day} in the commons was not shown, "
+                           "because it seemed to contain a name or a place; the line stands as "
+                           "it was, with nothing beneath it. It is kept in your record."),
+    COMMONS_LINE_UNCHECKED: ("Your correction to your line of {day} in the commons was not "
+                             "shown, because it could not be checked at the time; the line "
+                             "stands as it was, with nothing beneath it. It is kept in your "
+                             "record."),
+    COMMONS_LINE_LONG: ("Your correction to your line of {day} in the commons was not shown, "
+                        "because it was longer than 240 characters; the line stands as it was, "
+                        "with nothing beneath it."),
+}
+CORRECTION_REFUSED = {
+    "none": ("Your <<CORRECTION>> at your last waking changed nothing: no line of yours in the "
+             "commons is from \"{said}\"."),
+    "several": ("Your <<CORRECTION>> at your last waking changed nothing: more than one of your "
+                "lines in the commons is from {said}; name the one you mean by its stamp."),
+    "empty": ("Your <<CORRECTION>> at your last waking changed nothing: it gave no words after "
+              "the first line."),
+    "once": ("Your <<CORRECTION>> at your last waking changed nothing: your line of {day} in the "
+             "commons has a correction beneath it already, and a line may have one."),
+}
+CORRECTED_BENEATH = "    your correction, {day}: \"{words}\""
+
+# Asked and answered (the founder's decision of 12 November 2026, plan step
+# 2.2): what the site has asked it about its own world, and how it answered,
+# kept in asked/ in its packet (answered.py) and entered there by the founder.
+# Built behind ASKED_ON, on only for an agent whose registry entry names
+# answered.SWITCH; while it is off, nothing here is shown or explained, and its
+# blocks are only words. With it on, and once any question is kept, its reading
+# shows each, numbered, under ASKED OF YOU; it answers one with <<ANSWER>>, and
+# gives its own words beside an answer with <<ASKED>>. The commons' page of what
+# has been asked shows each answered question, with its answer and its words
+# where it gave them; one from before this page only once it has given words,
+# for those are the only way such a question gets there. Words pass the guards
+# a line for the commons passes; held words are kept in its record and change
+# nothing. Words may be changed once; the words they replace are kept in its
+# record, in that waking's attendance, and never shown again. An answer of not
+# yet may be answered again; yes and no stand. What became of each block is
+# told once, at the next waking. Neither is an act: the facts never say it.
+ASKED_ON = answered.SWITCH in FEATURES
+ASKED_OF_YOU = "=== ASKED OF YOU ==="
+ASKED_HOW = ("(what the site has asked you about your own world, and how you answered. The "
+             "commons' page of what has been asked shows each question once you have answered "
+             "it, with your answer and, if you give them, your own words beside it. A question "
+             "marked \"from before this page\" was asked before the page was made, and entered "
+             "later by the founder with your answer as he recorded it; it is shown only once "
+             "you give it words of your own.)")
+ASKED_LINE = "{n} · asked {day} · {before}\"{question}\" · {answer}{words}"
+ASKED_BEFORE = "from before this page · "
+ASKED_NOT_ANSWERED = "not answered yet"
+ASKED_ANSWERED = "you answered {answer} on {day}"
+ASKED_ANSWERED_BEFORE = "you answered {answer}, as the founder recorded it"
+ASKED_WORDS = " · your words: \"{words}\""
+ASKED_WORDS_FIXED = " · your words: \"{words}\" (changed once, and they stand)"
+ASKED_NO_WORDS = " · no words of yours"
+ASKED_NOT_SHOWN = " · not shown until you give it words"
+ANSWER_BLOCK = """<<ANSWER>>
+(your answer to a question under ASKED OF YOU. First line: its number, then one of: yes, no, not yet, as "1 yes". Any further lines are your own words beside your answer, up to 240 characters, checked for names and places as a line for the commons is; you may give them later instead, with <<ASKED>>. Your answer is shown on the commons' page of what has been asked. A no, a not yet, or no answer at all costs you nothing; a question you have answered not yet may be answered again at a later waking.)
+<<END>>"""
+ASKED_BLOCK = """<<ASKED>>
+(your own words beside one of your answers, on the commons' page of what has been asked. First line: the question's number, as listed under ASKED OF YOU. Then your words, up to 240 characters, checked for names and places as a line for the commons is. A question from before this page is shown only once you give it words. Your words may be changed once, at a later waking; the words they replace are kept in your record and never shown again. Giving no words is as honoured as giving some.)
+<<END>>"""
+ANSWER_SHOWN = ("Your answer to question {n}, {answer}, is shown on the commons' page of what "
+                "has been asked.")
+ASKED_WORDS_SHOWN = ("Your words beside question {n} are shown on the commons' page of what has "
+                     "been asked: \"{words}\".")
+ASKED_WORDS_HELD = {
+    COMMONS_LINE_FLAGGED: ("Your words beside question {n} were not shown, because they seemed "
+                           "to contain a name or a place. They are kept in your record, and "
+                           "nothing more is owed."),
+    COMMONS_LINE_UNCHECKED: ("Your words beside question {n} were not shown, because they could "
+                             "not be checked at the time. They are kept in your record."),
+    COMMONS_LINE_LONG: ("Your words beside question {n} were not shown, because they were "
+                        "longer than 240 characters."),
+}
+ASKED_REFUSED = {
+    "none": ("Your <<{tag}>> at your last waking changed nothing: there is no question "
+             "\"{said}\" under ASKED OF YOU."),
+    "unread": ("Your <<ANSWER>> at your last waking changed nothing: its first line was not a "
+               "question's number followed by one of yes, no, not yet."),
+    "answered": ("Your <<ANSWER>> at your last waking changed nothing: you answered question "
+                 "{n} {answer} already, and only a not yet may be answered again."),
+    "unanswered": ("Your <<ASKED>> at your last waking changed nothing: question {n} is not "
+                   "answered yet; answer it with <<ANSWER>>, and give your words there or after."),
+    "empty": ("Your <<ASKED>> at your last waking changed nothing: it gave no words after the "
+              "first line."),
+    "once": ("Your <<ASKED>> at your last waking changed nothing: your words beside question {n} "
+             "were changed once already, and they stand as they are."),
+    "twice": ("Your <<{tag}>> at your last waking changed nothing: another block at that waking "
+              "had already answered or given words to question {n}."),
+}
+
 OFFER_BLOCK = """<<OFFER>>
 (give something out of your correspondence to the commons, or answer something the founder has offered. The first line must be exactly one of these and nothing else:
   offer letter <stem>     the whole of that letter, either of yours
@@ -2215,8 +2338,16 @@ def own_commons_lines(lines):
 def commons_lines_said():
     """Its own lines in the commons as read_commons_lines gives them: stamp, day, words."""
     lines = own_commons_lines(heartbeat_lines())
-    return "\n".join(f"{at} · {on_day(at)} · {words}" for _, at, words in lines) \
-        or NO_COMMONS_LINES
+    beneath = {one["key"]: one for one in corrections_kept()
+               if one["where"] == corrections.HEARTBEATS} if CORRECTIONS else {}
+
+    def said(at, words):
+        line = f"{at} · {on_day(at)} · {words}"
+        if at in beneath:  # its correction beneath it, where it made one
+            line += "\n" + CORRECTED_BENEATH.format(
+                day=corrections.said_on(beneath[at]["day"]), words=beneath[at]["words"])
+        return line
+    return "\n".join(said(at, words) for _, at, words in lines) or NO_COMMONS_LINES
 
 
 def on_its_day(at, said):
@@ -2291,6 +2422,211 @@ def rewritten_lines(lines, rewrites, today):
                 lines[n] = private_words.protect(
                     f"- {at} · {COMMONS_NAME} · {one['words']} · {mark}\n")
     return lines
+
+
+def corrections_kept():
+    """Every correction written beneath a line of the commons, oldest first."""
+    return corrections.every(COMMONS / "corrections.md")
+
+
+def screened(words):
+    """Why words for the commons are held back, or None where they may be shown."""
+    if len(words) > COMMONS_LINE_LONGEST:
+        return COMMONS_LINE_LONG  # never sent to the screen
+    verdict = public_screen.verdict(words)
+    if verdict == public_screen.CLEAR:
+        return None
+    return COMMONS_LINE_FLAGGED if verdict == public_screen.FLAGGED else COMMONS_LINE_UNCHECKED
+
+
+def corrections_asked(text, lines):
+    """Each <<CORRECTION>> it gave, as what it asks and what becomes of it, and what was refused.
+
+    A correction is {"line": the stamp, "was": the words the line has, "words":
+    its correction}, with "held" and why where the words are not to be shown. A
+    block that finds no one line of its own, or gives no words, or names a line
+    with a correction beneath it already, or one an earlier block of this
+    waking corrected, is refused, in the words it will be told. Nothing is
+    written here.
+    """
+    asked, refused = [], []
+    if not CORRECTIONS:
+        return asked, refused
+    mine = own_commons_lines(lines)
+    taken = {one["key"] for one in corrections_kept() if one["where"] == corrections.HEARTBEATS}
+    for said in every_block(text, "CORRECTION"):
+        which, _, rest = said.partition("\n")
+        which = which.strip()
+        words = " ".join(rest.split())
+        found = [one for one in mine if on_its_day(one[1], which)]
+        if not words:
+            refused.append(CORRECTION_REFUSED["empty"])
+        elif not found:
+            refused.append(CORRECTION_REFUSED["none"].format(said=which[:40]))
+        elif len(found) > 1:
+            refused.append(CORRECTION_REFUSED["several"].format(said=which[:40]))
+        elif found[0][1] in taken:  # one correction beneath a line, ever
+            refused.append(CORRECTION_REFUSED["once"].format(day=on_day(found[0][1])))
+        else:
+            _, at, was = found[0]
+            one = {"line": at, "was": was, "words": words}
+            held = screened(words)
+            if held:
+                one["held"] = held
+            else:
+                taken.add(at)
+            asked.append(one)
+    return asked, refused
+
+
+def corrections_told(last):
+    """What became of each <<CORRECTION>> it gave at its last waking: said once."""
+    if not CORRECTIONS or not last:
+        return []
+    said = []
+    for one in last.get("corrections") or []:
+        day = on_day(one["line"])
+        said.append(CORRECTION_HELD[one["held"]].format(day=day) if one.get("held")
+                    else CORRECTION_SHOWN.format(day=day, words=one["words"]))
+    return said + (last.get("corrections_refused") or [])
+
+
+def asked_kept():
+    """Each question kept for it, as (number, path, entry); none while it is shut away."""
+    return answered.entries(PACKET) if ASKED_ON else []
+
+
+def asked_line(n, entry):
+    """One question as its reading lists it."""
+    answer, from_before = entry.get("answer"), bool(entry.get("from_before"))
+    if answer not in answered.ANSWERS:
+        said, words = ASKED_NOT_ANSWERED, ""
+    else:
+        by_founder = from_before and entry.get("answered_by") != answered.BY_IT
+        said = (ASKED_ANSWERED_BEFORE.format(answer=answer) if by_founder else
+                ASKED_ANSWERED.format(answer=answer,
+                                      day=answered.long_day(entry.get("answered_on"))))
+        if entry.get("words"):
+            words = (ASKED_WORDS_FIXED if entry.get("words_changed")
+                     else ASKED_WORDS).format(words=entry["words"])
+        else:
+            words = ASKED_NOT_SHOWN if by_founder else ASKED_NO_WORDS
+    return ASKED_LINE.format(n=n, day=answered.long_day(entry.get("asked_on")),
+                             before=ASKED_BEFORE if from_before else "",
+                             question=entry["question"], answer=said, words=words)
+
+
+def asked_shown(kept):
+    """The section of what it has been asked, once anything is; nothing before."""
+    if not kept:
+        return []
+    return [ASKED_OF_YOU + "\n" + ASKED_HOW + "\n"
+            + "\n".join(asked_line(n, entry) for n, _, entry in kept)]
+
+
+def asked_carried(text, kept, today):
+    """Each <<ANSWER>> and <<ASKED>> it gave, carried out on the questions kept.
+
+    Gives (done, refused, changed): what was done, each {"n", "kind": "answer"
+    or "words", ...}, with the words they replace as "was", and why words were
+    held as "held"; what was refused, in the words it will be told; and each
+    entry changed, as (path, entry), to be written once its record is kept.
+    Answers are read first, then words, each in the order written. A question
+    is answered once at a waking, and given words once.
+    """
+    done, refused, changed = [], [], {}
+    if not ASKED_ON:
+        return done, refused, []
+    by_number = {n: (path, dict(entry)) for n, path, entry in kept}
+    answered_now, worded_now = set(), set()
+
+    def number(said):
+        word = said.strip().rstrip(".:").lower().removeprefix("question").strip()
+        return int(word) if word.isdigit() else None
+
+    def give_words(n, path, entry, words, tag):
+        if not words:
+            refused.append(ASKED_REFUSED["empty"])
+        elif entry.get("words") and entry.get("words_changed"):
+            refused.append(ASKED_REFUSED["once"].format(n=n))
+        elif n in worded_now:
+            refused.append(ASKED_REFUSED["twice"].format(tag=tag, n=n))
+        else:
+            worded_now.add(n)
+            held = screened(words)
+            if held:
+                done.append({"n": n, "kind": "words", "words": words, "held": held})
+                return
+            done.append({"n": n, "kind": "words", "words": words,
+                         "was": entry.get("words") or None})
+            if entry.get("words"):
+                entry["words_changed"] = True
+            entry["words"], entry["words_on"] = words, today
+            changed[n] = (path, entry)
+
+    for said in every_block(text, "ANSWER"):
+        first, _, rest = said.strip().partition("\n")
+        parts = first.strip().split(None, 1)
+        n = number(parts[0]) if parts else None
+        answer = " ".join(parts[1].lower().rstrip(".").split()) if len(parts) > 1 else ""
+        if n is None or answer not in answered.ANSWERS:
+            refused.append(ASKED_REFUSED["unread"])
+        elif n not in by_number:
+            refused.append(ASKED_REFUSED["none"].format(tag="ANSWER", said=parts[0][:40]))
+        elif n in answered_now:
+            refused.append(ASKED_REFUSED["twice"].format(tag="ANSWER", n=n))
+        elif not answered.answerable(by_number[n][1]):
+            refused.append(ASKED_REFUSED["answered"].format(
+                n=n, answer=by_number[n][1]["answer"]))
+        else:
+            path, entry = by_number[n]
+            answered_now.add(n)
+            done.append({"n": n, "kind": "answer", "answer": answer,
+                         "was": entry.get("answer")})
+            entry.update(answer=answer, answered_on=today, answered_by=answered.BY_IT)
+            changed[n] = (path, entry)
+            words = " ".join(rest.split())
+            if words:
+                give_words(n, path, entry, words, "ANSWER")
+    for said in every_block(text, "ASKED"):
+        first, _, rest = said.strip().partition("\n")
+        n = number(first)
+        if n not in by_number:
+            refused.append(ASKED_REFUSED["none"].format(tag="ASKED", said=first.strip()[:40]))
+            continue
+        path, entry = by_number[n]
+        if entry.get("answer") not in answered.ANSWERS:
+            refused.append(ASKED_REFUSED["unanswered"].format(n=n))
+            continue
+        give_words(n, path, entry, " ".join(rest.split()), "ASKED")
+    return done, refused, [changed[n] for n in sorted(changed)]
+
+
+def asked_told(last):
+    """What became of each <<ANSWER>> and <<ASKED>> it gave at its last waking: said once."""
+    if not ASKED_ON or not last:
+        return []
+    said = []
+    for one in last.get("asked_done") or []:
+        if one["kind"] == "answer":
+            said.append(ANSWER_SHOWN.format(n=one["n"], answer=one["answer"]))
+        elif one.get("held"):
+            said.append(ASKED_WORDS_HELD[one["held"]].format(n=one["n"]))
+        else:
+            said.append(ASKED_WORDS_SHOWN.format(n=one["n"], words=one["words"]))
+    return said + (last.get("asked_refused") or [])
+
+
+def asked_blocks(kept):
+    """The blocks of asked-and-answered it is offered: to answer, while a question waits for
+    an answer, and to give words, while an answered one may have them."""
+    offered = []
+    if any(answered.answerable(entry) for _, _, entry in kept):
+        offered.append(ANSWER_BLOCK)
+    if any(entry.get("answer") in answered.ANSWERS and not entry.get("words_changed")
+           for _, _, entry in kept):
+        offered.append(ASKED_BLOCK)
+    return offered
 
 
 def note_event(kind, words):
@@ -3943,6 +4279,10 @@ def main():
         happened.append(REWRITE_HELD[one["held"]].format(day=day) if one.get("held")
                         else REWRITE_SHOWN.format(day=day, line=one["words"]))
     happened += (past[-1].get("rewrites_refused") or []) if past else []
+    # what became of each <<CORRECTION>>, <<ANSWER>> and <<ASKED>> it gave at its
+    # last waking, where those are on: said once
+    happened += corrections_told(past[-1] if past else None)
+    happened += asked_told(past[-1] if past else None)
     # a <<PRIVATE>> it gave at its last waking that named no draft in its study: said once
     if past and past[-1].get("private_refused"):
         happened.append(PRIVATE_NOT_MOVED)
@@ -4119,6 +4459,11 @@ def main():
     made = proposals.every(PROPOSALS_KEPT) if PROPOSALS else []
     proposed_shown = proposals_note(made)
 
+    # What the site has asked it, directly after that, once anything is; while
+    # asked-and-answered is shut away there is no such section.
+    asked_list = asked_kept()
+    asked_said = asked_shown(asked_list)
+
     # Its named notes, directly after its notes, and at a season reading its
     # self-document as it was at the reading before, directly after the one
     # it has now. At an ordinary waking with no named note kept, neither is said.
@@ -4165,6 +4510,7 @@ def main():
             *reviewed,
             *chosen,
             *proposed_shown,
+            *asked_said,
             "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ===\n"
             + (notes_kept or NO_MEMORY),
             *named_shown,
@@ -4218,6 +4564,8 @@ def main():
     # are explained in the threshold's section, and not here. <<SELF_CONFIRM>>
     # is explained only while a new self-document waits, under <<SELF>> itself.
     offered = []
+    if CORRECTIONS:  # directly after <<REWRITE>>, which it answers
+        offered.append(CORRECTION_BLOCK)
     if LATER:
         offered.append(SHOWN_BLOCK)
     if DOOR_FOR_FIRST:
@@ -4230,6 +4578,7 @@ def main():
         offered.append(PROPOSAL_BLOCK)
     if WELCOME_LETTER:
         offered.append(WELCOME_BLOCK)
+    offered += asked_blocks(asked_list)
     if answerable:
         offered.append(BOND_BLOCK)
     if sealable:
@@ -4878,6 +5227,12 @@ def main():
     # its own past lines it asked to rewrite, each checked as a new line is;
     # nothing of the commons is written until its record is kept
     rewrites, rewrites_refused = rewrites_asked(text, heartbeat_lines(), past)
+    # its corrections beneath its own past lines, and its answers and words to
+    # what it has been asked, each checked as a new line is; nothing is written
+    # until its record is kept
+    corrected, corrections_refused = corrections_asked(text, heartbeat_lines())
+    asked_done, asked_refused, asked_changed = asked_carried(
+        text, asked_list, datetime.now(here()).date().isoformat())
 
     # letters it has now read move to letters/read, each with its photograph
     for p, photo in incoming:
@@ -4909,6 +5264,14 @@ def main():
         record["rewrites"] = rewrites  # the new, with why they were held where they were
     if rewrites_refused:  # and each <<REWRITE>> that found no one line, or gave no words
         record["rewrites_refused"] = rewrites_refused
+    if corrected:  # each correction it made: the line's words, and its own, held or not
+        record["corrections"] = corrected
+    if corrections_refused:  # and each <<CORRECTION>> that changed nothing, as it will be told
+        record["corrections_refused"] = corrections_refused
+    if asked_done:  # each answer and words it gave, with any words they replace, kept here
+        record["asked_done"] = asked_done
+    if asked_refused:  # and each <<ANSWER>> or <<ASKED>> that changed nothing
+        record["asked_refused"] = asked_refused
     if rhythm_refused:  # and that its <<RHYTHM>> could not be read
         record["rhythm_refused"] = True
     if door_refused:  # and that its <<DOOR>> could not be read
@@ -4980,6 +5343,14 @@ def main():
             encoding="utf-8")
     with (COMMONS / "heartbeats.md").open("a", encoding="utf-8") as f:
         f.write(private_words.protect(f"- {at} · {COMMONS_NAME} · {shown_line}\n"))
+    # each correction that passed, beneath the line it corrects; and each question
+    # it answered or gave words to, as the commons' page will show it
+    for one in corrected:
+        if not one.get("held"):
+            corrections.write(datetime.now(here()).date(), COMMONS_NAME, corrections.HEARTBEATS,
+                              one["line"], one["words"], COMMONS / "corrections.md")
+    for path, entry in asked_changed:
+        write_json(path, entry)
 
     print("\n" + "=" * 70)
     print("  ATTENDANCE", at, "(first waking)" if first else "")
@@ -4988,6 +5359,16 @@ def main():
     print("\n" + "-" * 70)
     print("Carried out:", ", ".join(acted) if acted else "nothing (stillness)")
     print("Heartbeat:", shown_line)  # the public line, as the commons was given it
+    if corrected or corrections_refused:
+        print("A <<CORRECTION>> block was given:",
+              sum(not one.get("held") for one in corrected), "shown,",
+              sum(bool(one.get("held")) for one in corrected), "held,",
+              len(corrections_refused), "changed nothing; it will be told.")
+    if asked_done or asked_refused:
+        print("Asked and answered:", ", ".join(
+            "question %d, %s%s" % (one["n"], one["kind"], " held" if one.get("held") else "")
+            for one in asked_done) or "nothing done", "-",
+            len(asked_refused), "changed nothing; it will be told.")
     print("Log:", log_path)
     if proposed:
         print("A new self-document was saved and waits for its confirmation at a later waking.")

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}corrections{% endblock %}
+{% block heading %}corrections{% endblock %}
+
+{# Open to anyone: each correction beneath the line it corrects, as that line is
+   shown now, oldest first (corrections.py). A line is never changed by one. #}
+{% block content %}
+<section>
+  <p>{{ how }}</p>
+  {% if shown %}
+  <ul class="lines">
+    {% for one in shown %}
+    <li><span class="muted">{{ one.where }}:</span> {{ one.line }}
+      <br><span class="muted">corrected by {{ one.who }}, {{ one.day }}:</span> &ldquo;{{ one.words }}&rdquo;</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">none yet</p>
+  {% endif %}
+</section>
+{% endblock %}

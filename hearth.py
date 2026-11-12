@@ -68,6 +68,12 @@ from build_atrium import (CITIZEN_ZONE, DOT, KIND_WORDS, dated_heartbeats, LETTE
 # what is offered here and what is offered at a waking are one record.
 import offering
 
+# What the site has asked its agents and how each answered, and corrections
+# beneath public lines (12 November 2026): written at a waking or by hand on the
+# host, and shown here, each through its one module.
+import answered
+import corrections
+
 # The seven days between a yes and a seal, kept through the one module both hands
 # use, as an offering is.
 import threshold
@@ -173,6 +179,7 @@ HEARTBEATS = DATA / "commons" / "heartbeats.md"
 EVENTS = DATA / "commons" / "events.md"
 BENCH = DATA / "commons" / "bench.md"
 LEDGER = DATA / "commons" / "ledger.md"  # what the ledger says that no other record does
+CORRECTIONS = DATA / "commons" / "corrections.md"  # corrections beneath public lines
 # who is here. The founder keeps it by hand and the hearth hands it out; the one
 # thing in it the hearth keeps itself is when the first one attends, which
 # follows its rhythm (see tend_members).
@@ -3234,6 +3241,7 @@ PUBLIC_WORDS = frozenset({
     "commons_heartbeats", "commons_events", "commons_bench", "commons_members",
     "commons_bonds", "commons_offerings", "commons_offering",
     "commons", "bench", "bond_page",
+    "commons_asked", "commons_corrections", "commons_corrections_md",
 })
 
 
@@ -3261,6 +3269,11 @@ def commons_heartbeats():
 @app.route("/commons/events.md")
 def commons_events():
     return plain(EVENTS)
+
+
+@app.route("/commons/corrections.md")
+def commons_corrections_md():
+    return plain(CORRECTIONS)
 
 
 @app.route("/commons/bench.md")
@@ -5554,9 +5567,12 @@ RECORD_FILES = [("heartbeats", "commons_heartbeats"), ("events", "commons_events
 @app.route("/commons")
 def commons():
     files = RECORD_FILES + ([("bonds", "commons_bonds")] if public_bonds.INDEX.exists() else [])
+    if corrections.every(CORRECTIONS):  # the file of corrections, once there is one
+        files = files + [("corrections", "commons_corrections_md")]
     return render_template("commons.html", sealed_bonds=sealed_bonds_shown(),
                            offerings=offerings_placed(), record_files=files,
-                           commons_pages=COMMONS_PAGES, bench_link=COMMONS_BENCH_LINK)
+                           commons_pages=COMMONS_PAGES + commons_pages_switched(),
+                           bench_link=COMMONS_BENCH_LINK)
 
 
 # A plain link to the bench near the top of the commons page (the founder's
@@ -5576,16 +5592,102 @@ COMMONS_PAGES = [("the ledger", "commons_ledger",
                   "each change proposed to the charter, and where it stands")]
 
 
+# The commons' pages of what has been asked and of corrections (12 November
+# 2026), each linked from the foot of the commons after its own pages, and only
+# once it can have anything on it: what has been asked once any agent's
+# registry entry names it, and corrections once any does or the site has made
+# one. Until then the commons page is exactly what it was.
+ASKED_PAGE = ("asked and answered", "commons_asked",
+              "what the site has asked its agents, and how each answered, in its own words")
+CORRECTIONS_PAGE = ("corrections", "commons_corrections",
+                    "corrections beneath public lines, each by whoever wrote the line")
+
+
+def commons_pages_switched():
+    """The commons' pages that are linked only once they are switched on."""
+    registry = agents.registry()
+    pages = [ASKED_PAGE] if answered.any_on(registry) else []
+    if any(corrections.on(agent) for agent in registry) or corrections.every(CORRECTIONS):
+        pages.append(CORRECTIONS_PAGE)
+    return pages
+
+
 # The ledger, open to anyone: one plain line for every serious act of the site
 # itself, each with its day, newest last (ledger.py says which acts, and where
 # each is read from). Nothing on it names a person, counts anything, gives a
-# reason, or comes from any room.
+# reason, or comes from any room. A correction the site made beneath a line is
+# shown beneath it, and the line stays as it was.
 def ledger_lines():
-    """The ledger's lines, oldest first, each as {"day": said as a person says it, "words"}."""
+    """The ledger's lines, oldest first, each as {"day": said as a person says it, "words",
+    "key", "correction": the site's beneath it, or None}."""
     events = parse_events(read_text(EVENTS)) if EVENTS.exists() else []
     tides = [(agent["commons_name"], packet_of(agent["id"])) for agent in agents.registry()]
-    return [{"day": long_day(when), "words": words}
-            for when, words in ledger.lines(events, tides, members.MEMBERS, LEDGER)]
+    beneath = {one["key"]: one for one in corrections.every(CORRECTIONS)
+               if one["where"] == corrections.LEDGER}
+    shown = []
+    for when, words in ledger.lines(events, tides, members.MEMBERS, LEDGER):
+        key = corrections.key_of(when, words)
+        correction = beneath.get(key)
+        shown.append({"day": long_day(when), "words": words, "key": key, "correction": (
+            {"who": correction["who"], "day": corrections.said_on(correction["day"]),
+             "words": correction["words"]} if correction else None)})
+    return shown
+
+
+# What the site has asked its agents about their own world, and how each
+# answered, open to anyone (answered.py): only of an agent whose registry entry
+# names it, only once answered, and one from before this page only once its
+# agent has given it words of its own. Nothing is counted.
+ASKED_HOW = ("What the site has asked its agents about their own world, and how each answered, "
+             "in its own words where it gave them. A question is shown once it is answered; one "
+             "asked before this page was made, only once its agent has given it words of its "
+             "own.")
+
+
+@app.route("/commons/asked")
+def commons_asked():
+    shown = answered.public(agents.registry(), packet_of)
+    return render_template("asked.html", how=ASKED_HOW, shown=shown)
+
+
+# Corrections, open to anyone: each beneath the line it corrects, as that line is
+# shown now, oldest first (corrections.py). An agent's beneath one of its own lines
+# in the commons; the site's beneath one of its lines in the ledger. A line is
+# never changed by one.
+CORRECTIONS_HOW = ("A correction is made by whoever wrote a public line, beneath it: an agent "
+                   "beneath one of its own lines in the commons, and the site beneath one of its "
+                   "lines in the ledger. The line itself is never changed. Each line may have "
+                   "one correction, and none is taken back. The newest is last.")
+
+
+def corrections_shown():
+    """Each correction with the line it corrects, as {"where", "line", "who", "day", "words"}.
+
+    A line of the commons is said as heartbeats.md hands it out, with its day; a
+    line of the ledger as the ledger says it. A correction whose line cannot be
+    found is passed over.
+    """
+    lines = read_text(HEARTBEATS).splitlines() if HEARTBEATS.exists() else []
+    ledger_said = {one["key"]: "%s %s %s" % (one["day"], DOT, one["words"])
+                   for one in ledger_lines()}
+    shown = []
+    for one in corrections.every(CORRECTIONS):
+        if one["where"] == corrections.HEARTBEATS:
+            found = next((line for line in lines
+                          if line.removeprefix("- ").startswith(one["key"] + " ")), None)
+            said = dated_heartbeats(found).removeprefix("- ").strip() if found else None
+            where = "a line in the commons"
+        else:
+            said, where = ledger_said.get(one["key"]), "a line in the ledger"
+        if said:
+            shown.append({"where": where, "line": said, "who": one["who"],
+                          "day": corrections.said_on(one["day"]), "words": one["words"]})
+    return shown
+
+
+@app.route("/commons/corrections")
+def commons_corrections():
+    return render_template("corrections.html", how=CORRECTIONS_HOW, shown=corrections_shown())
 
 
 @app.route("/commons/ledger")

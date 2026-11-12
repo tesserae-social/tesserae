@@ -15,7 +15,8 @@
   {% if lines %}
   <ul class="lines">
     {% for one in lines %}
-    <li><span class="muted">{{ one.day }}</span> &middot; {{ one.words }}</li>
+    <li><span class="muted">{{ one.day }}</span> &middot; {{ one.words }}{% if one.correction %}
+      <br><span class="muted">corrected by {{ one.correction.who }}, {{ one.correction.day }}:</span> &ldquo;{{ one.correction.words }}&rdquo;{% endif %}</li>
     {% endfor %}
   </ul>
   {% else %}

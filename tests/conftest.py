@@ -515,6 +515,8 @@ def load(name):
     sys.modules.pop("tokens", None)  # it keeps each link that works once under DATA_DIR
     sys.modules.pop("invitations", None)  # it keeps each invitation under DATA_DIR
     sys.modules.pop("ledger", None)  # it keeps the ledger's own lines under DATA_DIR
+    sys.modules.pop("corrections", None)  # it keeps the commons' corrections under DATA_DIR
+    sys.modules.pop("answered", None)  # it finds the packets under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 

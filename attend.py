@@ -4265,11 +4265,11 @@ def main():
 
     # ---- the turn ----------------------------------------------------------
     client = gemini.client(key) if PROVIDER == gemini.GEMINI else Anthropic(api_key=key)
-    looked, rounds, beside = [], None, False
+    looked, rounds, beside_look = [], None, False
     try:  # a Gemini reply blocked or not finished is no reply (gemini.Stopped)
         if LONGER_WAKING:
             # a letter that has only just arrived is its own too, and may be opened
-            resp, looked, rounds, beside, spent = longer_waking(client, reading, {
+            resp, looked, rounds, beside_look, spent = longer_waking(client, reading, {
                 "letters": {**whose, **{p.stem: (p, "founder") for p, _ in incoming}},
                 "versions": versions, "said_of": said_of if LOOKING_BACK else {},
                 "named": named, "founding": founding,
@@ -4948,7 +4948,7 @@ def main():
         record["looked_at"] = looked
     if rounds:  # how many requests the waking took, where it may take more than one
         record["rounds"] = rounds
-    if beside:  # that a block was written beside a look and not kept; told at the next waking
+    if beside_look:  # that a block was written beside a look and not kept; told at the next waking
         record["blocks_beside_look"] = True
     if spent:  # what each request cost, in numbers only, where the API said; read back nowhere
         record["usage"] = spent

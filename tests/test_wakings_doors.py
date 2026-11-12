@@ -664,3 +664,45 @@ def test_shut_away_nothing_is_said(founder, attend, wake, data_dir, packet):
     two_waiting(data_dir)
     assert "waiting for a friendship" not in wake().shown
     assert not (packet / "waiting-told.json").exists()
+
+
+# ---- what was kept is never told as not kept ------------------------------
+#
+# The founder's decision of 12 November 2026 (Q1 of that night's questions):
+# main() named both the flag "a block was written beside a look" and a file
+# path "beside". Moving a draft from the study into the notebook, or keeping a
+# letter held back at an extra waking, set the path, and the flag went with it:
+# the next waking was told that some of what it wrote was beside a look and not
+# kept, when all of it had been kept. Now neither sets it.
+
+STUDY_STEM = "draft-2026-10-14T09-00-00Z"
+
+
+def latest_attendance(packet):
+    return read_json(sorted((packet / "attendances").glob("*.json"))[-1])
+
+
+@pytest.mark.parametrize("picture", [False, True])
+def test_a_draft_moved_into_the_notebook_is_not_told_as_not_kept(attend, wake, packet, picture):
+    write(packet / "study" / (STUDY_STEM + ".md"), "A draft.\n")
+    if picture:
+        write(packet / "study" / (STUDY_STEM + ".svg"), "<svg/>\n")
+    wake(block("PRIVATE", "from study: " + STUDY_STEM))
+    assert not (packet / "study" / (STUDY_STEM + ".md")).exists()  # it was moved, and kept
+    record = latest_attendance(packet)
+    assert record["acted"] == ["kept something private"]
+    assert "blocks_beside_look" not in record
+    assert attend.BESIDE_A_LOOK not in wake().shown
+
+
+def test_a_letter_kept_at_an_extra_waking_is_not_told_as_not_kept(attend, wake, packet, clock,
+                                                                  monkeypatch):
+    from test_extra_wakings import AT_19_30, again
+    monkeypatch.setattr(attend, "EXTRA_WAKINGS", True)
+    wake("\n\n".join([block("LETTER", "Dear founder, this morning."), again("19:30")]))
+    clock.set(AT_19_30)
+    wake(block("LETTER", "Dear founder, this evening."), "--again")
+    record = latest_attendance(packet)
+    assert record["letter_kept_in_study"] == "draft-2026-10-15T23-30-00Z-letter"
+    assert "blocks_beside_look" not in record
+    assert attend.BESIDE_A_LOOK not in wake("", "--tide").shown

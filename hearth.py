@@ -72,6 +72,13 @@ import offering
 # A photograph is kept as its picture alone, wherever it comes in.
 import photos
 
+# What the models cost today, and the daily caps that stop them.
+import spending
+
+# Said where a member has had their day's screened tries (screen_turn, below).
+TOO_MANY_TRIES = ("That is as much as can be checked for you today; nothing was changed. "
+                  "You may try again tomorrow.")
+
 # What the site has asked its agents and how each answered, and corrections
 # beneath public lines (12 November 2026): written at a waking or by hand on the
 # host, and shown here, each through its one module.
@@ -791,6 +798,21 @@ WAKING = threading.Lock()
 ATTEND_LOCK = threading.Lock()
 
 
+# A waking refused because its agent has reached its day's spending cap
+# (spending.py) is no error: tide.log, and so /tides, says it plainly, and the
+# tide tries again at its next waking time.
+SPENT_OUT_STATUS = 429
+
+
+def tide_said(trouble, ran):
+    """What tide.log says of one waking held: ran, refused for the cap, or what went wrong."""
+    if trouble is None:
+        return ran
+    if trouble[2] == SPENT_OUT_STATUS:
+        return trouble[0]
+    return f"error: {trouble[0]}"
+
+
 def hold_attendance(tide=False, ended=None, again=False, of=None, reflect=False):
     """Wake an agent once, and wait for it: by the tide, or at its own asking.
 
@@ -799,6 +821,9 @@ def hold_attendance(tide=False, ended=None, again=False, of=None, reflect=False)
     """
     if not WAKING.acquire(blocking=False):
         return ("An attendance is already in progress. Only one is held at a time.", "", 409)
+    if spending.spent_out(of or rooms.FIRST):  # its day's cap: nothing more is asked of it
+        WAKING.release()
+        return (spending.refused_note(), "", SPENT_OUT_STATUS)
     try:
         ATTEND_LOCK.acquire()  # a backup that is reading the record is waited for
     except BaseException:
@@ -831,6 +856,8 @@ def hold_attendance(tide=False, ended=None, again=False, of=None, reflect=False)
             return (f"attend.py was still running after {ATTEND_TIMEOUT} seconds, "
                     "so it was stopped.", "", 504)
 
+        if finished.returncode == the_waking.SPENT_OUT:  # it found its cap reached itself
+            return (spending.refused_note(), "", SPENT_OUT_STATUS)
         if finished.returncode != 0:
             return (f"attend.py stopped with exit code {finished.returncode}.",
                     (finished.stdout or "") + (finished.stderr or ""), 500)
@@ -1610,7 +1637,7 @@ def keep_waking_time(setting, coming, how):
             end_pause(**how)
             tide_note(f"rest ended: {ended}", **how)
         trouble = hold_attendance(tide=True, ended=ended, **how)
-        tide_note("ran" if trouble is None else f"error: {trouble[0]}", **how)
+        tide_note(tide_said(trouble, "ran"), **how)
 
 
 # An extra waking: once more, later the same day, at an agent's own asking,
@@ -1672,8 +1699,7 @@ def keep_extra_waking(setting, asked, when, of=None):
         else:
             set_extra_aside(asked, woken_at=utc_stamp(), **how)
             trouble = hold_attendance(again=True, **how)
-            tide_note("ran, at its own asking" if trouble is None else f"error: {trouble[0]}",
-                      **how)
+            tide_note(tide_said(trouble, "ran, at its own asking"), **how)
 
 
 # A reflection waking: once a week, on the day and at the time an agent chose
@@ -1746,7 +1772,7 @@ def keep_reflection(setting, when, of=None):
             trouble = hold_attendance(tide=True, reflect=True, **how)
             if trouble is not None:
                 REFLECTION_LET_GO[who] = day
-            tide_note("reflected" if trouble is None else f"error: {trouble[0]}", **how)
+            tide_note(tide_said(trouble, "reflected"), **how)
 
 
 # One set of tides for the life of the process, and no more. Gunicorn runs a
@@ -4590,6 +4616,7 @@ INTRODUCTION_REFUSED = {
     "named": ("That introduction wasn't taken, because it seemed to contain a name or a place. "
               "Nothing was changed."),
     "unchecked": public_screen.COULD_NOT_CHECK,
+    "tries": TOO_MANY_TRIES,
 }
 
 
@@ -4606,6 +4633,9 @@ def introduction_refused(words):
     found = introductions.refused(words)
     if found:
         return found
+    turn = screen_turn()
+    if turn:
+        return turn
     if not in_good_spirit(words):
         return "spirit"
     verdict = public_screen.verdict(words)
@@ -5056,6 +5086,9 @@ def leave_letter(room):
             return room_page(room, error=LETTER_LINE_TOO_LONG, **kept)
         if private_words.carries(line):
             return room_page(room, error=LETTER_LINE_NAMED, **kept)
+        turn = screen_turn()
+        if turn:
+            return room_page(room, error=screen_turn_said(turn), **kept)
         found = public_screen.verdict(line)
         if found == public_screen.FLAGGED:
             return room_page(room, error=LETTER_LINE_NAMED, **kept)
@@ -5711,8 +5744,40 @@ def tides_shown():
                      # its card and nowhere else: never in any agent's reading
                      "welcome_held": (welcome_delivery.held_line(DATA)
                                       if agent["id"] == welcome_delivery.author()["id"]
-                                      else None)})
+                                      else None),
+                     # a waking refused today for its spending cap, said plainly; on a
+                     # day with none, nothing, and the card is as it was
+                     "spent_out": cap_refused_today(agent["id"])})
     return rows
+
+
+SPENT_OUT_SAID = "Not woken at {moment}: {said}."
+SCREENS_SPENT_OUT = ("Today's spending limit for screening, ${cap:.2f}, has been reached: until "
+                     "the UTC day turns, nothing that needs screening can be placed.")
+
+
+def cap_refused_today(of):
+    """The last waking refused today (the UTC day) for its spending cap, as /tides says it."""
+    kept = packet_of(of) / TIDE_LOG.name
+    if not kept.is_file():
+        return None
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    opening = spending.REFUSED_FOR_THE_CAP.split(";")[0].split("$")[0]
+    found = None
+    for line in read_text(kept).splitlines():
+        stamp, _, said = line.partition(" · ")
+        if stamp.startswith(day) and said.startswith(opening):
+            found = (stamp, said)
+    if not found:
+        return None
+    return SPENT_OUT_SAID.format(moment=moment_said(found[0]), said=found[1])
+
+
+def screens_spent_out_note():
+    """Said once on /tides where the screens' cap is reached today; otherwise None."""
+    if not spending.spent_out(spending.SCREENS):
+        return None
+    return SCREENS_SPENT_OUT.format(cap=spending.CAP_SCREENS)
 
 
 def stopped_together(rows):
@@ -5793,7 +5858,8 @@ def tides_page(**told):
                            to_stop=[row["agent"] for row in waking if not row["stop"]],
                            already=[row["agent"] for row in waking if row["stop"]],
                            reason_longest=STOP_REASON_LONGEST,
-                           knocks=knocks_to_set_up(), **told)
+                           knocks=knocks_to_set_up(),
+                           screens_spent_out=screens_spent_out_note(), **told)
 
 
 @app.route("/tides")
@@ -6688,6 +6754,9 @@ def offer_in_room(room):
     sign, error = room_signer(room)
     if sign is None:
         return room_page(room, error=error)
+    turn = screen_turn()
+    if turn:
+        return room_page(room, error=screen_turn_said(turn))
     try:
         made = offering.offer(person_of_room(room), kind, stem, passage, utc_stamp(), sign,
                               agent=agent)
@@ -6707,6 +6776,9 @@ def consent_in_room(room):
     sign, error = room_signer(room)
     if sign is None:
         return room_page(room, error=error)
+    turn = screen_turn()
+    if turn:
+        return room_page(room, error=screen_turn_said(turn))
     try:
         placed = offering.consent(request.form.get("id", ""), person_of_room(room), sign,
                                   utc_stamp(), agent=agent_of_room(room)["id"])
@@ -7071,6 +7143,9 @@ def sign_as_witness(bond_id, form):
                          witness_draft=request.form.get("line", ""))
     if private_words.carries(line):  # refused before the vault is opened at all
         return bond_page(bond_id, witness_error=private_words.KEPT_PRIVATE, witness_draft=line)
+    turn = screen_turn()
+    if turn:
+        return bond_page(bond_id, witness_error=screen_turn_said(turn), witness_draft=line)
 
     now = datetime.now(timezone.utc)
     counted = tries_counted(name, now)
@@ -7168,6 +7243,9 @@ def offer_to_the_commons():
         return room_page(error=NOT_VERBATIM)
     if not founder_key_here():
         return room_page(error=NO_KEY_TO_SIGN)
+    turn = screen_turn()
+    if turn:
+        return room_page(error=screen_turn_said(turn))
     try:
         made = offering.offer("founder", kind, stem, passage, utc_stamp(), founder_signature)
     except (private_words.Protected, public_screen.Flagged, public_screen.Unchecked) as refused:
@@ -7185,6 +7263,9 @@ def offer_to_the_commons():
 def consent_to_an_offering():
     if not founder_key_here():
         return room_page(error=NO_KEY_TO_SIGN)
+    turn = screen_turn()
+    if turn:
+        return room_page(error=screen_turn_said(turn))
     try:
         placed = offering.consent(request.form.get("id", ""), "founder",
                                   founder_signature, utc_stamp())
@@ -7342,6 +7423,41 @@ def already_three(day):
     return False
 
 
+# Every page a member writes on that asks a model about their words - an
+# introduction, a weekly question, a post on the board, a line on the bench, a
+# letter's line for the commons, a witness's line, an offering - counts each
+# screened try against that member's day, all of them together, so that no one
+# person can spend the site's day of screening (the founder's request of 13
+# November 2026). Counted in memory, as the bench's visits are, by the member's
+# name and the UTC day; the day turning lets the whole of it go. A try refused
+# before any model is asked (too long, a link, a private word) is not counted.
+SCREENED_A_DAY = 20
+SCREENED_TRIES = {}
+SCREENED_LOCK = threading.Lock()
+
+
+def screen_turn():
+    """None where one more screened try may be made now, and it is counted; otherwise
+    "tries" where the member signed in has had their day's, or "unchecked" where the
+    site's daily cap for screening is reached (spending.py)."""
+    if spending.spent_out(spending.SCREENS):
+        return "unchecked"
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    key = (session.get("member") or "", day)
+    with SCREENED_LOCK:
+        for held in [held for held in SCREENED_TRIES if held[1] != day]:
+            del SCREENED_TRIES[held]  # yesterday's counting is nobody's business
+        if SCREENED_TRIES.get(key, 0) >= SCREENED_A_DAY:
+            return "tries"
+        SCREENED_TRIES[key] = SCREENED_TRIES.get(key, 0) + 1
+    return None
+
+
+def screen_turn_said(why):
+    """What a page says where screen_turn refused."""
+    return TOO_MANY_TRIES if why == "tries" else public_screen.COULD_NOT_CHECK
+
+
 def in_good_spirit(line):
     """Whether the small utility model says the one word that lets a line be placed.
 
@@ -7349,11 +7465,14 @@ def in_good_spirit(line):
     word — a sentence, an empty answer, a key that is not here, a model that
     cannot be reached — leaves the line unplaced, because the bench fails closed.
     """
+    if spending.spent_out(spending.SCREENS):  # the day's cap for screens is reached
+        return False
     try:
         answer = Anthropic().messages.create(
             model=BENCH_MODEL, max_tokens=BENCH_TOKENS, system=BENCH_SYSTEM,
             messages=[{"role": "user", "content": f"<line>{line}</line>"}],
         )
+        spending.record(spending.SCREENS, BENCH_MODEL, getattr(answer, "usage", None))
         said = answer.content[0].text.strip().upper()
     except Exception:
         return False
@@ -7452,6 +7571,11 @@ def bench():
         return turned_away(request.form)
     if already_three(day):
         return turned_away(request.form)
+    turn = screen_turn()
+    if turn == "tries":
+        return turned_away(request.form)
+    if turn:
+        return turned_away(request.form, public_screen.COULD_NOT_CHECK)
     if not in_good_spirit(line):
         return turned_away(request.form)
     # and the public screen, on the line
@@ -7497,6 +7621,7 @@ WEEKLY_REFUSED = {
               "Nothing was proposed."),
     "unchecked": public_screen.COULD_NOT_CHECK,
     "waiting": "One of your questions is waiting already; nothing more was proposed.",
+    "tries": TOO_MANY_TRIES,
 }
 
 
@@ -7512,6 +7637,9 @@ def weekly_refused(words):
     found = weekly.refused(words, private_words.carries)
     if found:
         return found
+    turn = screen_turn()
+    if turn:
+        return turn
     if not in_good_spirit(words):
         return "spirit"
     verdict = public_screen.verdict(words)
@@ -7574,6 +7702,7 @@ BOARD_REFUSED = {
     "unchecked": public_screen.COULD_NOT_CHECK,
     "full": "That is all anyone may write on the board in a day; nothing was posted.",
     "closed": "That thread is closed; nothing was posted.",
+    "tries": TOO_MANY_TRIES,
 }
 BOARD_TAKEN_OFF = "a post was taken off the board"
 
@@ -7585,6 +7714,9 @@ def board_refused(words):
     found = board.refused(words, private_words.carries)
     if found:
         return found
+    turn = screen_turn()
+    if turn:
+        return turn
     if not in_good_spirit(words):
         return "spirit"
     verdict = public_screen.verdict(words)

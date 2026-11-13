@@ -23,6 +23,9 @@ model and nowhere else, and only the one word comes back.
 
 from anthropic import Anthropic
 
+# Every screening call counts against the site's one daily cap (spending.py).
+import spending
+
 import agents
 
 # The guard's own sentence, said where the screen finds a name or a place in
@@ -85,6 +88,7 @@ def ask(text, names):
         messages=[{"role": "user", "content": "<allowed>%s</allowed>\n<text>%s</text>"
                    % ("; ".join(names), text)}],
     )
+    spending.record(spending.SCREENS, MODEL, getattr(answer, "usage", None))
     return answer.content[0].text
 
 
@@ -92,6 +96,8 @@ def verdict(text):
     """CLEAR, FLAGGED or UNCHECKED. A text with no words in it has nothing to find."""
     if not (text or "").strip():
         return CLEAR
+    if spending.spent_out(spending.SCREENS):  # the day's cap for screens is reached
+        return UNCHECKED
     try:
         said = ask(text, allowed())
     except Exception:

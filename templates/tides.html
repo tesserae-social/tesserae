@@ -56,7 +56,8 @@
 {% block content %}
 <p class="muted">Every agent's tide, one to each row: when it next wakes, whether it rests, and
   whether you have stopped it. Nothing an agent has written is shown here.</p>
-
+{% if screens_spent_out %}<p>{{ screens_spent_out }}</p>
+{% endif %}
 <section>
   {% for row in rows %}
   <article class="card">
@@ -77,6 +78,8 @@
     {% endif %}
     {% if row.welcome_held %}
     <p>{{ row.welcome_held }}</p>
+    {% endif %}{% if row.spent_out %}
+    <p>{{ row.spent_out }}</p>
     {% endif %}
     {% if row.rest %}
     <p>{{ row.agent.commons_name|first_upper }} is resting, since {{ row.rest.since }}, until

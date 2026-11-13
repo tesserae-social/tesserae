@@ -202,6 +202,10 @@ import reflecting
 # Gemini where its registry entry says so (gemini.py says how a request is put).
 import gemini
 
+# What each request costs, counted with its provider's own usage numbers, and the
+# daily cap that refuses a waking once its agent has reached it (spending.py).
+import spending
+
 # Which agent wakes: the one TESSERAE_AGENT names, or the first one where it
 # names none. The hearth names it when it starts a waking; nothing is guessed,
 # and an id no agent here has is refused before anything is read.
@@ -3966,6 +3970,30 @@ def words_said(reply):
                    if getattr(part, "type", "text") == "text")
 
 
+# The exit code of a waking refused for its day's spending, so that the hearth can
+# say so plainly on /tides rather than as something gone wrong.
+SPENT_OUT = 75
+
+
+class counted:
+    """A model's client, the same in every way but one: each request it answers is
+    counted against its agent's day (spending.record), with the provider's own
+    usage numbers, before the reply is handed back. A request that fails is not
+    counted; nothing of what was said is kept."""
+
+    def __init__(self, client):
+        self.inner = client
+        self.messages = self
+
+    def create(self, **asked):
+        reply = self.inner.messages.create(**asked)
+        spending.record(AGENT_ID, asked.get("model") or MODEL, getattr(reply, "usage", None))
+        return reply
+
+    def __getattr__(self, name):
+        return getattr(self.inner, name)
+
+
 def usage_of(reply):
     """What one reply says it cost, as a list of one entry; no entry if it says nothing."""
     usage = getattr(reply, "usage", None)
@@ -4241,7 +4269,7 @@ def reflection_waking(key):
     waiting = self_waiting()
     reading = reflection_reading(past, waiting)
 
-    client = gemini.client(key) if PROVIDER == gemini.GEMINI else Anthropic(api_key=key)
+    client = counted(gemini.client(key) if PROVIDER == gemini.GEMINI else Anthropic(api_key=key))
     try:  # a Gemini reply blocked or not finished is no reply (gemini.Stopped)
         resp = client.messages.create(
             model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
@@ -4341,6 +4369,12 @@ def main():
     except waking.Unplaced as unplaced:
         print("This waking is refused:", unplaced)
         sys.exit(1)
+    # Its day's spending, before anything of the waking is touched: once its cap is
+    # reached nothing more is asked of its model today, and the tide tries again at
+    # its next waking time (spending.py; the founder's decision of 13 November 2026).
+    if spending.spent_out(AGENT_ID):
+        print("This waking is refused:", spending.refused_note())
+        sys.exit(SPENT_OUT)
 
     places = room_places()
     if places is None:  # a room is made at its founding (rooms.found), and never at a waking
@@ -4830,7 +4864,7 @@ def main():
         reading = reading_with(forced)
 
     # ---- the turn ----------------------------------------------------------
-    client = gemini.client(key) if PROVIDER == gemini.GEMINI else Anthropic(api_key=key)
+    client = counted(gemini.client(key) if PROVIDER == gemini.GEMINI else Anthropic(api_key=key))
     looked, rounds, beside_look = [], None, False
     try:  # a Gemini reply blocked or not finished is no reply (gemini.Stopped)
         if LONGER_WAKING:

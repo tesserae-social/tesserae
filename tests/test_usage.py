@@ -137,7 +137,12 @@ def test_the_reading_with_usage_is_the_reading_as_it_reads_now(founder, costed, 
 
 
 def test_a_waking_after_one_with_usage_reads_what_it_would_have_read(
-        costed, clock, data_dir, packet, tmp_path, capsys):
+        costed, clock, data_dir, packet, tmp_path, capsys, monkeypatch):
+    # MARKED tokens cost far more than a day's cap (spending.py, 13 November 2026),
+    # which is not what this asks after: the cap is lifted here, so the second waking
+    # is held and its reading can be compared
+    import spending
+    monkeypatch.setattr(spending, "CAP_PER_AGENT", float("inf"))
     costed("I am here.", usages=[usage(MARKED, MARKED, MARKED, MARKED)])
     assert str(MARKED) not in capsys.readouterr().out  # nor is it printed at the waking
     held, when = tmp_path / "held", clock.at

@@ -29,6 +29,7 @@ from conftest import (SWITCHED_ON_21_OCTOBER, Turn, block, explained_as_before, 
                       page, shut_away, stamps_as_before, write, write_json)
 from conftest import heartbeat_not_yet_public
 from conftest import notebook_unexplained
+from conftest import switches_not_yet
 from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
 CHOSEN = "=== WHAT YOU HAVE CHOSEN ==="
@@ -143,6 +144,7 @@ def test_shut_away_it_is_sent_byte_for_byte_what_it_was_sent_before(
     explained_as_before(attend, monkeypatch)  # the old one knew no two-waking rule
     stamps_as_before(attend, monkeypatch)  # and said each moment as its raw stamp
     heartbeat_not_yet_public(attend, monkeypatch)  # nor did it yet say its heartbeat is public
+    switches_not_yet(attend, monkeypatch)  # nor had the four switched on 13 November 2026
 
     everything_set(packet, room)
     said = "\n\n".join([block("SHELF", "keep %s\nrest %s" % (OWN, ARTICLE)),

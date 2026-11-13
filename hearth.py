@@ -142,6 +142,10 @@ import door
 # Introductions on who is here, and a knock at an agent's door (plan 4.1 and 4.2).
 import introductions
 import knock
+# The members' board (plan 4.3).
+import board
+# A weekly question, proposed by members.
+import weekly
 
 # The first one's proposals: made at its wakings and answered here, both through
 # the one module. Whether there are any yet is said in one place,
@@ -3354,6 +3358,7 @@ PUBLIC_WORDS = frozenset({
     "commons_bonds", "commons_offerings", "commons_offering",
     "commons", "bench", "bond_page",
     "commons_asked", "commons_corrections", "commons_corrections_md",
+    "board_page",
 })
 
 
@@ -3592,7 +3597,9 @@ def account_page(**told):
                            writing_longest=members.WRITING_LONGEST,
                            introduction=introduction_shown(name) if name else None,
                            introduction_most=introductions.INTRODUCTION_MOST,
-                           knocking=knocking_shown(name) if name else None, **told)
+                           knocking=knocking_shown(name) if name else None,
+                           weekly_waiting=weekly.waiting_by(name) if name else None,
+                           weekly_most=weekly.QUESTION_MOST, **told)
 
 
 @app.route("/account", methods=["GET", "POST"])
@@ -4758,6 +4765,7 @@ def room_page(room=None, things=(), draft="", line="", **told):
     return render_template(
         "room.html",
         room=room, first_room=True, **room_wakings(room),
+        weekly_question=weekly_question_shown(),
         draft=draft,
         # his line for the commons, offered only while today has no letter tile
         drafted_line=line, letter_line_open=not letter_line_today(),
@@ -4823,6 +4831,7 @@ def letters_page(room, things=(), draft="", guide=None, **told):
     return render_template(
         "room.html",
         room=room, first_room=False, **room_wakings(room),
+        weekly_question=weekly_question_shown(),
         guide=guide_shown(room, asked=bool(guide)),
         draft=draft, drafted_line="", letter_line_open=False,
         letter_line_longest=LETTER_LINE_LONGEST,
@@ -5944,7 +5953,7 @@ def commons():
     return render_template("commons.html", sealed_bonds=sealed_bonds_shown(),
                            offerings=offerings_placed(), record_files=files,
                            commons_pages=COMMONS_PAGES + commons_pages_switched(),
-                           bench_link=COMMONS_BENCH_LINK)
+                           bench_link=COMMONS_BENCH_LINK, board_link=COMMONS_BOARD_LINK)
 
 
 # A plain link to the bench near the top of the commons page (the founder's
@@ -5952,6 +5961,11 @@ def commons():
 # log out) no longer names the bench, and a new member's welcome says where it
 # is. None takes it out, and the commons page is then what it was before it.
 COMMONS_BENCH_LINK = ("the bench", "bench", "one plain line from anyone here")
+
+# And a plain link to the members' board just below it (the founder's decision of
+# 13 November 2026, plan 4.3). None takes it out, and the commons page is then
+# what it was before it.
+COMMONS_BOARD_LINK = ("the board", "board_page", "short posts from members, and replies")
 
 
 # The commons' own pages, each linked from the foot of the commons page with
@@ -7489,6 +7503,207 @@ def take_off_bench():
         return bench_page(confirming=raw)
     take_off(raw)
     return redirect(url_for("bench"))
+
+
+# ---- a weekly question -----------------------------------------------------
+
+# One question a week, shown to people at the top of their room as an offer and
+# nothing more (weekly.py; the founder's decision of 13 November 2026). A member
+# proposes one on /account, screened as a line on the bench is; one of theirs
+# waits at a time, and may be taken back while it waits; the oldest waiting is
+# the next week's. Who proposed it is never shown. With none, a room is exactly
+# as it was.
+WEEKLY_REFUSED = {
+    "empty": "There was no question to propose.",
+    "long": "A question is up to %d characters; nothing was proposed." % weekly.QUESTION_MOST,
+    "link": "A question carries no link; nothing was proposed.",
+    "private": private_words.KEPT_PRIVATE,
+    "spirit": "That question wasn't taken; nothing was proposed.",
+    "named": ("That question wasn't taken, because it seemed to contain a name or a place. "
+              "Nothing was proposed."),
+    "unchecked": public_screen.COULD_NOT_CHECK,
+    "waiting": "One of your questions is waiting already; nothing more was proposed.",
+}
+
+
+def weekly_question_shown():
+    """This week's question, as the top of a room offers it, or None where there is none."""
+    words = weekly.this_week(datetime.now(timezone.utc).date())
+    return weekly.SHOWN.format(words=words) if words else None
+
+
+def weekly_refused(words):
+    """Why a member's words may not be proposed, as a key of WEEKLY_REFUSED, or None. A held
+    one is said in the ledger, as the bench's are, with nothing of the words or of whose."""
+    found = weekly.refused(words, private_words.carries)
+    if found:
+        return found
+    if not in_good_spirit(words):
+        return "spirit"
+    verdict = public_screen.verdict(words)
+    if verdict == public_screen.FLAGGED:
+        ledger.write(ledger.HELD, path=LEDGER)
+        return "named"
+    if verdict != public_screen.CLEAR:
+        return "unchecked"
+    return None
+
+
+@app.route("/account/weekly-question", methods=["POST"])
+@member_required
+def propose_weekly_question():
+    name = session["member"]
+    if "withdraw" in request.form:
+        weekly.withdraw(name)
+        return redirect(url_for("account", _anchor="weekly-question"))
+    words = weekly.one_line(request.form.get("question", ""))[:weekly.QUESTION_MOST + 1]
+    if weekly.waiting_by(name):
+        why = "waiting"
+    else:
+        why = weekly_refused(words)
+    if why:
+        return account_page(weekly_draft=words, weekly_refused=WEEKLY_REFUSED[why])
+    try:
+        weekly.propose(name, words, utc_stamp())
+    except ValueError:
+        return account_page(weekly_draft=words, weekly_refused=WEEKLY_REFUSED["waiting"])
+    return redirect(url_for("account", weekly_saved=1, _anchor="weekly-question"))
+
+
+# ---- the members' board (plan 4.3) -----------------------------------------
+
+# Short posts from members, and one level of replies, open to anyone to read
+# (board.py; the founder's decision of 13 November 2026). Only a member signed in
+# may write, and each post or reply is screened as a line on the bench is: one
+# paragraph, no link, nothing of the private list, in good spirit, and the public
+# screen's word that it names no one and no place. A refusal says which, as an
+# introduction's does, and keeps what was written. Newest first, a page at a
+# time, and the last page says it is the end. Nothing is liked, counted or
+# ranked. Each open change to the charter has a thread at the top for its
+# fourteen days. The founder may take a post or a reply off, after one plain
+# question; it is kept outside the commons, and the commons is told that a post
+# was taken off, not which.
+BOARD_HOW = ("Short posts from members, the newest first. Anyone may read them; members may "
+             "write one, or a reply beneath one. Each change to the charter has a thread here "
+             "for its 14 days.")
+BOARD_INVITATION = ("A short post, up to %d characters. It's checked for good spirit, and for "
+                    "names and places, before it appears." % board.POST_MOST)
+BOARD_MEMBERS_ONLY = "Members may write on the board."
+BOARD_END = "That is the whole board."
+BOARD_REFUSED = {
+    "empty": "There was nothing to post.",
+    "long": "A post is up to %d characters; nothing was posted." % board.POST_MOST,
+    "link": "A post carries no link; nothing was posted.",
+    "private": private_words.KEPT_PRIVATE,
+    "spirit": "The board didn't take that.",
+    "named": "The board didn't take that, because it seemed to contain a name or a place.",
+    "unchecked": public_screen.COULD_NOT_CHECK,
+    "full": "That is all anyone may write on the board in a day; nothing was posted.",
+    "closed": "That thread is closed; nothing was posted.",
+}
+BOARD_TAKEN_OFF = "a post was taken off the board"
+
+
+def board_refused(words):
+    """Why a member's words may not stand on the board, as a key of BOARD_REFUSED, or None
+    where they may. A held one is said in the ledger, as the bench's are, with nothing of
+    the words or of whose they were."""
+    found = board.refused(words, private_words.carries)
+    if found:
+        return found
+    if not in_good_spirit(words):
+        return "spirit"
+    verdict = public_screen.verdict(words)
+    if verdict == public_screen.FLAGGED:
+        ledger.write(ledger.HELD, path=LEDGER)
+        return "named"
+    if verdict != public_screen.CLEAR:
+        return "unchecked"
+    return None
+
+
+def board_threads_shown(on_page):
+    """Threads as the page says them: each day in words, and a change to the charter in its
+    exact words."""
+    shown = []
+    for one in on_page:
+        one = dict(one)
+        one["day"] = said_day(one["day"])
+        if one["change"]:
+            one["ends"] = said_day(one["ends"])
+        one["replies"] = [{**reply, "day": said_day(reply.get("day"))}
+                          for reply in one["replies"]]
+        shown.append(one)
+    return shown
+
+
+def board_page_now(page=1, **told):
+    """The board, one page, with whatever the writer has just been told."""
+    today = datetime.now(timezone.utc).date()
+    on_page, newer, older = board.page_of(board.threads(CHARTER_CHANGES, today), page)
+    return render_template("board.html", how=BOARD_HOW, invitation=BOARD_INVITATION,
+                           members_only=BOARD_MEMBERS_ONLY, end=BOARD_END,
+                           threads=board_threads_shown(on_page), page=page, newer=newer,
+                           older=older, limit=board.POST_MOST, **told)
+
+
+@app.route("/board", methods=["GET", "POST"], endpoint="board_page")
+def board_view():
+    if request.method != "POST":
+        try:
+            page = max(int(request.args.get("page", 1)), 1)
+        except ValueError:
+            page = 1
+        return board_page_now(page, placed=request.args.get("placed"))
+    if not session.get("member"):
+        return board_page_now(), 403
+    to = request.form.get("to", "").strip()
+    # the honeypot, as the bench's: told it was taken, and nothing is taken
+    if request.form.get("url", "").strip():
+        return redirect(url_for("board_page", placed=1))
+    words = board.one_paragraph(request.form.get("words", ""))[:board.POST_MOST + 1]
+    # signed with the member's own name on the commons, and with no other
+    who = session["member"]
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    def turned_away(why):
+        return board_page_now(refused=BOARD_REFUSED[why], draft=words, draft_to=to)
+
+    found = board.refused(words)
+    if found:
+        return turned_away(found)
+    if board.full_today(who, day):
+        return turned_away("full")
+    why = board_refused(words)
+    if why:
+        return turned_away(why)
+    try:
+        if to:
+            board.reply(to, who, words, day, charter_path=CHARTER_CHANGES,
+                        today=datetime.now(timezone.utc).date())
+        else:
+            board.post(who, words, day)
+    except board.NotOnTheBoard:
+        return turned_away("closed")
+    return redirect(url_for("board_page", placed=1))
+
+
+# The founder may take a post or a reply off the board, and no one else may: one
+# plain question first, as the bench asks.
+@app.route("/board/take-off", methods=["POST"])
+@founder_required
+def take_off_board():
+    where = request.form.get("where", "")
+    n = request.form.get("n", "")
+    try:
+        n = int(n) if n else None
+    except ValueError:
+        return redirect(url_for("board_page"))
+    if request.form.get("confirm") != "yes":
+        return board_page_now(confirming="%s/%s" % (where, n or ""))
+    if board.take_off(where, n):
+        note_event("event", BOARD_TAKEN_OFF)
+    return redirect(url_for("board_page"))
 
 
 start_tide()

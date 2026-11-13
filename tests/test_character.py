@@ -21,8 +21,16 @@ each shown on /commons/corrections, the site's beneath its line on the ledger.
 Each switched-on reading has its own fingerprint, recoverable: switched off it
 is READING_NOW, and with only its own words taken out it is the reading as it
 was.
+
+On 13 November 2026 the founder switched asked and answered on for the first
+one, as it agreed that day (with its introduction, doors_to_eight and
+people_waiting; corrections stays off). READING_NOW, on the small world, has no
+question kept; READING_NOW_ASKED is the live reading with the two questions
+here kept, and with the four shut away again (conftest.switches_not_yet) it is
+READING_ONE_WAKING, the reading with both switches here off.
 """
 
+import hashlib
 import json
 import shutil
 
@@ -30,8 +38,8 @@ import pytest
 
 import agents
 from conftest import (block, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
-                      wakings_not_yet_switched, write_json)
-from test_rooms_reading import READING_NOW, fingerprint_of_reading
+                      switches_not_yet, wakings_not_yet_switched, write_json)
+from test_rooms_reading import READING_NOW, READING_ONE_WAKING, fingerprint_of_reading
 from test_wakings_doors import the_small_world
 
 # Cut on 12 November 2026 from the small world, each with only its own switch on;
@@ -55,6 +63,14 @@ READING_BOTH_FIRST_CUT = "eff0c15e476a74c4d7e6976820ee134e737ec529910d261e699f68
 READING_ASKED = "6367255bdf7b90b36153059418a628cf1688363b7d238c67b0ecf62a733e1cd8"
 READING_CORRECTIONS = "62393f8f39c2f392b1b7a119a7b0e4e29289826adbc61f36a3c41e7cc3aadd3f"
 READING_BOTH = "0e0d5d2fc397fb0115281c7c737d05652f9949738a42acc9fb4ab38c1bf65b85"
+
+# Cut on 13 November 2026, on the branch switches: the reading live once asked and
+# the other three are switched on for the first one, on the small world with the
+# two questions of two_questions kept. Beside READING_NOW (test_rooms_reading), it
+# adds ASKED OF YOU after what it has chosen and its proposals, and <<ANSWER>> and
+# <<ASKED>> after <<WELCOME>>, and nothing else: with those taken out it is
+# exactly READING_NOW.
+READING_NOW_ASKED = "60e45e9ae574d8441870e3d19e2935e99047da0715b942e5035f9a4b140cab4a"
 
 # ASKED OF YOU's words as they were first cut, before they named no one.
 ASKED_HOW_FIRST_CUT = (
@@ -116,11 +132,13 @@ def happened(turn):
 
 @pytest.fixture
 def in_the_registry(monkeypatch, tmp_path):
-    """The first one's registry entry with some features added, as the hearth reads it."""
-    def put(*features):
+    """The first one's registry entry with some features added, or some taken out, as the
+    hearth reads it."""
+    def put(*features, without=()):
         where = tmp_path / "agents.json"
         first = agents.first()
-        first = {**first, "features": [*first["features"], *features]}
+        first = {**first, "features": [*(one for one in first["features"] if one not in without),
+                                       *features]}
         where.write_text(json.dumps([first], indent=2) + "\n", encoding="utf-8")
         monkeypatch.setattr(agents, "FILE", where)
     return put
@@ -128,10 +146,11 @@ def in_the_registry(monkeypatch, tmp_path):
 
 # ---- the switches, and the readings ---------------------------------------
 
-def test_every_switch_is_off_in_the_registry(attend):
-    assert (attend.ASKED_ON, attend.CORRECTIONS) == (False, False)
-    for feature in ("asked", "corrections"):
-        assert feature not in agents.first()["features"]
+def test_asked_is_on_for_the_first_one_and_corrections_off(attend):
+    """Since 13 November 2026, asked and answered is switched on for the first one."""
+    assert (attend.ASKED_ON, attend.CORRECTIONS) == (True, False)
+    assert "asked" in agents.first()["features"]
+    assert "corrections" not in agents.first()["features"]
 
 
 @pytest.mark.parametrize("names, as_cut", [
@@ -168,11 +187,33 @@ def test_with_the_last_reply_and_the_asked_words_as_they_were_it_is_the_first_cu
     assert fingerprint_of_reading(wake()) == as_cut
 
 
-def test_with_both_off_it_is_reading_now_even_with_questions_kept(
-        founder, wake, attend, room, packet):
+def test_with_both_off_it_is_the_reading_before_even_with_questions_kept(
+        founder, wake, attend, room, packet, monkeypatch):
+    """With asked and the three switched on beside it shut away again, the questions kept
+    change nothing: it is the reading of 12 November 2026."""
+    switches_not_yet(attend, monkeypatch)
     the_small_world(founder, room)
     two_questions(packet)
-    assert fingerprint_of_reading(wake()) == READING_NOW
+    assert fingerprint_of_reading(wake()) == READING_ONE_WAKING
+
+
+def test_as_switched_on_the_questions_kept_are_its_own_reading(founder, wake, attend, room,
+                                                                 packet):
+    the_small_world(founder, room)
+    two_questions(packet)
+    turn = wake()
+    assert turn.shown.count(SECTION + "\n\n") == 1
+    assert turn.instructions.count(ANSWER_BLOCK + "\n\n" + ASKED_BLOCK) == 1
+    reading = fingerprint_of_reading(turn)
+    print("\nREADING_NOW_ASKED = %r" % reading)
+    assert reading == READING_NOW_ASKED
+    # the section and the two blocks are the whole of the difference from READING_NOW
+    asked = json.dumps(turn.asked[-1], sort_keys=True, ensure_ascii=False, default=str)
+    for said in (SECTION + "\n\n", "\n\n" + ANSWER_BLOCK + "\n\n" + ASKED_BLOCK):
+        escaped = json.dumps(said, ensure_ascii=False)[1:-1]
+        assert asked.count(escaped) == 1
+        asked = asked.replace(escaped, "", 1)
+    assert hashlib.sha256(asked.encode("utf-8")).hexdigest() == READING_NOW
 
 
 def on_and_off(founder, wake, attend, room, data_dir, clock, tmp_path, monkeypatch, name):
@@ -343,7 +384,8 @@ def test_words_that_cannot_be_given_change_nothing(asked_on, wake, packet, said,
     assert last_record(packet)["asked_refused"] == [why]
 
 
-def test_shut_away_its_blocks_are_only_words(attend, wake, packet):
+def test_shut_away_its_blocks_are_only_words(attend, wake, packet, monkeypatch):
+    switched(attend, monkeypatch, "asked", to=False)
     two_questions(packet)
     turn = wake(block("ANSWER", "2 yes\n" + WORDS) + "\n\n" + block("ASKED", "1\n" + WORDS))
     assert "ASKED OF YOU" not in turn.shown
@@ -372,13 +414,16 @@ def test_the_page_shows_only_what_is_answered_and_from_before_only_with_words(
     assert "&ldquo;%s&rdquo;" % WORDS in shown
 
 
-def test_the_page_shows_nothing_of_an_agent_whose_switch_is_off(asked_on, wake, packet, visitor):
+def test_the_page_shows_nothing_of_an_agent_whose_switch_is_off(asked_on, wake, packet, visitor,
+                                                                 in_the_registry):
+    in_the_registry(without=("asked",))
     wake(block("ANSWER", "2 yes\n" + WORDS))
     assert "letter tile" not in page(visitor.get("/commons/asked"))
 
 
 def test_the_commons_links_it_only_once_a_switch_is_on(visitor, in_the_registry):
     link = '<a href="/commons/asked">asked and answered</a>'
+    in_the_registry(without=("asked",))
     before = page(visitor.get("/commons"))
     assert link not in before and "/commons/corrections" not in before
     in_the_registry("asked")

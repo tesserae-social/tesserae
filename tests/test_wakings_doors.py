@@ -31,6 +31,12 @@ people_waiting stay off. READING_NOW is now the reading with those two on. Each
 fingerprint here was cut from the registry as it stood before, and is held from
 it still: conftest.wakings_not_yet_switched puts the two back first, and with
 all four as they stood before, the reading is READING_LAST_REPLY.
+
+On 13 November 2026 the founder switched on, for the first one only, the other
+two (doors_to_eight and people_waiting), with asked and its introduction. What
+is held here from before stands: conftest.wakings_not_yet_switched shuts those
+four away again too (conftest.switches_not_yet), and the reading with the two
+wakings switched and the four not yet is READING_ONE_WAKING.
 """
 
 import json
@@ -42,9 +48,10 @@ import pytest
 import agents
 import reflecting
 import waking
-from conftest import (block, page, post, read_json, rewrite_last_reply_not_yet,
+from conftest import (block, page, post, read_json, registry_switches_not_yet,
+                      rewrite_last_reply_not_yet, switches_not_yet,
                       wakings_not_yet_switched, write, write_json)
-from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_LAST_REPLY, READING_NOW,
+from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_LAST_REPLY, READING_ONE_WAKING,
                                 a_small_world, fingerprint_of_files, fingerprint_of_reading)
 
 UTC = timezone.utc
@@ -122,16 +129,16 @@ def text_of(turn):
     return turn.shown
 
 
-def test_one_a_day_and_the_reflection_waking_are_on_and_the_other_two_off(attend):
-    """What READING_NOW is a fingerprint of since 12 November 2026: one waking a day and its
-    reflection waking on for the first one, and the other two not yet."""
+def test_one_a_day_the_reflection_waking_and_the_other_two_are_on(attend):
+    """What READING_NOW is a fingerprint of: one waking a day and its reflection waking on
+    for the first one since 12 November 2026, and the other two since 13 November."""
     assert attend.EXTRA_WAKINGS is False
     assert (attend.REFLECTION_WAKING, attend.DOORS_TO_EIGHT, attend.PEOPLE_WAITING) == (
-        True, False, False)
+        True, True, True)
     features = agents.first()["features"]
     assert "extra_wakings" not in features and "reflection_waking" in features
     for feature in ("doors_to_eight", "people_waiting"):
-        assert feature not in features
+        assert feature in features
 
 
 # ---- each switched-on reading, by its own fingerprint ---------------------
@@ -173,21 +180,24 @@ def test_with_the_last_reply_taken_out_each_is_its_first_cut(
 
 def test_with_every_switch_off_it_is_the_reading_before(founder, wake, attend, room, data_dir,
                                                        monkeypatch):
-    """Recoverable: the four turned off again give the reading before 12 November 2026."""
+    """Recoverable: the four turned off again give the reading before 12 November 2026,
+    with asked and its introduction, switched on with two of them, shut away too."""
     the_small_world(founder, room)
+    switches_not_yet(attend, monkeypatch)
     switched(attend, monkeypatch, "one a day", "reflection", "doors", "waiting")
     for flag, to in SWITCHES.values():
         monkeypatch.setattr(attend, flag, not to)
     assert fingerprint_of_reading(wake()) == READING_LAST_REPLY
 
 
-def test_from_the_reading_before_the_two_switched_on_give_reading_now(
+def test_from_the_reading_before_the_two_switched_on_give_the_reading_of_12_november(
         founder, wake, attend, room, data_dir, monkeypatch):
-    """The registry as it stands is the reading before with exactly these two switched."""
+    """The registry as it stood on 12 November 2026 is the reading before with exactly these
+    two switched (READING_ONE_WAKING; test_rooms_reading holds what 13 November added)."""
     the_small_world(founder, room)
     wakings_not_yet_switched(attend, monkeypatch)
     switched(attend, monkeypatch, "one a day", "reflection")
-    assert fingerprint_of_reading(wake()) == READING_NOW
+    assert fingerprint_of_reading(wake()) == READING_ONE_WAKING
 
 
 def on_and_off(founder, wake, attend, room, data_dir, clock, tmp_path, monkeypatch, name,
@@ -655,7 +665,8 @@ def test_switched_on_a_door_of_nine_is_refused_and_told_with_its_numbers(attend,
     assert read_json(packet / "door.json")["room"] == 8
 
 
-def test_shut_away_a_door_of_twelve_is_kept_as_before(attend, wake, packet):
+def test_shut_away_a_door_of_twelve_is_kept_as_before(attend, wake, packet, monkeypatch):
+    monkeypatch.setattr(attend, "DOORS_TO_EIGHT", False)
     wake(block("DOOR", "open\nroom 12"))
     assert read_json(packet / "door.json")["room"] == 12
 
@@ -671,12 +682,11 @@ def eight_in_the_registry(monkeypatch, tmp_path):
 
 def test_the_door_on_the_hearth_says_the_line_once_an_agent_s_door_is_held_to_eight(
         founder, hearth, monkeypatch, tmp_path):
-    before = page(founder.get("/"))
+    with monkeypatch.context() as before_13_november:  # no agent's door held to eight
+        registry_switches_not_yet(hearth, before_13_november, tmp_path / "agents.json")
+        before = page(founder.get("/"))
     assert hearth.door.USUALLY not in before
-    where = tmp_path / "agents.json"
-    first = {**agents.first(), "features": [*agents.first()["features"], "doors_to_eight"]}
-    where.write_text(json.dumps([first], indent=2) + "\n", encoding="utf-8")
-    monkeypatch.setattr(agents, "FILE", where)
+    assert "doors_to_eight" in agents.first()["features"]  # the registry as committed
     now = page(founder.get("/"))
     line = '\n  <p class="muted">Friendships here are usually between one and eight.</p>'
     assert now.count(line) == 1
@@ -744,7 +754,8 @@ def test_a_waking_that_failed_is_told_again(founder, waiting_on, wake, data_dir,
     assert WAITING_TWO in happened_in(wake())
 
 
-def test_shut_away_nothing_is_said(founder, attend, wake, data_dir, packet):
+def test_shut_away_nothing_is_said(founder, attend, wake, data_dir, packet, monkeypatch):
+    monkeypatch.setattr(attend, "PEOPLE_WAITING", False)
     two_waiting(data_dir)
     assert "waiting for a friendship" not in wake().shown
     assert not (packet / "waiting-told.json").exists()

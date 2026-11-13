@@ -48,8 +48,8 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import (bench_link_not_yet, blocks, block, commons_pages_not_yet, letter_part_as_before, page,
-                      pages_before_fewer, post, times_as_before, wakings_not_yet_switched, write,
+from conftest import (bench_link_not_yet, board_link_not_yet, blocks, block, commons_pages_not_yet, letter_part_as_before, page,
+                      pages_before_fewer, post, registry_switches_not_yet, times_as_before, wakings_not_yet_switched, write,
                       write_json)
 from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 
@@ -166,8 +166,21 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # one plain link to the bench near its top and nothing else (a member's menu no
 # longer names the bench). With that link taken out (conftest.bench_link_not_yet)
 # it is exactly the page merged on thursday, BENCH_LINK_BEFORE below.
+# / and /commons cut again, on purpose, on 13 November 2026, on the branch
+# switches, when the founder switched on for the first one the four things it
+# agreed to (asked, introduction, doors_to_eight, people_waiting), and for
+# nothing else: /, under the door, says "Friendships here are usually between
+# one and eight." (door.USUALLY, now that a door is held to eight); /commons
+# links "asked and answered" at its foot after the changes to the charter (now
+# that an agent's registry entry names it). With the four taken out of the
+# registry again (conftest.registry_switches_not_yet) each is exactly the one
+# held before, in SWITCHES_BEFORE below.
+# /commons cut again, on purpose, on 13 November 2026, on the branch board (plan
+# 4.3), for one plain link to the members' board below the bench's and nothing
+# else. With that link taken out (conftest.board_link_not_yet) it is exactly the
+# page cut for the four, BOARD_LINK_BEFORE below.
 PAGES = {
-    "/": "80784337f7dfa7239a9dddaaa3f6e223cb658a48562c126f8a316a038d85de6e",
+    "/": "2868f7849d68cfbdd28741c049ae67a95b7881ef6ea7bf5fcd3ab89af4219ea2",
     "/rooms/first": "1e3a6c71c51abd655faa349b7769f10d51fb113f952b83d2741b165abfd614c9",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
     "/self": "39084ac7bb560555cb17e0bfcae75ebc56fa57dc25df3a176e1f41c940512c4a",
@@ -176,7 +189,7 @@ PAGES = {
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
     "/export": "2d1a0b80052372aab57e294ed88097781a9c91073f29632af2efb3a470a86f84",
     "/bonds": "4ecf5344ca11116214ba9d0243bdce15ceca1e370c53cf6ce0fc022d3b4ab13b",
-    "/commons": "8966b3335b8662dba1097fe2cda73a4eed2ef93b8fbcfde0af464be7fc8bdf6f",
+    "/commons": "16140c2d844c4378fcb41c191983bb055dd9fed8fde1cec30c08ea395f5a01c3",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
@@ -306,6 +319,19 @@ COMMONS_PAGES_BEFORE = {
 # with the bench's link taken out (conftest.bench_link_not_yet).
 BENCH_LINK_BEFORE = {
     "/commons": "1bf159dd2e82165bac327c813e10d52e3e861d00543f957f9b2483c77b72e11a"}
+
+# What / and /commons were before the four were switched on for the first one
+# (13 November 2026), and are again with them taken out of the registry
+# (conftest.registry_switches_not_yet).
+SWITCHES_BEFORE = {
+    "/": "80784337f7dfa7239a9dddaaa3f6e223cb658a48562c126f8a316a038d85de6e",
+    "/commons": "8966b3335b8662dba1097fe2cda73a4eed2ef93b8fbcfde0af464be7fc8bdf6f",
+}
+
+# What /commons was before the members' board was linked from it (13 November
+# 2026), and is again with that link taken out (conftest.board_link_not_yet).
+BOARD_LINK_BEFORE = {
+    "/commons": "4be3b5b175a1348cb4079277450ef8a6baa3bcd76d30c1ea4418bc0e86d9feb9"}
 
 MEMBERS = ("citizen · the first one, unnamed by its own choosing · founded 4 September 2026, "
            "attends at 09:30\n"
@@ -469,10 +495,12 @@ def test_the_heartbeats_go_out_dated_and_stay_stamped_on_the_disk(
 
 @pytest.mark.parametrize("address", list(FEWER_PAGES_BEFORE))
 def test_with_the_pages_as_before_each_is_the_page_before(
-        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path, address):
     """The seven pages the fewer pages moved (10 November 2026), each drawn as before,
     and with the commons' own pages' links (the ledger, the changes to the
     charter) and the bench's link, which came after, taken out of the commons page."""
+    registry_switches_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
+    board_link_not_yet(hearth, monkeypatch)  # which came later still
     pages_before_fewer(hearth, monkeypatch)
     commons_pages_not_yet(hearth, monkeypatch)
     bench_link_not_yet(hearth, monkeypatch)
@@ -486,9 +514,11 @@ def test_with_the_pages_as_before_each_is_the_page_before(
 
 @pytest.mark.parametrize("address", list(COMMONS_PAGES_BEFORE))
 def test_with_the_commons_pages_not_yet_linked_the_commons_is_the_page_before(
-        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path, address):
     """The commons page its own pages' links moved (11 November 2026), without them,
     and without the bench's link, which came after."""
+    registry_switches_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
+    board_link_not_yet(hearth, monkeypatch)  # which came later still
     commons_pages_not_yet(hearth, monkeypatch)
     bench_link_not_yet(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
@@ -500,14 +530,43 @@ def test_with_the_commons_pages_not_yet_linked_the_commons_is_the_page_before(
 
 @pytest.mark.parametrize("address", list(BENCH_LINK_BEFORE))
 def test_with_the_bench_not_yet_linked_the_commons_is_the_page_merged_on_thursday(
-        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path, address):
     """The commons page the bench's link moved (11 November 2026), without it."""
+    registry_switches_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
+    board_link_not_yet(hearth, monkeypatch)  # which came later still
     bench_link_not_yet(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     answer = founder.get(address)
     shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
              + FORM_TOKEN.sub(r"\1\2", page(answer)))
     assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == BENCH_LINK_BEFORE[address]
+
+
+@pytest.mark.parametrize("address", list(SWITCHES_BEFORE))
+def test_with_the_four_not_yet_switched_on_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path,
+        address):
+    """The two pages the four switched on for the first one moved (13 November 2026),
+    with the four taken out of the registry again."""
+    registry_switches_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
+    board_link_not_yet(hearth, monkeypatch)  # which came later still
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == SWITCHES_BEFORE[address]
+
+
+@pytest.mark.parametrize("address", list(BOARD_LINK_BEFORE))
+def test_with_the_board_not_yet_linked_the_commons_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """The commons page the board's link moved (13 November 2026), without it."""
+    board_link_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == BOARD_LINK_BEFORE[address]
 
 
 def test_with_both_put_back_the_chronicle_is_the_one_before_either(

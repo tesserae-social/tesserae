@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}the board{% endblock %}
+{% block heading %}the board{% endblock %}
+
+{# Open to anyone (board.py, the founder's decision of 13 November 2026). Each
+   open change to the charter first, then every post, the newest first, each with
+   its replies beneath it in the order they came. One level of replies. Nothing
+   is counted: no number of replies, of posts or of pages. The last page says it
+   is the end. #}
+
+{% macro take_off(where, n=None) %}
+  {% if founder_here %}
+    {% set key = where ~ "/" ~ (n or "") %}
+    <form method="post" action="{{ url_for('take_off_board') }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="where" value="{{ where }}">
+      <input type="hidden" name="n" value="{{ n or '' }}">
+      {% if confirming == key %}
+      <p class="error">Take this off the board? It will be kept, out of the commons, and the
+        commons will be told that a post was taken off — not which.</p>
+      <input type="hidden" name="confirm" value="yes">
+      <button type="submit" class="consequential small">Yes, take it off</button>
+      {% else %}
+      <button type="submit" class="small">take off the board</button>
+      {% endif %}
+    </form>
+  {% endif %}
+{% endmacro %}
+
+{% macro reply_form(to) %}
+  {% if member_here %}
+  <form method="post" action="{{ url_for('board_page') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="to" value="{{ to }}">
+    <div class="field">
+      <label for="reply-{{ to }}">a reply</label>
+      <textarea id="reply-{{ to }}" name="words" rows="2" maxlength="{{ limit }}">{% if draft_to == to %}{{ draft or '' }}{% endif %}</textarea>
+      <div class="trap" aria-hidden="true" style="display:none">
+        <label for="url-{{ to }}">Leave this field empty.</label>
+        <input type="text" id="url-{{ to }}" name="url" tabindex="-1" autocomplete="off">
+      </div>
+    </div>
+    <button type="submit" class="small">Reply</button>
+  </form>
+  {% endif %}
+{% endmacro %}
+
+{% block content %}
+<section>
+  <p>{{ how }}</p>
+</section>
+
+{% if member_here %}
+<section>
+  <h2>write a post</h2>
+  {% if placed %}<p class="saved">It is on the board.</p>{% endif %}
+  {% if refused %}<p class="error">{{ refused }}</p>{% endif %}
+  <p class="note">{{ invitation }}</p>
+  <form method="post" action="{{ url_for('board_page') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="words">a post</label>
+      <textarea id="words" name="words" rows="3" maxlength="{{ limit }}">{% if not draft_to %}{{ draft or '' }}{% endif %}</textarea>
+      <div class="trap" aria-hidden="true" style="display:none">
+        <label for="url">Leave this field empty.</label>
+        <input type="text" id="url" name="url" tabindex="-1" autocomplete="off">
+      </div>
+    </div>
+    <button type="submit">Post it</button>
+  </form>
+</section>
+{% else %}
+<section>
+  <p class="note">{{ members_only }}</p>
+</section>
+{% endif %}
+
+<section>
+  {% for one in threads %}
+  <article class="card" id="{{ one.key | replace(':', '-') }}">
+    {% if one.kind == "charter" %}
+      {% set change = one.change %}
+      <p class="muted date">{{ one.day }} · a change to the charter ·
+        {% if one.open %}open until the end of {{ one.ends }}{% else %}its 14 days have ended{% endif %}</p>
+      <p>In {{ change.section }}, where the charter says</p>
+      <p class="words">&ldquo;{{ change.old }}&rdquo;</p>
+      <p>it would say</p>
+      <p class="words">&ldquo;{{ change.new }}&rdquo;</p>
+      <p class="muted"><a href="{{ url_for('commons_charter_changes', _anchor=change.id) }}">where it stands</a></p>
+    {% else %}
+      <p class="muted date">{{ one.day }} · {{ one.by }}</p>
+      <p>{{ one.words }}</p>
+      {{ take_off(one.key) }}
+    {% endif %}
+    {% if one.replies %}
+    <ul class="lines">
+      {% for reply in one.replies %}
+      <li>
+        <span class="muted">{{ reply.day }}</span> &middot; {{ reply.words }} &mdash; {{ reply.by }}
+        {{ take_off(one.key, reply.n) }}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if one.open %}{{ reply_form(one.key) }}{% elif one.kind == "charter" %}
+    <p class="muted">This thread is closed.</p>{% endif %}
+  </article>
+  {% endfor %}
+
+  {% if older %}
+  <p><a href="{{ url_for('board_page', page=page + 1) }}">older</a></p>
+  {% else %}
+  <p class="muted">{{ end }}</p>
+  {% endif %}
+  {% if newer %}<p><a href="{{ url_for('board_page', page=page - 1) }}">newer</a></p>{% endif %}
+</section>
+{% endblock %}
+
+{% block footer %}
+{% if member_here %}{{ super() }}{% else %}<p><a href="{{ url_for('login') }}">log in</a></p>{% endif %}
+{% endblock %}

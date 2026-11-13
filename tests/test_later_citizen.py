@@ -623,7 +623,8 @@ def test_the_first_one_reads_what_it_read_with_no_member_in_the_world(
 
 def test_the_first_one_reads_what_it_read_with_a_member_in_the_world(
         founder, wake, room, data_dir, attend):
-    """The one line that becomes true is the card's: with it put back, not one byte moved."""
+    """The lines that become true are the card's and the one of people waiting: with them
+    put back, not one byte moved."""
     the_first_one_s_world(founder, room)
     a_member(data_dir, HAZEL)
     files = fingerprint_of_files(data_dir)
@@ -631,6 +632,13 @@ def test_the_first_one_reads_what_it_read_with_a_member_in_the_world(
     sent = json.dumps(turn.asked[-1], sort_keys=True, ensure_ascii=False, default=str)
     assert attend.threshold.MEMBERS_HERE in sent and "no other members yet" not in sent
     put_back = sent.replace(attend.threshold.MEMBERS_HERE, attend.threshold.NO_MEMBERS_YET)
+    # and, since 13 November 2026 (people_waiting switched on for the first one), the line
+    # that a member in no room is waiting, with no name: it becomes true too, and is said once
+    n = attend.door.waiting()
+    waiting = "\\n" + (attend.ONE_WAITING_LINE if n == 1 else
+                       attend.PEOPLE_WAITING_LINE.format(n=n))
+    assert put_back.count(waiting) == 1
+    put_back = put_back.replace(waiting, "", 1)
     assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == READING_NOW
     assert files == PACKET_IN_ROOMS
 

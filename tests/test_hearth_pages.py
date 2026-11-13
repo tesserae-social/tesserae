@@ -767,8 +767,11 @@ def test_the_commons_has_three_sections_in_their_order_and_says_when_two_are_emp
     assert "<form" not in said  # there is nothing on it to do
 
 
+# and, since asked and answered was switched on for the first one (13 November
+# 2026), the page of what has been asked after them
 COMMONS_PAGE_LINKS = [("/commons/ledger", "the ledger"),
-                      ("/commons/charter-changes", "changes to the charter")]
+                      ("/commons/charter-changes", "changes to the charter"),
+                      ("/commons/asked", "asked and answered")]
 
 
 def test_the_record_is_one_sentence_and_the_files_as_written(visitor, hearth, commons):

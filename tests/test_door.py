@@ -21,6 +21,7 @@ from nacl.pwhash import argon2id
 
 import vault
 from conftest import (FOUNDER_NAME, NOW, block, blocks, lines_of, load, page, post, read_json,
+                      switches_not_yet,
                       write, write_json)
 
 MEMBER = "birch"
@@ -646,6 +647,11 @@ def test_with_the_flag_on_the_first_ones_line_says_its_door(hearth, packet, comm
 # ---- the first one's reading and block, behind the flag ------------------------
 
 def door_on(attend, monkeypatch, on=True):
+    """The first one's door switched on or off, as it was built: what came after it and
+    speaks of a door (its room held to eight, its introduction beside its door, people
+    waiting, asked and answered), switched on for it on 13 November 2026, is shut away
+    again first (conftest.switches_not_yet), and its own tests hold it."""
+    switches_not_yet(attend, monkeypatch)
     monkeypatch.setattr(attend, "DOOR_FOR_FIRST", on)
 
 

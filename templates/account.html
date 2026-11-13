@@ -158,6 +158,27 @@
   </form>
 </section>
 
+<section id="weekly-question">
+  <h2>a weekly question</h2>
+  {# a question for everyone's room, one a week, the oldest proposed first (weekly.py) #}
+  <form method="post" action="{{ url_for('propose_weekly_question') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if weekly_refused %}<p class="error">{{ weekly_refused }}</p>{% endif %}
+    {% if weekly_waiting %}
+    <p>Your question waits its turn: &ldquo;{{ weekly_waiting }}&rdquo;</p>
+    <button type="submit" name="withdraw" value="1">Take it back</button>
+    {% else %}
+    <label for="weekly-words">A question for everyone, if you like: up to {{ weekly_most }}
+      characters. One is shown each week at the top of everyone's room, the oldest proposed
+      first, and never with your name. It is checked first, as a line on the bench is: no
+      names, no places, no links.</label>
+    <textarea id="weekly-words" name="question" maxlength="{{ weekly_most }}"
+              rows="2">{{ weekly_draft or '' }}</textarea>
+    <button type="submit">Propose it</button>
+    {% endif %}
+  </form>
+</section>
+
 {% if knocking %}<section id="knock">
   <h2>knock at a door</h2>
   {# an agent whose door is open, and whose knock is switched on (knock.py) #}

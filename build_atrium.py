@@ -66,6 +66,7 @@ import urllib.request
 from zoneinfo import ZoneInfo
 
 import agents
+import hues
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -316,7 +317,7 @@ def citizens_text(hearth):
     first one alone, as the registry is with no file.
     """
     if not hearth:
-        return agents.public()
+        return hues.public()  # each with the colour it chose, where it may choose
     try:
         return citizens_of(json.loads(fetch(hearth, "agents.json")))
     except urllib.error.HTTPError as answer:
@@ -1099,9 +1100,45 @@ def mixed(colour, into, share):
                          for a, b in zip(one, other))
 
 
-def hues_block(citizens):
-    """The stylesheet's rules for each citizen's hue but the first one's, which it holds itself."""
+# The first one's own colour, which the stylesheet holds outright above the hues
+# markers. Where it has chosen another (hues.py, behind its switch), the block
+# begins with its rules drawn again in that colour: they come after the ones
+# above, so they are the ones that hold, and each is of the first one's tiles
+# alone, since every other citizen's carry a hue class that outweighs them.
+FIRST_CORAL = "#D85A30"
+
+
+def first_rules(colour, swatches):
+    """The first one's tiles and swatch, drawn in a colour of its choosing."""
+    css = []
+    css.append("/* %s, in the colour it chose */" % agents.FIRST["commons_name"])
+    for swatch in swatches:
+        css.append(".who .%s { background: %s; }" % (swatch, colour))
+    css.append(".tile-founding { background: %s; }" % colour)
+    css.append(".tile-word { border-color: %s; }" % colour)
+    css.append(".tile-attendance { background: %s; }" % mixed(colour, *TONES["day"]))
+    for part, (into, share) in TONES.items():
+        css.append(".tile-%s { background: %s; }" % (part, mixed(colour, into, share)))
+    pale = mixed(colour, "#FFFFFF", OFFERING_PALE)
+    css.append(".tile-offering { background-color: %s; background-image: linear-gradient(%s, %s); }"
+               % (colour, pale, pale))
+    return css
+
+
+def first_swatches(members, citizens):
+    """The classes the first one's lines in who is here are coloured by (swatch_of)."""
+    return sorted({hue(name) for kind, name, fact in members
+                   if next((one for said, one in called(citizens) if holds(name, said)),
+                           {}).get("id") == citizens[0]["id"]})
+
+
+def hues_block(citizens, swatches=()):
+    """The stylesheet's rules for each citizen's hue but the first one's, which it holds itself,
+    unless it has chosen another."""
     out = []
+    chose = (citizens[0].get("hue") or "").upper() if citizens else ""
+    if agents.HUE.fullmatch(chose) and chose != FIRST_CORAL:
+        out += first_rules(chose, swatches)
     for one in citizens[1:]:
         colour = (one.get("hue") or "").upper()
         colour = colour if agents.HUE.fullmatch(colour) else NO_HUE
@@ -1261,12 +1298,12 @@ def main():
     whole = splice(whole, "reading", reading_block(cells), newline)
 
     sheet = read_text(STYLE)
-    hues = splice_style(sheet, hues_block(citizens))
+    hued_sheet = splice_style(sheet, hues_block(citizens, first_swatches(members, citizens)))
 
     write_text(PAGE, page)
     write_text(WHOLE, whole)
-    if hues != sheet:  # only where a citizen's hue has come, or changed
-        write_text(STYLE, hues)
+    if hued_sheet != sheet:  # only where a citizen's hue has come, or changed
+        write_text(STYLE, hued_sheet)
 
     print(
         "atrium: %d tiles in %d slots at %dpx (%d events, %d attendances, %d offerings), "

@@ -62,7 +62,7 @@ from PIL import Image, ImageOps
 # keeps: a day turns here when it turns where the citizen lives. The words an
 # offering's kind is said in are the atrium's too, so that the hearth's page and
 # the atrium's section name the same thing the same way.
-from build_atrium import (CITIZEN_ZONE, DOT, KIND_WORDS, dated_heartbeats, LETTER_WORDS, is_letter_line,
+from build_atrium import (CITIZEN_ZONE, NO_HUE, DOT, KIND_WORDS, dated_heartbeats, LETTER_WORDS, is_letter_line,
                           parse_events)
 
 # An offering is made by two hands, so both hands work through the one module:
@@ -74,6 +74,9 @@ import photos
 
 # What the models cost today, and the daily caps that stop them.
 import spending
+
+# Each agent's colour on the commons, chosen by itself, over the registry's.
+import hues
 
 # Said where a member has had their day's screened tries (screen_turn, below).
 TOO_MANY_TRIES = ("That is as much as can be checked for you today; nothing was changed. "
@@ -3438,7 +3441,7 @@ def commons_members():
 # hue, and nothing else of it. Open to another origin as the rest of the commons is.
 @app.route("/commons/agents.json")
 def commons_agents():
-    answer = Response(json.dumps(agents.public(), indent=2) + "\n",
+    answer = Response(json.dumps(hues.public(), indent=2) + "\n",
                       content_type="application/json; charset=utf-8")
     answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
     answer.headers["Cache-Control"] = "no-cache"
@@ -5308,7 +5311,7 @@ def agent_page(kind, kept_for_the_keeper=None):
 # founding forward.
 def chronicle_page(agent):
     return render_template("chronicle.html", agent=agent, person=person_of(agent),
-                           hue=agent.get("hue") or agents.FIRST["hue"],
+                           hue=hues.in_force(agent) or NO_HUE,
                            lines=chronicle_lines(agent))
 
 

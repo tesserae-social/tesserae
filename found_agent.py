@@ -17,7 +17,7 @@ founding left after a yes is paused:
 
 The steps, in order, and what each takes:
 
-    plan      --person <pseudonym> --model <model> --hue <#RRGGBB>
+    plan      --person <pseudonym> --model <model>
               [--name "<commons name>"] [--max-tokens <n>] [--provider anthropic|gemini]
     keys
     letters   --later-words-letter <file> --sharing-rule-letter <file>
@@ -307,11 +307,8 @@ def plan_holds(entry, person):
         raise Refused("that commons name is, or was, an agent's")
     if bonds.slug(name) in every or name in every or name.lower() == THE_FOUNDER:
         raise Refused("that commons name is a member's")
-    hue = entry.get("hue")
-    if not isinstance(hue, str) or not agents.HUE.fullmatch(hue):
-        raise Refused("a hue is a colour, #RRGGBB")
-    if hue.lower() in {one.get("hue", "").lower() for one in registry}:
-        raise Refused("that hue is another agent's")
+    if "hue" in entry:  # its colour is its own to choose at a waking (hues.py), never given
+        raise Refused("a new agent is given no hue: it chooses its own colour")
     if person in (agent_id, rooms.FIRST):
         raise Refused("the person is a person")
     return person_holds(person)
@@ -319,14 +316,14 @@ def plan_holds(entry, person):
 
 # ---- the steps -------------------------------------------------------------
 
-def step_plan(agent_id, person=None, model=None, hue=None, name=DEFAULT_NAME,
+def step_plan(agent_id, person=None, model=None, name=DEFAULT_NAME,
               max_tokens=DEFAULT_MAX_TOKENS, provider=gemini.ANTHROPIC):
     here = folder(agent_id)
     if (here / PLAN).exists() or steps_done(agent_id) or (here / DECLINED).exists()             or (here / FOUNDED).exists():
         raise Refused(f"{rel(here)} holds a founding already; an id is founded once")
-    if not person or not model or not hue:
-        raise Refused("say the person, the model and the hue: "
-                      "plan --person <pseudonym> --model <model> --hue <#RRGGBB>")
+    if not person or not model:
+        raise Refused("say the person and the model: "
+                      "plan --person <pseudonym> --model <model>")
     if not isinstance(max_tokens, int) or max_tokens < 1:
         raise Refused("max tokens is a whole number")
     # whose model it runs on is chosen here, and the model must be one of theirs
@@ -339,13 +336,13 @@ def step_plan(agent_id, person=None, model=None, hue=None, name=DEFAULT_NAME,
         raise Refused("another founding is under way: " + ", ".join(others))
     entry = {"id": agent_id, "did": f"did:web:{cut_keys.DOMAIN}:ids:{agent_id}",
              "commons_name": name, "room": agent_id, "bond": f"{agent_id}-1",
-             "system": SYSTEM, "model": model, "max_tokens": max_tokens, "hue": hue,
+             "system": SYSTEM, "model": model, "max_tokens": max_tokens,
              "features": list(FEATURES), "wakes": True}
     if provider != gemini.ANTHROPIC:  # an entry that names none is Anthropic's, as before
         entry = {**{key: entry[key] for key in ("id", "did", "commons_name", "room", "bond",
                                                  "system")},
                  "provider": provider,
-                 **{key: entry[key] for key in ("model", "max_tokens", "hue", "features",
+                 **{key: entry[key] for key in ("model", "max_tokens", "features",
                                                  "wakes")}}
     person_did = plan_holds(entry, person)
     write_json(here / PLAN, {"entry": entry, "person": person, "person_did": person_did})
@@ -840,7 +837,7 @@ def main(args):
             return 0
         how = {}
         if command == "plan":
-            how = options(rest, {}, {"--person": "person", "--model": "model", "--hue": "hue",
+            how = options(rest, {}, {"--person": "person", "--model": "model",
                                      "--name": "name", "--max-tokens": "max_tokens",
                                      "--provider": "provider"})
             if "max_tokens" in how:

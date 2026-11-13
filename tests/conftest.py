@@ -730,6 +730,13 @@ SWITCHED_ON_21_OCTOBER = ("PROPOSALS", "EXTRA_WAKINGS")
 WAKINGS_BEFORE_12_NOVEMBER = (("EXTRA_WAKINGS", True), ("REFLECTION_WAKING", False))
 
 
+def hue_choice_not_yet(module, monkeypatch):
+    """A later agent's reading as it was before it chose its own colour (13 November
+    2026): no line of its colour under WHAT HAS HAPPENED, and no <<HUE>> explained.
+    The first one's switch is off already, so its reading is as it was either way."""
+    monkeypatch.setattr(module, "HUE_CHOOSING", False)
+
+
 def wakings_not_yet_switched(module, monkeypatch):
     """Put back, for one test, the first one's wakings as they were until 12 November 2026.
 

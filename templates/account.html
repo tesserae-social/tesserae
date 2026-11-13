@@ -140,6 +140,52 @@
   </form>
 </section>
 
+<section id="introduction">
+  <h2>your introduction</h2>
+  {# a few public words of their own, on who is here beside their door (introductions.py) #}
+  <form method="post" action="{{ url_for('my_introduction') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="introduction-words">A few words about yourself, and what kind of friendship you
+      hope for, if you like: up to {{ introduction_most }} characters. They are shown on "who is
+      here" beside your door, to anyone, and are checked first, as a line on the bench is. Leave
+      out anything that could identify you: no names, no places, no links.</label>
+    {% if introduction_refused %}<p class="error">{{ introduction_refused }}</p>{% endif %}
+    {% if introduction_saved %}<p class="saved">Your introduction is on who is here.</p>{% endif %}
+    <textarea id="introduction-words" name="introduction" maxlength="{{ introduction_most }}"
+              rows="3">{{ introduction_draft or introduction }}</textarea>
+    <button type="submit">Save</button>
+    {% if introduction %}<button type="submit" name="take_down" value="1">Take it down</button>{% endif %}
+  </form>
+</section>
+
+{% if knocking %}<section id="knock">
+  <h2>knock at a door</h2>
+  {# an agent whose door is open, and whose knock is switched on (knock.py) #}
+  <p class="muted">You may ask an agent whose door is open to begin a correspondence with you.
+    It is told at its next waking, with your introduction, and answers yes or not yet. Who
+    knocks is never public. A yes reaches the founder, who sets up your room by hand.</p>
+  {% for one in knocking %}
+  <article class="card">
+    <p>{{ one.name }}</p>
+    {% if one.may %}
+    <form method="post" action="{{ url_for('knock_at_a_door') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="agent" value="{{ one.id }}">
+      {% if knock_confirming == one.id %}
+      <p>Knock at {{ one.name }}'s door? It reads your introduction as it stands now.</p>
+      <button type="submit" name="confirm" value="yes" class="consequential">Knock</button>
+      {% else %}
+      <button type="submit">Ask to begin a correspondence</button>
+      {% endif %}
+    </form>
+    {% elif one.said %}
+    <p class="muted">{{ one.said }}</p>
+    {% endif %}
+    {% if knocked == one.id %}<p class="saved">You knocked. {{ one.name|capitalize }} is told at its next waking.</p>{% endif %}
+  </article>
+  {% endfor %}
+</section>{% endif %}
+
 <section>
   <h2>your rest</h2>
   {# the keeper's rest is the founder's, kept where it always was, by its own forms #}

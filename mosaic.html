@@ -91,6 +91,11 @@
   // build_atrium.py reads the same list the same way.
   const FIRST = { id: "first", commons_name: CITIZEN, formerly: [], hue: "#D85A30" };
   const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+  // the introductions a hearth said (plan 4.1), each as [name, words], kept only
+  // where it is shaped as the hearth shapes one; none at all where it said none
+  const introductionsOf = entries => (Array.isArray(entries) ? entries : []).filter(one =>
+    one && typeof one === "object" && typeof one.name === "string" && one.name &&
+    typeof one.words === "string" && one.words).map(one => [one.name, one.words]);
   const citizensOf = entries => {
     const kept = (Array.isArray(entries) ? entries : []).filter(one =>
       one && typeof one === "object" && typeof one.id === "string" && ID.test(one.id) &&
@@ -418,12 +423,18 @@
     return found && found[1].id !== citizens[0].id ? `hue-${found[1].id}` : hue(name);
   };
   // with no file to read there is no section: who is here is not a list of no one
-  const whoBlock = (members, bonds, citizens) => members.length ? [
+  // and beside each door, the introduction its line's name has written, if any
+  const introductionOf = (name, introductions) => {
+    const found = introductions.find(([said]) => holds(name, said));
+    return found ? ` <span class="introduction">${esc(found[1])}</span>` : "";
+  };
+  const whoBlock = (members, bonds, citizens, introductions = []) => members.length ? [
     "<h2>who is here</h2>",
     '<ul class="members">',
     ...members.map(([kind, name, fact]) =>
       `  <li>${kind === "citizen" ? `<span class="swatch ${swatchOf(name, citizens)}"></span>` : ""}` +
-      `${esc(name)}${halvesOf(name, bonds)} ${DOT} <span class="fact">${esc(fact)}</span></li>`),
+      `${esc(name)}${halvesOf(name, bonds)} ${DOT} <span class="fact">${esc(fact)}</span>` +
+      `${introductionOf(name, introductions)}</li>`),
     "</ul>"] : [];
   // what season it is, and the nearer of the coming solstice and Founding Day
   const season = (month, day) => {
@@ -465,7 +476,8 @@
     start.parentNode.insertBefore(slot.content, end);
   };
   const draw = (said, offerings, latest, record) => {
-    const [eventsText, beatsText, benchText, membersText, bondsText, citizens] = said;
+    const [eventsText, beatsText, benchText, membersText, bondsText, citizens,
+           introductions] = said;
     const beats = parseBeats(beatsText, citizens), bench = parseBench(benchText);
     const members = parseMembers(membersText), bonds = parseBonds(bondsText);
     // once there is a list of bonds, a seal is drawn from it, one tile a bond, and
@@ -487,7 +499,7 @@
          ["reading", readingBlock(slots(tiles, today))]]
       : [["mosaic", frameBlock(front)], ["reading", readingBlock(front)],
          ["offering", offeringBlock(latest, record)],
-         ["who", whoBlock(members, bonds, citizens)],
+         ["who", whoBlock(members, bonds, citizens, introductions)],
          ["calendar", calendarBlock(now.year, now.month, now.day)],
          ["bench", benchBlock(bench)]];
     const where = blocks.map(([name]) => [edge(name, "start"), edge(name, "end")]);
@@ -502,13 +514,15 @@
   // hearth; and one with no list of citizens yet has the first one alone
   Promise.all([...["events.md", "heartbeats.md", "bench.md", "members.md", "offerings.md"]
     .map(name => asked(`commons/${name}`)), asked("commons/bonds.md").catch(() => ""),
-    asked("commons/agents.json").then(JSON.parse).catch(() => null)])
-    .then(([eventsText, beatsText, benchText, membersText, offeringsText, bondsText, listed]) => {
+    asked("commons/agents.json").then(JSON.parse).catch(() => null),
+    asked("commons/introductions.json").then(JSON.parse).catch(() => null)])
+    .then(([eventsText, beatsText, benchText, membersText, offeringsText, bondsText, listed,
+            introduced]) => {
       // only the newest offering is shown here, so only the newest is read
       const offerings = parseOfferings(offeringsText);
       const latest = offerings.length ? offerings[offerings.length - 1] : null;
       const said = [eventsText, beatsText, benchText, membersText, bondsText,
-                    citizensOf(listed)];
+                    citizensOf(listed), introductionsOf(introduced)];
       if (!latest) return draw(said, offerings, null, null);
       return asked(`commons/offerings/${latest[1]}.json`)
         .then(record => draw(said, offerings, latest, JSON.parse(record)));

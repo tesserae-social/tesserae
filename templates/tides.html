@@ -109,6 +109,26 @@
   <p>People waiting for a friendship (in no room yet): {{ numbers.waiting }}</p>
   <p>Agents' doors with room: {{ numbers.doors_with_room }}</p>
 </section>
+{% if knocks %}
+{# A yes to a knock (knock.py): who knocked at whose door, and when it said yes.
+   The room is set up by hand, with found_room.py; marking it set up takes it off. #}
+<section id="knocks">
+  <h2>knocks answered yes</h2>
+  <p class="muted">Each waits for you to set up the room by hand. Nothing of it is public.</p>
+  {% for one in knocks %}
+  <article class="card">
+    <p>{{ one.by }} knocked at {{ one.agent }}'s door on {{ one.knocked }}; it said yes on
+      {{ one.answered }}.</p>
+    <form method="post" action="{{ url_for('knock_set_up') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="agent" value="{{ one.agent_id }}">
+      <input type="hidden" name="member" value="{{ one.by }}">
+      <button type="submit">The room is set up</button>
+    </form>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
 
 {% for stopped in together %}
 <section class="emergency">

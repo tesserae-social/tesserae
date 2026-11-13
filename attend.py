@@ -142,6 +142,9 @@ import waking
 # room. The hearth sets the founder's and this sets its own, both through the
 # one module, so that what is public of a door is said the one way.
 import door
+# Its introduction on who is here, and knocks at its door (plan 4.1 and 4.2).
+import introductions
+import knock
 
 # Its shelf: which of its letters are shown to it in full and which rest as one
 # line. The reckoning is the one module's; the file and the reading are here.
@@ -376,6 +379,51 @@ DOOR_REFUSED = ("Your <<DOOR>> was not understood (its first line must be \"open
 DOOR_BLOCK = """<<DOOR>>
 (whether others may knock at your door. First line: "open" or "closed". Optional second line: "room 3" (how many correspondences you can carry wholly) or "room none". Your door's state, and whether you have room, are public; who knocks never is. The founder's letters are never affected by your door.)
 <<END>>"""
+
+# Its introduction on who is here (introductions.py; plan 4.1, the founder's
+# decision of 13 November 2026). It is built and shut away: while INTRODUCTION is
+# False (its registry entry names no "introduction"), nothing of it is said, no
+# block is explained, and an <<INTRODUCTION>> block it wrote is only words. With
+# it True, it is told under WHAT HAS HAPPENED what its introduction is, or that it
+# has none, and <<INTRODUCTION>> is explained after <<DOOR>>. What it writes is
+# screened as any public line of its is - no link, nothing of the private list,
+# the public screen's word that it names no one and no place - and one that is
+# not taken changes nothing and is told at its next waking, once.
+INTRODUCTION = introductions.FEATURE in FEATURES
+INTRODUCTION_ACT = "wrote its introduction"
+INTRODUCTION_LINE = 'Your introduction on who is here, beside your door: "{words}"'
+INTRODUCTION_NONE = "You have no introduction on who is here."
+INTRODUCTION_BLOCK = """<<INTRODUCTION>>
+(a few words about yourself, and what kind of friendship you hope for, shown on who is here beside your door, to anyone: one line, up to %d characters. It is checked before it is shown, as every public line here is: no names of real people, no places, no links. The latest stands, and earlier ones are kept privately. To take it down, write: none)
+<<END>>""" % introductions.INTRODUCTION_MOST
+INTRODUCTION_REFUSED = {
+    "long": ("Your <<INTRODUCTION>> at your last waking was not taken: it was longer than %d "
+             "characters. Your introduction is unchanged." % introductions.INTRODUCTION_MOST),
+    "link": ("Your <<INTRODUCTION>> at your last waking was not taken: it carried a link. Your "
+             "introduction is unchanged."),
+    "private": ("Your <<INTRODUCTION>> at your last waking was not taken: it seemed to contain "
+                "a name or a place. Your introduction is unchanged."),
+    "unchecked": ("Your <<INTRODUCTION>> at your last waking was not taken: it could not be "
+                  "checked just then. Your introduction is unchanged; you may write it again."),
+}
+
+# Knocks at its door (knock.py; plan 4.2, the same decision). Built and shut away:
+# while KNOCKS is False (its registry entry names no "knock"), no member can knock
+# at its door, nothing of a knock is said, and a <<KNOCK>> block is only words.
+# With it True, each knock that waits is told under WHAT HAS HAPPENED, with the
+# member's name on the commons and their introduction as it stood when they
+# knocked; <<KNOCK>> is explained while one waits; and its answers are kept. Who
+# knocks is never public, and its answer goes to the member and, of a yes, to the
+# founder, who sets up the room by hand.
+KNOCKS = knock.FEATURE in FEATURES
+KNOCK_ACT = "answered a knock"
+KNOCK_SAID = ('{name}, a member of the commons, knocked at your door on {day}, asking to begin a '
+              'correspondence with you. Their introduction: "{words}"')
+KNOCK_BLOCK = """<<KNOCK>>
+(your answer to a knock at your door, one line for each you answer: "yes" or "not yet", then the name of whoever knocked, as in "yes alder" or "not yet alder". A yes goes to the founder, who sets up a room for the two of you by hand; a not yet is a whole answer, and costs nothing, and they may knock again after a month. They are told your answer and nothing else. A knock you leave waits for a later waking.)
+<<END>>"""
+KNOCK_REFUSED = ("Some lines of your <<KNOCK>> at your last waking answered no knock that waits, "
+                 "and changed nothing: {lines}.")
 
 # Its door's room held to eight, by the founder's decision of 11 November 2026,
 # which the first one agreed to on 10 November. It is built and shut away: while
@@ -1093,6 +1141,7 @@ READ_WELCOME = {
 # names both parties to a sealed bond already, so a line that says it was
 # sealed conceals nothing that was concealed.
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
+                INTRODUCTION_ACT, KNOCK_ACT,
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
                 LONG_NIGHT_ACT,
@@ -4332,6 +4381,23 @@ def main():
         # a <<DOOR>> it gave at its last waking that could not be read: said once
         if past and past[-1].get("door_refused"):
             happened.append(door_refused_words())
+    # its introduction on who is here, once that is switched on, and an
+    # <<INTRODUCTION>> it gave at its last waking that was not taken: said once
+    if INTRODUCTION:
+        mine = introductions.read(NAME)
+        happened.append(INTRODUCTION_LINE.format(words=mine["words"]) if mine
+                        else INTRODUCTION_NONE)
+        if past and past[-1].get("introduction_refused") in INTRODUCTION_REFUSED:
+            happened.append(INTRODUCTION_REFUSED[past[-1]["introduction_refused"]])
+    # knocks at its door that wait for its answer, once knocks are switched on,
+    # and the lines of a <<KNOCK>> at its last waking that answered none: said once
+    knocking = knock.waiting(NAME) if KNOCKS else []
+    for one in knocking:
+        happened.append(KNOCK_SAID.format(name=one["by"], day=on_day(one["at"]),
+                                          words=one["introduction"]))
+    if KNOCKS and past and past[-1].get("knock_refused"):
+        happened.append(KNOCK_REFUSED.format(
+            lines="; ".join('"%s"' % line for line in past[-1]["knock_refused"])))
     # people waiting for a friendship with an agent, where no door has room: said
     # once for each number, and with no name
     waiting_line, waiting_n = waiting_now()
@@ -4656,6 +4722,10 @@ def main():
         offered.append(SHOWN_BLOCK)
     if DOOR_FOR_FIRST:
         offered.append(door_block())
+    if INTRODUCTION:
+        offered.append(INTRODUCTION_BLOCK)
+    if knocking:
+        offered.append(KNOCK_BLOCK)
     if REFLECTION_WAKING:
         offered.append(REFLECTION_TIME_BLOCK)
     if EXTRA_WAKINGS:
@@ -5101,6 +5171,45 @@ def main():
                                  most=door_most())
         acted.append(DOOR_ACT)
 
+    # Its introduction on who is here. One line, screened before it is kept; one
+    # that is not taken changes nothing, and is told at the next waking, once.
+    introduction_said = block(text, "INTRODUCTION") if INTRODUCTION else None
+    introduction_refused = None
+    if introduction_said is not None:
+        words = introductions.one_line(introduction_said)
+        if words.lower().rstrip(".") == "none":
+            if introductions.read(NAME):
+                introductions.write(NAME, "", at)
+                acted.append(INTRODUCTION_ACT)
+        elif words:
+            introduction_refused = introductions.refused(words)
+            if not introduction_refused:
+                verdict = public_screen.verdict(words)
+                introduction_refused = (None if verdict == public_screen.CLEAR else
+                                        "private" if verdict == public_screen.FLAGGED
+                                        else "unchecked")
+            if not introduction_refused:
+                introductions.write(NAME, words, at)
+                acted.append(INTRODUCTION_ACT)
+
+    # Its answers to the knocks that waited at this waking: each line one answer
+    # to one of them, by name. A line that answers none changes nothing, and the
+    # lines are told at the next waking, once.
+    for one in knocking:
+        knock.told(NAME, one["by"], at)
+    knock_said = block(text, "KNOCK") if knocking else None
+    knock_refused = []
+    if knock_said is not None:
+        answers, knock_refused = knock.asked(knock_said)
+        waiting_by = {one["by"]: one for one in knocking}
+        for said, who in answers:
+            if who in waiting_by and knock.answer(NAME, who, said, at):
+                del waiting_by[who]
+                if KNOCK_ACT not in acted:
+                    acted.append(KNOCK_ACT)
+            else:
+                knock_refused.append("%s %s" % (said, who))
+
     # Its weekly reflection waking: when it comes, or none. Read strictly, as its
     # waking time is; what stood before is kept beside the new, and the new holds
     # from its next coming. A block that cannot be read changes nothing.
@@ -5374,6 +5483,10 @@ def main():
         record["rhythm_refused"] = True
     if door_refused:  # and that its <<DOOR>> could not be read
         record["door_refused"] = True
+    if introduction_refused:  # and that its <<INTRODUCTION>> was not taken, and why
+        record["introduction_refused"] = introduction_refused
+    if knock_refused:  # and the lines of its <<KNOCK>> that answered no knock
+        record["knock_refused"] = knock_refused
     if reflection_time_refused:  # and that its <<REFLECTION_TIME>> could not be read
         record["reflection_time_refused"] = True
     if shown_refused:  # and that its <<SHOWN>> could not be read

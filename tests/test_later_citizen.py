@@ -119,6 +119,8 @@ KEPT_TRUE = (
     "the founder said yes on {day}",
     "the founder would like to talk, on {day}",
     ", and his words: {words}",
+    # a yes to a knock, which goes to the founder as keeper, who sets up rooms by hand
+    "A yes goes to the founder, who sets up a room for the two of you by hand;",
 )
 
 # The constants of attend.py a later agent is never read: each is the first one's

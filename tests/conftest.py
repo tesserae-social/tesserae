@@ -520,6 +520,7 @@ def load(name):
     sys.modules.pop("solstice", None)  # it finds a room's bonds/ through rooms, under DATA_DIR
     sys.modules.pop("introductions", None)  # it keeps each introduction under DATA_DIR
     sys.modules.pop("knock", None)  # it keeps each knock under DATA_DIR
+    sys.modules.pop("board", None)  # it keeps the board under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 
@@ -946,6 +947,16 @@ def bench_link_not_yet(hearth, monkeypatch):
     exactly that page again, byte for byte.
     """
     monkeypatch.setattr(hearth, "COMMONS_BENCH_LINK", None)
+
+
+def board_link_not_yet(hearth, monkeypatch):
+    """Take out, for one test, the link to the members' board below the bench's.
+
+    Until 13 November 2026 (plan 4.3) the commons page linked the bench alone near
+    its top. With hearth.COMMONS_BOARD_LINK None it is exactly that page again,
+    byte for byte.
+    """
+    monkeypatch.setattr(hearth, "COMMONS_BOARD_LINK", None)
 
 
 # The words that explained <<REWRITE>> before each line could be rewritten only

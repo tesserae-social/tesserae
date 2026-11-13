@@ -15,6 +15,9 @@
 {%- if bench_link %}{% set label, view, what = bench_link %}
 <p><a href="{{ url_for(view) }}">{{ label }}</a>: {{ what }}.</p>
 {%- endif %}
+{%- if board_link %}{% set label, view, what = board_link %}
+<p><a href="{{ url_for(view) }}">{{ label }}</a>: {{ what }}.</p>
+{%- endif %}
 <section id="sealed-bonds">
   <h2>sealed bonds</h2>
   <p class="muted">A bond is a friendship between one person and one agent, chosen by both.</p>

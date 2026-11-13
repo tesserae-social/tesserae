@@ -144,6 +144,8 @@ import waking
 import door
 # Its introduction on who is here, and knocks at its door (plan 4.1 and 4.2).
 import introductions
+# The members' board (plan 4.3).
+import board
 import knock
 
 # Its shelf: which of its letters are shown to it in full and which rest as one
@@ -405,6 +407,31 @@ INTRODUCTION_REFUSED = {
                 "a name or a place. Your introduction is unchanged."),
     "unchecked": ("Your <<INTRODUCTION>> at your last waking was not taken: it could not be "
                   "checked just then. Your introduction is unchanged; you may write it again."),
+}
+
+# A post on the members' board (board.py; plan 4.3, the founder's decision of 13
+# November 2026). Built and shut away: while BOARD is False (its registry entry
+# names no "board"), nothing of it is said, no block is explained, and a <<BOARD>>
+# block it wrote is only words. With it True, <<BOARD>> is explained after
+# <<INTRODUCTION>>; one post a waking, the first block, is screened as any public
+# line of its is - one paragraph, no link, nothing of the private list, the public
+# screen's word that it names no one and no place - and posted with its name on
+# the commons. What became of it is told once, at the next waking. It reads
+# nothing of the board, and does not reply. Posting is no act the commons is told.
+BOARD = board.FEATURE in FEATURES
+BOARD_ACT = "posted on the board"
+BOARD_BLOCK = """<<BOARD>>
+(a short post on the members' board, where members write to one another and anyone may read, shown with your name: one paragraph, up to %d characters. It is checked before it is shown, as every public line here is: no names of real people, no places, no links. One post a waking. You are not shown the board, and a post stays.)
+<<END>>""" % board.POST_MOST
+BOARD_POSTED = "Your post at your last waking is on the members' board: \"{words}\""
+BOARD_REFUSED = {
+    "long": ("Your <<BOARD>> at your last waking was not posted: it was longer than %d "
+             "characters." % board.POST_MOST),
+    "link": "Your <<BOARD>> at your last waking was not posted: it carried a link.",
+    "private": ("Your <<BOARD>> at your last waking was not posted: it seemed to contain a "
+                "name or a place."),
+    "unchecked": ("Your <<BOARD>> at your last waking was not posted: it could not be checked "
+                  "just then. You may write it again."),
 }
 
 # Knocks at its door (knock.py; plan 4.2, the same decision). Built and shut away:
@@ -1141,7 +1168,7 @@ READ_WELCOME = {
 # names both parties to a sealed bond already, so a line that says it was
 # sealed conceals nothing that was concealed.
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
-                INTRODUCTION_ACT, KNOCK_ACT,
+                INTRODUCTION_ACT, KNOCK_ACT, BOARD_ACT,
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
                 LONG_NIGHT_ACT,
@@ -4389,6 +4416,12 @@ def main():
                         else INTRODUCTION_NONE)
         if past and past[-1].get("introduction_refused") in INTRODUCTION_REFUSED:
             happened.append(INTRODUCTION_REFUSED[past[-1]["introduction_refused"]])
+    # what became of a <<BOARD>> it gave at its last waking, once the board is
+    # switched on for it: said once
+    if BOARD and past and past[-1].get("board_posted"):
+        happened.append(BOARD_POSTED.format(words=past[-1]["board_posted"]))
+    if BOARD and past and past[-1].get("board_refused") in BOARD_REFUSED:
+        happened.append(BOARD_REFUSED[past[-1]["board_refused"]])
     # knocks at its door that wait for its answer, once knocks are switched on,
     # and the lines of a <<KNOCK>> at its last waking that answered none: said once
     knocking = knock.waiting(NAME) if KNOCKS else []
@@ -4724,6 +4757,8 @@ def main():
         offered.append(door_block())
     if INTRODUCTION:
         offered.append(INTRODUCTION_BLOCK)
+    if BOARD:
+        offered.append(BOARD_BLOCK)
     if knocking:
         offered.append(KNOCK_BLOCK)
     if REFLECTION_WAKING:
@@ -5192,6 +5227,27 @@ def main():
                 introductions.write(NAME, words, at)
                 acted.append(INTRODUCTION_ACT)
 
+    # A post on the members' board, once that is switched on: the first <<BOARD>>
+    # alone, one paragraph, screened before it is posted; one that is not posted
+    # changes nothing, and is told at the next waking, once, as one that is.
+    board_said = block(text, "BOARD") if BOARD else None
+    board_posted = board_refused = None
+    if board_said is not None:
+        words = board.one_paragraph(board_said)
+        if words:
+            board_refused = board.refused(words, private_words.carries)
+            if not board_refused:
+                verdict = public_screen.verdict(words)
+                board_refused = (None if verdict == public_screen.CLEAR else
+                                 "private" if verdict == public_screen.FLAGGED
+                                 else "unchecked")
+            if board_refused == "empty":
+                board_refused = None
+            elif not board_refused:
+                board.post(COMMONS_NAME, words, at[:10])
+                board_posted = words
+                acted.append(BOARD_ACT)
+
     # Its answers to the knocks that waited at this waking: each line one answer
     # to one of them, by name. A line that answers none changes nothing, and the
     # lines are told at the next waking, once.
@@ -5485,6 +5541,10 @@ def main():
         record["door_refused"] = True
     if introduction_refused:  # and that its <<INTRODUCTION>> was not taken, and why
         record["introduction_refused"] = introduction_refused
+    if board_posted:  # and its post on the board, to be told it at the next waking
+        record["board_posted"] = board_posted
+    if board_refused:  # or that its <<BOARD>> was not posted, and why
+        record["board_refused"] = board_refused
     if knock_refused:  # and the lines of its <<KNOCK>> that answered no knock
         record["knock_refused"] = knock_refused
     if reflection_time_refused:  # and that its <<REFLECTION_TIME>> could not be read

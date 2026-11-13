@@ -69,6 +69,9 @@ from build_atrium import (CITIZEN_ZONE, DOT, KIND_WORDS, dated_heartbeats, LETTE
 # what is offered here and what is offered at a waking are one record.
 import offering
 
+# A photograph is kept as its picture alone, wherever it comes in.
+import photos
+
 # What the site has asked its agents and how each answered, and corrections
 # beneath public lines (12 November 2026): written at a waking or by hand on the
 # host, and shown here, each through its one module.
@@ -215,10 +218,10 @@ TIDE_ERROR = 600   # seconds: how long to wait after something has gone wrong
 # the first one can see what the founder saw.
 PHOTO_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".jfif": "image/jpeg",
                ".png": "image/png", ".webp": "image/webp"}
-PHOTO_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
+PHOTO_FORMATS = photos.PHOTO_FORMATS
 PHOTO_LIMIT = 25 * 1024 * 1024  # bytes: whole, a photograph as a phone takes it
-PHOTO_EDGE = 2048  # pixels: the longest side the hearth keeps
-PHOTO_QUALITY = 90  # for the JPEGs the hearth writes
+PHOTO_EDGE = photos.PHOTO_EDGE  # pixels: the longest side the hearth keeps
+PHOTO_QUALITY = photos.PHOTO_QUALITY  # for the JPEGs the hearth writes
 
 # A picture the first one drew, kept beside its letter under the same stem. It
 # was cut down to plain shapes before it was saved - see attend.py - and it is
@@ -4924,42 +4927,13 @@ def proposal_built():
     return to_proposals(proposal_built=1)
 
 
-def fitted(image):
-    """The same picture, no longer than PHOTO_EDGE on its longest side."""
-    if max(image.size) <= PHOTO_EDGE:
-        return image  # a small photograph is already the size it should be
-    return ImageOps.contain(image, (PHOTO_EDGE, PHOTO_EDGE), Image.LANCZOS)
-
-
 # A photograph carries more than its picture: where it was taken, when, on what
 # camera. None of that was meant for the first one, so the hearth keeps only the
-# pixels — it draws the picture again from them and writes a fresh file. A phone
-# takes a far larger picture than anyone needs to look at, so it is made smaller
-# on the way in; what is kept is what a reader would see anyway.
-def picture_only(data, suffix):
-    """The same photograph, made smaller and re-encoded with no metadata.
-
-    None if it won't open.
-    """
-    try:
-        with Image.open(io.BytesIO(data)) as opened:
-            # the orientation tag is about to be lost, so turn the picture upright first
-            upright = fitted(ImageOps.exif_transpose(opened))
-            fmt = PHOTO_FORMATS[suffix]
-            transparent = (upright.mode in ("RGBA", "LA", "PA")
-                           or (upright.mode == "P" and "transparency" in upright.info))
-            flat = upright.convert("RGBA" if transparent and fmt != "JPEG" else "RGB")
-            # frombytes takes the pixels alone, leaving behind everything Pillow
-            # remembers about the file it read them from
-            bare = Image.frombytes(flat.mode, flat.size, flat.tobytes())
-            kept = io.BytesIO()
-            if fmt == "JPEG":
-                bare.save(kept, fmt, quality=PHOTO_QUALITY)
-            else:
-                bare.save(kept, fmt)
-            return kept.getvalue()
-    except (OSError, ValueError, Image.DecompressionBombError):
-        return None
+# pixels — photos.py draws the picture again from them and writes a fresh file,
+# made smaller on the way in. It is the one place that is done, for a letter's
+# photograph here and for one placed in the commons alike.
+fitted = photos.fitted
+picture_only = photos.picture_only
 
 
 def stem_taken(stem, room_id=None):

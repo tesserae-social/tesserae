@@ -56,6 +56,10 @@ import agents
 # one's is attributed to its two parties by those names.
 import bonds
 
+# A photograph placed in the commons is bare of its metadata (where it was
+# taken, on what camera), even if the copy kept beside its letter were not.
+import photos
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept. Locally this is the repo itself; on a host it
@@ -458,6 +462,25 @@ def index_line(record, agent=None):
         record["id"], record["kind"], attribution(agent))
 
 
+def copy_out(image, to, kind):
+    """Copy an offering's image into the commons, a photograph bare of its metadata.
+
+    A photograph has been bare since it was left with its letter (photos.py);
+    one that is not - kept from before, or by another hand - is drawn again from
+    its pixels here, so that nothing of where it was taken reaches the public.
+    The copy kept beside the letter is never changed. A picture is plain SVG,
+    cut down when it was drawn, and is copied as it is.
+    """
+    if kind == "photo":
+        data = image.read_bytes()
+        if photos.carries_metadata(data):
+            bare = photos.picture_only(data, image.suffix)
+            if bare is not None:
+                to.write_bytes(bare)
+                return
+    shutil.copy(image, to)
+
+
 def place(record, agent=None):
     """Write an offering into the commons, where it stays.
 
@@ -477,7 +500,7 @@ def place(record, agent=None):
         (PUBLIC / ("%s.md" % record["id"])).write_text(
             record["text"].strip() + "\n", encoding="utf-8")
     if image is not None:
-        shutil.copy(image, PUBLIC / record["file"])
+        copy_out(image, PUBLIC / record["file"], record.get("kind"))
 
     INDEX.parent.mkdir(parents=True, exist_ok=True)
     with INDEX.open("a", encoding="utf-8") as index:

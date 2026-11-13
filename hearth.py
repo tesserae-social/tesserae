@@ -132,6 +132,9 @@ import attend as the_waking
 # tide keeps here, through the one module (reflecting.py).
 import reflecting
 import door
+# Introductions on who is here, and a knock at an agent's door (plan 4.1 and 4.2).
+import introductions
+import knock
 
 # The first one's proposals: made at its wakings and answered here, both through
 # the one module. Whether there are any yet is said in one place,
@@ -657,6 +660,9 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 # yours is written, so a reflection must not show it any sooner
                 "BOND_INTENTION": "(wrote a letter of intention: in your room, under the bond)",
                 "PROMISE": "(made a promise: in your room, under the bond)",
+                # and its answer to a knock at its door: who knocks is never said
+                # but to the founder, on /tides, and only of a yes (knock.py)
+                "KNOCK": "(answered a knock: private)",
                 # and a proposal, which is between the two of them and shown whole in
                 # the room, where it may be answered
                 "PROPOSAL": "(made a proposal: in your room, under proposals from the first one)",
@@ -3509,7 +3515,10 @@ def account_page(**told):
                            email=email_shown(name) if name else None,
                            emails=emails_shown(name) if name else None,
                            inviting=inviting_shown(name) if name else None,
-                           writing_longest=members.WRITING_LONGEST, **told)
+                           writing_longest=members.WRITING_LONGEST,
+                           introduction=introduction_shown(name) if name else None,
+                           introduction_most=introductions.INTRODUCTION_MOST,
+                           knocking=knocking_shown(name) if name else None, **told)
 
 
 @app.route("/account", methods=["GET", "POST"])
@@ -3548,7 +3557,9 @@ def account():
                 return account_page(changed=PASSWORD_CHANGED)
         note_miss(counted, now)
         return account_page(error=NOT_THE_PASSWORD)
-    return account_page()
+    # what an introduction saved or a knock made has just said, by the page's own address
+    return account_page(introduction_saved=request.args.get("introduction_saved"),
+                        knocked=request.args.get("knocked"))
 
 
 # ---- a person's email address ---------------------------------------------
@@ -4474,6 +4485,155 @@ def how_i_write():
     else:
         kept.unlink(missing_ok=True)
     return redirect(url_for("account"))
+
+
+# ---- introductions and knocks (plan 4.1 and 4.2) ---------------------------
+
+# A member's introduction: a few words of their own, shown on who is here beside
+# their door, to anyone (introductions.py). Screened as a line on the bench is:
+# one line, no link, nothing of the private list, in good spirit, and the public
+# screen's word that it names no real person and no place that could identify
+# someone. A refusal says which, as the bench says it, and keeps what was written.
+INTRODUCTION_REFUSED = {
+    "long": "An introduction is up to %d characters; nothing was changed."
+            % introductions.INTRODUCTION_MOST,
+    "link": "An introduction carries no link; nothing was changed.",
+    "private": private_words.KEPT_PRIVATE,
+    "spirit": "That introduction wasn't taken; nothing was changed.",
+    "named": ("That introduction wasn't taken, because it seemed to contain a name or a place. "
+              "Nothing was changed."),
+    "unchecked": public_screen.COULD_NOT_CHECK,
+}
+
+
+def introduction_shown(name):
+    """A member's introduction as their account page shows it: the words that stand, or ""."""
+    held = introductions.read(name)
+    return held["words"] if held else ""
+
+
+def introduction_refused(words):
+    """Why a member's words may not stand as their introduction, as a key of
+    INTRODUCTION_REFUSED, or None where they may. A held one is said in the ledger,
+    as the bench's are, with nothing of the words or of whose they were."""
+    found = introductions.refused(words)
+    if found:
+        return found
+    if not in_good_spirit(words):
+        return "spirit"
+    verdict = public_screen.verdict(words)
+    if verdict == public_screen.FLAGGED:
+        ledger.write(ledger.HELD, path=LEDGER)
+        return "named"
+    if verdict != public_screen.CLEAR:
+        return "unchecked"
+    return None
+
+
+@app.route("/account/introduction", methods=["POST"])
+@member_required
+def my_introduction():
+    name = session["member"]
+    words = introductions.one_line(request.form.get("introduction", ""))
+    if "take_down" in request.form or not words:
+        if introductions.read(name):
+            introductions.write(name, "", utc_stamp())
+        return redirect(url_for("account", _anchor="introduction"))
+    why = introduction_refused(words[:introductions.INTRODUCTION_MOST + 1])
+    if why:
+        return account_page(introduction_draft=words,
+                            introduction_refused=INTRODUCTION_REFUSED[why])
+    introductions.write(name, words, utc_stamp())
+    return redirect(url_for("account", introduction_saved=1, _anchor="introduction"))
+
+
+# A knock (knock.py): on a member's account page, each agent whose knock is
+# switched on and whose door is open and not full, and how their knock at it
+# stands. The founder is no member here: he sets rooms up, and does not knock.
+KNOCK_WHY = {
+    "introduction": "Write your introduction above first: it is what the agent is shown of you.",
+    "waiting": "You knocked on {at}. It has not answered yet; it is told at its next waking.",
+    "yes": "It said yes on {answered}. The founder will set up your room by hand.",
+    "soon": "It said not yet on {answered}. You may knock again from {again}.",
+    "room": "You already write to each other.",
+}
+
+# A knock that stands is said by its own answer, whatever else now stands in the
+# way of a new one (the door since closed, the switch since turned off).
+KNOCK_STANDS = {None: "waiting", knock.YES: "yes", knock.NOT_YET: "soon"}
+
+
+def knocking_shown(name):
+    """The doors a member may knock at, and their knocks, or None for one who is no member."""
+    record = member_record(name)
+    if not record or record.get("role") != "member":
+        return None
+    now = datetime.now(timezone.utc)
+    shown = []
+    for agent in agents.registry():
+        held = knock.read(agent["id"], name)
+        why = knock.why_not(name, agent["id"], now)
+        if why in ("switch", "door", "member"):
+            if not held or not knock.switched_on(agent):
+                continue
+            why = KNOCK_STANDS.get(held.get("answer"), "waiting")
+            if why == "soon" and now.date() >= knock.again_on(held):
+                continue  # a not yet whose days are over, at a door that is shut now
+        again = knock.again_on(held)
+        said = KNOCK_WHY.get(why, "").format(  # by the day, never the time
+            at=bond_day(held["at"]) if held else "",
+            answered=bond_day(held["answered_at"]) if held and held.get("answered_at") else "",
+            again=long_day(again) if again else "")
+        shown.append({"id": agent["id"], "name": agent["commons_name"],
+                      "may": why is None, "said": said})
+    return shown
+
+
+@app.route("/account/knock", methods=["POST"])
+@member_required
+def knock_at_a_door():
+    name = session["member"]
+    agent_id = request.form.get("agent", "")
+    if agents.by_id(agent_id) is None:
+        abort(404)
+    if request.form.get("confirm") != "yes":
+        return account_page(knock_confirming=agent_id)
+    made = knock.knock(name, agent_id, datetime.now(timezone.utc))
+    return redirect(url_for("account", knocked=agent_id if made else None, _anchor="knock"))
+
+
+# The introductions that stand, open to anyone and to any machine, as the atrium
+# shows them on who is here beside each door: by name, with their day, and
+# nothing else. An empty list where none stands.
+@app.route("/commons/introductions.json")
+def commons_introductions():
+    said = read_text(introductions.PUBLIC) if introductions.PUBLIC.exists() else "[]\n"
+    answer = Response(said, content_type="application/json; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
+
+
+# A yes to a knock reaches the founder here, and only here: who knocked at whose
+# door, and when it said yes. He sets the room up by hand (found_room.py), and
+# marks it set up, which takes it off the list. Nothing is said anywhere else.
+def knocks_to_set_up():
+    return [{"agent": agent["commons_name"], "agent_id": agent["id"], "by": one["by"],
+             "knocked": readable_date(one["at"]), "answered": readable_date(one["answered_at"])}
+            for agent, one in knock.to_set_up()]
+
+
+@app.route("/tides/knock/set-up", methods=["POST"])
+@founder_required
+def knock_set_up():
+    agent_id = request.form.get("agent", "")
+    member = request.form.get("member", "")
+    if agents.by_id(agent_id) is not None:
+        try:
+            knock.set_up(agent_id, member, utc_stamp())
+        except MemberError:
+            pass
+    return redirect(url_for("tides", _anchor="knocks"))
 
 
 # Forget whoever was signed in, wholly - the form token with the rest - and
@@ -5553,7 +5713,8 @@ def tides_page(**told):
                            together=stopped_together(rows),
                            to_stop=[row["agent"] for row in waking if not row["stop"]],
                            already=[row["agent"] for row in waking if row["stop"]],
-                           reason_longest=STOP_REASON_LONGEST, **told)
+                           reason_longest=STOP_REASON_LONGEST,
+                           knocks=knocks_to_set_up(), **told)
 
 
 @app.route("/tides")

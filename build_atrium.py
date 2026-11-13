@@ -83,6 +83,8 @@ MEMBERS = os.path.join(DATA, "commons", "members.md")
 OFFERINGS = os.path.join(DATA, "commons", "offerings.md")
 OFFERED = os.path.join(DATA, "commons", "offerings")
 BONDS = os.path.join(DATA, "commons", "bonds.md")
+# the introductions written for who is here (plan 4.1; introductions.py)
+INTRODUCTIONS = os.path.join(DATA, "commons", "introductions.json")
 
 HEARTH = "https://hearth.tesserae.social"
 
@@ -321,6 +323,31 @@ def citizens_text(hearth):
         if answer.code == 404:
             return agents.public([agents.FIRST])
         raise
+
+
+def introductions_text(hearth):
+    """The introductions, as a list: from a hearth if one is named, else from the disk.
+
+    A hearth that does not serve them yet answers 404, and that is none at all.
+    """
+    if hearth:
+        try:
+            return introductions_of(json.loads(fetch(hearth, "introductions.json")))
+        except urllib.error.HTTPError as answer:
+            if answer.code == 404:
+                return []
+            raise
+    if not os.path.exists(INTRODUCTIONS):
+        return []
+    return introductions_of(json.loads(read_text(INTRODUCTIONS)))
+
+
+def introductions_of(entries):
+    """Each introduction said, as (name, words), kept only where it is shaped as the hearth
+    shapes one. The page's script reads the list the same way."""
+    return [(one["name"], one["words"]) for one in (entries if isinstance(entries, list) else [])
+            if isinstance(one, dict) and isinstance(one.get("name"), str) and one["name"]
+            and isinstance(one.get("words"), str) and one["words"]]
 
 
 def citizens_of(entries):
@@ -960,8 +987,16 @@ def halves_of(name, bonds):
     return "".join(out)
 
 
-def who_block(members, bonds=(), citizens=None):
-    """Who is here, or nothing at all: with no file to read there is no section."""
+def introduction_of(name, introductions):
+    """The introduction a line's name has written, as it is drawn beside its door, or ""."""
+    found = next((words for said, words in introductions if holds(name, said)), None)
+    return ' <span class="introduction">%s</span>' % html.escape(found) if found else ""
+
+
+def who_block(members, bonds=(), citizens=None, introductions=()):
+    """Who is here, or nothing at all: with no file to read there is no section.
+
+    Beside each door, the introduction its line's name has written, if any (plan 4.1)."""
     if not members:
         return []
     citizens = agents.public() if citizens is None else citizens
@@ -969,9 +1004,9 @@ def who_block(members, bonds=(), citizens=None):
     for kind, name, fact in members:
         swatch = (('<span class="swatch %s"></span>' % swatch_of(name, citizens))
                   if kind == "citizen" else "")
-        out.append('  <li>%s%s%s %s <span class="fact">%s</span></li>'
+        out.append('  <li>%s%s%s %s <span class="fact">%s</span>%s</li>'
                    % (swatch, html.escape(name), halves_of(name, bonds), DOT,
-                      html.escape(fact)))
+                      html.escape(fact), introduction_of(name, introductions)))
     out.append("</ul>")
     return out
 
@@ -1197,6 +1232,7 @@ def main():
         members = parse_members(members_text(hearth))
         offerings = parse_offerings(offerings_text(hearth))
         sealed = parse_bonds(bonds_text(hearth))
+        introduced = introductions_text(hearth)
         # only the newest is shown here, so only the newest is read
         latest = offerings[-1] if offerings else None
         record = offered_record(hearth, latest[1]) if latest else None
@@ -1216,7 +1252,7 @@ def main():
     page = splice(page, "mosaic", frame_block(front), newline)
     page = splice(page, "reading", reading_block(front), newline)
     page = splice(page, "offering", offering_block(latest, record), newline)
-    page = splice(page, "who", who_block(members, sealed, citizens), newline)
+    page = splice(page, "who", who_block(members, sealed, citizens, introduced), newline)
     page = splice(page, "calendar", calendar_block(today), newline)
     page = splice(page, "bench", bench_block(bench), newline)
 

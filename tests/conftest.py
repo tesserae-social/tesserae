@@ -517,6 +517,8 @@ def load(name):
     sys.modules.pop("ledger", None)  # it keeps the ledger's own lines under DATA_DIR
     sys.modules.pop("corrections", None)  # it keeps the commons' corrections under DATA_DIR
     sys.modules.pop("answered", None)  # it finds the packets under DATA_DIR
+    sys.modules.pop("introductions", None)  # it keeps each introduction under DATA_DIR
+    sys.modules.pop("knock", None)  # it keeps each knock under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 

@@ -339,6 +339,10 @@
 
   .who .fact { color: var(--ink-soft); }
 
+  /* an introduction, in its writer's own words, on a line of its own beneath
+     the door it was written beside (plan 4.1) */
+  .who .introduction { display: block; }
+
   /* A citizen's swatch is its own solid colour. The class is one per citizen,
      worked out from the name, so a hue reckoned from a citizen's key can take
      this hook over once there is more than one hue to reckon. */

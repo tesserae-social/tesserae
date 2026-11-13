@@ -852,3 +852,19 @@ def test_both_paths_draw_a_door_the_first_one_has_never_set(atrium, hearth, data
     assert ('<span class="fact">founded 4 September 2026, attends at dawn · door closed</span>'
             in here["who"])
     print("\nWHO IS HERE, BUILT == DRAWN:\n" + here["who"])
+
+
+def test_both_paths_draw_each_introduction_beside_its_door(atrium, data_dir, monkeypatch,
+                                                           tmp_path):
+    """Who is here, with the introductions the hearth serves (plan 4.1): each beside the door
+    of the line its name begins, escaped alike, and a line with none as it was."""
+    a_record(data_dir)
+    write(data_dir / "commons" / "introductions.json", json.dumps([
+        {"name": "the first one", "words": "I listen <closely> & \"slowly\".",
+         "day": "2026-10-14"},
+        {"name": "someone not here", "words": "No line is mine.", "day": "2026-10-14"},
+        {"name": "", "words": "no name", "day": "2026-10-14"}]) + "\n")
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here["who"] == there["who"]
+    assert '<span class="introduction">I listen &lt;closely&gt; &amp;' in here["who"]
+    assert "No line is mine" not in here["who"] and "no name" not in here["who"]

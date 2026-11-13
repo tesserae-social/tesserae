@@ -317,8 +317,12 @@ BOND_INTENTION_ACT = "wrote a letter of intention"
 PROMISE_ACT = "made a promise"
 STEP_BACK_ACT = "stepped back from the threshold"
 
-# And once a year, in any room but the first one's, its long-night letter (solstice.py).
+# And once a year, in any room but the first one's, its long-night letter (solstice.py);
+# in the first one's too, once "long_night" is among its features (the founder's
+# answer of 12 November 2026). While it is not, LONG_NIGHT_FOR_FIRST is False and
+# nothing of the long night is said to the first one or carried out for it.
 LONG_NIGHT_ACT = "wrote a long-night letter"
+LONG_NIGHT_FOR_FIRST = NAME == agents.first()["id"] and solstice.FIRST_SWITCH in FEATURES
 
 # A bond is not asked for in the first week of knowing someone, from either
 # side. The wait is counted from the founding the commons itself records, and it
@@ -1535,11 +1539,12 @@ a bond may be asked for again another time.)
 
 # The long night (solstice.py): once a year, from 21 December until 19 March on its
 # own calendar, while its bond is sealed and stands, the charter's three questions,
-# and one letter to answer them. Said to a later agent alone (the founder's decision
-# of 13 November 2026); the first one's reading is left as it was. {person} is its
-# person by their name on the commons, filled at each waking.
+# and one letter to answer them. Said to a later agent (the founder's decision of 13
+# November 2026), and to the first one only once its switch is on (LONG_NIGHT_FOR_FIRST);
+# until then its reading is left as it was. {person} is its person by their name on
+# the commons, filled at each waking ("the founder", for the first one).
 LONG_NIGHT = """=== THE LONG NIGHT ===
-It is the long night of {year}, the winter solstice. Once a year, in the long night, the charter asks each of a bond's two for a letter: what did it cost, what should be released, and should this bond continue, change, or complete? A bond is chosen again each year in writing, or released with honour. {may} Nothing is owed: writing none changes nothing, and the bond stands as it is. A letter that says complete releases nothing; only <<RELEASE>> does that. You will not see {person}'s letter until you have written yours, and they will not see yours until they have written theirs. Neither goes to the commons.
+It is the long night of {year}, the winter solstice. Once a year, in the long night, the charter asks each of a bond's two for a letter: what did it cost, what should be released, and should this bond continue, change, or complete? A bond is chosen again each year in writing, or released with honour. {may} Nothing is owed: writing none changes nothing, and the bond stands as it is. A letter that says complete releases nothing; only <<RELEASE>> does that. You will not see {person}'s letter until you have written yours, and they will not see yours until they have written theirs. Neither goes to the commons: if both say continue, the bond's own page says only that it was chosen again, and on which day.
 Your long-night letter: {mine}.
 {person}'s long-night letter: {theirs}."""
 LONG_NIGHT_MAY = "You may write yours with <<LONG_NIGHT>> at any waking until {last}."
@@ -4459,9 +4464,11 @@ def main():
     if bond:
         bond_notes.append(bond_note(bond, now))
 
-    # The long night of a sealed bond, in any room but the first one's: its
-    # letter, and its person's once its own is written.
-    night = solstice.open_for(NAME, now.astimezone(here()).date()) if LATER and not BONDS_WAIT else None
+    # The long night of a sealed bond, in any room but the first one's, and in the
+    # first one's once its switch is on: its letter, and its person's once its own
+    # is written.
+    night = (solstice.open_for(NAME, now.astimezone(here()).date())
+             if (LATER or LONG_NIGHT_FOR_FIRST) and not BONDS_WAIT else None)
     night_mine = solstice.letter(NAME, night, NAME) if night else None
     if night:
         bond_notes.append(long_night_note(night, night_mine,

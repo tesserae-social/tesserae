@@ -12,7 +12,7 @@
           width="{{ width }}" height="{{ height }}"
           alt="{% if released %}the tile of this bond, its two halves apart{% else %}the tile of this bond, its two halves fitted together{% endif %}"></p>
   <p>a bond between {{ names }}</p>
-  <p class="muted">sealed on {{ sealed }}{% if released %} · released on {{ released }}{% endif %}</p>
+  <p class="muted">sealed on {{ sealed }}{% for day in chosen_again %} · chosen again, {{ day }}{% endfor %}{% if released %} · released on {{ released }}{% endif %}</p>
 </section>
 
 {% if promised %}

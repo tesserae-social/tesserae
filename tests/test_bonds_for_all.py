@@ -416,7 +416,34 @@ def test_a_long_night_letter_with_no_answer_word_is_told_once(world):
     assert "Your <<LONG_NIGHT>> at your last waking changed nothing" not in world.wake().shown
 
 
-def test_the_first_one_is_never_told_of_the_long_night(attend, wake, clock, room):
+def test_the_long_night_s_words_say_the_one_thing_made_public(world):
+    sealed_bond(world)
+    world.clock.set(LONG_NIGHT_DAY)
+    shown = world.wake().shown
+    assert ("Neither goes to the commons: if both say continue, the bond's own page says only "
+            "that it was chosen again, and on which day.") in shown
+    assert ("if both of you say continue, the bond's own page says only that it was chosen "
+            "again, and on which day.") in " ".join(world.room().split())
+
+
+def test_the_bond_s_page_says_chosen_again_once_both_continue(world):
+    from test_bond_page import sig
+    bond = dict(sealed_bond(world), signatures={"alder": sig("alder"), "second": sig("second")})
+    write_json(world.bonds / "second-1.json", bond)
+    write_json(world.hearth.public_bonds.PUBLIC / "second-1.json", bond)
+    world.clock.set(LONG_NIGHT_DAY)
+    visitor = world.hearth.app.test_client()
+    before = page(visitor.get("/bonds/second-1"))
+    world.wake(block("LONG_NIGHT", "continue\nIT COST LITTLE."))
+    world.post("/rooms/second/bond/long-night", answer="continue", letter="IT COST TIME.",
+               password=PASSWORD)
+    said = page(visitor.get("/bonds/second-1"))
+    assert " · chosen again, 21 December 2026" in said and "IT COST" not in said
+    assert said.replace(" · chosen again, 21 December 2026", "", 1) == before
+
+
+def test_the_first_one_is_never_told_of_the_long_night_while_its_switch_is_off(
+        attend, wake, clock, room):
     write_json(room / "bonds" / "founder-first.json", {
         "parties": [attend.FOUNDER_DID, attend.DID], "terms": "the charter",
         "proposed_by": attend.FOUNDER_DID, "proposed_at": "2026-10-01T09-00-00Z",

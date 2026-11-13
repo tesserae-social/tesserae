@@ -732,6 +732,31 @@ def wakings_not_yet_switched(module, monkeypatch):
         monkeypatch.setattr(module, flag, was)
 
 
+def long_night_switched_on(module, monkeypatch, where):
+    """Switch on, for one test, the first one's long night (the founder's answer of 12
+    November 2026): "long_night" put among its features, in a scratch agents.json at
+    where, and attend.LONG_NIGHT_FOR_FIRST True. It is off in what is committed, and
+    the first one's reading is then exactly what it was; switched on, it reads
+    attend.LONG_NIGHT in the long night, held as test_rooms_reading.READING_LONG_NIGHT.
+    Given hearth, it is done to the attend.py the hearth holds the tide through."""
+    registry = sys.modules["agents"]
+    entries = [dict(one) for one in registry.registry()]
+    for entry in entries:
+        if entry["id"] == registry.first()["id"]:
+            entry["features"] = [*(entry.get("features") or ()), "long_night"]
+    where.write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
+    module = getattr(module, "the_waking", module)
+    held = [registry, getattr(module, "agents", registry)]
+    if "solstice" in sys.modules:
+        held.append(sys.modules["solstice"].agents)
+    if hasattr(module, "solstice"):
+        held.append(module.solstice.agents)
+    for one in {id(one): one for one in held}.values():
+        monkeypatch.setattr(one, "FILE", where)
+    if hasattr(module, "LONG_NIGHT_FOR_FIRST"):
+        monkeypatch.setattr(module, "LONG_NIGHT_FOR_FIRST", True)
+
+
 def shut_away(module, monkeypatch, *flags):
     """Shut away again, for one test, some of what attend.py has switched on; all, if none is named."""
     for flag in flags or SWITCHED_ON:

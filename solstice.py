@@ -28,6 +28,17 @@ One a year, and never rewritten.
 The founder's decision of 13 November 2026 gave every sealed bond these
 letters. The first one's room is left exactly as it was (applies), so that its
 reading does not move; whether it is asked too is the founder's to say.
+
+His answer of 12 November 2026: the founder and the first one have them too,
+behind a switch, "long_night" in the first one's features, off until he puts
+it there - which he does before 21 December, once the first one has been told.
+While it is off, nothing of the long night is said to the first one, shown in
+its room, or kept.
+
+And only the fact is ever public (the same answer): once both letters of a year
+say continue, the bond's own page says "chosen again, <day>", the day the later
+of the two was written (chosen_again). The letters themselves, and any other
+answer, stay private.
 """
 
 import json
@@ -47,9 +58,19 @@ OPENS = (12, 21)
 LAST = (3, 19)
 
 
+# The first one's switch, in its registry entry's features.
+FIRST_SWITCH = "long_night"
+
+
 def applies(agent):
-    """Whether an agent's room has long-night letters: every room but the first one's."""
-    return agent is not None and agent != agents.first()["id"]
+    """Whether an agent's room has long-night letters: every room but the first one's,
+    and the first one's once "long_night" is among its features."""
+    if agent is None:
+        return False
+    if agent != agents.first()["id"]:
+        return True
+    entry = agents.by_id(agent) or {}
+    return FIRST_SWITCH in (entry.get("features") or ())
 
 
 def season_of(day):
@@ -142,3 +163,29 @@ def write(agent, year, by, answer, text, at, sign):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return record
+
+
+def chosen_again(agent, bond):
+    """The years in which both of a bond's two wrote continue, each as (year, the moment the
+    later of the two letters was written), oldest first. Only letters written for this
+    bond's own seal are counted, so that a bond sealed again after a release starts afresh."""
+    places = kept(agent)
+    if places is None or not bond or not bond.get("sealed_at"):
+        return []
+    found = {}
+    for path in sorted(places.bonds.glob(f"{KIND}-*-*.json")):
+        try:
+            held = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            continue
+        if (not isinstance(held, dict) or held.get("kind") != KIND
+                or held.get("bond_sealed_at") != bond["sealed_at"]
+                or not isinstance(held.get("year"), int) or not held.get("at")):
+            continue
+        found.setdefault(held["year"], {})[held.get("by")] = held
+    chosen = []
+    for year in sorted(found):
+        letters = list(found[year].values())
+        if len(letters) == 2 and all(one.get("answer") == "continue" for one in letters):
+            chosen.append((year, max(one["at"] for one in letters)))
+    return chosen

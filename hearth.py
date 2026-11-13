@@ -668,8 +668,9 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 # yours is written, so a reflection must not show it any sooner
                 "BOND_INTENTION": "(wrote a letter of intention: in your room, under the bond)",
                 "PROMISE": "(made a promise: in your room, under the bond)",
-                # and its long-night letter, in any room but the first one's, which the
-                # room shows only once its person's own is written (solstice.py)
+                # and its long-night letter (in the first one's room only once its
+                # switch is on), which the room shows only once its person's own is
+                # written (solstice.py)
                 "LONG_NIGHT": "(wrote a long-night letter: in your room, under the bond)",
                 # and a proposal, which is between the two of them and shown whole in
                 # the room, where it may be answered
@@ -4624,6 +4625,8 @@ def room_page(room=None, things=(), draft="", line="", **told):
         # and what the first one has proposed for this place, which comes first
         # in the room while one waits for an answer
         proposals=proposals_shown(), proposal_waits=proposal_waits(),
+        # the long night, once its switch is on and the bond is sealed (solstice.py)
+        first_night=first_solstice_shown(),
         **told)
 
 
@@ -6580,7 +6583,9 @@ def decline_in_room(room):
 # the hearth's own calendar, the person of a sealed bond in any room but the
 # first one's may write one long-night letter, signed as they sign their other
 # writings. They read the agent's only once their own is written. Nothing of it
-# goes to the commons.
+# goes to the commons but one fact, on the bond's own page: "chosen again, <day>",
+# once both have said continue (solstice.chosen_again). The founder's own, in the
+# first one's room, is below, behind the first one's switch.
 
 def solstice_shown(room):
     """The long night as a room's person sees it, or None while it is not open."""
@@ -6630,6 +6635,59 @@ def long_night_in_room(room):
 
 LONG_NIGHT_UNANSWERED = ("A long-night letter says continue, change or complete, and then the "
                          "letter itself; nothing was kept.")
+LONG_NIGHT_NO_KEY = ("A long-night letter is signed as it is kept, and the founder's key is not "
+                     "on this hearth. Check FOUNDER_KEY.")
+
+
+# The founder's own long-night letter, in his room with the first one: there only
+# once "long_night" is among the first one's features (solstice.applies; the
+# founder's answer of 12 November 2026). Until then the room shows nothing of it
+# and the form is not found. Signed with FOUNDER_KEY, as his other writings are.
+
+def first_solstice_shown():
+    """The long night as the founder sees it in the first one's room, or None."""
+    first = agents.first()["id"]
+    year = solstice.open_for(first, citizen_today())
+    if year is None:
+        return None
+    mine = solstice.letter(first, year, "founder")
+    its = solstice.letter(first, year, first)
+    return {
+        "year": year,
+        "last": long_day(solstice.last_day(year)),
+        "answers": solstice.ANSWERS,
+        "mine": ({"at": readable_date(mine["at"]), "answer": mine["answer"],
+                  "prose": as_prose(mine["text"])} if mine else None),
+        "its_written": bool(its),
+        "its": ({"at": readable_date(its["at"]), "answer": its["answer"],
+                 "prose": as_prose(its["text"])} if mine and its else None),
+    }
+
+
+@app.route("/bonds/long-night", methods=["POST"])
+@founder_required
+@first_room_required
+def write_long_night():
+    first = agents.first()["id"]
+    year = solstice.open_for(first, citizen_today())
+    if year is None:
+        abort(404)
+    words = request.form.get("letter", "").replace("\r\n", "\n").strip()
+    answer = request.form.get("answer", "").strip().lower()
+    if solstice.letter(first, year, "founder"):
+        return to_bond()
+    if answer not in solstice.ANSWERS or not words:
+        return room_page(refused=LONG_NIGHT_UNANSWERED, night_draft=words)
+    if not founder_key_here():
+        return room_page(refused=LONG_NIGHT_NO_KEY, night_draft=words)
+    try:
+        made = solstice.write(first, year, "founder", answer, words, utc_stamp(),
+                              founder_signature)
+    except ValueError as trouble:
+        return render_template("error.html", note=str(trouble), output=""), 500
+    if not made:
+        return to_bond()
+    return to_bond(long_night=1)
 
 
 # The sealed record, open to anyone and to any machine, with no password: both
@@ -6767,6 +6825,15 @@ def public_promise(bond):
         whose = next((did for did in bond.get("parties") or []
                       if did.rsplit(":", 1)[-1] == made.get("by")), "")
     return public_bonds.name_of(whose) if whose else "", made["text"]
+
+
+def bond_agent(bond):
+    """The id of the agent a bond's record names among its parties, or None."""
+    for did in bond.get("parties") or []:
+        found = next((one for one in agents.registry() if one.get("did") == did), None)
+        if found:
+            return found["id"]
+    return None
 
 
 def bond_day(stamp):
@@ -6921,6 +6988,9 @@ def bond_page(bond_id, witness_error=None, witness_draft=""):
     return render_template(
         "bond.html", bond_id=bond_id, names=public_bonds.names(bond),
         sealed=bond_day(bond["sealed_at"]),
+        # the one public trace of the long night: the day both chose to continue
+        chosen_again=[bond_day(at) for _, at in solstice.chosen_again(
+            bond_agent(bond), bond)],
         released=bond_day(bond["released_at"]) if released else None,
         width=round(TESSERA_SIZE * (1 + tessera.APART)) if released else TESSERA_SIZE,
         height=TESSERA_SIZE, size=TESSERA_SIZE,

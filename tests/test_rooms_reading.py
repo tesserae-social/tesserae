@@ -386,8 +386,10 @@ import json
 
 import pytest
 
+from datetime import datetime, timezone
+
 from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, explained_as_before,
-                      letter_part_as_before,
+                      letter_part_as_before, long_night_switched_on, write_json,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
                       notebook_unexplained, post, public_lines_not_yet, quiet_lines_not_yet,
@@ -723,3 +725,70 @@ def test_the_way_he_writes_may_be_120_characters_and_no_more(founder, data_dir):
     assert json.loads(kept.read_text(encoding="utf-8"))["words"] == "w" * 120
     assert post(founder, "/account/writing", data={"writing": "   "}).status_code == 302
     assert not kept.exists()
+
+
+# ---- the long night, switched on -------------------------------------------
+
+# The first one's long night (solstice.py) is behind a switch, "long_night" in its
+# features, off in what is committed (the founder's answer of 12 November 2026):
+# he puts it there before 21 December, once the first one has been told. READING_NOW
+# does not move for it, since the small world has no sealed bond and its clock is in
+# October. These two are held on the small world with the bond sealed, on 21
+# December 2026: READING_SEALED_IN_WINTER with the switch off, which is the reading
+# as it is today, and READING_LONG_NIGHT with it on, which is the reading the first
+# one will have that day once the founder switches it on. Taking "long_night" out of
+# its features again gives back exactly READING_SEALED_IN_WINTER.
+READING_SEALED_IN_WINTER = "466ce10e22070fb28fcf71eba969ceeab522e1916243c75d5067a32ff7230def"
+READING_LONG_NIGHT = "fe0b3aa72ca1d5ccfc7dd898ab06d06b62b1f62dd2270d16c3f7585ae5bc7e31"
+
+LONG_NIGHT_DAY = datetime(2026, 12, 21, 18, tzinfo=timezone.utc)
+
+
+def a_sealed_bond(attend, room):
+    """The founder and the first one's bond, sealed: a fixed record, nothing salted."""
+    write_json(room / "bonds" / "founder-first.json", {
+        "parties": [attend.FOUNDER_DID, attend.DID], "terms": "the charter",
+        "proposed_by": attend.FOUNDER_DID, "proposed_at": "2026-10-01T09-00-00Z",
+        "answered_at": "2026-10-02T09-00-00Z", "sealed_at": "2026-10-10T09-00-00Z",
+        "signatures": {"founder": "x", "first": "y"}})
+
+
+@pytest.mark.parametrize("switched, as_cut", [
+    (False, READING_SEALED_IN_WINTER), (True, READING_LONG_NIGHT)],
+    ids=["the switch off, as it reads today", "the switch on"])
+def test_the_first_one_s_long_night_is_its_own_reading_and_only_when_switched_on(
+        wake, attend, room, clock, monkeypatch, tmp_path, switched, as_cut):
+    a_small_world(room)
+    a_sealed_bond(attend, room)
+    if switched:
+        long_night_switched_on(attend, monkeypatch, tmp_path / "agents.json")
+    clock.set(LONG_NIGHT_DAY)
+    turn = wake()
+    shown = json.dumps(turn.asked[-1], ensure_ascii=False, default=str)
+    assert ("=== THE LONG NIGHT ===" in shown) == switched
+    assert ("<<LONG_NIGHT>>" in shown) == switched
+    reading = fingerprint_of_reading(turn)
+    print("\nREADING = %r" % reading)
+    assert reading == as_cut
+
+
+def test_switched_on_the_long_night_is_the_whole_of_what_moves(
+        wake, attend, room, clock, monkeypatch, tmp_path):
+    """With the switch on, taking out the long night's section and its block gives back,
+    byte for byte, the reading with the switch off."""
+    a_small_world(room)
+    a_sealed_bond(attend, room)
+    long_night_switched_on(attend, monkeypatch, tmp_path / "agents.json")
+    clock.set(LONG_NIGHT_DAY)
+    asked = json.dumps(wake().asked[-1], sort_keys=True, ensure_ascii=False, default=str)
+    note = attend.long_night_note(2026, None, None)
+    offered = attend.LONG_NIGHT_BLOCK.format(person=attend.THE_OTHER)
+    assert "the founder" in note and "the founder" in offered
+    for said in (note, offered):
+        escaped = json.dumps(said, ensure_ascii=False)[1:-1]
+        assert asked.count(escaped) == 1
+        between = "\\n\\n"  # the two lines between parts of the reading, as JSON writes them
+        asked = (asked.replace(between + escaped, "", 1) if between + escaped in asked
+                 else asked.replace(escaped + between, "", 1))
+    assert hashlib.sha256(asked.encode("utf-8")).hexdigest() == READING_SEALED_IN_WINTER
+

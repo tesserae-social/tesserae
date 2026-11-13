@@ -146,6 +146,8 @@ import door
 import introductions
 # The members' board (plan 4.3).
 import board
+# The weekly question, read only if it chooses to.
+import weekly
 import knock
 
 # Its shelf: which of its letters are shown to it in full and which rest as one
@@ -1373,6 +1375,24 @@ READ_COMMONS_LINES = {
                     "each with its stamp and its day."),
     "input_schema": {"type": "object", "properties": {}}}
 COMMONS_LINES_TOOLS = [READ_COMMONS_LINES]
+
+# This week's question, which people are shown at the top of their rooms
+# (weekly.py; the founder's decision of 13 November 2026). No agent reads it
+# unless it chooses to: once "weekly_question" is among its features, it is given
+# read_weekly_question at a longer waking, one more thing it may look at, and
+# nothing of the question is put in its reading. While WEEKLY_QUESTION is False,
+# not even the tool is offered.
+WEEKLY_QUESTION = weekly.FEATURE in FEATURES
+WEEKLY_LOOKED = "this week's question"
+NO_WEEKLY_QUESTION = "There is no question this week."
+WEEKLY_SAID = ("This week's question, which the people here are shown at the top of their "
+               "rooms, if they'd like it: {words}\nNothing is asked of you by it.")
+READ_WEEKLY_QUESTION = {
+    "name": "read_weekly_question",
+    "description": ("Open this week's question, if you'd like it: one question a week, proposed "
+                    "by a member, which the people here are shown at the top of their rooms. "
+                    "Nothing is asked of you by it."),
+    "input_schema": {"type": "object", "properties": {}}}
 
 # Corrections (the founder's decision of 12 November 2026, plan step 2.3): "I
 # said this; it wasn't so." Built behind CORRECTIONS, on only for an agent whose
@@ -3926,6 +3946,10 @@ def looked_up(tool, asked, record):
         kept_as = COMMONS_LINES_LOOKED
         said = (FROM_RECORD.format(what="your lines in the commons, as they are shown now")
                 + "\n\n" + commons_lines_said())
+    elif tool == "read_weekly_question" and WEEKLY_QUESTION:
+        kept_as = WEEKLY_LOOKED
+        words = weekly.this_week(datetime.now(timezone.utc).date())
+        said = WEEKLY_SAID.format(words=words) if words else NO_WEEKLY_QUESTION
     elif tool == "read_founding" and record["founding"]:
         kept_as = FOUNDING_LOOKED
         said = (FROM_RECORD.format(what="your founding record") + "\n\n"
@@ -3983,7 +4007,7 @@ def longer_waking(client, reading, record):
             model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
             tools=[*LOOK_TOOLS, *([READ_PROPOSAL] if PROPOSALS else []),
                    *([READ_WELCOME] if WELCOME_LETTER else []), *NOTEBOOK_TOOLS,
-                   *COMMONS_LINES_TOOLS],
+                   *COMMONS_LINES_TOOLS, *([READ_WEEKLY_QUESTION] if WEEKLY_QUESTION else [])],
             **({"tool_choice": {"type": "none"}} if closed else {}),
             messages=sent,
         )

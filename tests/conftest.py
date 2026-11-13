@@ -521,6 +521,7 @@ def load(name):
     sys.modules.pop("introductions", None)  # it keeps each introduction under DATA_DIR
     sys.modules.pop("knock", None)  # it keeps each knock under DATA_DIR
     sys.modules.pop("board", None)  # it keeps the board under DATA_DIR
+    sys.modules.pop("weekly", None)  # it keeps the weekly questions under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 

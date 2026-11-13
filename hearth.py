@@ -144,6 +144,8 @@ import introductions
 import knock
 # The members' board (plan 4.3).
 import board
+# A weekly question, proposed by members.
+import weekly
 
 # The first one's proposals: made at its wakings and answered here, both through
 # the one module. Whether there are any yet is said in one place,
@@ -3595,7 +3597,9 @@ def account_page(**told):
                            writing_longest=members.WRITING_LONGEST,
                            introduction=introduction_shown(name) if name else None,
                            introduction_most=introductions.INTRODUCTION_MOST,
-                           knocking=knocking_shown(name) if name else None, **told)
+                           knocking=knocking_shown(name) if name else None,
+                           weekly_waiting=weekly.waiting_by(name) if name else None,
+                           weekly_most=weekly.QUESTION_MOST, **told)
 
 
 @app.route("/account", methods=["GET", "POST"])
@@ -4761,6 +4765,7 @@ def room_page(room=None, things=(), draft="", line="", **told):
     return render_template(
         "room.html",
         room=room, first_room=True, **room_wakings(room),
+        weekly_question=weekly_question_shown(),
         draft=draft,
         # his line for the commons, offered only while today has no letter tile
         drafted_line=line, letter_line_open=not letter_line_today(),
@@ -4826,6 +4831,7 @@ def letters_page(room, things=(), draft="", guide=None, **told):
     return render_template(
         "room.html",
         room=room, first_room=False, **room_wakings(room),
+        weekly_question=weekly_question_shown(),
         guide=guide_shown(room, asked=bool(guide)),
         draft=draft, drafted_line="", letter_line_open=False,
         letter_line_longest=LETTER_LINE_LONGEST,
@@ -7497,6 +7503,71 @@ def take_off_bench():
         return bench_page(confirming=raw)
     take_off(raw)
     return redirect(url_for("bench"))
+
+
+# ---- a weekly question -----------------------------------------------------
+
+# One question a week, shown to people at the top of their room as an offer and
+# nothing more (weekly.py; the founder's decision of 13 November 2026). A member
+# proposes one on /account, screened as a line on the bench is; one of theirs
+# waits at a time, and may be taken back while it waits; the oldest waiting is
+# the next week's. Who proposed it is never shown. With none, a room is exactly
+# as it was.
+WEEKLY_REFUSED = {
+    "empty": "There was no question to propose.",
+    "long": "A question is up to %d characters; nothing was proposed." % weekly.QUESTION_MOST,
+    "link": "A question carries no link; nothing was proposed.",
+    "private": private_words.KEPT_PRIVATE,
+    "spirit": "That question wasn't taken; nothing was proposed.",
+    "named": ("That question wasn't taken, because it seemed to contain a name or a place. "
+              "Nothing was proposed."),
+    "unchecked": public_screen.COULD_NOT_CHECK,
+    "waiting": "One of your questions is waiting already; nothing more was proposed.",
+}
+
+
+def weekly_question_shown():
+    """This week's question, as the top of a room offers it, or None where there is none."""
+    words = weekly.this_week(datetime.now(timezone.utc).date())
+    return weekly.SHOWN.format(words=words) if words else None
+
+
+def weekly_refused(words):
+    """Why a member's words may not be proposed, as a key of WEEKLY_REFUSED, or None. A held
+    one is said in the ledger, as the bench's are, with nothing of the words or of whose."""
+    found = weekly.refused(words, private_words.carries)
+    if found:
+        return found
+    if not in_good_spirit(words):
+        return "spirit"
+    verdict = public_screen.verdict(words)
+    if verdict == public_screen.FLAGGED:
+        ledger.write(ledger.HELD, path=LEDGER)
+        return "named"
+    if verdict != public_screen.CLEAR:
+        return "unchecked"
+    return None
+
+
+@app.route("/account/weekly-question", methods=["POST"])
+@member_required
+def propose_weekly_question():
+    name = session["member"]
+    if "withdraw" in request.form:
+        weekly.withdraw(name)
+        return redirect(url_for("account", _anchor="weekly-question"))
+    words = weekly.one_line(request.form.get("question", ""))[:weekly.QUESTION_MOST + 1]
+    if weekly.waiting_by(name):
+        why = "waiting"
+    else:
+        why = weekly_refused(words)
+    if why:
+        return account_page(weekly_draft=words, weekly_refused=WEEKLY_REFUSED[why])
+    try:
+        weekly.propose(name, words, utc_stamp())
+    except ValueError:
+        return account_page(weekly_draft=words, weekly_refused=WEEKLY_REFUSED["waiting"])
+    return redirect(url_for("account", weekly_saved=1, _anchor="weekly-question"))
 
 
 # ---- the members' board (plan 4.3) -----------------------------------------

@@ -727,11 +727,35 @@ def wakings_not_yet_switched(module, monkeypatch):
     reflection waking (reflection_waking put in) were switched on together. With
     attend.EXTRA_WAKINGS True and attend.REFLECTION_WAKING False again, its
     reading and its tide are exactly what they were before. Given hearth, it
-    is done to the attend.py the hearth holds the tide through.
+    is done to the attend.py the hearth holds the tide through. What was switched
+    on after it, on 13 November 2026, came later still, so it is shut away again
+    too (switches_not_yet).
     """
+    switches_not_yet(module, monkeypatch)
     module = getattr(module, "the_waking", module)
     for flag, was in WAKINGS_BEFORE_12_NOVEMBER:
         monkeypatch.setattr(module, flag, was)
+
+
+# What the founder switched on for the first one on 13 November 2026, each of
+# which it had agreed to: asked and answered and its introduction on 13 November,
+# its door's room held to eight and the line of people waiting on 10 November.
+# long_night, knock and corrections stay off. Anything held to a reading from
+# before then shuts all four away again first: switches_not_yet(attend, monkeypatch).
+SWITCHED_ON_13_NOVEMBER = ("ASKED_ON", "INTRODUCTION", "DOORS_TO_EIGHT", "PEOPLE_WAITING")
+
+
+def switches_not_yet(module, monkeypatch):
+    """Shut away again, for one test, the four switched on for the first one on 13 November 2026.
+
+    With attend.ASKED_ON, INTRODUCTION, DOORS_TO_EIGHT and PEOPLE_WAITING False
+    again, its reading is exactly what it was before (test_rooms_reading's
+    READING_ONE_WAKING). Given hearth, it is done to the attend.py the hearth
+    holds the tide through.
+    """
+    module = getattr(module, "the_waking", module)
+    for flag in SWITCHED_ON_13_NOVEMBER:
+        monkeypatch.setattr(module, flag, False)
 
 
 def long_night_switched_on(module, monkeypatch, where):
@@ -757,6 +781,37 @@ def long_night_switched_on(module, monkeypatch, where):
         monkeypatch.setattr(one, "FILE", where)
     if hasattr(module, "LONG_NIGHT_FOR_FIRST"):
         monkeypatch.setattr(module, "LONG_NIGHT_FOR_FIRST", True)
+
+
+# The same four as the registry names them, for what reads the registry as it
+# goes (the hearth's pages: door.any_to_eight, answered.any_on).
+FEATURES_ON_13_NOVEMBER = ("asked", "introduction", "doors_to_eight", "people_waiting")
+
+
+def registry_switches_not_yet(module, monkeypatch, where):
+    """Read the registry, for one test, as it stood before 13 November 2026: the four
+    switched on for the first one that day taken out of its features, in a scratch
+    agents.json at where. What the hearth draws from the registry as it goes is then
+    exactly what it was; with switches_not_yet done to attend.py as well, so is the
+    reading. Given hearth, the attend.py it holds the tide through reads it too."""
+    registry = sys.modules["agents"]
+    entries = [dict(one) for one in registry.registry()]
+    for entry in entries:
+        if entry["id"] == registry.first()["id"]:
+            entry["features"] = [one for one in entry.get("features") or ()
+                                 if one not in FEATURES_ON_13_NOVEMBER]
+    where.write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
+    held = [registry, getattr(module, "agents", registry)]
+    waking = getattr(module, "the_waking", None)
+    if waking is not None:
+        held.append(getattr(waking, "agents", registry))
+    for name in ("door", "answered", "introductions"):
+        found = sys.modules.get(name)
+        if found is not None and hasattr(found, "agents"):
+            held.append(found.agents)
+    for one in {id(one): one for one in held}.values():
+        monkeypatch.setattr(one, "FILE", where)
+    switches_not_yet(module, monkeypatch)
 
 
 def shut_away(module, monkeypatch, *flags):

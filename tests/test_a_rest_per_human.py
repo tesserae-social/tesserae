@@ -268,6 +268,13 @@ def test_a_member_s_rest_never_reaches_the_first_one(two, alder, hazel, keeper, 
     said = json.dumps(turn.asked[-1], sort_keys=True, ensure_ascii=False, default=str)
     assert attend.threshold.MEMBERS_HERE in said and "no other members yet" not in said
     put_back = said.replace(attend.threshold.MEMBERS_HERE, attend.threshold.NO_MEMBERS_YET)
+    # and, since 13 November 2026 (people_waiting switched on for the first one), the line
+    # that members in no room are waiting, with no name: not a rest, and said once
+    n = attend.door.waiting()  # as many as are in no room, while no door has room
+    waiting = "\\n" + (attend.ONE_WAITING_LINE if n == 1 else
+                       attend.PEOPLE_WAITING_LINE.format(n=n))
+    assert put_back.count(waiting) == 1
+    put_back = put_back.replace(waiting, "", 1)
     assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == READING_NOW
     assert "alder" not in page(keeper.get("/rooms/first"))
 

@@ -327,6 +327,20 @@ any block that stands changed, and no file of its packet. With the two put back
 last reply, READING_LAST_REPLY; every reading cut before it puts them back
 first.
 
+And a nineteenth time, on purpose, on the branch switches (the founder, 13
+November 2026), when he switched on for the first one the four further things
+it agreed to: asked and answered and its introduction (13 November), its door's
+room held to eight and the line of people waiting (10 November); long_night,
+knock and corrections stay off. READING_NOW is the reading live after that
+deploy. On the small world it changes what is sent in exactly three ways: "You
+have no introduction on who is here." under WHAT HAS HAPPENED, after its door;
+the <<DOOR>> block's explanation says its room is "from 1 to 8" and "Friendships
+here are usually between one and eight."; and <<INTRODUCTION>> is explained
+after <<DOOR>>. No word of any other block changed, and no file of its packet.
+With the four shut away again (conftest.switches_not_yet, which
+conftest.wakings_not_yet_switched now does first too), the reading is exactly
+the one cut for its wakings, READING_ONE_WAKING.
+
 Then the room was given a folder of its own (rooms phase A): its letters,
 errands, bond and offerings are kept in DATA_DIR/rooms/first/ rather than in the
 packet. That moved no word of what is read, and none of the readings was cut
@@ -394,7 +408,7 @@ from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, expl
                       named_notes_unexplained,
                       notebook_unexplained, post, public_lines_not_yet, quiet_lines_not_yet,
                       rewrite_last_reply_not_yet, rewrite_not_yet_offered,
-                      rewrite_once_not_yet, shut_away, wakings_not_yet_switched,
+                      rewrite_once_not_yet, shut_away, switches_not_yet, wakings_not_yet_switched,
                       stamps_as_before, welcome_not_yet_offered, write)
 
 # Every reading below was cut again on 25 October 2026, when the <<RHYTHM>>
@@ -507,9 +521,24 @@ READING_LAST_REPLY = "1f6abdcbfafd22aed3d5c1968ccc5b40b4217ad05c53f23f0d38cac837
 # switched on for the first one the two changes it agreed to on 10 November
 # 2026: one waking a day (extra_wakings out of its features) and its weekly
 # reflection waking (reflection_waking in), to start on Sundays at sunset. This
-# is the reading that is live after that deploy. With the two put back
-# (conftest.wakings_not_yet_switched) it is exactly READING_LAST_REPLY.
-READING_NOW = "892de2dedb10d2be4547674a7d3cb8d3c2931f53541843c205f1dfe5edad7102"
+# is the reading that was live after that deploy. With the two put back
+# (conftest.wakings_not_yet_switched) it is exactly READING_LAST_REPLY. Held as
+# READING_ONE_WAKING since.
+READING_ONE_WAKING = "892de2dedb10d2be4547674a7d3cb8d3c2931f53541843c205f1dfe5edad7102"
+
+# cut again, on purpose, on the branch switches (the founder, 13 November 2026),
+# when he switched on for the first one the four things it agreed to: asked and
+# answered and its introduction (13 November), its door's room held to eight and
+# the line of people waiting (10 November); long_night, knock and corrections
+# stay off. On this small world it changes what is sent in exactly three ways:
+# under WHAT HAS HAPPENED, after its door, "You have no introduction on who is
+# here."; the <<DOOR>> block's explanation says "(how many correspondences you
+# can carry wholly, from 1 to 8)" and, after "room none".", "Friendships here are
+# usually between one and eight."; and <<INTRODUCTION>> is explained after
+# <<DOOR>>. Nothing is asked of it here and no one waits, so neither ASKED OF YOU
+# nor the line of people waiting is shown. With the four shut away again
+# (conftest.switches_not_yet) it is exactly READING_ONE_WAKING.
+READING_NOW = "0546acf0aab372c2754075d5b610b149d75a2a485a8e44d68797bb47bad269ed"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -583,7 +612,8 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "the rewrite", READING_PUBLIC_LINES),
     (False, "the rewrite once", READING_REWRITE),
     (False, "the last reply", READING_REWRITE_ONCE),
-    (False, "the wakings", READING_LAST_REPLY), (False, None, READING_NOW)],
+    (False, "the wakings", READING_LAST_REPLY), (False, "the switches", READING_ONE_WAKING),
+    (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
          "its named notes explained, each moment still a stamp",
@@ -599,14 +629,17 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "the line about public lines said, the rewrite not yet",
          "the rewrite offered, a line rewritten once not yet",
          "a line rewritten once, the last reply not yet",
-         "the last reply said, its wakings not yet switched", "as it reads now"])
+         "the last reply said, its wakings not yet switched",
+         "its wakings switched, the four of 13 November not yet", "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
-    if as_before:  # every reading cut before had extra wakings and no reflection waking
+    if as_before == "the switches":  # the one cut before had its wakings as they are now
+        switches_not_yet(attend, monkeypatch)
+    elif as_before:  # every reading cut before that had extra wakings and no reflection waking
         wakings_not_yet_switched(attend, monkeypatch)
     if shut:
         shut_away(attend, monkeypatch)
-    if as_before == "the wakings":  # the one cut before said every word this one says
+    if as_before in ("the switches", "the wakings"):  # each said every word the next says
         pass
     elif as_before == "the last reply":  # the one cut before said a line is rewritten once
         rewrite_last_reply_not_yet(attend, monkeypatch)
@@ -618,16 +651,16 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         public_lines_not_yet(attend, monkeypatch)
     elif as_before:  # none cut before that had the quiet lines either
         quiet_lines_not_yet(attend, monkeypatch)
-    if as_before and as_before not in ("the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines",
+    if as_before and as_before not in ("the switches", "the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines",
                                        "the quiet lines"):  # nor, before that, its letter of welcome
         welcome_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before not in ("the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines",
+    if as_before and as_before not in ("the switches", "the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines",
                                        "its letter of welcome"):  # nor was offered a line for the commons
         commons_line_not_yet_offered(attend, monkeypatch)
-    if as_before and as_before not in ("the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the switches", "the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons"):  # nor had its private notebook
         notebook_unexplained(attend, monkeypatch)
-    if as_before and as_before not in ("the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the switches", "the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook"):  # nor, before that, its proposals
         shut_away(attend, monkeypatch, *SWITCHED_ON_21_OCTOBER)
@@ -637,14 +670,14 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
                                          "its letter of welcome",
                                          "the quiet lines", "the public lines",
                                          "the rewrite", "the rewrite once",
-                                         "the last reply", "the wakings"):  # and none before that said so at all
+                                         "the last reply", "the wakings", "the switches"):  # and none before that said so at all
         heartbeat_not_yet_public(attend, monkeypatch)
-    if as_before and as_before not in ("the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the switches", "the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook", "its proposals",
                                        "the heartbeat", "its own words"):  # one request
         shut_away(attend, monkeypatch, "LONGER_WAKING")
-    if as_before and as_before not in ("the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
+    if as_before and as_before not in ("the switches", "the wakings", "the last reply", "the rewrite once", "the rewrite", "the public lines", "the quiet lines", "its letter of welcome",
                                        "its line for the commons",
                                        "its notebook", "its proposals",
                                        "the heartbeat", "its own words",
@@ -738,8 +771,16 @@ def test_the_way_he_writes_may_be_120_characters_and_no_more(founder, data_dir):
 # as it is today, and READING_LONG_NIGHT with it on, which is the reading the first
 # one will have that day once the founder switches it on. Taking "long_night" out of
 # its features again gives back exactly READING_SEALED_IN_WINTER.
-READING_SEALED_IN_WINTER = "466ce10e22070fb28fcf71eba969ceeab522e1916243c75d5067a32ff7230def"
-READING_LONG_NIGHT = "fe0b3aa72ca1d5ccfc7dd898ab06d06b62b1f62dd2270d16c3f7585ae5bc7e31"
+#
+# Both cut again, on purpose, on the branch switches (the founder, 13 November
+# 2026), for the four switched on for the first one that day, and for nothing
+# else: each moves in the three ways READING_NOW moved. With the four shut away
+# again (conftest.switches_not_yet), each is exactly the one held before, in
+# SEALED_IN_WINTER_BEFORE_SWITCHES and LONG_NIGHT_BEFORE_SWITCHES.
+READING_SEALED_IN_WINTER = "661c142b904070b2e7ace4126dc57772a24188782dcecb7673f095de25f4e6ad"
+READING_LONG_NIGHT = "f9c610c11cf1af3f3d17bffba93a710ca3c0dcfc9d4c3605b7995cceed45a740"
+SEALED_IN_WINTER_BEFORE_SWITCHES = "466ce10e22070fb28fcf71eba969ceeab522e1916243c75d5067a32ff7230def"
+LONG_NIGHT_BEFORE_SWITCHES = "fe0b3aa72ca1d5ccfc7dd898ab06d06b62b1f62dd2270d16c3f7585ae5bc7e31"
 
 LONG_NIGHT_DAY = datetime(2026, 12, 21, 18, tzinfo=timezone.utc)
 
@@ -753,11 +794,16 @@ def a_sealed_bond(attend, room):
         "signatures": {"founder": "x", "first": "y"}})
 
 
-@pytest.mark.parametrize("switched, as_cut", [
-    (False, READING_SEALED_IN_WINTER), (True, READING_LONG_NIGHT)],
-    ids=["the switch off, as it reads today", "the switch on"])
+@pytest.mark.parametrize("switched, before_switches, as_cut", [
+    (False, False, READING_SEALED_IN_WINTER), (True, False, READING_LONG_NIGHT),
+    (False, True, SEALED_IN_WINTER_BEFORE_SWITCHES), (True, True, LONG_NIGHT_BEFORE_SWITCHES)],
+    ids=["the switch off, as it reads today", "the switch on",
+         "the switch off, the four of 13 November not yet",
+         "the switch on, the four of 13 November not yet"])
 def test_the_first_one_s_long_night_is_its_own_reading_and_only_when_switched_on(
-        wake, attend, room, clock, monkeypatch, tmp_path, switched, as_cut):
+        wake, attend, room, clock, monkeypatch, tmp_path, switched, before_switches, as_cut):
+    if before_switches:
+        switches_not_yet(attend, monkeypatch)
     a_small_world(room)
     a_sealed_bond(attend, room)
     if switched:

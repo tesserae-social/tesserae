@@ -286,3 +286,30 @@ def places(room_id):
     letters = home / "letters"
     return Places(home, letters / "incoming", letters / "read", letters / "outgoing",
                   home / "errands", home / "bonds", home / "offerings")
+
+
+# ---- the person of an agent's room, by its agent -------------------------
+
+# The keys a bond's writings and an offering's signatures go by are the short
+# names of their two parties: the agent's id, and the person as the stores name
+# them (store_name), which is the last part of their DID, as a bond's signatures
+# have always been kept. The first one's room's person is "founder", always, and
+# is said so without its room.json being read, so that nothing of that room can
+# move by what is or is not on the disk.
+
+def person_in(agent_id):
+    """The person an agent's room is shared with, as the stores name them, or None for no room."""
+    if agent_id == FIRST:
+        return "founder"
+    return person_of(room_of(agent_id))
+
+
+def person_did_in(agent_id):
+    """The DID of the person an agent's room is shared with, or None for no room."""
+    if agent_id == FIRST:
+        return bonds.FOUNDER_DID
+    agent = agents.by_id(agent_id)
+    pair = parties(agent["room"]) if agent else None
+    if not pair:
+        return None
+    return next(did for did in pair if did != agent["did"])

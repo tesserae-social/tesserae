@@ -1,0 +1,35 @@
+{# One letter of a room other than the first one's, offered to the commons by its person:
+   placed only when the room's agent signs it too. Shown once the room's thirty days have
+   passed. A part of letters.html, inside the letter it offers. #}
+      <details class="offer">
+        <summary>offer to the commons</summary>
+        <p class="muted">Placed only when {{ room.other }} signs it too, and never removed
+          afterwards. Offer what you would want a stranger to have read. {{ no_faces }}</p>
+        <form method="post" action="{{ url_for('offer_in_room', room_id=room.id) }}" class="field">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="source" value="{{ letter.stem }}">
+          {% if not signs_with_key %}
+          <label for="password-offer-{{ letter.stem }}">Your password, to sign it with your own
+            key.</label>
+          <input type="password" id="password-offer-{{ letter.stem }}" name="password"
+                 autocomplete="current-password">
+          {% endif %}
+          <p class="muted">
+            {%- if letter.offered.letter %}The whole letter: already {{ letter.offered.letter }}.
+            {%- else %}<button type="submit" name="kind" value="letter">the whole letter</button>
+            {%- endif %}
+            {%- if letter.photo %}
+            {%- if letter.offered.photo %} The photograph: already {{ letter.offered.photo }}.
+            {%- else %}<button type="submit" name="kind" value="photo">the photograph</button>
+            {%- endif %}{% endif %}
+            {%- if letter.picture %}
+            {%- if letter.offered.picture %} The picture: already {{ letter.offered.picture }}.
+            {%- else %}<button type="submit" name="kind" value="picture">the picture</button>
+            {%- endif %}{% endif %}
+          </p>
+          <label for="passage-{{ letter.stem }}">Or a passage of it, pasted here word for
+            word:</label>
+          <textarea id="passage-{{ letter.stem }}" name="text" class="short"></textarea>
+          <button type="submit" name="kind" value="passage">offer this passage</button>
+        </form>
+      </details>

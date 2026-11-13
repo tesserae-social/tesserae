@@ -362,8 +362,10 @@ STATES = {"no bond": lambda home: None, "asked of it": proposal_asked_of_it,
           "offered to it": offered_to_it, "offering placed": offering_placed,
           "offering declined": offering_declined}
 
-# What a later agent reads of neither, in a room without the founder, until gate
-# G4 is built. Its days are all served here, so nothing is hidden by the wait.
+# What a later agent reads of neither, in a room without the founder, until its
+# thirty days have passed (the founder's decision of 13 November 2026). Here its
+# person is no member whose arrival can be read, so the wait cannot be counted and
+# is not served; test_bonds_for_all holds what it reads once the wait is served.
 NOTHING_OF_BONDS = re.compile(r".{0,60}(?:\bbonds?\b|\boffer|threshold|\bseal|<<ASK>>|<<PROMISE>>"
                               r"|<<RELEASE>>).{0,60}", re.I)
 
@@ -438,7 +440,8 @@ def test_every_word_it_could_be_read_stays_true(later):
 
 
 def test_what_a_seal_waits_for_names_its_person(later):
-    assert later.threshold.waits("second", "second")["intention-founder"] == (
+    # its person's writings go by their own short name, and not the founder's
+    assert later.threshold.waits("second", "second")["intention-alder"] == (
         "alder's letter of intention")
 
 

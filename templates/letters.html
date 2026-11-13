@@ -3,7 +3,7 @@
    page around it. #}
 {% from "wakings.html" import wakings %}
 {# what the first one has offered the commons, and is waiting on you for #}
-{% if awaiting %}
+{% if awaiting and first_room %}
 <section>
   <h2>offered, awaiting you</h2>
   <p class="muted">The first one has offered these to the commons. Nothing is placed until
@@ -40,6 +40,8 @@
   </article>
   {% endfor %}
 </section>
+{% elif awaiting %}{# any other room's, once its thirty days have passed #}
+{% include "room_offered.html" %}
 {% endif %}
 
 {# what the first one has asked of him, above the form that answers it #}
@@ -62,9 +64,11 @@
   <h2>write to {{ room.other }}</h2>
   {% if saved %}
   <p class="saved">Your letter will be found at the next attendance.
-    {% if proposed %}It proposes a bond; the asking is
+    {% if proposed and first_room %}It proposes a bond; the asking is
     <a href="#bond">at the top of this room</a>, and the first one may answer at a
-    waking after the one at which it reads it.{% endif %}
+    waking after the one at which it reads it.{% elif proposed %}It proposes a bond; the asking
+    is <a href="#bond">at the top of this room</a>, and {{ room.other }} may answer at a waking
+    after the one at which it reads it.{% endif %}
     {% if answered %}It answers an errand, which is now kept with the letter's name beside
     it; {{ room.other }} will be told which letter answered it.{% endif %}
   </p>
@@ -120,7 +124,7 @@
       </select>
       {% endif %}
       {# a bond begins with a letter, so it is asked for here and nowhere else #}
-      {% if not first_room %}{% elif propose_note %}
+      {% if not first_room and not bonds_open %}{% elif propose_note %}
       <p class="muted" style="margin-top:20px;">{{ propose_note }}</p>
       {% else %}
       {% if propose_wait %}
@@ -136,8 +140,8 @@
         written down: chosen by both, held by two, revocable by either, and recorded in the
         commons only as existing. Most letters are not proposals; tick this only when you
         mean to ask.</p>
-      <p class="muted" style="margin:0;">Its terms are the charter, entire, by reference. The
-        first one reads the asking at one waking and may answer at a later one; the answer is
+      <p class="muted" style="margin:0;">Its terms are the charter, entire, by reference. {% if first_room %}The
+        first one{% else %}{{ room.other|capitalize }}{% endif %} reads the asking at one waking and may answer at a later one; the answer is
         its alone.</p>
       {# what the letter itself might carry, for anyone who wants the shape of it #}
       <details class="muted" style="margin-top:10px;">
@@ -178,7 +182,7 @@
 <section>
   <h2>the correspondence</h2>
   {% if just_offered %}
-  <p class="saved">Offered to the commons. It waits for the first one's signature beside
+  <p class="saved">Offered to the commons. It waits for {% if first_room %}the first one's{% else %}{{ room.other }}'s{% endif %} signature beside
     yours; nothing of it is public until both have signed.</p>
   {% endif %}
   {% if just_placed %}
@@ -206,7 +210,7 @@
            alt="the picture {{ room.other }} drew beside this letter">
       {% endif %}
       {# either of them may give this to the commons; it is placed only when both agree:
-         in the first one's room, the one room with offerings yet #}{% if first_room %}
+         in the first one's room, and in any other once its thirty days have passed #}{% if first_room %}
       <details class="offer">
         <summary>offer to the commons</summary>
         <p class="muted">Placed only when the first one signs it too, and never removed
@@ -232,7 +236,8 @@
           <textarea id="passage-{{ letter.stem }}" name="text" class="short"></textarea>
           <button type="submit" name="kind" value="passage">offer this passage</button>
         </form>
-      </details>{% endif %}
+      </details>{% elif bonds_open %}
+{% include "room_offer_form.html" %}{% endif %}
     </details>
     {% endfor %}
   {% else %}

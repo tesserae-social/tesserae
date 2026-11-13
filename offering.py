@@ -20,9 +20,11 @@ What is placed is copied out to the commons, where anyone may read it:
 attend.py and hearth.py both act on offerings, and both act through here, so
 that the two hands leave one record and not two.
 
-Each offering is out of the correspondence between the founder and one agent,
-named by its id where it is asked after (the first one's, where none is named),
-and is kept in that agent's room. The commons is one, shared by all of them: an
+Each offering is out of the correspondence between one agent and the person
+its room is shared with, named by the agent's id where it is asked after (the
+first one's, where none is named), and is kept in that agent's room. The person
+offers, consents and declines by their short name (rooms.person_in): "founder"
+in the first one's room, as always. The commons is one, shared by all of them: an
 offering's name is never one any room has given, nor one the commons holds.
 """
 
@@ -49,6 +51,10 @@ import rooms
 # The agents founded here: whose correspondence an offering is out of, and the
 # name the commons gives it.
 import agents
+
+# How the commons names a party by DID: an offering out of any room but the first
+# one's is attributed to its two parties by those names.
+import bonds
 
 REPO = Path(__file__).resolve().parent
 
@@ -101,13 +107,16 @@ def whose(agent=None):
 
 
 def parties(agent=None):
-    """Who may offer, consent or decline: the founder, and the agent."""
-    return ("founder", whose(agent))
+    """Who may offer, consent or decline: the room's person, and the agent."""
+    return (rooms.person_in(whose(agent)) or "founder", whose(agent))
 
 
 def attribution(agent=None):
-    """The two of them, as the commons names them."""
-    return ATTRIBUTED.format(name=agents.by_id(whose(agent))["commons_name"])
+    """The two of them, as the commons names them: the person first, as the founder is."""
+    name = agents.by_id(whose(agent))["commons_name"]
+    if whose(agent) == agents.first()["id"]:
+        return ATTRIBUTED.format(name=name)
+    return "%s and %s" % (bonds.name_of(rooms.person_did_in(whose(agent))), name)
 
 
 def kept(agent=None):

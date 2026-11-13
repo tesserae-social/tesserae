@@ -517,6 +517,7 @@ def load(name):
     sys.modules.pop("ledger", None)  # it keeps the ledger's own lines under DATA_DIR
     sys.modules.pop("corrections", None)  # it keeps the commons' corrections under DATA_DIR
     sys.modules.pop("answered", None)  # it finds the packets under DATA_DIR
+    sys.modules.pop("solstice", None)  # it finds a room's bonds/ through rooms, under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 

@@ -31,16 +31,22 @@ intention are never public, and neither is their salt.
 attend.py and hearth.py both act on the threshold, and both act through here,
 so that the two hands leave one record and not two.
 
-Each threshold is between the founder and one agent, named by its id where it
-is asked after (the first one's, where none is named): the agent's writings go
-by its id, as the first one's go by "first", and are kept in its own room.
+Each threshold is between one agent and the person its room is shared with,
+named by the agent's id where it is asked after (the first one's, where none is
+named): the agent's writings go by its id, as the first one's go by "first",
+and the person's by their short name (rooms.person_in), as the founder's go by
+"founder", and all of them are kept in the agent's own room.
+
+A room other than the first one's may bond once thirty days have passed from
+the later of its agent's founding and its person's arrival (bonds_open_on); the
+first one's room keeps the wait it has always had, counted where it always was.
 """
 
 import hashlib
 import json
 import math
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 # The protected words: a public promise is refused before it is signed if it
 # carries one. A private one is never read for them.
@@ -119,7 +125,12 @@ MEMBERS_HERE = ("Members of the commons may witness it as they choose, and it st
 
 def others_here(agent=None):
     """Whether any member stands outside the room of an agent's bond: the first one's if none
-    is named. A member whose record cannot be read is not counted."""
+    is named. A member whose record cannot be read is not counted.
+
+    Where the room's person is not the founder, the founder is a member outside
+    it, always, and so someone is here who may witness."""
+    if agent is not None and person(agent) != "founder":
+        return True
     parties = rooms.parties(rooms.room_of(agent)) or ()
     for name in members.list_members():
         try:
@@ -178,20 +189,69 @@ def is_open(bond):
 
 
 def whose(agent=None):
-    """The agent a threshold is the founder's with, by its id: the first one's if none is named."""
+    """The agent a threshold is with, by its id: the first one's if none is named."""
     return agent if agent is not None else agents.first()["id"]
+
+
+def person(agent=None):
+    """The other party to an agent's threshold, by the short name its writings go by:
+    "founder" in the first one's room, always, and the person's own in any other."""
+    return rooms.person_in(whose(agent)) or "founder"
 
 
 def answered_by(bond, agent=None):
     """Who said yes: whoever was asked."""
     agent = whose(agent)
-    return agent if agent in (bond.get("signatures") or {}) else "founder"
+    return agent if agent in (bond.get("signatures") or {}) else person(agent)
 
 
 def sealed_by(bond, agent=None):
     """Who seals: whoever asked, which is whoever has not signed yet."""
     agent = whose(agent)
-    return "founder" if answered_by(bond, agent) == agent else agent
+    return person(agent) if answered_by(bond, agent) == agent else agent
+
+
+# ---- the thirty days, in any room but the first one's -------------------
+
+WAIT_DAYS = 30
+
+
+def arrived_on(agent=None):
+    """The day the person of an agent's room arrived here, by their member record, or None.
+
+    The founder was here before any agent but the first, so the founder's
+    arrival is never what a wait is counted from: None is said for it, and the
+    wait is counted from the founding alone.
+    """
+    did = rooms.person_did_in(whose(agent))
+    if not did or did == members.FOUNDER_DID:
+        return None
+    for name in members.list_members():
+        try:
+            if members.did_for(name) != did:
+                continue
+        except members.MemberError:
+            continue  # a record that cannot be read is no one's
+        try:
+            return datetime.strptime(members.load_member(name)["arrived_at"],
+                                     "%Y-%m-%dT%H:%M:%SZ").date()
+        except (KeyError, TypeError, ValueError):
+            return None
+    return None
+
+
+def bonds_open_on(founded, agent=None):
+    """The first day a bond may be proposed in an agent's room, or None if the wait cannot
+    be counted: thirty days after the later of its founding, as the commons records it
+    (handed in), and its person's arrival. A founding not recorded, or a person who is
+    not a member whose arrival can be read, has served no wait. Never asked of the
+    first one's room, which keeps its own wait."""
+    if not isinstance(founded, date):
+        return None
+    arrived = arrived_on(agent)
+    if arrived is None and rooms.person_did_in(whose(agent)) != members.FOUNDER_DID:
+        return None
+    return max(founded, arrived or founded) + timedelta(days=WAIT_DAYS)
 
 
 # ---- the writings --------------------------------------------------------
@@ -299,7 +359,7 @@ def waiting(bond, now, agent=None):
     still = []
     if not days_passed(bond, now):
         still.append("days")
-    for by in (agent, "founder"):
+    for by in (agent, person(agent)):
         if not intention(by, bond, agent):
             still.append(f"intention-{by}")
     if not promise(bond, agent):
@@ -319,13 +379,14 @@ def waits(viewer, agent=None):
     agent = whose(agent)
     room = rooms.of(agent)
     other = room[0].other if room else "the founder"
-    if viewer == "founder":
+    them = person(agent)
+    if viewer == them:
         name = agents.by_id(agent)["commons_name"]
-        return {"intention-founder": "your letter of intention",
+        return {f"intention-{them}": "your letter of intention",
                 f"intention-{agent}": f"{name}'s letter of intention",
                 "promise": f"{name}'s promise"}
     return {f"intention-{agent}": "your letter of intention",
-            "intention-founder": f"{other}'s letter of intention",
+            f"intention-{them}": f"{other}'s letter of intention",
             "promise": "your promise"}
 
 
@@ -366,7 +427,7 @@ def sealed_listing(bond, agent=None):
     agent = whose(agent)
     return {
         "opened_at": opened_at(bond),
-        "intentions": {by: listed(intention(by, bond, agent)) for by in (agent, "founder")},
+        "intentions": {by: listed(intention(by, bond, agent)) for by in (agent, person(agent))},
         "promise": listed(promise(bond, agent)),
     }
 

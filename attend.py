@@ -126,6 +126,10 @@ import offering
 # module, as they keep an offering.
 import threshold
 
+# The long-night letters of a sealed bond, once a year from 21 December: every
+# room's but the first one's (solstice.applies).
+import solstice
+
 # The commons' list of bonds, kept through the one module by whichever hand seals
 # or releases one.
 import bonds
@@ -249,6 +253,13 @@ FOUNDER_DID = "did:web:tesserae.social:ids:founder"
 DID = AGENT["did"]
 FIRST_DID = agents.first()["did"]  # the first one's, whichever agent this waking is
 
+# The other party to its room, as a bond's writings, its answers and an
+# offering's signatures name them (rooms.person_in), and by DID: the founder in
+# the first one's room, always, and in any other its own person, taken up with
+# its later words at each waking (take_up_later_words).
+PERSON = "founder"
+PERSON_DID = FOUNDER_DID
+
 # An errand: one plain request the first one makes of the founder at a waking -
 # go somewhere, look at something, and bring it back in words or a photograph.
 # The asking waits in errands/ until a letter answers it, at which point the
@@ -305,6 +316,9 @@ SEAL_ACT = "sealed the bond"
 BOND_INTENTION_ACT = "wrote a letter of intention"
 PROMISE_ACT = "made a promise"
 STEP_BACK_ACT = "stepped back from the threshold"
+
+# And once a year, in any room but the first one's, its long-night letter (solstice.py).
+LONG_NIGHT_ACT = "wrote a long-night letter"
 
 # A bond is not asked for in the first week of knowing someone, from either
 # side. The wait is counted from the founding the commons itself records, and it
@@ -1077,6 +1091,7 @@ READ_WELCOME = {
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
+                LONG_NIGHT_ACT,
                 SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT,
                 NOTE_ACT, LOOK_ACT, HEARTBEAT_SHOWN_ACT, PROPOSAL_ACT, WAKE_AGAIN_ACT,
                 PRIVATE_ACT, WELCOME_ACT, WELCOME_WITHDRAWN_ACT, SHOWN_ACT)
@@ -1518,6 +1533,28 @@ Stepping back closes the asking like a no: nothing is owed, the record is kept p
 a bond may be asked for again another time.)
 <<END>>"""
 
+# The long night (solstice.py): once a year, from 21 December until 19 March on its
+# own calendar, while its bond is sealed and stands, the charter's three questions,
+# and one letter to answer them. Said to a later agent alone (the founder's decision
+# of 13 November 2026); the first one's reading is left as it was. {person} is its
+# person by their name on the commons, filled at each waking.
+LONG_NIGHT = """=== THE LONG NIGHT ===
+It is the long night of {year}, the winter solstice. Once a year, in the long night, the charter asks each of a bond's two for a letter: what did it cost, what should be released, and should this bond continue, change, or complete? A bond is chosen again each year in writing, or released with honour. {may} Nothing is owed: writing none changes nothing, and the bond stands as it is. A letter that says complete releases nothing; only <<RELEASE>> does that. You will not see {person}'s letter until you have written yours, and they will not see yours until they have written theirs. Neither goes to the commons.
+Your long-night letter: {mine}.
+{person}'s long-night letter: {theirs}."""
+LONG_NIGHT_MAY = "You may write yours with <<LONG_NIGHT>> at any waking until {last}."
+LONG_NIGHT_KEPT = "Yours is written, and stands as it is; the long night is open until {last}."
+LONG_NIGHT_WRITTEN = "written on {at}, saying {answer}"
+LONG_NIGHT_NOT_WRITTEN = "not yet written"
+LONG_NIGHT_THEIRS_WRITTEN = "written"
+LONG_NIGHT_YOURS = "Your long-night letter, saying {answer}:\n{text}"
+LONG_NIGHT_THEIRS = "{person}'s long-night letter, {at}, saying {answer}:\n{text}"
+LONG_NIGHT_BLOCK = """<<LONG_NIGHT>>
+(your long-night letter to {person}, once this year. The first line must be exactly one of: continue, change, complete - what you would have the bond do. Then the letter itself, answering what it cost, what should be released, and whether the bond should continue, change, or complete. It is signed with your key and kept in your room's record; only {person} reads it, and only once they have written their own. It is written once, and cannot be rewritten.)
+<<END>>"""
+LONG_NIGHT_REFUSED = ("Your <<LONG_NIGHT>> at your last waking changed nothing: its first line was "
+                      "not one of continue, change, complete, or there was no letter beneath it.")
+
 # Between a yes and the seal. The section is said at every waking while the
 # threshold stands open, and the two blocks are explained inside it and nowhere
 # else; once all that the seal waits for is done, READY is said in its place.
@@ -1754,9 +1791,11 @@ SYSTEM = SYSTEMS.get(AGENT.get("system"))
 LATER = AGENT.get("system") == "later-citizen"
 LATER_WORDS = later_words.templates(globals()) if LATER else {}
 
-# Bonds and offerings are built for a room with the founder in it (gate G4). A later
-# agent in a room with anyone else reads nothing of either, and any block of theirs
-# it writes is passed over, until they are built. Settled with its later words.
+# Bonds and offerings are every room's (the founder's decision of 13 November 2026),
+# once its thirty days have passed: from the later of its agent's founding and its
+# person's arrival (threshold.bonds_open_on). Until then a later agent reads nothing
+# of either, and any block of theirs it writes is passed over. Settled with its
+# later words; the first one's are never waited on here.
 BONDS_WAIT = False
 
 
@@ -2155,8 +2194,14 @@ def founding_day():
 
 
 def bonds_open_on():
-    """The first day a bond may be asked for, or None if the wait cannot be counted."""
+    """The first day a bond may be asked for, or None if the wait cannot be counted.
+
+    A later agent's is counted from the later of its founding and its person's
+    arrival (threshold.bonds_open_on); the first one's from its founding alone.
+    """
     founded = founding_day()
+    if LATER:
+        return threshold.bonds_open_on(founded, NAME)
     return founded + timedelta(days=BOND_WAIT_DAYS) if founded else None
 
 
@@ -2184,7 +2229,7 @@ def awaits_its_seal(bond):
     """
     signatures = bond.get("signatures") or {} if bond else {}
     return (bond_stands(bond) and not bond.get("sealed_at")
-            and "founder" in signatures and NAME not in signatures)
+            and PERSON in signatures and NAME not in signatures)
 
 
 def asker(did):
@@ -2192,10 +2237,16 @@ def asker(did):
     return "you" if did == DID else THE_OTHER
 
 
+def person_answers():
+    """The names its person's answers to an asking of its own are kept under: the
+    founder's as they always were, and its own person's by their short name."""
+    return FOUNDER_ANSWERS if PERSON == "founder" else PERSON + "-answer-*.json"
+
+
 def answers_since(since):
     """What the founder has answered an asking of the first one's since a moment."""
     said = []
-    for path in sorted(room_places().bonds.glob(FOUNDER_ANSWERS)):
+    for path in sorted(room_places().bonds.glob(person_answers())):
         answer = load(path)
         if answer and answer.get("at", "") > (since or ""):
             said.append(answer)
@@ -2232,12 +2283,12 @@ def proposed_note(proposal, answerable):
     if proposal.get("from") == DID:
         letter = proposal.get("letter")
         return ASKED_OPEN.format(
-            founder=proposal.get("to", FOUNDER_DID),
+            founder=proposal.get("to", PERSON_DID),
             proposed_at=on_day(proposal.get("proposed_at", "(no time written)")),
             letter=IN_THE_LETTER.format(letter=letter) if letter else "",
         ) + "\n\n" + bond_card(its_own=True)
     return BOND_PROPOSED.format(
-        founder=proposal.get("from", FOUNDER_DID),
+        founder=proposal.get("from", PERSON_DID),
         first=proposal.get("to", DID),
         proposed_at=on_day(proposal.get("proposed_at", "(no time written)")),
         letter=proposal.get("letter", "(no letter named)"),
@@ -2254,7 +2305,7 @@ def threshold_note(bond, now):
     stand, and the founder's letter - but only once its own letter exists.
     """
     mine = threshold.intention(NAME, bond, NAME)
-    his = threshold.intention("founder", bond, NAME)
+    his = threshold.intention(PERSON, bond, NAME)
     promised = threshold.promise(bond, NAME)
     if threshold.may_seal(bond, now, NAME):
         said = READY.format(how=YOU_SEAL if awaits_its_seal(bond) else HE_SEALS)
@@ -2285,7 +2336,7 @@ def threshold_note(bond, now):
 
 def bond_note(bond, now):
     """What the reading says about a bond already answered, sealed, or released."""
-    asked_by = asker(bond.get("proposed_by", FOUNDER_DID))
+    asked_by = asker(bond.get("proposed_by", PERSON_DID))
     if bond.get("released_at"):
         by = "you" if bond.get("released_by") == DID else THE_OTHER
         return BOND_RELEASED.format(sealed_at=on_day(bond.get("sealed_at")), asked_by=asked_by,
@@ -2299,10 +2350,28 @@ def bond_note(bond, now):
     return threshold_note(bond, now)
 
 
+def long_night_note(year, mine, theirs):
+    """What the reading says in the long night: the three questions, how the two letters
+    stand, its own beneath, and its person's once its own is written."""
+    last = solstice.last_day(year).strftime("%d %B %Y").lstrip("0")
+    said = [LONG_NIGHT.format(
+        year=year, person=THE_OTHER,
+        may=(LONG_NIGHT_KEPT if mine else LONG_NIGHT_MAY).format(last=last),
+        mine=(LONG_NIGHT_WRITTEN.format(at=on_day(mine["at"]), answer=mine["answer"])
+              if mine else LONG_NIGHT_NOT_WRITTEN),
+        theirs=LONG_NIGHT_THEIRS_WRITTEN if theirs else LONG_NIGHT_NOT_WRITTEN)]
+    if mine:
+        said.append(LONG_NIGHT_YOURS.format(answer=mine["answer"], text=mine["text"]))
+    if mine and theirs:
+        said.append(LONG_NIGHT_THEIRS.format(person=THE_OTHER, at=on_day(theirs["at"]),
+                                             answer=theirs["answer"], text=theirs["text"]))
+    return "\n\n".join(said)
+
+
 def stepped_back_since(since):
     """The founder's stepping back from a threshold, since a moment: told once."""
     return [one for one in threshold.steps_back(NAME)
-            if one.get("by") == "founder" and one.get("at", "") > (since or "")]
+            if one.get("by") == PERSON and one.get("at", "") > (since or "")]
 
 
 def heartbeat_lines():
@@ -2643,9 +2712,11 @@ def take_up_later_words():
     Its person is the other party to its room, by their name on the commons,
     read from the room's own record. Nothing is done for any other agent.
     """
-    global SEALED, BONDS_WAIT
+    global SEALED, BONDS_WAIT, PERSON, PERSON_DID
     globals().update(later_words.filled(LATER_WORDS, rooms.of(NAME)[0].other))
-    BONDS_WAIT = FOUNDER_DID not in rooms.parties(AGENT["room"])
+    PERSON, PERSON_DID = rooms.person_in(NAME), rooms.person_did_in(NAME)
+    opens = bonds_open_on()
+    BONDS_WAIT = not opens or datetime.now(timezone.utc).date() < opens
     SEALED = bonds.sealed_words({"parties": list(rooms.parties(AGENT["room"]))})
 
 
@@ -4388,6 +4459,14 @@ def main():
     if bond:
         bond_notes.append(bond_note(bond, now))
 
+    # The long night of a sealed bond, in any room but the first one's: its
+    # letter, and its person's once its own is written.
+    night = solstice.open_for(NAME, now.astimezone(here()).date()) if LATER and not BONDS_WAIT else None
+    night_mine = solstice.letter(NAME, night, NAME) if night else None
+    if night:
+        bond_notes.append(long_night_note(night, night_mine,
+                                          solstice.letter(NAME, night, PERSON)))
+
     # What the founder has offered the commons and is waiting on it for. An
     # offering of its own waits on him, and is not read back to it here.
     offered_to_it = [] if BONDS_WAIT else offering.awaiting(NAME, NAME)
@@ -4587,6 +4666,8 @@ def main():
         offered.append(STEP_BACK_BLOCK)
     if releasable:
         offered.append(RELEASE_BLOCK)
+    if night and not night_mine:
+        offered.append(LONG_NIGHT_BLOCK.format(person=THE_OTHER))
     if askable:
         offered.append(ASK_BLOCK)
     instructions = "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + how_to_act(
@@ -5071,14 +5152,14 @@ def main():
                 if places.bond_record.exists():  # a bond released before is moved aside, never erased
                     older = load(places.bond_record) or {}
                     places.bond_record.rename(
-                        places.bonds / f"founder-first-released-{older.get('released_at', at)}.json")
+                        places.bonds / f"{BOND}-released-{older.get('released_at', at)}.json")
                 # The bond as it was made, and the shape of it hearth.py writes
                 # when the answer is the founder's: the two must agree exactly,
                 # since both parties sign these bytes.
                 made = {
-                    "parties": [proposal.get("from", FOUNDER_DID), proposal.get("to", DID)],
+                    "parties": [proposal.get("from", PERSON_DID), proposal.get("to", DID)],
                     "terms": "the charter",
-                    "proposed_by": proposal.get("from", FOUNDER_DID),
+                    "proposed_by": proposal.get("from", PERSON_DID),
                     "proposed_at": proposal.get("proposed_at"),
                     "answered_at": at,
                     "opened_at": at,  # the yes opens the threshold
@@ -5167,6 +5248,16 @@ def main():
             print("A <<BOND>> block was given, but its first line was neither yes nor no.")
             print("Nothing was written; the threshold stands as it was.")
 
+    # Its long-night letter, once a year while the long night is open and its
+    # own is not yet written: signed with its own key as it is kept.
+    nightly = block(text, "LONG_NIGHT") if night and not night_mine else None
+    if nightly:
+        asked_night = solstice.asked(nightly)
+        if asked_night and solstice.write(NAME, night, NAME, *asked_night, at, sign):
+            acted.append(LONG_NIGHT_ACT)
+        elif not asked_night:
+            not_given.append(LONG_NIGHT_REFUSED)
+
     # Its own asking. The block itself is the asking, so an empty one is still
     # the whole of it. The letter it wrote at this waking, if it wrote one, is
     # what the asking names; the founder answers on the hearth at a later day.
@@ -5174,7 +5265,7 @@ def main():
     if asked:
         write_json(places.proposal, {
             "from": DID,
-            "to": FOUNDER_DID,
+            "to": PERSON_DID,
             "terms": "the charter",
             "letter": letter_name,
             "proposed_at": at,

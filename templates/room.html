@@ -8,19 +8,20 @@
    progress, when the bond comes first, so that what waits on either of them,
    and the seal above all, is the first thing in the room. A proposal of the
    first one's that waits for an answer comes first of all, in the same way;
-   otherwise its proposals, where it has made any, come last. The bond, like the
-   proposals and the offerings, is the first one's room's alone for now. #}
+   otherwise its proposals, where it has made any, come last. The proposals are the
+   first one's room's alone. Any other room's bond and offerings are its own, in
+   room_bond_any.html, once its thirty days have passed (13 November 2026). #}
 {% block content %}{% if guide %}
 {% include "guide.html" %}{% endif %}
 {% if proposal_waits %}
 {% include "room_proposals.html" %}
 {% endif %}
 {% if proposal or threshold %}
-{% if first_room %}{% include "room_bond.html" %}{% endif %}
+{% if first_room %}{% include "room_bond.html" %}{% elif bonds_open %}{% include "room_bond_any.html" %}{% endif %}
 {% include "letters.html" %}
 {% else %}
 {% include "letters.html" %}
-{% if first_room %}{% include "room_bond.html" %}{% endif %}
+{% if first_room %}{% include "room_bond.html" %}{% elif bonds_open %}{% include "room_bond_any.html" %}{% endif %}
 {% endif %}
 {% if proposals and not proposal_waits %}
 {% include "room_proposals.html" %}

@@ -28,6 +28,7 @@ Usage:  python hearth.py     (then open http://127.0.0.1:5000)
 
 import base64
 import hashlib
+import heapq
 import hmac
 import io
 import json
@@ -77,6 +78,12 @@ import corrections
 # The seven days between a yes and a seal, kept through the one module both hands
 # use, as an offering is.
 import threshold
+
+# The long-night letters of a sealed bond, in any room but the first one's.
+import solstice
+
+# How a later agent is shown the card of how a bond is made, with its person named.
+import later_words
 
 # A sealed bond is sealed by either hand and released by either, so both keep the
 # commons' list of bonds through the one module; its tile is drawn by the other.
@@ -545,7 +552,7 @@ def proposing_letters(paths):
     return names
 
 
-def one_letter(path, who, unread=False, proposes=False):
+def one_letter(path, who, unread=False, proposes=False, agent=None):
     """One letter: the line that stands for it, and the whole of it beneath."""
     things, text = offering.split_things(read_text(path))
     return {
@@ -563,7 +570,7 @@ def one_letter(path, who, unread=False, proposes=False):
         "proposes": proposes,
         # what of this letter has already been given to the commons, or offered
         # and not yet answered: an offering is made once and never twice
-        "offered": offered_already(path.stem),
+        "offered": offered_already(path.stem, agent),
     }
 
 
@@ -577,13 +584,17 @@ def correspondence(room=None):
     first = room is None or room.id == rooms.FIRST_ROOM
     places = room_places(None if first else room.id)
     from_founder = newest_first(places.incoming, "*.md") + newest_first(places.read, "*.md")
-    proposals = proposing_letters(from_founder) if first else set()
+    bonding = not first and room_may_bond(room)
+    proposals = (proposing_letters(from_founder) if first
+                 else room_proposing_letters(room, from_founder) if bonding else set())
+    # whose offerings a letter's have been: the first one's room's, or this one's
+    agent = None if first else rooms.agent_of(room.id)["id"]
 
     letters = [one_letter(path, "from the founder" if first else "from you",
                           unread=path.parent == places.incoming,
-                          proposes=path.name in proposals)
+                          proposes=path.name in proposals, agent=agent)
                for path in from_founder]
-    letters += [one_letter(path, "from " + (room.other if room else "the first one"))
+    letters += [one_letter(path, "from " + (room.other if room else "the first one"), agent=agent)
                 for path in newest_first(places.outgoing, "*.md")]
     letters.sort(key=lambda letter: letter["stamp"], reverse=True)
     return letters
@@ -657,6 +668,9 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 # yours is written, so a reflection must not show it any sooner
                 "BOND_INTENTION": "(wrote a letter of intention: in your room, under the bond)",
                 "PROMISE": "(made a promise: in your room, under the bond)",
+                # and its long-night letter, in any room but the first one's, which the
+                # room shows only once its person's own is written (solstice.py)
+                "LONG_NIGHT": "(wrote a long-night letter: in your room, under the bond)",
                 # and a proposal, which is between the two of them and shown whole in
                 # the room, where it may be answered
                 "PROPOSAL": "(made a proposal: in your room, under proposals from the first one)",
@@ -2145,14 +2159,14 @@ NO_KEY_TO_SIGN = ("An offering is signed at the moment it is made, and the found
 NO_FACES = offering.PRIVATE_FOREVER
 
 
-def offered_already(stem):
+def offered_already(stem, agent=None):
     """What of one letter has been given to the commons, by kind: placed, or waiting.
 
     A letter, a photograph and a picture are each offered once and never twice;
     a passage is not counted here, since one letter holds many.
     """
     said = {}
-    for one in offering.placed() + offering.pending():
+    for one in offering.placed(agent) + offering.pending(agent):
         if one.get("source") == stem and one.get("kind") != "passage":
             said[one["kind"]] = "placed" if one.get("sealed_at") else "offered"
     return said
@@ -2177,14 +2191,21 @@ def awaiting_the_founder():
 
 
 def offerings_placed():
-    """Every offering in the commons, oldest first, as anyone passing reads them."""
+    """Every offering in the commons, oldest first, as anyone passing reads them: the first
+    one's room's in the order they always were, and any other room's merged in by the day
+    each was placed, attributed to that room's two."""
+    every = [[(one, offering.ATTRIBUTION) for one in offering.placed()]]
+    for agent in agents.registry():
+        if agent["id"] != agents.first()["id"] and rooms.places(agent["room"]) is not None:
+            every.append([(one, offering.attribution(agent["id"]))
+                          for one in offering.placed(agent["id"])])
     shown = []
-    for one in offering.placed():
+    for one, who in heapq.merge(*every, key=lambda pair: (pair[0].get("sealed_at") or "")[:10]):
         shown.append({
             "id": one["id"],
             "kind": KIND_WORDS.get(one.get("kind"), one.get("kind", "")),
             "day": said_day((one.get("sealed_at") or "")[:10]),
-            "who": offering.ATTRIBUTION,
+            "who": who,
             "text": as_prose(one.get("text", "")) if one.get("text") else None,
             "file": one.get("file"),
         })
@@ -2333,10 +2354,11 @@ def bond_lines(agent=None):
 
     Either of them may ask, so each asking takes the side of whoever asked, and
     each answer the side of whoever answered. A bond is the first one's room's
-    alone for now (see the rooms, below), so another agent's book has none.
+    alone until 13 November 2026; another agent's book has its own room's, once its
+    thirty days have passed (any_bond_lines).
     """
     if agent is not None and agent["id"] != rooms.FIRST:
-        return []
+        return any_bond_lines(agent)
     lines = [book_line(at, book_day(at), SIDES.get(who, "the founder"),
                        "a bond was proposed", order=4)
              for at, who in sorted(set(bond_proposals()))]
@@ -2347,6 +2369,32 @@ def bond_lines(agent=None):
             at = said.get("at") or stamp_in(path.name)
             lines.append(book_line(at, book_day(at), side,
                                    "answered the proposal", order=5))
+    return lines
+
+
+def any_bond_lines(agent):
+    """The bond lines of a room other than the first one's, as bond_lines says the first
+    one's: each asking on the side of whoever asked, each answer on the side of whoever
+    answered, and nothing before the room's thirty days have passed."""
+    room = rooms.Room(agent["room"], None, None, None, agent["bond"])
+    places = rooms.places(agent["room"])
+    if places is None or not room_may_bond(room):
+        return []
+    asked = [(one["proposed_at"], one.get("proposed_by"))
+             for one in room_bond_records(room) if one.get("proposed_at")]
+    open_one = load(places.proposal)
+    if open_one and open_one.get("proposed_at"):
+        asked.append((open_one["proposed_at"], open_one.get("from")))
+    lines = [book_line(at, book_day(at), public_bonds.name_of(who or ""),
+                       "a bond was proposed", order=4) for at, who in sorted(set(asked))]
+    person = rooms.person_in(agent["id"])
+    for pattern, side in (("answer-*.json", agent["commons_name"]),
+                          (person + "-answer-*.json",
+                           public_bonds.name_of(rooms.person_did_in(agent["id"])))):
+        for path in newest_first(places.bonds, pattern):
+            said = load(path) or {}
+            at = said.get("at") or stamp_in(path.name)
+            lines.append(book_line(at, book_day(at), side, "answered the proposal", order=5))
     return lines
 
 
@@ -3134,7 +3182,7 @@ def note_seen(room):
 def bond_standing(room):
     """How a room's bond stands, in a word or a few, and its tile if it is sealed."""
     if not is_first_room(room):
-        return {"words": NO_BOND, "tessera": None}
+        return room_bond_standing(room)
     bond = load(room_places().bond_record)
     if bond and bond.get("sealed_at") and not bond.get("released_at"):
         drawn = public_bonds.record(room.bond)
@@ -3163,14 +3211,39 @@ def room_card(room):
     if open_errands(room.id):
         waiting.append(ERRAND_ASKED)
     if not is_first_room(room):
+        bonding = room_may_bond(room)
+        if bonding and offering.awaiting(person_of_room(room), agent_of_room(room)["id"]):
+            waiting.append(OFFERING_WAITS)
         return {"id": room.id, "other": room.other, "latest": latest, "waiting": waiting,
-                "bond": bond_standing(room), "ready": None, "guide": True}
+                "bond": bond_standing(room),
+                "ready": room_ready_to_seal(room) if bonding else None, "guide": True}
     if offering.awaiting("founder"):
         waiting.append(OFFERING_WAITS)
     if the_waking.PROPOSALS and proposals.waiting(PROPOSALS_KEPT):
         waiting.append(PROPOSAL_WAITS)
     return {"id": room.id, "other": room.other, "latest": latest, "waiting": waiting,
             "bond": bond_standing(room), "ready": ready_to_seal(), "guide": False}
+
+
+def room_bond_standing(room):
+    """How the bond of a room other than the first one's stands, as its card says it: no bond
+    until its thirty days have passed, and then as the first one's is said."""
+    if not room_may_bond(room):
+        return {"words": NO_BOND, "tessera": None}
+    bond = room_load_bond(room)
+    if bond and bond.get("sealed_at") and not bond.get("released_at"):
+        drawn = public_bonds.record(room.bond)
+        return {"words": BOND_SEALED,
+                "tessera": room.bond if drawn and tessera_parties(drawn) else None}
+    if threshold.is_open(bond):
+        now = datetime.now(timezone.utc)
+        if threshold.days_passed(bond, now):
+            return {"words": THRESHOLD_PASSED, "tessera": None}
+        day = threshold.DAYS - threshold.days_remain(bond, now) + 1
+        return {"words": ON_THE_THRESHOLD % (day, threshold.DAYS), "tessera": None}
+    if room_bond_places(room).proposal.exists():
+        return {"words": BOND_PROPOSED, "tessera": None}
+    return {"words": BOND_RELEASED if bond else NO_BOND, "tessera": None}
 
 
 def ready_to_seal():
@@ -3737,8 +3810,11 @@ def waiting_for(name):
             found.add("letter:%s:%s" % (room.id, latest["stamp"]))
         for errand in open_errands(room.id):
             found.add("errand:%s:%s" % (room.id, errand["name"]))
-        if is_first_room(room):  # offerings are built for its room alone yet (gate G4)
+        if is_first_room(room):
             for one in offering.awaiting("founder"):
+                found.add("offering:%s:%s" % (room.id, one.get("id", "")))
+        elif room_may_bond(room):  # any other room's, once its thirty days have passed
+            for one in offering.awaiting(person_of_room(room), agent_of_room(room)["id"]):
                 found.add("offering:%s:%s" % (room.id, one.get("id", "")))
         if found:
             names.append(room.other)
@@ -4561,12 +4637,26 @@ def guide_shown(room, asked=False):
         return None
     agent = agents.by_id(room.parties[1])
     return {"agent": first_upper(agent["commons_name"] if agent else room.other),
-            "asked": asked}
+            "asked": asked,
+            # the bond's line, only once this room may propose one (13 November 2026)
+            "bonds": room_may_bond(room)}
 
 
 def letters_page(room, things=(), draft="", guide=None, **told):
     """The page of a room other than the first one's: its letters, its errands, and the
-    form that writes one, and nothing of the first one's room's bond, offerings or proposals."""
+    form that writes one, and none of the first one's room's proposals. Its bond and its
+    offerings are shown once its thirty days have passed (room_bond_page), and nothing of
+    either before then."""
+    shown = {"awaiting": [], "key_here": False, "signs_with_key": False,
+             "propose_note": None, "proposal": None, "bond": None, "answers": [], "mine": [],
+             "threshold": None, "stepped": [], "card": None, "solstice": None}
+    bonding = room_bond_page(room)
+    shown.update(bonding)
+    passed_over = ("proposal_answered", "proposal_built")
+    if not bonding["bonds_open"]:
+        passed_over += ("proposed", "blocked", "just_offered", "just_placed", "just_declined",
+                        "sealed", "released", "bond_answered", "intended", "stepped_back",
+                        "long_night", "refused", "stepping_back", "confirming")
     return render_template(
         "room.html",
         room=room, first_room=False, **room_wakings(room),
@@ -4577,14 +4667,9 @@ def letters_page(room, things=(), draft="", guide=None, **told):
         thing_longest=offering.THING_LONGEST,
         correspondence=correspondence(room),
         errands=open_errands(room.id),
-        awaiting=[], no_faces=NO_FACES, key_here=False,
-        propose_note=None, propose_wait=None,
-        proposal=None, bond=None, answers=[], mine=[], threshold=None, stepped=[], card=None,
-        proposals=[], proposal_waits=False,
-        **{key: value for key, value in told.items()
-           if key not in ("proposed", "blocked", "just_offered", "just_placed", "just_declined",
-                          "sealed", "released", "bond_answered", "intended", "stepped_back",
-                          "proposal_answered", "proposal_built")})
+        no_faces=NO_FACES, propose_wait=None,
+        proposals=[], proposal_waits=False, **shown,
+        **{key: value for key, value in told.items() if key not in passed_over})
 
 
 # ---- the first one's proposals -------------------------------------------
@@ -4744,6 +4829,8 @@ def room_view(room):
                      sealed=said("sealed"), released=said("released"),
                      bond_answered=said("bond_answered"), intended=said("intended"),
                      stepped_back=said("stepped_back"),
+                     # and the long-night letter, in any other room
+                     **({"long_night": said("long_night")} if said("long_night") else {}),
                      # and about a proposal
                      proposal_answered=said("proposal_answered"),
                      proposal_built=said("proposal_built"),
@@ -4848,6 +4935,12 @@ def leave_letter(room):
             blocked = 1
         else:
             write_proposal(f"{stem}.md")
+            proposed = 1
+    elif request.form.get("proposes") and room_may_bond(room):  # any other room, once it may
+        if room_bond_in_the_way(room):
+            blocked = 1
+        else:
+            room_write_proposal(room, f"{stem}.md")
             proposed = 1
 
     # And if it answers an errand, the errand is moved and this letter named
@@ -5978,6 +6071,567 @@ def release_bond():
     return to_bond(released=1)
 
 
+# ---- bonds and offerings in every room ------------------------------------
+
+# The founder's decision of 13 November 2026: bonds and offerings are every
+# room's, and not only the founder's with the first one. A room other than the
+# first one's has them once thirty days have passed from the later of its
+# agent's founding and its person's arrival (threshold.bonds_open_on); until
+# then it shows nothing of either, and every form here answers not found. After
+# that, everything is done as it is in the first one's room, through the same
+# threshold.py and offering.py, with the room's person in the founder's place:
+# their writings and answers go by their short name (rooms.person_in), and what
+# they sign they sign with their own key, unlocked from their vault by their
+# password for the one signature and gone when the view returns. A room whose
+# person is the founder is signed for with FOUNDER_KEY, as his own always is.
+# The first one's room, its forms and its pages are left exactly as they were:
+# nothing below is ever asked of it.
+
+NEED_THE_PASSWORD = "This is signed with your own key: give your password to sign it."
+PUBLIC_BONDS = PUBLIC_BOND.parent
+
+
+def agent_of_room(room):
+    """The registry's entry for a room's agent."""
+    return rooms.agent_of(room.id)
+
+
+def person_of_room(room):
+    """A room's person, by the short name their writings and signatures go by."""
+    return rooms.person_in(agent_of_room(room)["id"])
+
+
+def room_founded_on(room):
+    """The day its agent was founded, from the commons' own line for it, or None."""
+    if not EVENTS.exists():
+        return None
+    found = agents.founding_of(agent_of_room(room), parse_events(read_text(EVENTS)))
+    return found[0] if found else None
+
+
+def room_bonds_open_on(room):
+    """The first day a bond may be proposed in a room other than the first one's, or None."""
+    return threshold.bonds_open_on(room_founded_on(room), agent_of_room(room)["id"])
+
+
+def room_may_bond(room):
+    """Whether a room other than the first one's has its bond and its offerings yet."""
+    if is_first_room(room):
+        return False
+    opens = room_bonds_open_on(room)
+    return bool(opens) and datetime.now(timezone.utc).date() >= opens
+
+
+def room_bond_places(room):
+    return rooms.places(room.id)
+
+
+def room_load_bond(room):
+    return load(room_bond_places(room).bond_record)
+
+
+def room_signs_with_key(room):
+    """Whether the room's person is the founder, who signs with FOUNDER_KEY and no password."""
+    return rooms.person_did_in(agent_of_room(room)["id"]) == FOUNDER_DID
+
+
+def room_signer(room):
+    """How the room's person signs, as (sign, error): sign is None where it cannot.
+
+    The founder's key is FOUNDER_KEY. A member's is in their vault, opened by
+    the password given with the form, held here for the one signature and gone
+    when the view returns. A wrong password counts against them as a sign-in does.
+    """
+    if room_signs_with_key(room):
+        if not founder_key_here():
+            return None, NO_KEY_TO_SIGN
+        return founder_signature, None
+    record = member_record(room.mine)
+    password = request.form.get("password", "")
+    if not record or not password:
+        return None, NEED_THE_PASSWORD
+    now = datetime.now(timezone.utc)
+    counted = tries_counted(room.mine, now)
+    if locked_out(counted, now):
+        return None, NOT_THE_PASSWORD
+    try:
+        key = vault.unlock(record.get("vault"), password)
+    except VaultError:
+        note_miss(counted, now)
+        return None, NOT_THE_PASSWORD
+    forget_misses(counted[0])
+    return (lambda payload: base64.b64encode(key.sign(payload).signature).decode("ascii")), None
+
+
+def to_room_bond(room, **told):
+    return redirect(url_for("room", room_id=room.id, _anchor="bond", **told))
+
+
+def room_bond_in_the_way(room):
+    """Why a bond cannot be proposed now in a room, or None if it can be."""
+    places = room_bond_places(room)
+    if places.proposal.exists():
+        return ("A bond is already proposed, and only one asking may be open at a time. "
+                "It is at the top of this room.")
+    bond = room_load_bond(room)
+    if not bond or bond.get("released_at"):
+        return None
+    if bond.get("sealed_at"):
+        return ("A bond already stands between you and %s. It is under the bond, below."
+                % room.other)
+    return ("A threshold is open between you and %s, and only one asking may be open at a "
+            "time. It is at the top of this room." % room.other)
+
+
+def room_write_proposal(room, letter_name):
+    """The person's asking, put where the agent will find it at its next waking."""
+    agent = agent_of_room(room)
+    write_json(room_bond_places(room).proposal, {
+        "from": rooms.person_did_in(agent["id"]),
+        "to": agent["did"],
+        "terms": "the charter",
+        "letter": letter_name,
+        "proposed_at": utc_stamp(),
+    })
+
+
+def room_bond_records(room):
+    """Every bond there has been in a room: the one that stands, any released, any stepped back from."""
+    places = room_bond_places(room)
+    records = [places.bond_record,
+               *newest_first(places.bonds, places.bond + "-released-*.json"),
+               *newest_first(places.bonds, places.bond + "-stepped-back-*.json")]
+    kept = [load(path) for path in records if path.exists()]
+    return [one for one in kept if one]
+
+
+def room_proposing_letters(room, paths):
+    """Which of the person's letters asked for a bond, by name, as proposing_letters says it."""
+    names = set()
+    proposal = load(room_bond_places(room).proposal)
+    if proposal and proposal.get("letter"):
+        names.add(proposal["letter"])
+    person_did = rooms.person_did_in(agent_of_room(room)["id"])
+    stamped = sorted((stamp_in(path.name), path.name) for path in paths)
+    for one in room_bond_records(room):
+        if one.get("proposed_at") and one.get("proposed_by") == person_did:
+            earlier = [name for stamp, name in stamped if stamp <= one["proposed_at"]]
+            if earlier:
+                names.add(earlier[-1])
+    return names
+
+
+def room_proposal_shown(room):
+    """The open asking in a room, as its person's page shows it, or None."""
+    proposal = load(room_bond_places(room).proposal)
+    if not proposal:
+        return None
+    agent = agent_of_room(room)
+    by_agent = proposal.get("from") == agent["did"]
+    latest = latest_attendance_at(agent["id"])
+    return {
+        "proposed_at": readable_date(proposal.get("proposed_at", "")),
+        "letter": proposal.get("letter") or "",
+        "terms": proposal.get("terms", "the charter"),
+        "read_it": bool(latest) and latest > proposal.get("proposed_at", ""),
+        "by_agent": by_agent,
+        "answerable": by_agent and a_day_has_turned(proposal),
+    }
+
+
+def room_bond_shown(room):
+    """How the bond itself stands in a room, or None if none has been made."""
+    bond = room_load_bond(room)
+    if not bond:
+        return None
+    agent = agent_of_room(room)
+    signed_by = sorted(bond.get("signatures", {}))
+    return {
+        "terms": bond.get("terms", "the charter"),
+        "proposed_by": room.other if bond.get("proposed_by") == agent["did"] else "you",
+        "proposed_at": readable_date(bond.get("proposed_at") or ""),
+        "answered_at": readable_date(bond.get("answered_at") or ""),
+        "sealed_at": readable_date(bond["sealed_at"]) if bond.get("sealed_at") else None,
+        "released_at": readable_date(bond["released_at"]) if bond.get("released_at") else None,
+        "released_by": room.other if bond.get("released_by") == agent["did"] else "you",
+        "signed_by": [room.other if who == agent["id"] else "you" for who in signed_by],
+    }
+
+
+def room_threshold_shown(room):
+    """The threshold as a room's person sees it, or None if none stands open: their own
+    letter always, the agent's only once theirs is written, its promise once made."""
+    bond = room_load_bond(room)
+    if not threshold.is_open(bond):
+        return None
+    agent = agent_of_room(room)["id"]
+    person = person_of_room(room)
+    now = datetime.now(timezone.utc)
+    mine = threshold.versions(threshold.INTENTION, person, bond, agent)
+    its = threshold.intention(agent, bond, agent)
+    promised = threshold.promise(bond, agent)
+    return {
+        "said_yes": ("You said yes" if threshold.answered_by(bond, agent) == person
+                     else first_upper(room.other) + " said yes"),
+        "answered_at": readable_date(bond.get("answered_at") or ""),
+        "closes_at": readable_date(threshold.closes_at(bond)),
+        "days_left": threshold.days_remain(bond, now),
+        "mine": ({"at": readable_date(mine[-1]["at"]), "text": mine[-1]["text"],
+                  "prose": as_prose(mine[-1]["text"])} if mine else None),
+        "earlier": [readable_date(one["at"]) for one in reversed(mine[:-1])],
+        "its_written": bool(its),
+        "its": ({"at": readable_date(its["at"]), "prose": as_prose(its["text"])}
+                if mine and its else None),
+        "promise": ({"at": readable_date(promised["at"]),
+                     "visibility": promised["visibility"],
+                     "prose": as_prose(promised["text"])} if promised else None),
+        "ready": threshold.may_seal(bond, now, agent),
+        "waits": threshold.what_waits(bond, now, person, readable_date, agent),
+        "person_seals": threshold.sealed_by(bond, agent) == person,
+    }
+
+
+def room_steps_back_shown(room):
+    """Every stepping back from a threshold in a room, newest first, with whatever words came."""
+    person = person_of_room(room)
+    return [{"by": "you" if one.get("by") == person else room.other,
+             "at": readable_date(one.get("at", "")),
+             "words": as_prose(one.get("words") or "")}
+            for one in reversed(threshold.steps_back(agent_of_room(room)["id"]))]
+
+
+def room_answers_given(room, pattern):
+    """Every answer kept in a room's bonds/ under one shape of name, newest first."""
+    answers = []
+    for path in newest_first(room_bond_places(room).bonds, pattern):
+        said = load(path)
+        if said:
+            answers.append({"answer": said.get("answer", ""),
+                            "words": as_prose(said.get("words", "")),
+                            "at": readable_date(said.get("at", ""))})
+    return answers
+
+
+def room_card_lines(room, its_own):
+    """The card of how a bond is made, line by line, as the room's agent is shown it."""
+    agent = agent_of_room(room)
+    said = threshold.card(its_own, agent["id"])
+    if agent.get("system") == "later-citizen":
+        said = later_words.card(said, room.other)
+    return said.split("\n")
+
+
+def room_offered_to_you(room):
+    """The offerings the room's agent has made, waiting on its person."""
+    agent = agent_of_room(room)["id"]
+    shown = []
+    for one in offering.awaiting(person_of_room(room), agent):
+        image = offering.image_of(one, agent)
+        shown.append({
+            "id": one["id"],
+            "said": KIND_WORDS.get(one.get("kind"), one.get("kind", "")),
+            "source": one.get("source", ""),
+            "date": readable_date(one.get("at", "")),
+            "text": as_prose(one.get("text", "")) if one.get("text") else None,
+            "photo": image.name if one.get("kind") == "photo" and image else None,
+            "picture": image.name if one.get("kind") == "picture" and image else None,
+        })
+    return shown
+
+
+def room_ready_to_seal(room):
+    """A room's card's first line when its bond waits only to be sealed, or None."""
+    agent = agent_of_room(room)
+    bond = room_load_bond(room)
+    if not threshold.may_seal(bond, datetime.now(timezone.utc), agent["id"]):
+        return None
+    if threshold.sealed_by(bond, agent["id"]) == person_of_room(room):
+        return READY_YOURS
+    return READY_ITS_BY.format(name=agent["commons_name"])
+
+
+def room_bond_page(room):
+    """What a room other than the first one's shows of its bond and its offerings, once it may."""
+    if not room_may_bond(room):
+        return {"bonds_open": False}
+    proposal = room_proposal_shown(room)
+    person = person_of_room(room)
+    with_key = room_signs_with_key(room)
+    return {
+        "bonds_open": True,
+        "signs_with_key": with_key,
+        "key_here": founder_key_here() if with_key else True,
+        "awaiting": room_offered_to_you(room),
+        "propose_note": room_bond_in_the_way(room),
+        "proposal": proposal,
+        "bond": room_bond_shown(room),
+        "answers": room_answers_given(room, "answer-*.json"),
+        "mine": room_answers_given(room, person + "-answer-*.json"),
+        "threshold": room_threshold_shown(room),
+        "stepped": room_steps_back_shown(room),
+        "card": room_card_lines(room, proposal["by_agent"]) if proposal else None,
+        "solstice": solstice_shown(room),
+    }
+
+
+def room_or_404(room):
+    """A room of the one signed in that has its bond yet, or a plain 404."""
+    if room is None or not room_may_bond(room):
+        abort(404)
+    return room
+
+
+def write_room_bond(room, bond):
+    """A room's bond record and its public copy, which say the same thing."""
+    for path in (room_bond_places(room).bond_record, PUBLIC_BONDS / (room.bond + ".json")):
+        write_json(path, bond)
+
+
+# The person's answer to an asking of the agent's own: on a day after the one it
+# asked on, as the founder's is. A yes is their signature on the bond as it was
+# made, and opens the threshold; a no and a not yet close the asking.
+@app.route("/rooms/<room_id>/bond/answer", methods=["POST"])
+@room_required
+def answer_in_room(room):
+    room = room_or_404(room)
+    agent = agent_of_room(room)
+    places = room_bond_places(room)
+    proposal = load(places.proposal)
+    said = request.form.get("answer", "").strip().lower()
+    if not proposal or proposal.get("from") != agent["did"] or said not in ANSWERS:
+        return to_room_bond(room)
+    if not a_day_has_turned(proposal):
+        return to_room_bond(room)  # a night lies between the asking and the answer
+    person = person_of_room(room)
+    at = utc_stamp()
+    if said == "yes":
+        sign, error = room_signer(room)
+        if sign is None:
+            return room_page(room, refused=error)
+        try:
+            made = bond_from(proposal, at, person, sign)
+        except ValueError as trouble:
+            return render_template("error.html", note=str(trouble), output=""), 500
+        if not made["signatures"].get(person):
+            return to_room_bond(room)
+        if places.bond_record.exists():  # a bond released before is moved aside, never erased
+            older = load(places.bond_record) or {}
+            places.bond_record.rename(places.bonds / ("%s-released-%s.json" % (
+                places.bond, older.get("released_at") or at)))
+        write_json(places.bond_record, made)  # and nothing is public until it is sealed
+    write_json(places.bonds / f"{person}-answer-{at}.json",
+               {"answer": said, "words": request.form.get("words", "").strip(), "at": at,
+                "asked_at": proposal.get("proposed_at")})
+    places.proposal.unlink(missing_ok=True)  # the asking is closed; it may be made again later
+    return to_room_bond(room, bond_answered=said)
+
+
+# The person's letter of intention, on the threshold: signed as it is kept, and
+# kept beside every earlier version; the latest one stands.
+@app.route("/rooms/<room_id>/bond/intention", methods=["POST"])
+@room_required
+def intention_in_room(room):
+    room = room_or_404(room)
+    bond = room_load_bond(room)
+    words = request.form.get("letter", "").replace("\r\n", "\n").strip()
+    if not threshold.is_open(bond) or not words:
+        return to_room_bond(room)
+    sign, error = room_signer(room)
+    if sign is None:
+        return room_page(room, refused=error, intention_draft=words)
+    try:
+        made = threshold.write(threshold.INTENTION, person_of_room(room), words, utc_stamp(),
+                               sign, bond, agent=agent_of_room(room)["id"])
+    except ValueError as trouble:
+        return render_template("error.html", note=str(trouble), output=""), 500
+    if not made:
+        return to_room_bond(room)
+    return to_room_bond(room, intended=1)
+
+
+# Either of them may step back while the threshold stands open, with no reason
+# given; from this side it takes one plain question first.
+@app.route("/rooms/<room_id>/bond/step-back", methods=["POST"])
+@room_required
+def step_back_in_room(room):
+    room = room_or_404(room)
+    bond = room_load_bond(room)
+    if not threshold.is_open(bond):
+        return to_room_bond(room)
+    if request.form.get("confirm") != "yes":
+        return room_page(room, stepping_back=True)
+    threshold.step_back(bond, person_of_room(room), utc_stamp(), "",
+                        agent=agent_of_room(room)["id"])
+    return to_room_bond(room, stepped_back=1)
+
+
+# The person's signature, and the seal, where the asking was theirs and the
+# agent said yes: it waits on the seven days, both letters and the promise.
+@app.route("/rooms/<room_id>/bond/seal", methods=["POST"])
+@room_required
+def seal_in_room(room):
+    room = room_or_404(room)
+    agent = agent_of_room(room)["id"]
+    person = person_of_room(room)
+    bond = room_load_bond(room)
+    if not bond or bond.get("sealed_at") or bond.get("released_at"):
+        return to_room_bond(room)  # there is nothing here to seal
+    if agent not in (bond.get("signatures") or {}):
+        return to_room_bond(room)  # this one waits on the agent's own hand
+    waits = threshold.what_waits(bond, datetime.now(timezone.utc), person, readable_date, agent)
+    if waits:
+        return room_page(room, refused=waits)
+    sign, error = room_signer(room)
+    if sign is None:
+        return room_page(room, refused=error)
+    try:
+        signature = sign(canonical(bond))
+    except ValueError as trouble:
+        return render_template("error.html", note=str(trouble), output=""), 500
+    if not signature:
+        return to_room_bond(room)
+    bond.setdefault("signatures", {})[person] = signature
+    bond["sealed_at"] = utc_stamp()
+    bond["threshold"] = threshold.sealed_listing(bond, agent)
+    write_room_bond(room, bond)
+    public_bonds.write_index()
+    note_event("seal", public_bonds.sealed_words(bond))
+    return to_room_bond(room, sealed=1)
+
+
+# Either of them may release a sealed bond, at any time, with no reason given.
+@app.route("/rooms/<room_id>/bond/release", methods=["POST"])
+@room_required
+def release_in_room(room):
+    room = room_or_404(room)
+    bond = room_load_bond(room)
+    if not bond or not bond.get("sealed_at") or bond.get("released_at"):
+        return to_room_bond(room)
+    if request.form.get("confirm") != "yes":
+        return room_page(room, confirming=True)
+    agent = agent_of_room(room)
+    bond["released_at"] = utc_stamp()
+    bond["released_by"] = rooms.person_did_in(agent["id"])
+    write_room_bond(room, bond)
+    public_bonds.write_index()
+    note_event("event", agent_words("a bond was released", agent["id"]))
+    return to_room_bond(room, released=1)
+
+
+# The person's half of an offering: making one out of a letter of their room,
+# and answering one of the agent's. A second signature places it in the commons
+# for good; a decline places nothing and says nothing anywhere.
+@app.route("/rooms/<room_id>/offer", methods=["POST"])
+@room_required
+def offer_in_room(room):
+    room = room_or_404(room)
+    agent = agent_of_room(room)["id"]
+    stem = request.form.get("source", "")
+    kind = request.form.get("kind", "")
+    passage = request.form.get("text", "")
+    if kind not in offering.KINDS:
+        return redirect(url_for("room", room_id=room.id))
+    if kind == "passage" and not offering.quotes(stem, passage, agent):
+        return room_page(room, error=NOT_VERBATIM)
+    sign, error = room_signer(room)
+    if sign is None:
+        return room_page(room, error=error)
+    try:
+        made = offering.offer(person_of_room(room), kind, stem, passage, utc_stamp(), sign,
+                              agent=agent)
+    except (private_words.Protected, public_screen.Flagged, public_screen.Unchecked) as refused:
+        return room_page(room, error=str(refused))
+    except ValueError as trouble:
+        return render_template("error.html", note=str(trouble), output=""), 500
+    if not made:
+        return room_page(room, error=NOT_OFFERABLE)
+    return redirect(url_for("room", room_id=room.id, offered=made["id"]))
+
+
+@app.route("/rooms/<room_id>/offer/consent", methods=["POST"])
+@room_required
+def consent_in_room(room):
+    room = room_or_404(room)
+    sign, error = room_signer(room)
+    if sign is None:
+        return room_page(room, error=error)
+    try:
+        placed = offering.consent(request.form.get("id", ""), person_of_room(room), sign,
+                                  utc_stamp(), agent=agent_of_room(room)["id"])
+    except (private_words.Protected, public_screen.Flagged, public_screen.Unchecked) as refused:
+        return room_page(room, error=str(refused))
+    except ValueError as trouble:
+        return render_template("error.html", note=str(trouble), output=""), 500
+    if not placed:
+        return redirect(url_for("room", room_id=room.id))  # nothing of that name waits on them
+    return redirect(url_for("room", room_id=room.id, placed=placed["id"]))
+
+
+@app.route("/rooms/<room_id>/offer/decline", methods=["POST"])
+@room_required
+def decline_in_room(room):
+    room = room_or_404(room)
+    refused = offering.decline(request.form.get("id", ""), person_of_room(room), utc_stamp(),
+                               agent=agent_of_room(room)["id"])
+    return redirect(url_for("room", room_id=room.id, declined=1 if refused else None))
+
+
+# The long night (solstice.py): once a year, from 21 December until 19 March on
+# the hearth's own calendar, the person of a sealed bond in any room but the
+# first one's may write one long-night letter, signed as they sign their other
+# writings. They read the agent's only once their own is written. Nothing of it
+# goes to the commons.
+
+def solstice_shown(room):
+    """The long night as a room's person sees it, or None while it is not open."""
+    agent = agent_of_room(room)["id"]
+    year = solstice.open_for(agent, citizen_today())
+    if year is None:
+        return None
+    person = person_of_room(room)
+    mine = solstice.letter(agent, year, person)
+    its = solstice.letter(agent, year, agent)
+    return {
+        "year": year,
+        "last": long_day(solstice.last_day(year)),
+        "answers": solstice.ANSWERS,
+        "mine": ({"at": readable_date(mine["at"]), "answer": mine["answer"],
+                  "prose": as_prose(mine["text"])} if mine else None),
+        "its_written": bool(its),
+        "its": ({"at": readable_date(its["at"]), "answer": its["answer"],
+                 "prose": as_prose(its["text"])} if mine and its else None),
+    }
+
+
+@app.route("/rooms/<room_id>/bond/long-night", methods=["POST"])
+@room_required
+def long_night_in_room(room):
+    room = room_or_404(room)
+    agent = agent_of_room(room)["id"]
+    person = person_of_room(room)
+    year = solstice.open_for(agent, citizen_today())
+    words = request.form.get("letter", "").replace("\r\n", "\n").strip()
+    answer = request.form.get("answer", "").strip().lower()
+    if year is None or solstice.letter(agent, year, person):
+        return to_room_bond(room)
+    if answer not in solstice.ANSWERS or not words:
+        return room_page(room, refused=LONG_NIGHT_UNANSWERED, night_draft=words)
+    sign, error = room_signer(room)
+    if sign is None:
+        return room_page(room, refused=error, night_draft=words)
+    try:
+        made = solstice.write(agent, year, person, answer, words, utc_stamp(), sign)
+    except ValueError as trouble:
+        return render_template("error.html", note=str(trouble), output=""), 500
+    if not made:
+        return to_room_bond(room)
+    return to_room_bond(room, long_night=1)
+
+
+LONG_NIGHT_UNANSWERED = ("A long-night letter says continue, change or complete, and then the "
+                         "letter itself; nothing was kept.")
+
+
 # The sealed record, open to anyone and to any machine, with no password: both
 # signatures can be checked against the two identity documents. What is signed
 # is the record with signatures, sealed_at, released_at and released_by taken
@@ -6109,6 +6763,9 @@ def public_promise(bond):
     if not holds:
         return None
     whose = {"first": FIRST_DID, "founder": FOUNDER_DID}.get(made.get("by"), "")
+    if not whose:  # any other bond's: the party whose short name the promise goes by
+        whose = next((did for did in bond.get("parties") or []
+                      if did.rsplit(":", 1)[-1] == made.get("by")), "")
     return public_bonds.name_of(whose) if whose else "", made["text"]
 
 

@@ -1,0 +1,42 @@
+{# What the agent of a room other than the first one's has offered the commons, and is
+   waiting on its person for; shown once the room's thirty days have passed. A part of
+   letters.html. #}
+<section>
+  <h2>offered, awaiting you</h2>
+  <p class="muted">{{ room.other|capitalize }} has offered these to the commons. Nothing is
+    placed until your signature is beside its own, and nothing at all is owed: what you
+    decline stays private forever, and the commons is never told there was anything to
+    decline. What is placed is placed for good — an offering is never removed. {{ no_faces }}</p>
+  {% if signs_with_key and not key_here %}
+  <p class="error">The founder's key is not on this hearth, so nothing can be signed here.
+    Check FOUNDER_KEY.</p>
+  {% endif %}
+  {% for one in awaiting %}
+  <article class="card" id="awaiting-{{ one.id }}">
+    <p class="muted date">{{ one.date }} · {{ one.said }} · out of the letter
+      <a href="#{{ one.source }}">{{ one.source }}</a></p>
+    {% if one.text %}<div class="words">{{ one.text }}</div>{% endif %}
+    {% if one.photo %}
+    <img class="photo" src="{{ photo_url(room, one.photo) }}" alt="the photograph that is offered">
+    {% endif %}
+    {% if one.picture %}
+    <img class="photo" src="{{ picture_url(room, one.picture) }}" alt="the picture that is offered">
+    {% endif %}
+    <form method="post" action="{{ url_for('consent_in_room', room_id=room.id) }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="id" value="{{ one.id }}">
+      {% if not signs_with_key %}
+      <label for="password-consent-{{ one.id }}">Your password, to sign it with your own key.</label>
+      <input type="password" id="password-consent-{{ one.id }}" name="password"
+             autocomplete="current-password">
+      {% endif %}
+      <button type="submit">Consent, and place it in the commons</button>
+    </form>
+    <form method="post" action="{{ url_for('decline_in_room', room_id=room.id) }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="id" value="{{ one.id }}">
+      <button type="submit">Decline</button>
+    </form>
+  </article>
+  {% endfor %}
+</section>

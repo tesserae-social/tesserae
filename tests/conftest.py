@@ -236,6 +236,14 @@ def screen(monkeypatch):
     return stub
 
 
+@pytest.fixture(autouse=True)
+def spending_kept_aside(monkeypatch, tmp_path):
+    """What the models cost (spending.py) is counted under DATA_DIR; where a test has
+    none, under its own temporary folder, never the repository's."""
+    import spending
+    monkeypatch.setattr(spending, "REPO", tmp_path)
+
+
 # ---- where the sun is watched from ---------------------------------------
 
 # The host is told where its dawns and sunsets are watched from, as two secrets

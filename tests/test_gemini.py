@@ -379,12 +379,12 @@ def test_the_plan_chooses_gemini_and_its_model(founding, monkeypatch):
     monkeypatch.setattr(founding, "plan_holds", lambda entry, person: "did:person")
     monkeypatch.setattr(founding, "write_json", lambda path, data: planned.update(data))
     monkeypatch.setattr(founding, "wrote", lambda path: None)
-    founding.step_plan("cedar", person="alder", model="gemini-3.8-flash", hue="#123456",
+    founding.step_plan("cedar", person="alder", model="gemini-3.8-flash",
                        provider="gemini")
     entry = planned["entry"]
     assert entry["provider"] == "gemini" and entry["model"] == "gemini-3.8-flash"
     assert list(entry) == ["id", "did", "commons_name", "room", "bond", "system", "provider",
-                           "model", "max_tokens", "hue", "features", "wakes"]
+                           "model", "max_tokens", "features", "wakes"]  # no hue: it chooses its own (hues.py)
     assert [key for key in founding.ENTRY_ORDER if key in entry] == [
         key for key in entry]  # kept in this order when it is written to the registry
 
@@ -394,7 +394,7 @@ def test_a_plan_on_anthropic_names_no_provider(founding, monkeypatch):
     monkeypatch.setattr(founding, "plan_holds", lambda entry, person: "did:person")
     monkeypatch.setattr(founding, "write_json", lambda path, data: planned.update(data))
     monkeypatch.setattr(founding, "wrote", lambda path: None)
-    founding.step_plan("cedar", person="alder", model="claude-sonnet-4-5", hue="#123456")
+    founding.step_plan("cedar", person="alder", model="claude-sonnet-4-5")
     assert "provider" not in planned["entry"]
 
 
@@ -404,7 +404,7 @@ def test_a_plan_on_anthropic_names_no_provider(founding, monkeypatch):
     ("someone-else", "gemini-3.8-flash", "a provider is anthropic or gemini")])
 def test_a_plan_s_model_must_be_its_provider_s(founding, provider, model, refused):
     with pytest.raises(founding.Refused, match=refused):
-        founding.step_plan("cedar", person="alder", model=model, hue="#123456", provider=provider)
+        founding.step_plan("cedar", person="alder", model=model, provider=provider)
 
 
 def test_the_founding_conversation_goes_to_gemini(env, monkeypatch, data_dir, capsys):

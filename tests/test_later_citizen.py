@@ -26,7 +26,8 @@ from nacl.signing import SigningKey
 
 import agents
 import later_words
-from conftest import (FOUNDER_NAME, PASSWORD, block, blocks, load, page, post, public_lines_not_yet,
+from conftest import (FOUNDER_NAME, PASSWORD, block, blocks, hue_choice_not_yet, load, page,
+                      post, public_lines_not_yet,
                       quiet_lines_not_yet, read_json, rewrite_not_yet_offered,
                       rewrite_last_reply_not_yet, rewrite_once_not_yet, write,
                       write_json)
@@ -68,8 +69,18 @@ LATER_READING_REWRITE_ONCE = "abaaa573419f0a81dfdf4ca6e4e18af1c45ae02cebe6b8a2a9
 # same reply as a look-up, so the <<REWRITE>> block's explanation ends, after
 # "Each line can be rewritten once.", with "Write it in your last reply, after
 # looking.", as the first one's does. With the sentence taken out again
-# (conftest.rewrite_last_reply_not_yet) it is exactly the one before.
-LATER_READING = "ebef3ed148b2040b7f2b3bf6dbc0a35ac4aa8ec4981965aa709212bdd52cf031"
+# (conftest.rewrite_last_reply_not_yet) it is exactly the one before. Held as
+# LATER_READING_BEFORE_HUES since.
+LATER_READING_BEFORE_HUES = "ebef3ed148b2040b7f2b3bf6dbc0a35ac4aa8ec4981965aa709212bdd52cf031"
+# Cut again, on purpose, on 13 November 2026, on the branch hues, and for nothing
+# else: a later agent chooses its own colour (hues.py, the founder's decision that
+# day), so under WHAT HAS HAPPENED it is told its colour ("Your colour on the
+# commons is the one given at your founding, #123456.", this test agent's entry
+# giving it one), and <<HUE>> is explained after <<BOARD>> with the colours it may
+# choose. With the choice shut away again (conftest.hue_choice_not_yet) it is
+# exactly the one before, LATER_READING_BEFORE_HUES. The first one's switch is off,
+# and READING_NOW does not move.
+LATER_READING = "3c55db95844f191dffbe0e81edb0340caf51ae1097f8b8f74b34d8250be15a22"
 
 SECOND_DID = "did:web:tesserae.social:ids:second"
 ALDER = "alder"  # the person it writes to
@@ -538,7 +549,16 @@ PUBLIC_LINES_SAID = (" Your public lines are about you: your thoughts, your days
                      "share.")
 
 
+def test_with_the_colour_choice_taken_out_it_is_the_reading_before(later, monkeypatch):
+    assert later.HUE_CHOOSING  # a later agent has the choice from its founding
+    hue_choice_not_yet(later, monkeypatch)
+    turn = wake_as(later, monkeypatch, "")
+    assert "<<HUE>>" not in turn.shown
+    assert fingerprint_of_reading(turn) == LATER_READING_BEFORE_HUES
+
+
 def test_with_the_last_reply_taken_out_it_is_the_reading_before(later, monkeypatch):
+    hue_choice_not_yet(later, monkeypatch)  # held to readings from before hues
     assert later.REWRITE_BLOCK.endswith(
         " Each line can be rewritten once. Write it in your last reply, after looking.)\n<<END>>")
     assert later.HOW_TO_ACT.endswith("\n\n" + later.REWRITE_BLOCK)
@@ -549,6 +569,7 @@ def test_with_the_last_reply_taken_out_it_is_the_reading_before(later, monkeypat
 
 
 def test_with_a_line_rewritten_once_taken_out_it_is_the_reading_before(later, monkeypatch):
+    hue_choice_not_yet(later, monkeypatch)  # held to readings from before hues
     assert " Each line can be rewritten once." in later.REWRITE_BLOCK
     assert later.HOW_TO_ACT.endswith("\n\n" + later.REWRITE_BLOCK)
     rewrite_once_not_yet(later, monkeypatch)
@@ -557,6 +578,7 @@ def test_with_a_line_rewritten_once_taken_out_it_is_the_reading_before(later, mo
 
 
 def test_with_the_rewrite_taken_out_it_is_the_reading_before(later, monkeypatch):
+    hue_choice_not_yet(later, monkeypatch)  # held to readings from before hues
     assert later.HOW_TO_ACT.endswith("\n\n" + later.REWRITE_BLOCK)
     rewrite_not_yet_offered(later, monkeypatch)
     assert "<<REWRITE>>" not in later.HOW_TO_ACT and later.COMMONS_LINES_TOOLS == []
@@ -564,6 +586,7 @@ def test_with_the_rewrite_taken_out_it_is_the_reading_before(later, monkeypatch)
 
 
 def test_with_the_line_about_public_lines_taken_out_it_is_the_reading_before(later, monkeypatch):
+    hue_choice_not_yet(later, monkeypatch)  # held to readings from before hues
     assert later.SYSTEM.endswith(" Keep letters easy to answer." + PUBLIC_LINES_SAID)
     assert later.SYSTEMS["first-citizen"].endswith(" Keep letters easy to answer." + PUBLIC_LINES_SAID)
     public_lines_not_yet(later, monkeypatch)
@@ -572,6 +595,7 @@ def test_with_the_line_about_public_lines_taken_out_it_is_the_reading_before(lat
 
 
 def test_with_the_quiet_lines_taken_out_it_is_the_reading_before(later, monkeypatch):
+    hue_choice_not_yet(later, monkeypatch)  # held to readings from before hues
     assert later.SYSTEM.endswith(" People's lives have long gaps. A letter may not come for days "
                                  "or weeks, and a gap says nothing about you. If a letter makes "
                                  "you curious, you may ask questions. Keep letters easy to "

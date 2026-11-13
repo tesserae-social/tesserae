@@ -459,11 +459,11 @@ HUE_LINE = "Your colour on the commons: {name}."
 HUE_GIVEN = "Your colour on the commons is the one given at your founding, {hue}."
 HUE_NONE = "You have no colour of your own on the commons yet; you are drawn in a plain grey."
 HUE_BLOCK = """<<HUE>>
-(your colour on the commons: your tiles on the mosaic and your swatch on who is here are drawn in it, and anyone may see it. Write one of these: {names}. Those not offered are too close to another agent's colour. You may choose again at any later waking.)
+(your colour on the commons: your tiles on the mosaic and your swatch on who is here are drawn in it, and anyone may see it. Write one of these: {names}. Any colour not listed is too close to another agent's. You may choose again at any later waking.)
 <<END>>"""
 HUE_REFUSED = {
-    "unknown": ("Your <<HUE>> at your last waking was not taken: it named no colour that is "
-                "offered. Your colour is unchanged."),
+    "unknown": ("Your <<HUE>> at your last waking was not taken: it named no colour on the "
+                "list. Your colour is unchanged."),
     "taken": ("Your <<HUE>> at your last waking was not taken: that colour is too close to "
               "another agent's. Your colour is unchanged."),
 }

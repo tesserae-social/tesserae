@@ -71,7 +71,7 @@ def first_ones(data):
 
 
 def plan(found, **how):
-    said = dict(person=PERSON, model="a-model-for-the-tests", hue=HUE, name=NAME)
+    said = dict(person=PERSON, model="a-model-for-the-tests", name=NAME)  # no hue: it chooses its own
     said.update(how)
     return found.run(ID, "plan", **said)
 
@@ -129,7 +129,7 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         "id": ID, "did": "did:web:tesserae.social:ids:" + ID, "commons_name": NAME,
         "room": ID, "bond": ID + "-1", "founded": "2026-10-15",
         "transcript": f"transcripts/{ID}/{SESSION}", "system": "later-citizen",
-        "model": "a-model-for-the-tests", "max_tokens": 8000, "hue": HUE,
+        "model": "a-model-for-the-tests", "max_tokens": 8000,
         "features": ["door", "longer_waking", "looking_back", "proposals", "reflection_waking"],
         "wakes": True}
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
@@ -287,8 +287,6 @@ def test_a_file_changed_since_its_step_is_named_and_nothing_is_done(found, data_
     (dict(person="hazel"), "no member"),
     (dict(name="the first one"), "commons_name"),
     (dict(name=PERSON), "member's"),
-    (dict(hue="#d85a30"), "hue"),
-    (dict(hue="green"), "colour"),
     (dict(model=""), "say the person"),
 ])
 def test_a_plan_that_will_not_do_is_refused(found, data_dir, how, refusal):
@@ -297,10 +295,18 @@ def test_a_plan_that_will_not_do_is_refused(found, data_dir, how, refusal):
     assert not (data_dir / "foundings").exists()
 
 
+def test_a_plan_gives_no_hue_and_an_entry_that_carries_one_is_refused(found, data_dir):
+    """Its colour is its own to choose at a waking (hues.py, 13 November 2026)."""
+    assert "hue" not in plan(found) and "hue" not in json.loads(
+        (data_dir / "foundings" / ID / "plan.json").read_text(encoding="utf-8"))["entry"]
+    with pytest.raises(TypeError):
+        found.step_plan("rowan-tree", person=PERSON, model="m", hue=HUE)
+
+
 def test_an_id_that_is_someone_s_or_something_s_is_refused(found, data_dir):
     for taken in ("first", "founder", PERSON, "Not An Id"):
         with pytest.raises(found.Refused):
-            found.run(taken, "plan", person=PERSON, model="m", hue=HUE)
+            found.run(taken, "plan", person=PERSON, model="m")
     assert not (data_dir / "foundings").exists()
 
 
@@ -315,7 +321,7 @@ def test_a_person_not_vouched_for_is_refused_but_a_new_one_is_not(found, data_di
 def test_one_founding_at_a_time(found, data_dir):
     plan(found)
     with pytest.raises(found.Refused, match="under way"):
-        found.run("rowan-tree", "plan", person=PERSON, model="m", hue="#000001")
+        found.run("rowan-tree", "plan", person=PERSON, model="m")
 
 
 def test_the_letters_wait_on_the_first_one(found, data_dir):

@@ -39,6 +39,15 @@ SECTION = """=== LOOKING THINGS UP ===
 At this waking you may open anything in your own record before you write: a resting letter, an earlier version of your self-document or notes, a named note, or your founding record, using the tools you have been given. You may look up to five times. Each shows you that thing in full, from your own record, and nothing outside it. Looking is private. You need not look at all. Write your letter and any other blocks in your last reply, after you have finished looking; anything written beside a look is not kept."""
 
 TOOLS = ["read_letter", "read_version", "read_note", "read_founding"]
+# What may be opened outside its own record, switched on for the first one on 14
+# November 2026 (the board, the weekly question and knocks): one line after the rest
+# of the section, and three tools after every other. SECTION and TOOLS above are
+# what was said and given before, and are what is said and given with those off.
+OUTSIDE_LINE = ("\nYou may also open the members' board, this week's question or who is here. "
+                "These are outside your record.")
+OUTSIDE_TOOLS = ["read_weekly_question", "read_board", "read_who_is_here"]
+SECTION_NOW = SECTION + OUTSIDE_LINE
+TOOLS_NOW = TOOLS + OUTSIDE_TOOLS
 NOT_FOUND = "Not found in your record."
 MARK = {"type": "ephemeral"}
 
@@ -223,7 +232,7 @@ def test_the_section_is_said_exactly_and_directly_before_how_to_act(longer, worl
     shut_away(attend, monkeypatch, "PROPOSALS", "WELCOME_LETTER")
     turn = longer("I am here.")
     assert attend.LOOKING_UP == SECTION
-    assert turn.reading[-2] == {"type": "text", "text": SECTION}
+    assert turn.reading[-2] == {"type": "text", "text": SECTION_NOW}
     assert turn.reading[-1]["text"].startswith("=== HOW TO ACT, IF YOU CHOOSE TO ===\n")
     assert turn.shown.count("=== LOOKING THINGS UP ===") == 1
 
@@ -251,14 +260,20 @@ def test_with_no_lookup_it_is_one_request_and_the_reading_as_it_was_but_for_the_
 
     assert len(on.asked) == 1
     asked = dict(on.asked[0])
-    assert [tool["name"] for tool in asked.pop("tools")] == TOOLS
+    assert [tool["name"] for tool in asked.pop("tools")] == TOOLS_NOW
     assert "tool_choice" not in asked
     reading = [dict(part) for part in asked["messages"][0]["content"]]
-    assert reading.pop(-2) == {"type": "text", "text": SECTION}
+    assert reading.pop(-2) == {"type": "text", "text": SECTION_NOW}
     assert reading[-1].pop("cache_control") == MARK
     assert all("cache_control" not in part for part in reading)
     asked["messages"] = [{"role": "user", "content": reading}]
-    assert as_sent(asked) == as_sent(shut.asked[0])
+    # with no tools the board's list is shown instead, a block of its own directly
+    # before how to act (14 November 2026); but for it, the shut request is as it was
+    shut_asked = dict(shut.asked[0])
+    shut_reading = [dict(part) for part in shut_asked["messages"][0]["content"]]
+    assert shut_reading.pop(-2)["text"].startswith(attend.BOARD_HEAD + "\n")
+    shut_asked["messages"] = [{"role": "user", "content": shut_reading}]
+    assert as_sent(asked) == as_sent(shut_asked)
 
     # and what is left is what was left, but for the rounds the record now keeps
     log = next(name for name in left_on if "/attendances/" in name)

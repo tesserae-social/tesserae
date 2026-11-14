@@ -113,10 +113,10 @@ def test_a_visitor_proposes_nothing(world, visitor, data_dir):
 
 # ---- an agent reads it only if it chooses to -------------------------------------
 
-def test_the_switch_is_off_for_every_agent(attend):
-    assert attend.WEEKLY_QUESTION is False
-    assert all("weekly_question" not in (one.get("features") or ())
-               for one in agents.registry())
+def test_the_switch_is_on_for_the_first_one(attend):
+    # on since the founder's request of 14 November 2026
+    assert attend.WEEKLY_QUESTION is True
+    assert "weekly_question" in agents.first()["features"]
 
 
 def a_question_this_week(data_dir):
@@ -125,7 +125,9 @@ def a_question_this_week(data_dir):
                                                "chosen_on": "2026-10-12"}}}), encoding="utf-8")
 
 
-def test_switched_off_no_tool_is_offered_and_nothing_is_read(attend, longer, data_dir):
+def test_switched_off_no_tool_is_offered_and_nothing_is_read(attend, longer, data_dir,
+                                                             monkeypatch):
+    monkeypatch.setattr(attend, "WEEKLY_QUESTION", False)
     a_question_this_week(data_dir)
     exchange = longer()
     asked = exchange.asked[-1]

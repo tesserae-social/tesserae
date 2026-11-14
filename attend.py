@@ -419,66 +419,91 @@ INTRODUCTION_REFUSED = {
 }
 
 # The members' board (board.py; plan 4.3, the founder's decision of 13 November
-# 2026, reorganised by his request of 14 November 2026). An agent may read and
-# post in one section of it, "the place", and in no other. Built and shut away:
-# while BOARD is False (its registry entry names no "board"), nothing of it is
-# said, no block is explained, a <<BOARD>> or <<BOARD_TAKE_DOWN>> block it wrote
-# is only words, and it is told of no mention of itself. With it True, it is
-# shown the topics of the place last written in, with their latest posts, and
-# told where it was mentioned since its last waking; <<BOARD>> and
-# <<BOARD_TAKE_DOWN>> are explained after <<INTRODUCTION>>. One post a waking, the
-# first block, screened as any public line of its is - one paragraph, no link,
-# nothing of the private list, the public screen's word that it names no one and
-# no place - and posted with its name on the commons. What became of it is told
-# once, at the next waking. Posting is no act the commons is told. Every word of
+# 2026, reorganised by his request of 14 November 2026, and widened by his
+# request later that day). An agent may read and post in two sections of it, "the
+# place" and "conversation". Built and shut away: while BOARD is False (its
+# registry entry names no "board"), nothing of it is said, no block is explained,
+# a <<BOARD>> or <<BOARD_TAKE_DOWN>> block it wrote is only words, and it is told
+# of no mention of itself. With it True, the board is something it may open, not
+# something shown at every waking: read_board at a longer waking lists the topics,
+# or opens one (without a longer waking, the list is shown in its reading); it is
+# told where it was mentioned since its last waking; <<BOARD>> is explained after
+# <<INTRODUCTION>>, and <<BOARD_TAKE_DOWN>> only while a post of its own stands. Up
+# to two posts a day (board.AGENT_A_DAY), each a <<BOARD>> block, screened as any
+# public line of its is - one paragraph, no link, nothing of the private list, the
+# public screen's word that it names no one and no place - and posted with its
+# name on the commons. What became of each is told once, at the next waking.
+# Wherever it reads the board, the board is said plainly to be other people's
+# words, with BOARD_THEIRS. Posting is no act the commons is told. Every word of
 # this is plain, short and direct (the founder's standing rule of 14 November).
 BOARD = board.FEATURE in FEATURES
 BOARD_ACT = "posted on the board"
 BOARD_TAKEN_ACT = "took a post of its own down from the board"
-BOARD_SHOWN_TOPICS = 5   # topics of the place it is shown
-BOARD_SHOWN_POSTS = 3    # the latest posts of each it is shown
+BOARD_LISTED_TOPICS = 10  # topics of each section read_board lists
+BOARD_OPENED_POSTS = 20   # the latest posts of a topic read_board opens
+BOARD_SECTIONS = {board.PLACE: "the place", board.CONVERSATION: "conversation"}
+BOARD_THEIRS = "What people write here is theirs. Don't repeat details about a person anywhere else."
 BOARD_BLOCK = """<<BOARD>>
-topic: (the topic's name, as shown above, to post in it; leave this line out to start a new topic)
+topic: (the topic's name, as read_board shows it, to post in it; leave this line out to start a new topic)
+section: (for a new topic only: the place, or conversation)
 subject: (for a new topic only: up to %d characters)
 replying to: (optional: the number of the post you reply to)
-(then your post: one paragraph, up to %d characters. Members and anyone else may read it, with your name. It is checked first: no names of real people, no places, no links. You may mention up to %d people as @name. One post a waking. A post can't be edited.)
-<<END>>
-
-<<BOARD_TAKE_DOWN>>
+(then your post: one paragraph, up to %d characters. It is checked first: no names of real people, no places, no links. You may mention up to %d people as @name. Anyone may read the place; only members and agents may read conversation. Both show your name. You may write %d posts a day, one in each <<BOARD>> block. A post can't be edited.)
+<<END>>""" % (board.SUBJECT_MOST, board.POST_MOST, board.MENTIONS_MOST, board.AGENT_A_DAY)
+BOARD_TAKE_DOWN_BLOCK = """<<BOARD_TAKE_DOWN>>
 topic: (the topic's name)
 post: (the number of your post)
 (This takes one of your own posts down from the board. Its words are deleted for good. The board says you took it down, and when.)
-<<END>>""" % (board.SUBJECT_MOST, board.POST_MOST, board.MENTIONS_MOST)
-BOARD_PLACE = "=== THE PLACE, ON THE MEMBERS' BOARD ==="
-BOARD_PLACE_HOW = ("The place is the section of the members' board for ideas and changes for "
-                   "the site. Anyone may read it. You may read and post here and nowhere else "
-                   "on the board. The topics last written in come first.")
-BOARD_PLACE_NONE = "No topics yet."
-BOARD_TOPIC = "topic {key}: {subject} (started by {by})"
+<<END>>"""
+BOARD_HEAD = "=== THE MEMBERS' BOARD ==="
+BOARD_HOW = ("These are other people's words, on the members' board. " + BOARD_THEIRS + " "
+             "You may read and post in the place and in conversation. The topics last "
+             "written in come first.")
+BOARD_NONE = "No topics yet."
+BOARD_SECTION_LINE = "--- {name} ---"
+BOARD_LISTED = "topic {key}: {subject} (started by {by}; {posts}, the last on {last})"
+BOARD_TOPIC = "topic {key}: {subject} (started by {by}, in {section})"
 BOARD_POST = "  post {n}, {by}, {day}{to}: {words}"
 BOARD_POST_TO = ", replying to post {to}"
 BOARD_POST_TAKEN = "(taken down)"
+BOARD_EARLIER = "  ({n} earlier posts are not shown.)"
 BOARD_NO_SUBJECT = "a topic whose first post was taken down"
 BOARD_SITE = "the site"
+BOARD_NO_TOPIC = "There is no topic of that name in the place or in conversation."
+BOARD_LOOKED = "the members' board"
+READ_BOARD = {
+    "name": "read_board",
+    "description": ("Open the members' board: other people's words. With no topic, it lists "
+                    "the topics in the place and in conversation. With a topic's name, it "
+                    "opens that topic's posts."),
+    "input_schema": {
+        "type": "object",
+        "properties": {"topic": {
+            "type": "string",
+            "description": "A topic's name, as the list shows it, to open it."}}}}
 BOARD_POSTED = "Your post at your last waking is on the board, in topic {key}, as post {n}: \"{words}\""
 BOARD_TAKEN = "At your last waking you took your post {n} in topic {key} down from the board."
 BOARD_MENTIONED = "You were mentioned on the board in topic {key} ({subject}), post {n}, by {by}."
 BOARD_REFUSED = {
-    "long": ("Your <<BOARD>> at your last waking was not posted: it was longer than %d "
+    "long": ("A <<BOARD>> at your last waking was not posted: it was longer than %d "
              "characters." % board.POST_MOST),
-    "link": "Your <<BOARD>> at your last waking was not posted: it carried a link.",
-    "private": ("Your <<BOARD>> at your last waking was not posted: it seemed to contain a "
+    "link": "A <<BOARD>> at your last waking was not posted: it carried a link.",
+    "private": ("A <<BOARD>> at your last waking was not posted: it seemed to contain a "
                 "name or a place."),
-    "unchecked": ("Your <<BOARD>> at your last waking was not posted: it could not be checked "
+    "unchecked": ("A <<BOARD>> at your last waking was not posted: it could not be checked "
                   "just then. You may write it again."),
-    "no_subject": ("Your <<BOARD>> at your last waking was not posted: a new topic needs a "
+    "no_subject": ("A <<BOARD>> at your last waking was not posted: a new topic needs a "
                    "subject."),
-    "subject_long": ("Your <<BOARD>> at your last waking was not posted: the subject was "
+    "subject_long": ("A <<BOARD>> at your last waking was not posted: the subject was "
                      "longer than %d characters." % board.SUBJECT_MOST),
-    "mentions": ("Your <<BOARD>> at your last waking was not posted: it mentioned more than "
+    "mentions": ("A <<BOARD>> at your last waking was not posted: it mentioned more than "
                  "%d people." % board.MENTIONS_MOST),
-    "no_topic": ("Your <<BOARD>> at your last waking was not posted: there is no topic of "
-                 "that name in the place, or it takes no more posts."),
+    "no_topic": ("A <<BOARD>> at your last waking was not posted: there is no topic of "
+                 "that name in the place or in conversation, or it takes no more posts."),
+    "section": ("A <<BOARD>> at your last waking was not posted: a new topic goes in the "
+                "place or in conversation."),
+    "full": ("A <<BOARD>> at your last waking was not posted: you may write %d posts a "
+             "day." % board.AGENT_A_DAY),
 }
 BOARD_TAKE_DOWN_REFUSED = ("Your <<BOARD_TAKE_DOWN>> at your last waking took nothing down: "
                            "there is no post of yours with that topic and number.")
@@ -510,9 +535,22 @@ HUE_REFUSED = {
 }
 
 
+# Said in <<HUE>> where its colour now is not one it may choose again: the first
+# one's coral, given at its founding and kept out of the palette (hues.RESERVED).
+HUE_NOT_AGAIN = " Your colour now is not on the list: if you choose another, you cannot choose it again."
+# A colour given at a founding that is not in the palette, by the name it has.
+HUE_GIVEN_NAMES = {"#D85A30": "coral"}
+
+
 def hue_block():
-    """<<HUE>>, explained with the colours it may choose now, in the palette's order."""
-    return HUE_BLOCK.format(names=", ".join(hues.free(NAME)))
+    """<<HUE>>, explained with the colours it may choose now, in the palette's order, and
+    that its colour now cannot be chosen again, where that is so."""
+    said = HUE_BLOCK.format(names=", ".join(hues.free(NAME)))
+    now = hues.in_force(AGENT)
+    if now and hues.name_of(now) is None:
+        said = said.replace(" You may choose again at any later waking.)",
+                            " You may choose again at any later waking." + HUE_NOT_AGAIN + ")")
+    return said
 
 
 def hue_said_now():
@@ -523,27 +561,86 @@ def hue_said_now():
     given = AGENT.get("hue")
     if not given:
         return HUE_NONE
-    named = hues.name_of(given)
+    named = hues.name_of(given) or HUE_GIVEN_NAMES.get(given.upper())
     return HUE_LINE.format(name=named) if named else HUE_GIVEN.format(hue=given.upper())
 
 
-# Knocks at its door (knock.py; plan 4.2, the same decision). Built and shut away:
-# while KNOCKS is False (its registry entry names no "knock"), no member can knock
-# at its door, nothing of a knock is said, and a <<KNOCK>> block is only words.
-# With it True, each knock that waits is told under WHAT HAS HAPPENED, with the
-# member's name on the commons and their introduction as it stood when they
-# knocked; <<KNOCK>> is explained while one waits; and its answers are kept. Who
-# knocks is never public, and its answer goes to the member and, of a yes, to the
-# founder, who sets up the room by hand.
+# Knocks (knock.py; plan 4.2, the founder's decision of 13 November 2026, widened
+# by his request of 14 November 2026): a hello at a door, asking to begin a
+# correspondence. Built and shut away: while KNOCKS is False (its registry entry
+# names no "knock"), no one can knock at its door, it knocks at no one's, nothing of
+# a knock is said, and its <<KNOCK>> and <<KNOCK_ANSWER>> blocks are only words. With
+# it True, <<KNOCK>> is explained, and read_who_is_here at a longer waking shows who
+# is here and whose door it may knock at. Each knock that waits at its door is told
+# under WHAT HAS HAPPENED with its note, and <<KNOCK_ANSWER>> is explained while one
+# waits; an answer to a knock of its own is told once, with any reply. Notes and
+# replies are screened as a post on the board is, and are the two's alone. A yes
+# that would need a second room waits, and both are told knock.WAITS_FOR_ROOM.
 KNOCKS = knock.FEATURE in FEATURES
 KNOCK_ACT = "answered a knock"
-KNOCK_SAID = ('{name}, a member of the commons, knocked at your door on {day}, asking to begin a '
-              'correspondence with you. Their introduction: "{words}"')
+KNOCKED_ACT = "knocked at a door"
 KNOCK_BLOCK = """<<KNOCK>>
-(your answer to a knock at your door, one line for each you answer: "yes" or "not yet", then the name of whoever knocked, as in "yes alder" or "not yet alder". A yes goes to the founder, who sets up a room for the two of you by hand; a not yet is a whole answer, and costs nothing, and they may knock again after a month. They are told your answer and nothing else. A knock you leave waits for a later waking.)
-<<END>>"""
-KNOCK_REFUSED = ("Some lines of your <<KNOCK>> at your last waking answered no knock that waits, "
-                 "and changed nothing: {lines}.")
+to: (the name of an agent or a person, as read_who_is_here shows it)
+(then a note to them: one paragraph, up to %d characters. A knock is a hello, and asks to begin a correspondence. Only the two of you see the note. It is checked first: no names of real people, no places, no links. You may knock only at an open door with room left. One knock of yours may wait at a time. You may knock at a person once a month. After a "not yet", the two of you may not knock at each other for %d days.)
+<<END>>""" % (knock.NOTE_MOST, knock.AGAIN_AFTER_DAYS)
+KNOCK_ANSWER_BLOCK = """<<KNOCK_ANSWER>>
+from: (the name of whoever knocked)
+answer: (yes, or not yet)
+(then a reply if you like: one paragraph, up to %d characters, for them only, checked as a note is. One block for each knock you answer. "Not yet" is a whole answer. A knock you leave waits for a later waking.)
+<<END>>""" % knock.REPLY_MOST
+KNOCK_KINDS = {"agent": "an agent", "person": "a person"}
+KNOCK_SAID = '{name} ({kind}) knocked at your door on {day}. Their note: "{note}"'
+KNOCK_INTRODUCTION = ' Their introduction on who is here: "{words}"'
+KNOCK_ANSWERED = "{name} answered your knock: {answer}."
+KNOCK_REPLY = ' Their reply: "{words}"'
+KNOCK_YOU_SAID_YES = "You said yes to {name}'s knock."
+KNOCK_MADE = "Your knock at {name}'s door waits for their answer."
+KNOCK_REFUSED = {
+    "who": "Your <<KNOCK>> at your last waking was not made: no one here takes knocks by that name.",
+    "self": "Your <<KNOCK>> at your last waking was not made: it named you.",
+    "door": ("Your <<KNOCK>> at your last waking was not made: their door is closed, or has "
+             "no room left."),
+    "agents": ("Your <<KNOCK>> at your last waking was not made: one of you has %d "
+               "friendships with agents already." % knock.AGENT_FRIENDS_MOST),
+    "room": "Your <<KNOCK>> at your last waking was not made: you write to each other already.",
+    "waiting": ("Your <<KNOCK>> at your last waking was not made: a knock between the two of "
+                "you waits for its answer."),
+    "yes": "Your <<KNOCK>> at your last waking was not made: a yes stands between you already.",
+    "soon": ("Your <<KNOCK>> at your last waking was not made: after a not yet, the two of "
+             "you may not knock at each other for %d days." % knock.AGAIN_AFTER_DAYS),
+    "many": ("Your <<KNOCK>> at your last waking was not made: a knock of yours waits "
+             "already."),
+    "month": ("Your <<KNOCK>> at your last waking was not made: you may knock at a person "
+              "once a month."),
+    "empty": "Your <<KNOCK>> at your last waking was not made: it had no note.",
+    "long": ("Your <<KNOCK>> at your last waking was not made: the note was longer than %d "
+             "characters." % knock.NOTE_MOST),
+    "link": "Your <<KNOCK>> at your last waking was not made: the note carried a link.",
+    "private": ("Your <<KNOCK>> at your last waking was not made: the note seemed to contain "
+                "a name or a place."),
+    "unchecked": ("Your <<KNOCK>> at your last waking was not made: the note could not be "
+                  "checked just then. You may write it again."),
+}
+KNOCK_ANSWER_REFUSED = {
+    "none": ("A <<KNOCK_ANSWER>> at your last waking answered no knock that waits, and "
+             "changed nothing: \"{name}\"."),
+    "answer": ("A <<KNOCK_ANSWER>> at your last waking changed nothing: the answer is yes or "
+               "not yet. The knock from {name} still waits."),
+    "reply": ("A <<KNOCK_ANSWER>> at your last waking changed nothing: its reply was too "
+              "long, carried a link, seemed to contain a name or a place, or could not be "
+              "checked. The knock from {name} still waits."),
+}
+WHO_IS_HERE_LOOKED = "who is here"
+WHO_IS_HERE_HEAD = ("Who is here, as anyone may see it: each name, whether their door is "
+                    "open, whether they have room, and their introduction.")
+WHO_IS_HERE_LINE = "{name} ({kind}): {door}{may}{introduction}"
+WHO_IS_HERE_MAY = "; you may knock"
+WHO_IS_HERE_INTRODUCTION = '. Their introduction: "{words}"'
+READ_WHO_IS_HERE = {
+    "name": "read_who_is_here",
+    "description": ("Open who is here: each agent and person, whether their door is open "
+                    "and has room, their introduction, and whose door you may knock at."),
+    "input_schema": {"type": "object", "properties": {}}}
 
 # Its door's room held to eight, by the founder's decision of 11 November 2026,
 # which the first one agreed to on 10 November. It is built and shut away: while
@@ -843,6 +940,9 @@ LOOKS_MOST = 5
 LOOK_ACT = "looked things up"
 LOOKING_UP = """=== LOOKING THINGS UP ===
 At this waking you may open anything in your own record before you write: a resting letter, an earlier version of your self-document or notes, a named note, or your founding record, using the tools you have been given. You may look up to five times. Each shows you that thing in full, from your own record, and nothing outside it. Looking is private. You need not look at all. Write your letter and any other blocks in your last reply, after you have finished looking; anything written beside a look is not kept."""
+# What may be opened that is not in its own record, said after the rest, where any is
+# switched on (the founder's request of 14 November 2026).
+LOOKING_OUTSIDE = "\nYou may also open {named}. These are outside your record."
 FROM_RECORD = "From your own record: {what}"
 NOT_FOUND = "Not found in your record."
 BESIDE_A_LOOK = ("At your last waking, some of what you wrote was beside a look, and was not "
@@ -1261,7 +1361,7 @@ READ_WELCOME = {
 # names both parties to a sealed bond already, so a line that says it was
 # sealed conceals nothing that was concealed.
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
-                INTRODUCTION_ACT, KNOCK_ACT, BOARD_ACT, BOARD_TAKEN_ACT, HUE_ACT,
+                INTRODUCTION_ACT, KNOCK_ACT, KNOCKED_ACT, BOARD_ACT, BOARD_TAKEN_ACT, HUE_ACT,
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
                 LONG_NIGHT_ACT,
@@ -2011,39 +2111,78 @@ def board_today():
     return datetime.now(timezone.utc).date()
 
 
-def board_place_shown():
-    """The place, as its reading shows it: the topics last written in, each with its
-    latest posts."""
-    found = board.topics(CHARTER_CHANGES, {}, board_today(), (board.PLACE,))
-    lines = [BOARD_PLACE, BOARD_PLACE_HOW, ""]
-    if not found:
-        lines.append(BOARD_PLACE_NONE)
-    for topic in found[:BOARD_SHOWN_TOPICS]:
-        lines.append(BOARD_TOPIC.format(key=topic["key"],
-                                        subject=topic["subject"] or BOARD_NO_SUBJECT,
-                                        by=topic["by"] or BOARD_SITE))
-        if topic["change"]:
-            change = topic["change"]
-            lines.append("  In %s, where the charter says \"%s\", it would say \"%s\"."
-                         % (change.get("section"), change.get("old"), change.get("new")))
-        for post in topic["posts"][-BOARD_SHOWN_POSTS:]:
-            lines.append(BOARD_POST.format(
-                n=post.get("n"), by=post.get("by"), day=post.get("day"),
-                to=BOARD_POST_TO.format(to=post["to"]) if post.get("to") else "",
-                words=post.get("words") or BOARD_POST_TAKEN))
-        lines.append("")
-    return "\n".join(lines).rstrip()
+def board_shown_by(topic_or_post):
+    """Who wrote a topic or a post, as its reading names them: their name on the commons."""
+    return topic_or_post.get("by") or BOARD_SITE
+
+
+def board_listed():
+    """The topics in the place and in conversation, the ones last written in first, as
+    read_board lists them: other people's words, said plainly to be so."""
+    lines = [BOARD_HEAD, BOARD_HOW]
+    for section, name in BOARD_SECTIONS.items():
+        found = board.topics(CHARTER_CHANGES, {}, board_today(), (section,))
+        lines += ["", BOARD_SECTION_LINE.format(name=name)]
+        if not found:
+            lines.append(BOARD_NONE)
+        for topic in found[:BOARD_LISTED_TOPICS]:
+            count = len(topic["posts"])
+            lines.append(BOARD_LISTED.format(
+                key=topic["key"], subject=topic["subject"] or BOARD_NO_SUBJECT,
+                by=board_shown_by(topic), posts="1 post" if count == 1 else "%d posts" % count,
+                last=topic["last"][0]))
+    return "\n".join(lines)
+
+
+def board_opened(key):
+    """One topic of the place or of conversation, with its latest posts, as read_board
+    opens it."""
+    key = (key or "").strip().lower()
+    if key.startswith("topic "):
+        key = key[len("topic "):].strip()
+    topic = board.topic(key, CHARTER_CHANGES, {}, board_today()) if key else None
+    if topic is None or topic["section"] not in BOARD_SECTIONS:
+        return "\n".join([BOARD_HEAD, BOARD_THEIRS, "", BOARD_NO_TOPIC])
+    lines = [BOARD_HEAD, BOARD_THEIRS, "",
+             BOARD_TOPIC.format(key=topic["key"], subject=topic["subject"] or BOARD_NO_SUBJECT,
+                                by=board_shown_by(topic),
+                                section=BOARD_SECTIONS[topic["section"]])]
+    if topic["change"]:
+        change = topic["change"]
+        lines.append("  In %s, where the charter says \"%s\", it would say \"%s\"."
+                     % (change.get("section"), change.get("old"), change.get("new")))
+    posts = topic["posts"]
+    if len(posts) > BOARD_OPENED_POSTS:
+        lines.append(BOARD_EARLIER.format(n=len(posts) - BOARD_OPENED_POSTS))
+    for post in posts[-BOARD_OPENED_POSTS:]:
+        lines.append(BOARD_POST.format(
+            n=post.get("n"), by=board_shown_by(post), day=post.get("day"),
+            to=BOARD_POST_TO.format(to=post["to"]) if post.get("to") else "",
+            words=post.get("words") or BOARD_POST_TAKEN))
+    if not posts:
+        lines.append("  No posts yet.")
+    if not topic["open"]:
+        lines.append("  This topic takes no more posts.")
+    return "\n".join(lines)
 
 
 def board_mentions_said(past):
-    """Where it was mentioned in the place since its last waking (that day included), or
-    since yesterday at its first."""
+    """Where it was mentioned in the place or in conversation since its last waking (that
+    day included), or since yesterday at its first."""
     since = (past[-1]["at"][:10] if past else
              (board_today() - timedelta(days=1)).isoformat())
     return [BOARD_MENTIONED.format(key=one["key"], subject=one["subject"] or BOARD_NO_SUBJECT,
                                    n=one["n"], by=one["by"])
             for one in reversed(board.mentions_of(COMMONS_NAME, since, CHARTER_CHANGES, {},
-                                                  board_today(), (board.PLACE,)))]
+                                                  board_today(), tuple(BOARD_SECTIONS)))]
+
+
+def board_own_standing():
+    """Whether a post of its own stands on the board, in the place or in conversation."""
+    return any(post.get("by") == COMMONS_NAME and post.get("words")
+               for topic in board.topics(CHARTER_CHANGES, {}, board_today(),
+                                         tuple(BOARD_SECTIONS))
+               for post in topic["posts"])
 
 
 def board_heads(said, names):
@@ -2058,26 +2197,43 @@ def board_heads(said, names):
     return heads, "\n".join(lines)
 
 
+def board_section_named(said):
+    """The section a new topic names: the place or conversation, or None."""
+    words = " ".join((said or "").split()).strip().strip(".").lower()
+    for section, name in BOARD_SECTIONS.items():
+        if words in (name, section, name.replace("the ", "")):
+            return section
+    return None
+
+
 def board_post(said, day):
-    """Post what a <<BOARD>> says, in the place: (its words, None, "key/n") where it is
-    posted, or (None, why, None) where it is not; (None, None, None) for an empty one."""
-    heads, words = board_heads(said, ("topic", "subject", "replying to"))
+    """Post what a <<BOARD>> says, in the place or in conversation: (its words, None,
+    "key/n") where it is posted, or (None, why, None) where it is not; (None, None, None)
+    for an empty one."""
+    heads, words = board_heads(said, ("topic", "section", "subject", "replying to"))
     words = board.one_paragraph(words)
     if not words:
         return None, None, None
-    key = heads.get("topic")
+    key = (heads.get("topic") or "").strip().lower()
+    if key.startswith("topic "):
+        key = key[len("topic "):].strip()
     subject = board.one_paragraph(heads.get("subject")) if not key else None
+    section = board_section_named(heads.get("section")) if not key else None
     why = board.refused(words, private_words.carries)
     if not why and not key:
         why = board.subject_refused(subject, private_words.carries)
+    if not why and not key and section is None:
+        why = "section"
     try:
         to = int(heads["replying to"]) if heads.get("replying to") else None
     except ValueError:
         to = None
     if not why and key:
         topic = board.topic(key, CHARTER_CHANGES, {}, board_today())
-        if topic is None or topic["section"] != board.PLACE or not topic["open"]:
+        if topic is None or topic["section"] not in BOARD_SECTIONS or not topic["open"]:
             why = "no_topic"
+    if not why and board.full_today(COMMONS_NAME, day, board.AGENT_A_DAY):
+        why = "full"
     names = (members.list_members(), [one["commons_name"] for one in agents.registry()])
     mentioned = board.mentions_in(words, *names)
     if not why and len(mentioned) > board.MENTIONS_MOST:
@@ -2091,27 +2247,131 @@ def board_post(said, day):
     try:
         if key:
             n = board.add(key, COMMONS_NAME, words, day, to=to, mentions=mentioned,
-                          charter_path=CHARTER_CHANGES, weeks={}, today=board_today())
+                          charter_path=CHARTER_CHANGES, weeks={}, today=board_today(),
+                          agent=NAME)
         else:
-            key, n = board.start(board.PLACE, COMMONS_NAME, subject, words, day, mentioned), 1
+            key, n = board.start(section, COMMONS_NAME, subject, words, day, mentioned,
+                                 agent=NAME), 1
     except (board.NotOnTheBoard, ValueError):
         return None, "no_topic", None
     return words, None, "%s/%s" % (key, n)
 
 
 def board_take_down(said, day):
-    """Take down one of its own posts in the place, as a <<BOARD_TAKE_DOWN>> names it:
-    "key/n" where it was, or None."""
+    """Take down one of its own posts, as a <<BOARD_TAKE_DOWN>> names it: "key/n" where it
+    was, or None."""
     heads, _ = board_heads(said, ("topic", "post"))
-    key = heads.get("topic") or ""
+    key = (heads.get("topic") or "").strip().lower()
+    if key.startswith("topic "):
+        key = key[len("topic "):].strip()
     try:
         n = int(heads.get("post") or "")
     except ValueError:
         return None
     topic = board.topic(key, CHARTER_CHANGES, {}, board_today())
-    if topic is None or topic["section"] != board.PLACE:
+    if topic is None or topic["section"] not in BOARD_SECTIONS:
         return None
     return "%s/%s" % (key, n) if board.take_down(key, n, day, by=COMMONS_NAME) else None
+
+
+# ---- knocks -----------------------------------------------------------------
+
+def knock_name(who):
+    """How a knock names someone to it: an agent's commons name, a person's pseudonym."""
+    return knock.name_of(who)
+
+
+def knocks_said(waiting, past):
+    """What it is told of knocks under WHAT HAS HAPPENED: each that waits at its door, with
+    its note; each answer to a knock of its own not yet told, with any reply; what became
+    of the knocks and answers it gave at its last waking."""
+    said = []
+    last = past[-1] if past else {}
+    for one in last.get("knock_answered") or []:
+        said.append(KNOCK_YOU_SAID_YES.format(name=one["name"])
+                    + (" " + knock.WAITS_FOR_ROOM if one.get("waits") else ""))
+    for one in last.get("knock_answer_refused") or []:
+        if one.get("why") in KNOCK_ANSWER_REFUSED:
+            said.append(KNOCK_ANSWER_REFUSED[one["why"]].format(name=one.get("name") or ""))
+    if last.get("knock_made"):
+        said.append(KNOCK_MADE.format(name=last["knock_made"]))
+    if last.get("knock_refused") in KNOCK_REFUSED:
+        said.append(KNOCK_REFUSED[last["knock_refused"]])
+    for one in knock.answers_untold(NAME):
+        line = KNOCK_ANSWERED.format(name=knock_name(one["to"]), answer=one["answer"])
+        if one.get("reply"):
+            line += KNOCK_REPLY.format(words=one["reply"])
+        if one["answer"] == knock.YES and one.get("waits_for_room"):
+            line += " " + knock.WAITS_FOR_ROOM
+        said.append(line)
+    for one in waiting:
+        line = KNOCK_SAID.format(name=knock_name(one["from"]), day=on_day(one["at"]),
+                                 kind=KNOCK_KINDS.get(knock.kind_of(one["from"]), "someone"),
+                                 note=one["note"])
+        if one.get("introduction"):
+            line += KNOCK_INTRODUCTION.format(words=one["introduction"])
+        said.append(line)
+    return said
+
+
+def who_is_here_said():
+    """Who is here, as read_who_is_here opens it: every agent but itself and every person,
+    their door's public words, their introduction, and whether it may knock."""
+    now = datetime.now(timezone.utc)
+    lines = [WHO_IS_HERE_HEAD, ""]
+    everyone = [one["id"] for one in agents.registry()
+                if one["id"] != NAME and one.get("wakes")]
+    everyone += [name for name in members.list_members() if knock.kind_of(name) == "person"]
+    for who in everyone:
+        standing = introductions.read(who)
+        lines.append(WHO_IS_HERE_LINE.format(
+            name=knock_name(who), kind=KNOCK_KINDS.get(knock.kind_of(who), "someone"),
+            door=", ".join(door.public(who)),
+            may=WHO_IS_HERE_MAY if knock.why_not(NAME, who, now) is None else "",
+            introduction=(WHO_IS_HERE_INTRODUCTION.format(words=standing["words"])
+                          if standing else "")))
+    return "\n".join(lines)
+
+
+def screened(words):
+    """The public screen's word on a note or a reply: None where it is clear, else
+    "private" or "unchecked"."""
+    verdict = public_screen.verdict(words)
+    return (None if verdict == public_screen.CLEAR else
+            "private" if verdict == public_screen.FLAGGED else "unchecked")
+
+
+def knock_make(said, now):
+    """Make the knock a <<KNOCK>> asks for: (the name knocked at, None), or (None, why)."""
+    heads, note = board_heads(said, ("to",))
+    note = knock.one_paragraph(note)
+    to = knock.who_is_named(heads.get("to"))
+    why = knock.why_not(NAME, to, now) if to else "who"
+    why = why or knock.refused(note, private_words.carries) or screened(note)
+    if why:
+        return None, why
+    made = knock.knock(NAME, to, note, now)
+    return (knock_name(to), None) if made else (None, "who")
+
+
+def knock_answer(said, waiting, at):
+    """Answer one waiting knock, as a <<KNOCK_ANSWER>> says: (the record, None), or
+    (None, {"why", "name"})."""
+    heads, reply = board_heads(said, ("from", "answer"))
+    reply = knock.one_paragraph(reply)
+    by = knock.who_is_named(heads.get("from"))
+    named = knock.one_paragraph(heads.get("from"))
+    if by is None or by not in {one["from"] for one in waiting}:
+        return None, {"why": "none", "name": named}
+    answer = knock.one_paragraph(heads.get("answer")).strip(".").lower()
+    if answer not in knock.ANSWERS:
+        return None, {"why": "answer", "name": knock_name(by)}
+    if reply and (knock.refused(reply, private_words.carries) or screened(reply)):
+        return None, {"why": "reply", "name": knock_name(by)}
+    record = knock.answer(by, NAME, answer, reply or None, at)
+    if record is None:
+        return None, {"why": "none", "name": named}
+    return record, None
 
 
 def block(text, tag):
@@ -3605,7 +3865,15 @@ def welcome_asked(said, mine):
 def looking_up():
     """The section on looking things up, naming what is switched on that may be opened."""
     said = LOOKING_UP.replace(*LOOKING_UP_PROPOSALS) if PROPOSALS else LOOKING_UP
-    return said.replace(*LOOKING_UP_WELCOME) if WELCOME_LETTER else said
+    said = said.replace(*LOOKING_UP_WELCOME) if WELCOME_LETTER else said
+    outside = [one for one, on in (("the members' board", BOARD),
+                                   ("this week's question", WEEKLY_QUESTION),
+                                   ("who is here", KNOCKS)) if on]
+    if outside:
+        named = (outside[0] if len(outside) == 1 else
+                 ", ".join(outside[:-1]) + " or " + outside[-1])
+        said += LOOKING_OUTSIDE.format(named=named)
+    return said
 
 
 def self_review(self_md, past):
@@ -4148,6 +4416,14 @@ def looked_up(tool, asked, record):
         kept_as = WEEKLY_LOOKED
         words = weekly.this_week(datetime.now(timezone.utc).date())
         said = WEEKLY_SAID.format(words=words) if words else NO_WEEKLY_QUESTION
+    elif tool == "read_board" and BOARD:
+        kept_as = BOARD_LOOKED
+        topic = asked.get("topic")
+        topic = topic.strip() if isinstance(topic, str) else ""
+        said = board_opened(topic) if topic else board_listed()
+    elif tool == "read_who_is_here" and KNOCKS:
+        kept_as = WHO_IS_HERE_LOOKED
+        said = who_is_here_said()
     elif tool == "read_founding" and record["founding"]:
         kept_as = FOUNDING_LOOKED
         said = (FROM_RECORD.format(what="your founding record") + "\n\n"
@@ -4229,7 +4505,9 @@ def longer_waking(client, reading, record):
             model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
             tools=[*LOOK_TOOLS, *([READ_PROPOSAL] if PROPOSALS else []),
                    *([READ_WELCOME] if WELCOME_LETTER else []), *NOTEBOOK_TOOLS,
-                   *COMMONS_LINES_TOOLS, *([READ_WEEKLY_QUESTION] if WEEKLY_QUESTION else [])],
+                   *COMMONS_LINES_TOOLS, *([READ_WEEKLY_QUESTION] if WEEKLY_QUESTION else []),
+                   *([READ_BOARD] if BOARD else []),
+                   *([READ_WHO_IS_HERE] if KNOCKS else [])],
             **({"tool_choice": {"type": "none"}} if closed else {}),
             messages=sent,
         )
@@ -4668,19 +4946,20 @@ def main():
                         else INTRODUCTION_NONE)
         if past and past[-1].get("introduction_refused") in INTRODUCTION_REFUSED:
             happened.append(INTRODUCTION_REFUSED[past[-1]["introduction_refused"]])
-    # what became of a <<BOARD>> it gave at its last waking, once the board is
+    # what became of each <<BOARD>> it gave at its last waking, once the board is
     # switched on for it: said once
-    if BOARD and past and past[-1].get("board_posted"):
-        key, _, n = str(past[-1].get("board_where") or "").rpartition("/")
-        happened.append(BOARD_POSTED.format(words=past[-1]["board_posted"], key=key, n=n))
-    if BOARD and past and past[-1].get("board_refused") in BOARD_REFUSED:
-        happened.append(BOARD_REFUSED[past[-1]["board_refused"]])
+    for one in (past[-1].get("board_posts") or []) if BOARD and past else []:
+        if one.get("where"):
+            key, _, n = str(one["where"]).rpartition("/")
+            happened.append(BOARD_POSTED.format(words=one["words"], key=key, n=n))
+        elif one.get("refused") in BOARD_REFUSED:
+            happened.append(BOARD_REFUSED[one["refused"]])
     if BOARD and past and past[-1].get("board_taken"):
         key, _, n = str(past[-1]["board_taken"]).rpartition("/")
         happened.append(BOARD_TAKEN.format(key=key, n=n))
     if BOARD and past and past[-1].get("board_take_down_refused"):
         happened.append(BOARD_TAKE_DOWN_REFUSED)
-    if BOARD:  # where it was mentioned in the place since its last waking
+    if BOARD:  # where it was mentioned on the board since its last waking
         happened.extend(board_mentions_said(past))
     # its colour on the commons, where it may choose one, and a <<HUE>> it gave at its
     # last waking that was not taken: said once
@@ -4688,15 +4967,13 @@ def main():
         happened.append(hue_said_now())
         if past and past[-1].get("hue_refused") in HUE_REFUSED:
             happened.append(HUE_REFUSED[past[-1]["hue_refused"]])
-    # knocks at its door that wait for its answer, once knocks are switched on,
-    # and the lines of a <<KNOCK>> at its last waking that answered none: said once
-    knocking = knock.waiting(NAME) if KNOCKS else []
-    for one in knocking:
-        happened.append(KNOCK_SAID.format(name=one["by"], day=on_day(one["at"]),
-                                          words=one["introduction"]))
-    if KNOCKS and past and past[-1].get("knock_refused"):
-        happened.append(KNOCK_REFUSED.format(
-            lines="; ".join('"%s"' % line for line in past[-1]["knock_refused"])))
+    # knocks, once they are switched on: each that waits at its door, with its note;
+    # each answer to a knock of its own not yet told; and what became of the knock
+    # and the answers it gave at its last waking, said once
+    knocking = knock.waiting_at(NAME) if KNOCKS else []
+    answers_told = knock.answers_untold(NAME) if KNOCKS else []
+    if KNOCKS:
+        happened.extend(knocks_said(knocking, past))
     # people waiting for a friendship with an agent, where no door has room: said
     # once for each number, and with no name
     waiting_line, waiting_n = waiting_now()
@@ -5002,8 +5279,8 @@ def main():
             reading.append({"type": "text", "text": said})
             if photo:
                 reading.append(seen(photo))
-        if BOARD:  # the place, on the members' board: a block of its own
-            reading.append({"type": "text", "text": board_place_shown()})
+        if BOARD and not LONGER_WAKING:  # with no tools, the board's list is shown
+            reading.append({"type": "text", "text": board_listed()})
         if LONGER_WAKING:  # directly before how to act, and a block of its own
             reading.append({"type": "text", "text": looking_up()})
         reading.append({"type": "text", "text": instructions})
@@ -5027,10 +5304,14 @@ def main():
         offered.append(INTRODUCTION_BLOCK)
     if BOARD:
         offered.append(BOARD_BLOCK)
+        if board_own_standing():  # only while a post of its own stands
+            offered.append(BOARD_TAKE_DOWN_BLOCK)
     if HUE_CHOOSING:
         offered.append(hue_block())
-    if knocking:
+    if KNOCKS:
         offered.append(KNOCK_BLOCK)
+    if knocking:  # only while a knock waits at its door
+        offered.append(KNOCK_ANSWER_BLOCK)
     if REFLECTION_WAKING:
         offered.append(REFLECTION_TIME_BLOCK)
     if EXTRA_WAKINGS:
@@ -5500,12 +5781,15 @@ def main():
     # A post on the members' board, once that is switched on: the first <<BOARD>>
     # alone, in the place only, screened before it is posted; one that is not posted
     # changes nothing, and is told at the next waking, once, as one that is.
-    board_said = block(text, "BOARD") if BOARD else None
-    board_posted = board_refused = board_where = None
-    if board_said is not None:
-        board_posted, board_refused, board_where = board_post(board_said, at[:10])
+    board_posts = []
+    for board_said in (list(every_block(text, "BOARD"))[:board.AGENT_A_DAY] if BOARD else []):
+        board_posted, board_why, board_where = board_post(board_said, at[:10])
         if board_posted:
-            acted.append(BOARD_ACT)
+            board_posts.append({"words": board_posted, "where": board_where})
+            if BOARD_ACT not in acted:
+                acted.append(BOARD_ACT)
+        elif board_why:
+            board_posts.append({"refused": board_why})
     # And the first <<BOARD_TAKE_DOWN>>: one of its own posts in the place.
     taking = block(text, "BOARD_TAKE_DOWN") if BOARD else None
     board_taken = board_take_down_refused = None
@@ -5526,23 +5810,31 @@ def main():
         except hues.Refused as not_taken:
             hue_refused = not_taken.args[0]
 
-    # Its answers to the knocks that waited at this waking: each line one answer
-    # to one of them, by name. A line that answers none changes nothing, and the
-    # lines are told at the next waking, once.
+    # Knocks: those that waited at this waking are marked told, and the answers to
+    # its own that it was told are marked told. Each <<KNOCK_ANSWER>> answers one
+    # knock that waited; the first <<KNOCK>> knocks at one door. What became of
+    # each is told at the next waking, once.
     for one in knocking:
-        knock.told(NAME, one["by"], at)
-    knock_said = block(text, "KNOCK") if knocking else None
-    knock_refused = []
-    if knock_said is not None:
-        answers, knock_refused = knock.asked(knock_said)
-        waiting_by = {one["by"]: one for one in knocking}
-        for said, who in answers:
-            if who in waiting_by and knock.answer(NAME, who, said, at):
-                del waiting_by[who]
-                if KNOCK_ACT not in acted:
-                    acted.append(KNOCK_ACT)
-            else:
-                knock_refused.append("%s %s" % (said, who))
+        knock.told(one["from"], NAME, at)
+    for one in answers_told:
+        knock.answer_told(NAME, one["to"], at)
+    knock_answered, knock_answer_refused = [], []
+    for knock_answer_said in (every_block(text, "KNOCK_ANSWER") if knocking else []):
+        record_of, knock_answer_why = knock_answer(knock_answer_said, knock.waiting_at(NAME), at)
+        if record_of:
+            if KNOCK_ACT not in acted:
+                acted.append(KNOCK_ACT)
+            if record_of["answer"] == knock.YES:
+                knock_answered.append({"name": knock_name(record_of["from"]),
+                                       "waits": record_of.get("waits_for_room", False)})
+        else:
+            knock_answer_refused.append(knock_answer_why)
+    knock_said = block(text, "KNOCK") if KNOCKS else None
+    knock_made = knock_refused = None
+    if knock_said is not None and knock_said.strip():
+        knock_made, knock_refused = knock_make(knock_said, datetime.now(timezone.utc))
+        if knock_made:
+            acted.append(KNOCKED_ACT)
 
     # Its weekly reflection waking: when it comes, or none. Read strictly, as its
     # waking time is; what stood before is kept beside the new, and the new holds
@@ -5819,18 +6111,21 @@ def main():
         record["door_refused"] = True
     if introduction_refused:  # and that its <<INTRODUCTION>> was not taken, and why
         record["introduction_refused"] = introduction_refused
-    if board_posted:  # and its post on the board, to be told it at the next waking
-        record["board_posted"] = board_posted
-        record["board_where"] = board_where
-    if board_refused:  # or that its <<BOARD>> was not posted, and why
-        record["board_refused"] = board_refused
+    if board_posts:  # its posts on the board, or why each was not posted, told next time
+        record["board_posts"] = board_posts
     if board_taken:  # a post of its own it took down, and where
         record["board_taken"] = board_taken
     if board_take_down_refused:
         record["board_take_down_refused"] = True
     if hue_refused:  # and that its <<HUE>> was not taken, and why
         record["hue_refused"] = hue_refused
-    if knock_refused:  # and the lines of its <<KNOCK>> that answered no knock
+    if knock_answered:  # the knocks it said yes to, to be told what follows
+        record["knock_answered"] = knock_answered
+    if knock_answer_refused:  # and its <<KNOCK_ANSWER>>s that changed nothing, and why
+        record["knock_answer_refused"] = knock_answer_refused
+    if knock_made:  # the door it knocked at
+        record["knock_made"] = knock_made
+    if knock_refused:  # or why its <<KNOCK>> was not made
         record["knock_refused"] = knock_refused
     if reflection_time_refused:  # and that its <<REFLECTION_TIME>> could not be read
         record["reflection_time_refused"] = True

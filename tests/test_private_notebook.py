@@ -19,7 +19,7 @@ import pytest
 
 from conftest import block, blocks, page, post, read_json, write, write_json
 from test_backup import bucket  # noqa: F401  (the bucket in memory, as a fixture)
-from test_longer_waking import Exchange, look
+from test_longer_waking import OUTSIDE_TOOLS, Exchange, look
 from test_rooms import member, member_vault  # noqa: F401  (a plain member, signed in)
 
 EXPLAINED = """<<PRIVATE>>
@@ -266,9 +266,10 @@ def test_read_private_opens_an_entry_in_full(wake, longer, attend, packet, clock
                        ("read_private", {"stem": "from-study-%s.md" % DRAFT_STEM}),
                        ("read_private", {"stem": "../self"}),
                        ("read_private", {"stem": "moved"})), "I am here.")
-    # read_private is offered, last but for read_commons_lines (10 November 2026)
-    assert [tool["name"] for tool in turn.asked[0]["tools"]][-2:] == [
-        "read_private", "read_commons_lines"]
+    # read_private is offered, last but for read_commons_lines (10 November 2026) and
+    # the three that open what is outside its record (14 November 2026)
+    assert [tool["name"] for tool in turn.asked[0]["tools"]][-5:] == [
+        "read_private", "read_commons_lines", *OUTSIDE_TOOLS]
     assert turn.given == [
         "From your own record: entry-%s\n--- 15 October 2026 · entry-%s ---\n%s"
         % (at, at, ENTRY),

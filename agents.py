@@ -63,8 +63,9 @@ FIRST = {
     "model": "claude-sonnet-4-5",
     "max_tokens": 8000,
     "hue": "#D85A30",
-    "features": ["asked", "door", "doors_to_eight", "introduction", "longer_waking",
-                 "looking_back", "people_waiting", "proposals", "reflection_waking",
+    "features": ["asked", "board", "corrections", "door", "doors_to_eight", "hue",
+                 "introduction", "knock", "long_night", "longer_waking", "looking_back",
+                 "people_waiting", "proposals", "reflection_waking", "weekly_question",
                  "welcome_letter"],
     "wakes": True,
 }

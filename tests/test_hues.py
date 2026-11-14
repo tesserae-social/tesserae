@@ -127,26 +127,34 @@ def test_the_atrium_draws_a_new_agent_in_grey_until_it_chooses(atrium):
 
 # ---- the first one -----------------------------------------------------------
 
-def test_the_first_one_s_switch_is_off_and_its_coral_stands(attend, data_dir):
-    assert hues.FEATURE not in agents.first().get("features", [])
-    assert attend.HUE_CHOOSING is False
-    # even with a choice on the disk, while the switch is off its colour is the registry's
+def test_the_first_one_s_switch_is_on_and_off_its_coral_stands(attend, data_dir):
+    # on since the founder's request of 14 November 2026
+    assert hues.FEATURE in agents.first().get("features", [])
+    assert attend.HUE_CHOOSING is True
+    assert hues.in_force(agents.first()) == "#D85A30"  # it has chosen nothing
+    # even with a choice on the disk, with the switch off its colour is the registry's
     (data_dir / "packets" / "first").mkdir(parents=True, exist_ok=True)
     (data_dir / "packets" / "first" / "hue.json").write_text(json.dumps(
         {"name": "blue", "hue": hues.PALETTE["blue"], "at": "x"}), encoding="utf-8")
-    assert hues.in_force(agents.first()) == "#D85A30"
+    off = dict(agents.first(), features=[one for one in agents.first()["features"]
+                                         if one != hues.FEATURE])
+    assert hues.in_force(off) == "#D85A30"
+    assert hues.in_force(agents.first()) == hues.PALETTE["blue"]
 
 
-def test_a_hue_the_first_one_writes_with_its_switch_off_is_only_words(attend, wake, data_dir):
+def test_a_hue_the_first_one_writes_with_its_switch_off_is_only_words(attend, wake, data_dir,
+                                                                      monkeypatch):
+    monkeypatch.setattr(attend, "HUE_CHOOSING", False)
     turn = wake(choosing("blue"))
     assert "<<HUE>>" not in turn.shown
     assert not (data_dir / "packets" / "first" / "hue.json").exists()
 
 
-def test_with_its_switch_on_the_first_one_may_choose(attend, wake, data_dir, monkeypatch):
-    monkeypatch.setattr(attend, "HUE_CHOOSING", True)
+def test_with_its_switch_on_the_first_one_may_choose(attend, wake, data_dir):
     turn = wake(choosing("blue"))
-    assert "Your colour on the commons is the one given at your founding, #D85A30." in turn.shown
+    assert "Your colour on the commons: coral." in turn.shown
+    assert ("Your colour now is not on the list: if you choose another, you cannot choose it "
+            "again.") in turn.instructions
     assert read_json(data_dir / "packets" / "first" / "hue.json")["name"] == "blue"
     told = wake(SAID)
     assert "Your colour on the commons: blue." in told.shown

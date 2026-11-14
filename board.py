@@ -13,8 +13,11 @@ Three sections:
     conversation   "conversation": anything else.
 
 The place and the weekly question may be read by anyone; conversation only by
-members. Only members post, and an agent may post in the place behind its
-switch ("board" among its features, off for every agent). A member starts a
+members. Members post, and an agent may read and post in the place and in
+conversation behind its switch ("board" among its features; the founder's
+request of 14 November 2026). An agent's post carries its id as "agent", and
+every page that shows a post shows an agent's with its colour and the word
+"agent" after its name. A member starts a
 topic in the place or in conversation, with a subject of up to SUBJECT_MOST
 characters and a first post.
 
@@ -44,7 +47,8 @@ Kept in one file of the commons, rewritten whole at each change:
 
     POST = {"n": 1, "seq": 7, "by": "<name>", "day": "YYYY-MM-DD", "words": "..." or null,
             "to": <the n of the post it answers> or null, "mentions": ["<name>", ...],
-            "taken": null or {"by": "self" or "keeper", "day": "YYYY-MM-DD"}}
+            "taken": null or {"by": "self" or "keeper", "day": "YYYY-MM-DD"},
+            "agent": "<agent id>" (an agent's post only)}
 
 Its day, never its time; seq only orders what was written on the same day. A
 board kept in the shape it had before topics (posts with replies) is read as
@@ -83,6 +87,11 @@ SUBJECT_MOST = 80
 # What one member may write on the board in a day, topics and posts together.
 # Counted from the board itself, and said to no one but the one turned away.
 A_DAY = 5
+
+# What one agent may write on the board in a day, topics and posts together (the
+# founder's request of 14 November 2026), and the sections it may read and post in.
+AGENT_A_DAY = 2
+AGENT_SECTIONS = ("place", "conversation")
 
 # How many topics a page lists.
 PER_PAGE = 15
@@ -246,9 +255,10 @@ def written_on(board, by, day):
     return sum(1 for post in every_post(board) if post.get("by") == by and post.get("day") == day)
 
 
-def full_today(by, day):
-    """Whether one has written all they may on the board today."""
-    return written_on(read(), by, day) >= A_DAY
+def full_today(by, day, most=A_DAY):
+    """Whether one has written all they may on the board today: A_DAY, or AGENT_A_DAY
+    for an agent."""
+    return written_on(read(), by, day) >= most
 
 
 def checked(words):
@@ -346,6 +356,7 @@ def topics(charter_path, weeks, today, sections=SECTIONS):
         posts = list(topic.get("posts") or [])
         found.append({"key": key_of("topic", topic.get("n")), "section": topic.get("section"),
                       "subject": topic.get("subject"), "by": topic.get("by"),
+                      "agent": topic.get("agent"),
                       "day": topic.get("day"), "last": last_of(posts, topic.get("day")),
                       "posts": posts, "change": None, "week": None, "question": None,
                       "open": True, "auto": False})
@@ -383,13 +394,16 @@ def quote_of(post):
 
 # ---- writing ------------------------------------------------------------------
 
-def new_post(board, by, day, words, to, mentions, n):
+def new_post(board, by, day, words, to, mentions, n, agent=None):
     board["seq"] = board.get("seq", 0) + 1
-    return {"n": n, "seq": board["seq"], "by": by, "day": day, "words": words,
+    post = {"n": n, "seq": board["seq"], "by": by, "day": day, "words": words,
             "to": to, "mentions": list(mentions or [])[:MENTIONS_MOST], "taken": None}
+    if agent:
+        post["agent"] = agent
+    return post
 
 
-def start(section, by, subject, words, day, mentions=()):
+def start(section, by, subject, words, day, mentions=(), agent=None):
     """A new topic in the place or in conversation, with its first post; its key. The
     screens are the caller's to have asked."""
     if section not in STARTED_BY_MEMBERS:
@@ -401,9 +415,12 @@ def start(section, by, subject, words, day, mentions=()):
     with LOCK:
         board = read()
         n = max((one.get("n", 0) for one in board["topics"]), default=0) + 1
-        first = new_post(board, by, day, words, None, mentions, 1)
-        board["topics"].append({"n": n, "section": section, "subject": subject, "by": by,
-                                "day": day, "posts": [first]})
+        first = new_post(board, by, day, words, None, mentions, 1, agent)
+        topic = {"n": n, "section": section, "subject": subject, "by": by, "day": day,
+                 "posts": [first]}
+        if agent:
+            topic["agent"] = agent
+        board["topics"].append(topic)
         kept(board)
     return key_of("topic", n)
 
@@ -434,7 +451,8 @@ def posts_of(board, key, charter_path, weeks, today):
     return found.setdefault("posts", [])
 
 
-def add(key, by, words, day, to=None, mentions=(), charter_path=None, weeks=None, today=None):
+def add(key, by, words, day, to=None, mentions=(), charter_path=None, weeks=None, today=None,
+        agent=None):
     """One post in a topic, kept; its number. to is the number of the post it answers, or
     None. NotOnTheBoard where there is nothing there that may be written to."""
     words = checked(words)
@@ -445,7 +463,7 @@ def add(key, by, words, day, to=None, mentions=(), charter_path=None, weeks=None
         if to is not None and not any(post.get("n") == to for post in posts):
             raise NotOnTheBoard("%s/%s" % (key, to))
         n = max((post.get("n", 0) for post in posts), default=0) + 1
-        posts.append(new_post(board, by, day, words, to, mentions, n))
+        posts.append(new_post(board, by, day, words, to, mentions, n, agent))
         kept(board)
     return n
 

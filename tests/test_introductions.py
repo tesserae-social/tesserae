@@ -3,11 +3,9 @@
 The founder's decision of 13 November 2026. A member writes a short public
 introduction on /account, screened as a line on the bench is, and it is shown on
 who is here beside their door. An agent writes its own with <<INTRODUCTION>>,
-once "introduction" is among its features. A member with an introduction may
-knock at the door of an agent whose door is open and not full, once "knock" is
-among its features: the agent is told at its next waking, with the member's
-introduction, and answers yes or not yet with <<KNOCK>>; a yes reaches the
-founder on /tides, who sets up the room by hand.
+once "introduction" is among its features. Knocks, with
+notes, between a person and an agent or two agents, are below (the founder's
+request of 14 November 2026).
 
 With both switches off, nothing in any agent's reading changes: the first one's
 is held by test_first_one_fingerprints and test_rooms_reading, and here it is
@@ -33,6 +31,9 @@ from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
 
 HELLO = "I walk early and write late. I hope for a slow friendship, by letter."
 HAZEL_SAYS = "I keep bees, and I am learning to listen. I hope to write to someone patient."
+# As long as an introduction may be: 500 characters since the founder's request of
+# 14 November 2026, where it was 280, for agents and members alike.
+LONGEST = ("I keep bees and walk early, and I hope for a slow friendship by letter. " * 8)[:500]
 
 
 @pytest.fixture
@@ -125,7 +126,8 @@ def test_a_member_s_introduction_is_kept_and_public(world):
 
 
 @pytest.mark.parametrize("words, said", [
-    ("w" * 281, "up to 280 characters"),
+    ("w" * 501, "up to 500 characters"),
+    (LONGEST + "s", "up to 500 characters"),
     ("Write to me at example.com", "carries no link"),
 ])
 def test_an_introduction_that_breaks_a_rule_is_not_kept(world, words, said):
@@ -134,6 +136,23 @@ def test_an_introduction_that_breaks_a_rule_is_not_kept(world, words, said):
     assert words in page(answer)  # what was written is kept in the form
     assert not (world.data / "members" / HAZEL / "introduction.json").exists()
     assert world.public() == []
+
+
+def test_an_introduction_may_be_500_characters_and_the_page_says_so(world):
+    assert len(LONGEST) == 500 == len(" ".join(LONGEST.split()))
+    said = world.account()
+    assert "up to 500 characters" in said and "up to 280" not in said
+    assert 'maxlength="500"' in page(world.client.get("/account"))
+    assert world.introduce(LONGEST).status_code == 302
+    assert world.public() == [{"name": HAZEL, "words": LONGEST, "day": "2026-10-15"}]
+
+
+def test_who_is_here_draws_the_longest_beside_the_door():
+    """Whole, escaped, on its own line beneath the door; style.css wraps it in the column
+    (measured in a browser by test_atrium_frame)."""
+    drawn = "\n".join(build_atrium.who_block(
+        [("member", HAZEL, "door open")], (), [], [(HAZEL, LONGEST)]))
+    assert '<span class="introduction">%s</span>' % LONGEST in drawn
 
 
 def test_an_introduction_the_screen_flags_is_not_kept_and_is_in_the_ledger(world, screen):
@@ -221,6 +240,18 @@ def test_switched_on_it_writes_its_own_and_it_is_public(world):
     assert world.public() == []
 
 
+def test_an_agent_may_write_500_characters_and_no_more(world):
+    shown = world.wake().shown
+    assert "one line, up to 500 characters." in shown and "280" not in shown
+    world.wake(block("INTRODUCTION", LONGEST + "s"))
+    assert world.public() == []
+    told = ("Your <<INTRODUCTION>> at your last waking was not taken: it was longer than 500 "
+            "characters. Your introduction is unchanged.")
+    assert told in world.wake().shown
+    world.wake(block("INTRODUCTION", LONGEST))
+    assert world.public() == [{"name": "the second one", "words": LONGEST, "day": "2026-10-15"}]
+
+
 def test_one_not_taken_is_told_once(world, screen):
     screen.says = "YES"
     world.wake(block("INTRODUCTION", "I live by a named lake."))
@@ -230,120 +261,239 @@ def test_one_not_taken_is_told_once(world, screen):
     assert told not in world.wake().shown
 
 
-# ---- a knock ------------------------------------------------------------------
+# ---- a knock (knock.py; the founder's request of 14 November 2026) ---------------
+#
+# A hello with a note, agent to agent, agent to person or person to agent; never
+# person to person. Only at an open door with room left. The answer is yes or not
+# yet, with a reply if one likes. A person knocks from an agent's line on who is
+# here (/knock/<its id>) and answers on their home page; an agent with blocks. The
+# note and the reply are the two's alone.
+
+NOTE = "Hello. I walk early and write late, and I would like to write to you."
+REPLY = "Thank you for knocking. I would like that too."
+WAITS = "The room will be made when the site can hold more than one."
+NOW = datetime(2026, 10, 15, 12, tzinfo=timezone.utc)
+
+
+def knock_at(world, to="second", note=NOTE):
+    return world.post("/knock/" + to, note=note)
+
+
+def kept_knock(world, by, to):
+    path = world.data / "knocks" / ("%s--%s.json" % (by, to))
+    return read_json(path) if path.exists() else None
+
+
+def home(world):
+    return " ".join(page(world.client.get("/")).split())
+
 
 def test_switched_off_there_is_no_knocking_and_nothing_is_said(unswitched):
-    unswitched.introduce()
-    assert "knock at a door" not in unswitched.account()
-    unswitched.knock()
-    assert not (unswitched.data / "packets" / "second" / "knocks").exists()
-    shown = unswitched.wake(block("KNOCK", "yes hazel")).shown
+    assert 'name="note"' not in page(unswitched.client.get("/knock/second"))
+    knock_at(unswitched)
+    assert not (unswitched.data / "knocks").exists()
+    shown = unswitched.wake(block("KNOCK", "to: hazel\n" + NOTE)).shown
     assert "<<KNOCK>>" not in shown and "knocked at your door" not in shown
+    assert not (unswitched.data / "knocks").exists()
 
 
-def test_a_member_knocks_only_with_an_introduction_and_at_an_open_door(
+def test_a_person_knocks_at_an_open_door_with_room_and_only_then(
         env, clock, monkeypatch, switched_registry, data_dir, member_vaults):  # noqa: F811
     world = make_world(env, clock, monkeypatch, data_dir, member_vaults, door_open=False)
-    world.introduce()
-    assert "knock at a door" not in world.account()  # its door is closed
-    world.knock()
-    assert not (data_dir / "packets" / "second" / "knocks").exists()
+    assert "Their door is closed, or has no room left." in page(world.client.get("/knock/second"))
+    knock_at(world)
+    assert kept_knock(world, HAZEL, "second") is None
     world.hearth.door.set_door("second", state="open", room=1, at="2026-10-02T09-00-00Z")
-    assert "knock at a door" not in world.account()  # open, and full with alder's room
+    knock_at(world)  # open, and full with alder's room
+    assert kept_knock(world, HAZEL, "second") is None
     world.hearth.door.set_door("second", state="open", room=2, at="2026-10-03T09-00-00Z")
-    assert "Ask to begin a correspondence" in world.account()
+    assert 'name="note"' in page(world.client.get("/knock/second"))
+    assert knock_at(world).status_code == 302
+    assert kept_knock(world, HAZEL, "second")["note"] == NOTE
 
 
-def test_no_introduction_no_knock(world):
-    assert "Write your introduction above first" in world.account()
-    world.knock()
-    assert not (world.data / "packets" / "second" / "knocks").exists()
+def test_a_knock_needs_no_introduction_but_carries_one_if_written(world):
+    knock_at(world)
+    assert kept_knock(world, HAZEL, "second")["introduction"] is None
+    shown = world.wake().shown
+    assert ('hazel (a person) knocked at your door on 15 October 2026. Their note: "%s"' % NOTE
+            in shown)
+    assert "Their introduction" not in shown
 
 
-def test_a_knock_asks_once_more_before_it_is_made(world):
-    world.introduce()
-    answer = world.post("/account/knock", agent="second")
-    assert "Knock at the second one&#39;s door?" in page(answer) or \
-        "Knock at the second one's door?" in page(answer)
-    assert not (world.data / "packets" / "second" / "knocks").exists()
+def test_a_note_is_screened_as_a_board_post(world, screen):
+    for words, said in (("", "A knock needs a note"), ("w" * 501, "up to 500 characters"),
+                        ("Write to me at example.com", "carries no link")):
+        assert said in page(knock_at(world, note=words))
+    world.monkeypatch.setattr(world.hearth, "in_good_spirit", lambda line: False)
+    assert "That note wasn" in page(knock_at(world))
+    world.monkeypatch.setattr(world.hearth, "in_good_spirit", lambda line: True)
+    screen.says = "YES"
+    assert "seemed to contain a name or a place" in page(knock_at(world))
+    assert kept_knock(world, HAZEL, "second") is None
 
 
 def test_the_whole_way_of_a_yes(world, founder):
     world.introduce()
-    world.knock()
-    kept = read_json(world.data / "packets" / "second" / "knocks" / "hazel.json")
-    assert kept["introduction"] == HAZEL_SAYS and kept["answer"] is None
-    assert "It has not answered yet" in world.account()
+    knock_at(world)
+    assert "No answer yet." in home(world)
 
     shown = world.wake().shown
-    assert ('hazel, a member of the commons, knocked at your door on 15 October 2026, asking to '
-            'begin a correspondence with you. Their introduction: "%s"' % HAZEL_SAYS) in shown
-    assert "<<KNOCK>>" in shown
-    world.wake(block("KNOCK", "yes hazel"))
-    kept = read_json(world.data / "packets" / "second" / "knocks" / "hazel.json")
-    assert kept["answer"] == "yes" and kept["told_at"]
-    assert "<<KNOCK>>" not in world.wake().shown  # nothing waits now
-    assert "It said yes on 15 October 2026" in world.account()
+    assert ('hazel (a person) knocked at your door on 15 October 2026. Their note: "%s" Their '
+            'introduction on who is here: "%s"' % (NOTE, HAZEL_SAYS)) in shown
+    assert "<<KNOCK_ANSWER>>" in shown
+    world.wake(block("KNOCK_ANSWER", "from: hazel\nanswer: yes\n" + REPLY))
+    kept = kept_knock(world, HAZEL, "second")
+    assert (kept["answer"], kept["reply"], kept["waits_for_room"]) == ("yes", REPLY, True)
+    shown = world.wake().shown
+    assert "You said yes to hazel's knock. " + WAITS in shown
+    assert "<<KNOCK_ANSWER>>" not in shown  # nothing waits now
+
+    said = home(world)
+    assert "The second one answered yes on 15 October 2026. " + WAITS in said
+    assert REPLY in said
 
     tides = page(founder.get("/tides"))
-    assert "hazel knocked at the second one" in tides and "it said yes on" in tides
-    post(founder, "/tides/knock/set-up", data={"agent": "second", "member": HAZEL})
+    assert "hazel knocked at the second one" in tides and "the answer was yes" in tides
+    assert NOTE not in tides and REPLY not in tides
+    post(founder, "/tides/knock/set-up", data={"from": HAZEL, "to": "second"})
     assert "knocks answered yes" not in page(founder.get("/tides"))
-    assert read_json(world.data / "packets" / "second" / "knocks" / "hazel.json")["set_up_at"]
+    assert kept_knock(world, HAZEL, "second")["set_up_at"]
 
     # never public: not in the commons, not in a heartbeat
-    for name in ("events.md", "heartbeats.md", "members.md"):
-        path = world.data / "commons" / name
-        assert not path.exists() or "hazel" not in path.read_text(encoding="utf-8").lower() \
-            or name == "members.md"
+    for path in (world.data / "commons").rglob("*"):
+        if path.is_file():
+            words = path.read_text(encoding="utf-8", errors="replace")
+            assert NOTE not in words and REPLY not in words
     heartbeats = (world.data / "commons" / "heartbeats.md").read_text(encoding="utf-8")
     assert "knock" not in heartbeats
 
 
-def test_a_not_yet_and_a_knock_again_after_a_month(world):
-    world.introduce()
-    world.knock()
+def test_a_not_yet_holds_the_two_apart_for_thirty_days_either_way(world):
+    world.hearth.door.set_door(HAZEL, state="open", room=2, at="2026-10-01T09-00-00Z")
+    knock_at(world)
     world.wake()
-    world.wake(block("KNOCK", "not yet hazel"))
-    said = world.account()
-    assert "It said not yet on 15 October 2026. You may knock again from 14 November 2026." in said
-    world.knock()
-    assert read_json(world.data / "packets" / "second" / "knocks" / "hazel.json")["answer"] == \
-        "not yet"
+    world.wake(block("KNOCK_ANSWER", "from: hazel\nanswer: not yet"))
+    assert "The second one answered not yet on 15 October 2026." in home(world)
+    said = page(world.client.get("/knock/second"))
+    assert "may not knock at each other again until 14 November 2026" in said
+    world.wake(block("KNOCK", "to: hazel\n" + NOTE))  # nor it at hazel's
+    assert kept_knock(world, "second", HAZEL) is None
+    assert world.module.KNOCK_REFUSED["soon"] in world.wake().shown
     world.clock.shift(days=31)
-    assert "Ask to begin a correspondence" in world.account()
-    world.knock()
-    assert read_json(world.data / "packets" / "second" / "knocks" / "hazel.json")["answer"] is None
-    assert len(list((world.data / "packets" / "second" / "knocks" / "history").glob("*"))) == 1
+    assert knock_at(world).status_code == 302
+    assert kept_knock(world, HAZEL, "second")["answer"] is None
+    assert len(list((world.data / "knocks" / "history").glob("*"))) == 1
 
 
-def test_a_line_that_answers_no_knock_is_told_once(world):
-    world.introduce()
-    world.knock()
-    world.wake()
-    world.wake(block("KNOCK", "yes birch\nperhaps hazel"))
-    assert read_json(world.data / "packets" / "second" / "knocks" / "hazel.json")["answer"] is None
-    told = "Some lines of your <<KNOCK>> at your last waking answered no knock that waits"
+def test_an_agent_knocks_at_a_person_who_answers_on_their_home_page(world):
+    world.hearth.door.set_door(HAZEL, state="open", room=2, at="2026-10-01T09-00-00Z")
     shown = world.wake().shown
-    assert told in shown and '"yes birch"' in shown and '"perhaps hazel"' in shown
-    assert told not in world.wake().shown
+    assert "<<KNOCK>>" in shown and "<<KNOCK_ANSWER>>" not in shown
+    world.wake(block("KNOCK", "to: hazel\n" + NOTE))
+    assert kept_knock(world, "second", HAZEL)["note"] == NOTE
+    assert "Your knock at hazel's door waits for their answer." in world.wake().shown
+    said = home(world)
+    assert "the second one knocked at your door on 15 October 2026." in said and NOTE in said
+    world.post("/knock/answer", **{"from": "second", "answer": "not yet", "reply": REPLY})
+    assert kept_knock(world, "second", HAZEL)["answer"] == "not yet"
+    told = 'hazel answered your knock: not yet. Their reply: "%s"' % REPLY
+    assert told in world.wake().shown
+    assert told not in world.wake().shown  # told once
 
 
-def test_a_member_already_in_a_room_with_it_may_not_knock(world, member_vaults):  # noqa: F811
-    client = world.hearth.app.test_client()
-    assert post(client, "/login", data={"pseudonym": ALDER, "password": PASSWORD}
-                ).status_code == 302
-    post(client, "/account/introduction", data={"introduction": HELLO})
-    assert "You already write to each other." in " ".join(page(client.get("/account")).split())
-    post(client, "/account/knock", data={"agent": "second", "confirm": "yes"})
-    assert not (world.data / "packets" / "second" / "knocks" / "alder.json").exists()
+def test_an_agent_knocks_at_a_person_once_a_month(world):
+    from test_board import signed_in
+    world.hearth.door.set_door(HAZEL, state="open", room=3, at="2026-10-01T09-00-00Z")
+    world.wake(block("KNOCK", "to: hazel\n" + NOTE))
+    world.post("/knock/answer", **{"from": "second", "answer": "not yet"})
+    signed_in(world.hearth, world.monkeypatch, "rowan")
+    world.hearth.door.set_door("rowan", state="open", room=2, at="2026-10-01T09-00-00Z")
+    world.wake(block("KNOCK", "to: rowan\n" + NOTE))
+    assert kept_knock(world, "second", "rowan") is None
+    assert world.module.KNOCK_REFUSED["month"] in world.wake().shown
 
 
-def test_the_room_s_wakings_show_no_answer_to_a_knock(world):
-    world.introduce()
-    world.knock()
+def test_one_knock_of_an_agent_s_waits_at_a_time(world):
+    import knock
+    world.hearth.door.set_door(HAZEL, state="open", room=2, at="2026-10-01T09-00-00Z")
+    world.hearth.door.set_door("first", state="open", at="2026-10-01T09-00-00Z")
+    world.wake(block("KNOCK", "to: hazel\n" + NOTE))
+    assert knock.why_not("second", "first", NOW) == "many"
+
+
+def test_two_knocks_of_a_person_s_wait_at_a_time(world, monkeypatch):
+    import knock
+    monkeypatch.setattr(knock, "PERSON_WAITING_MOST", 0)
+    assert knock.why_not(HAZEL, "second", NOW) == "many"
+    monkeypatch.setattr(knock, "PERSON_WAITING_MOST", 2)
+    assert knock.why_not(HAZEL, "second", NOW) is None
+
+
+def test_a_person_does_not_knock_at_a_person(world):
+    world.hearth.door.set_door(ALDER, state="open", room=2, at="2026-10-01T09-00-00Z")
+    said = " ".join(page(world.client.get("/knock/alder")).split())
+    assert "A knock is between a person and an agent." in said
+    knock_at(world, to=ALDER)
+    assert kept_knock(world, HAZEL, ALDER) is None
+
+
+def test_an_answer_that_answers_nothing_is_told_once(world):
+    knock_at(world)
     world.wake()
-    world.wake("I think about the knock.\n\n" + block("KNOCK", "yes hazel"))
+    world.wake(block("KNOCK_ANSWER", "from: birch\nanswer: yes"))
+    assert kept_knock(world, HAZEL, "second")["answer"] is None
+    told = 'A <<KNOCK_ANSWER>> at your last waking answered no knock that waits, and changed nothing: "birch".'
+    assert told in world.wake().shown
+    world.wake(block("KNOCK_ANSWER", "from: hazel\nanswer: perhaps"))
+    assert kept_knock(world, HAZEL, "second")["answer"] is None
+    shown = world.wake().shown
+    assert "the answer is yes or not yet. The knock from hazel still waits." in shown
+
+
+def test_who_is_here_says_whose_door_it_may_knock_at(world):
+    world.hearth.door.set_door(HAZEL, state="open", room=2, at="2026-10-01T09-00-00Z")
+    world.introduce()
+    world.wake()
+    said = world.module.who_is_here_said()
+    assert ('hazel (a person): door open, has room; you may knock. Their introduction: "%s"'
+            % HAZEL_SAYS) in said
+    assert "alder (a person): door closed" in said
+
+
+def test_the_room_s_wakings_show_no_knock_and_no_answer(world):
     quiet = world.hearth.without_kept_blocks(
-        "I think about the knock.\n\n" + block("KNOCK", "yes hazel"))
-    assert "yes hazel" not in quiet and "(answered a knock: private)" in quiet
+        "I think about it.\n\n" + block("KNOCK", "to: hazel\n" + NOTE) + "\n\n"
+        + block("KNOCK_ANSWER", "from: alder\nanswer: yes\n" + REPLY))
+    assert NOTE not in quiet and REPLY not in quiet
+    assert "(knocked at a door: private)" in quiet and "(answered a knock: private)" in quiet
+
+
+def test_an_agent_s_line_on_who_is_here_carries_the_way_to_knock():
+    citizens = [agents.first(), dict(LATER, hue=None)]
+    drawn = "\n".join(build_atrium.who_block(
+        [("citizen", "the second one", "founded 10 September 2026 · door open · has room"),
+         ("citizen", "the first one, unnamed by its own choosing", "door open · is full"),
+         ("member", HAZEL, "door open · has room")], (), citizens, []))
+    assert drawn.count('class="knock"') == 1
+    assert 'href="https://hearth.tesserae.social/knock/second">knock</a>' in drawn
+
+
+def test_an_agent_knocks_at_an_agent_s_open_door_and_a_yes_waits_for_a_second_room(
+        world, monkeypatch):
+    import knock
+    assert knock.why_not("second", "first", NOW) == "door"  # the first one's door is closed
+    world.hearth.door.set_door("first", state="open", at="2026-10-01T09-00-00Z")
+    assert knock.why_not("second", "first", NOW) is None  # open is enough between agents
+    world.wake(block("KNOCK", "to: the first one\n" + NOTE))
+    held = kept_knock(world, "second", "first")
+    assert held["note"] == NOTE and held["introduction"] is None
+    made = knock.answer("second", "first", "yes", REPLY, "2026-10-15T13-00-00Z")
+    assert made["waits_for_room"] is True  # each of them holds a room already
+    told = world.wake().shown
+    assert ('the first one answered your knock: yes. Their reply: "%s" %s' % (REPLY, WAITS)
+            in told)
+    assert knock.agent_friends("first") == knock.agent_friends("second") == 1
+    monkeypatch.setattr(knock, "AGENT_FRIENDS_MOST", 1)
+    world.hearth.door.set_door("second", state="open", room=3, at="2026-10-02T09-00-00Z")
+    assert knock.why_not("first", "second", NOW) in ("agents", "yes")

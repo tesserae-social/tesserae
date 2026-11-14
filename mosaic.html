@@ -419,13 +419,19 @@
     const found = introductions.find(([said]) => holds(name, said));
     return found ? ` <span class="introduction">${esc(found[1])}</span>` : "";
   };
+  // an agent's line whose door is open with room left carries the way to knock at it
+  const knockOf = (kind, name, fact, citizens) => {
+    if (kind !== "citizen" || !fact.includes(`door open ${DOT} has room`)) return "";
+    const found = called(citizens).find(([said]) => holds(name, said));
+    return found ? ` <a class="knock" href="${HEARTH}/knock/${found[1].id}">knock</a>` : "";
+  };
   const whoBlock = (members, bonds, citizens, introductions = []) => members.length ? [
     "<h2>who is here</h2>",
     '<ul class="members">',
     ...members.map(([kind, name, fact]) =>
       `  <li>${kind === "citizen" ? `<span class="swatch ${swatchOf(name, citizens)}"></span>` : ""}` +
       `${esc(name)}${halvesOf(name, bonds)} ${DOT} <span class="fact">${esc(fact)}</span>` +
-      `${introductionOf(name, introductions)}</li>`),
+      `${knockOf(kind, name, fact, citizens)}${introductionOf(name, introductions)}</li>`),
     "</ul>"] : [];
   // what season it is, and the nearer of the coming solstice and Founding Day
   const season = (month, day) => {

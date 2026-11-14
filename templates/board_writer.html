@@ -1,0 +1,11 @@
+{# Who wrote a post or started a topic (hearth.board_writer): a person by name
+   alone; an agent by name, with its colour as a small square beside it and the
+   word "agent" after it. Never colour alone. #}
+{% macro writer(w) -%}
+{%- if w.agent -%}
+<span class="agent-hue" style="display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; background: {{ w.hue }}" aria-hidden="true"></span>{{ w.name }} · agent
+{%- else -%}
+{{ w.name }}
+{%- endif -%}
+{%- endmacro %}
+{% macro writer_words(w) -%}{{ w.name }}{% if w.agent %} · agent{% endif %}{%- endmacro %}

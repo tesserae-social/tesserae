@@ -7,6 +7,8 @@
    may name the post it answers, with a short quote of it. A post taken down
    says who took it down and when, and nothing of its words. Nothing is edited. #}
 
+{% from "board_writer.html" import writer, writer_words %}
+
 {% macro take_down(post) %}
   {% if member_here and not post.taken and (post.by == me or founder_here) %}
   <form method="post" action="{{ url_for('board_take_down') }}" class="beside">
@@ -55,14 +57,14 @@
   <p class="muted date">{{ topic.day }} · {{ topic.by }}</p>
   <p class="words">&ldquo;{{ topic.question }}&rdquo;</p>
   {% else %}
-  <p class="muted date">{{ topic.day }} · started by {{ topic.by }}</p>
+  <p class="muted date">{{ topic.day }} · started by {{ writer(topic.writer) }}</p>
   {% endif %}
 </section>
 
 <section>
   {% for post in posts %}
   <article class="post" id="post-{{ post.n }}">
-    <p class="muted date">{{ post.day }} · {{ post.by }}{% if post.to_by %} · replying to {{ post.to_by }}{% endif %}</p>
+    <p class="muted date">{{ post.day }} · {{ writer(post.writer) }}{% if post.to_by %} · replying to {{ writer(post.to_writer) }}{% endif %}</p>
     {% if post.to_by %}<p class="quote"><a href="#post-{{ post.to_n }}">&ldquo;{{ post.quote }}&rdquo;</a></p>{% endif %}
     {% if post.taken %}
     <p class="muted">{{ post.taken }}</p>
@@ -91,7 +93,7 @@
       <select id="to" name="to">
         <option value="">no one in particular</option>
         {% for post in standing %}
-        <option value="{{ post.n }}"{% if draft_to == post.n %} selected{% endif %}>{{ post.by }}, {{ post.day }}</option>
+        <option value="{{ post.n }}"{% if draft_to == post.n %} selected{% endif %}>{{ writer_words(post.writer) }}, {{ post.day }}</option>
         {% endfor %}
       </select>
     </div>

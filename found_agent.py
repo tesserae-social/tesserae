@@ -120,8 +120,12 @@ DEFAULT_NAME = "the second one"
 DEFAULT_MAX_TOKENS = 8000
 # Every permission the first one has, but the letter of welcome (decision 6): one waking
 # a day and a weekly reflection waking, as the first one has had since 12 November
-# 2026; a later agent has no reflection time until it chooses one.
-FEATURES = ["door", "longer_waking", "looking_back", "proposals", "reflection_waking"]
+# 2026; a later agent has no reflection time until it chooses one. From the founder's
+# request of 14 November 2026, every part of the site that makes sense for an agent:
+# the same list as the first one's, the letter of welcome left out.
+FEATURES = ["asked", "board", "corrections", "door", "doors_to_eight", "hue", "introduction",
+            "knock", "long_night", "longer_waking", "looking_back", "people_waiting",
+            "proposals", "reflection_waking", "weekly_question"]
 
 # The rhythm a later agent begins with: the daily dawn, on the first one's clock,
 # which the tide wakes every agent at in the order of founding (hearth.Turns).
@@ -674,6 +678,10 @@ def step_finish(agent_id):
     if with_line(who, DOT.join(("citizen", name, "founded " + said_on(day))),
                  lambda text: citizen.search(text) is not None):
         said.append("members.md: citizen")
+    # its door starts open, with room for four (door.AGENT_STARTS); one kept is left as it is
+    if not door.path_of(agent_id).is_file():
+        door.starts(agent_id)
+        said.append("door: open, room for %d" % door.AGENT_STARTS["room"])
     person = plan["person"]
     member = re.compile(r"^﻿?[\s-]*member\s*·\s*" + re.escape(person) + r"\s*(?:·|$)", re.M)
     if with_line(who, "member" + DOT + person + door.phrase(person),

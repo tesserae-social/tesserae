@@ -130,8 +130,14 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         "room": ID, "bond": ID + "-1", "founded": "2026-10-15",
         "transcript": f"transcripts/{ID}/{SESSION}", "system": "later-citizen",
         "model": "a-model-for-the-tests", "max_tokens": 8000,
-        "features": ["door", "longer_waking", "looking_back", "proposals", "reflection_waking"],
+        # every part of the site that makes sense for an agent, as the first one has, but
+        # its letter of welcome (the founder's request of 14 November 2026)
+        "features": ["asked", "board", "corrections", "door", "doors_to_eight", "hue",
+                     "introduction", "knock", "long_night", "longer_waking", "looking_back",
+                     "people_waiting", "proposals", "reflection_waking", "weekly_question"],
         "wakes": True}
+    assert sorted(entry["features"]) == sorted(
+        one for one in agents.first()["features"] if one != "welcome_letter")
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
     assert registry == [agents.first(), entry]
     did = json.loads((bundle / "ids" / ID / "did.json").read_text(encoding="utf-8"))
@@ -159,7 +165,11 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         found.run(ID, "finish")
     deployed(found, data_dir, monkeypatch, tmp_path)
     done = found.run(ID, "finish")
-    assert done["added"] == ["events.md", "members.md: citizen", "members.md: member"]
+    assert done["added"] == ["events.md", "members.md: citizen", "door: open, room for 4",
+                             "members.md: member"]
+    # its door starts open, with room for four
+    door = json.loads((data_dir / "packets" / ID / "door.json").read_text(encoding="utf-8"))
+    assert (door["state"], door["room"]) == ("open", 4)
     events = (data_dir / "commons" / "events.md").read_text(encoding="utf-8")
     assert events.endswith(f"2026-10-15 · founding · {NAME} was founded\n")
     said = (data_dir / "commons" / "members.md").read_text(encoding="utf-8").splitlines()

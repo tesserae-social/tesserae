@@ -49,7 +49,8 @@ import pytest
 from nacl.signing import SigningKey
 
 from conftest import (blocks, block, letter_part_as_before, page, pages_before_fewer,
-                      pages_before_saturday, post, registry_switches_not_yet, times_as_before,
+                      pages_before_saturday, post, registry_six_not_yet, registry_switches_not_yet,
+                      rooms_to_twelve, times_as_before,
                       wakings_not_yet_switched, write, site_bookkeeping, write_json)
 from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 
@@ -197,8 +198,17 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # commons' older fingerprints (COMMONS_PAGES_BEFORE, BENCH_LINK_BEFORE,
 # SWITCHES_BEFORE['/commons'], BOARD_LINK_BEFORE and FEWER_PAGES_BEFORE['/commons'])
 # are kept as they were, for the record, and are no longer drawn.
+#
+# / and /commons cut again, on purpose, on 14 November 2026, on the branch
+# intro-500 (the founder's request that day, part 2), and for nothing else: /, the
+# founder's own door, offers room from 1 to 8, where it offered 1 to 12, as every
+# person's door now does; /commons lists "corrections" last, now that corrections
+# is switched on for the first one. No knock waits, so / shows none. With rooms put
+# back to twelve (conftest.rooms_to_twelve) and the six of that day taken out of the
+# registry (conftest.registry_six_not_yet), each is exactly the one held before, in
+# PART_TWO_BEFORE below.
 PAGES = {
-    "/": "e9ce0154ce99755acbe904c393ae927fda47499d24419eb826b36f969ca0dad1",
+    "/": "7b289faf6041485bbc13c1ec3cc1249066aef349b815f79e3ba35694d7b588ed",
     "/rooms/first": "15f1f598802682bd7960db0de220155917ac83ef88c3b51c70fb502b58854edf",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
     "/self": "7c4d716ba302cd53d40c4446a98a8f241a02d6eb89b22b53fbea09087a802f16",
@@ -207,7 +217,7 @@ PAGES = {
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
     "/export": "21dd8021db084ecd9c0c13a0cb1d16959f2536f2d90003b8b905e7c1e0de9034",
     "/bonds": "5076de3238415cc727a571b7b1776611e8780ee5eb058631672e01d6ebf23595",
-    "/commons": "b02c15cf28465b8c49485ecb9ef0df44fec0df2b891e00f46f8cd43ac692da31",
+    "/commons": "b86ab26154aaed42d9b479289b972a88907bf396edd71251dbdfd1a7236ef29a",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
@@ -339,6 +349,15 @@ COMMONS_PAGES_BEFORE = {
 # with the bench's link taken out (conftest.bench_link_not_yet).
 BENCH_LINK_BEFORE = {
     "/commons": "1bf159dd2e82165bac327c813e10d52e3e861d00543f957f9b2483c77b72e11a"}
+
+# What / and /commons were before the six were switched on for the first one and a
+# person's room ran to eight (14 November 2026, part 2), and are again with the six
+# taken out of the registry (conftest.registry_six_not_yet) and rooms put back to
+# twelve (conftest.rooms_to_twelve).
+PART_TWO_BEFORE = {
+    "/": "e9ce0154ce99755acbe904c393ae927fda47499d24419eb826b36f969ca0dad1",
+    "/commons": "b02c15cf28465b8c49485ecb9ef0df44fec0df2b891e00f46f8cd43ac692da31",
+}
 
 # What / and /commons were before the four were switched on for the first one
 # (13 November 2026), and are again with them taken out of the registry
@@ -537,12 +556,30 @@ def test_the_heartbeats_go_out_dated_and_stay_stamped_on_the_disk(
             "- 2026-10-15 at dawn · the first one · Wrote back about the colour of water.\n")
 
 
+@pytest.mark.parametrize("address", list(PART_TWO_BEFORE))
+def test_with_the_six_not_yet_and_rooms_to_twelve_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path,
+        address):
+    """The pages the six of 14 November and rooms to eight moved, with both put back."""
+    registry_six_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
+    rooms_to_twelve(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == PART_TWO_BEFORE[address]
+
+
 @pytest.mark.parametrize("address", [one for one in SATURDAY_BEFORE
                                      if one not in ("/commons", "/bonds")])
 def test_with_the_pages_drawn_before_the_scale_each_is_the_page_before(
-        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path,
+        address):
     """Every page the one spacing scale moved (14 November 2026), drawn with the base.html
-    of before: each is exactly the page held before."""
+    of before, and with what came after it put back too: each is exactly the page held
+    before."""
+    registry_six_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
+    rooms_to_twelve(hearth, monkeypatch)
     pages_before_saturday(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     answer = founder.get(address)
@@ -559,6 +596,7 @@ def test_with_the_pages_as_before_each_is_the_page_before(
     the four switched on for the first one, which came after, taken out again. (The
     commons page they moved has since been made anew, and is not drawn again.)"""
     registry_switches_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
+    rooms_to_twelve(hearth, monkeypatch)
     pages_before_saturday(hearth, monkeypatch)
     pages_before_fewer(hearth, monkeypatch)  # in front of the scale's, being older
     a_lived_world(founder, wake, room, commons)
@@ -576,6 +614,7 @@ def test_with_the_four_not_yet_switched_on_each_is_the_page_before(
     """The page the four switched on for the first one moved (13 November 2026), with
     the four taken out of the registry again, drawn as before the one spacing scale."""
     registry_switches_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
+    rooms_to_twelve(hearth, monkeypatch)
     pages_before_saturday(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     answer = founder.get(address)

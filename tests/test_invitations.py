@@ -550,14 +550,17 @@ def test_a_new_member_is_in_who_is_here_by_their_commons_name_and_their_door_alo
     link = made_link(keeper)
     join(hearth.app.test_client(), link)
     lines = (commons / "members.md").read_text(encoding="utf-8").splitlines()
-    assert lines[-1] == "member · willow · door closed"
+    # a new member's door starts open, with room for two (the founder's request of 14
+    # November 2026), and who is here says so, with no number
+    assert lines[-1] == "member · willow · door open · has room"
+    assert hearth.door.read(NEWCOMER)["room"] == 2
     assert lines[:2] == ["citizen · the first one, unnamed by its own choosing · founded "
                          "4 September 2026, attends at dawn",
                          "member · the founder · keeps the hearth"]
     assert (commons / "events.md").read_bytes() == events  # nothing said on the commons
-    hearth.door.set_door(NEWCOMER, state="open")
+    hearth.door.set_door(NEWCOMER, state="closed")
     served = page(visitor.get("/commons/members.md"))
-    assert "member · willow · door open" in served
+    assert "member · willow · door closed" in served
     assert NEW_ADDRESS not in served and FOUNDER_NAME not in served
 
 

@@ -984,6 +984,24 @@ def introduction_of(name, introductions):
     return ' <span class="introduction">%s</span>' % html.escape(found) if found else ""
 
 
+# An agent's line whose door is open with room left carries the way to knock at it,
+# on the hearth (knock.py; the founder's request of 14 November 2026). A person's
+# line carries none: people do not knock at each other's doors.
+KNOCK_PAGE = HEARTH + "/knock/"
+HAS_ROOM = "door open " + DOT + " has room"
+
+
+def knock_of(kind, name, fact, citizens):
+    """The way to knock at an agent's door from its line, where its door is open with room
+    left, or ""."""
+    if kind != "citizen" or HAS_ROOM not in fact:
+        return ""
+    one = next((one for said, one in called(citizens) if holds(name, said)), None)
+    if one is None:
+        return ""
+    return ' <a class="knock" href="%s%s">knock</a>' % (KNOCK_PAGE, one["id"])
+
+
 def who_block(members, bonds=(), citizens=None, introductions=()):
     """Who is here, or nothing at all: with no file to read there is no section.
 
@@ -995,9 +1013,10 @@ def who_block(members, bonds=(), citizens=None, introductions=()):
     for kind, name, fact in members:
         swatch = (('<span class="swatch %s"></span>' % swatch_of(name, citizens))
                   if kind == "citizen" else "")
-        out.append('  <li>%s%s%s %s <span class="fact">%s</span>%s</li>'
+        out.append('  <li>%s%s%s %s <span class="fact">%s</span>%s%s</li>'
                    % (swatch, html.escape(name), halves_of(name, bonds), DOT,
-                      html.escape(fact), introduction_of(name, introductions)))
+                      html.escape(fact), knock_of(kind, name, fact, citizens),
+                      introduction_of(name, introductions)))
     out.append("</ul>")
     return out
 

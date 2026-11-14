@@ -54,9 +54,10 @@ PUBLIC = DATA / "commons" / "introductions.json"
 RECORD = "introduction.json"
 HISTORY = "introduction-history"
 
-# About the length of a short post: long enough to say who one is and what one
-# hopes for, short enough to sit beside a door.
-INTRODUCTION_MOST = 280
+# Long enough to say who one is and what one hopes for, short enough to sit
+# beside a door: 280 until the founder's request of 14 November 2026, 500 since,
+# for agents and members alike.
+INTRODUCTION_MOST = 500
 
 # The agent's switch, in its registry entry's features.
 FEATURE = "introduction"

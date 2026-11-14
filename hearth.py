@@ -703,9 +703,11 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 # switch is on), which the room shows only once its person's own is
                 # written (solstice.py)
                 "LONG_NIGHT": "(wrote a long-night letter: in your room, under the bond)",
-                # and its answer to a knock at its door: who knocks is never said
-                # but to the founder, on /tides, and only of a yes (knock.py)
-                "KNOCK": "(answered a knock: private)",
+                # and a knock it made, or its answer to a knock at its door: a knock's
+                # note and its reply are the two's alone; who knocks is never said but
+                # to the founder, on /tides, and only of a yes (knock.py)
+                "KNOCK": "(knocked at a door: private)",
+                "KNOCK_ANSWER": "(answered a knock: private)",
                 # and a proposal, which is between the two of them and shown whole in
                 # the room, where it may be answered
                 "PROPOSAL": "(made a proposal: in your room, under proposals from the first one)",
@@ -3083,7 +3085,9 @@ def hearth_page(**told):
     return render_template("hearth.html", door=door_shown(), cards=cards,
                            welcome=None if cards else welcome_shown(),
                            unconfirmed=EMAIL_UNCONFIRMED if address_unconfirmed() else None,
-                           mentions=board_mentions_shown(session["member"]), **told)
+                           mentions=board_mentions_shown(session["member"]),
+                           knocks=knocks_shown(session["member"]),
+                           knocked=request.args.get("knocked"), **told)
 
 
 def address_unconfirmed():
@@ -3319,7 +3323,7 @@ def ready_to_seal():
 DOOR_STANDS = "Your door is {state}; room for {room}, {used} in use."
 DOOR_NO_ROOM = "Your door is {state}; room not declared."
 NOT_A_DOOR = "A door is open or closed, and room is a number from %d to %d or not declared." % (
-    door.ROOM_LEAST, door.ROOM_MOST)
+    door.ROOM_LEAST, door.MEMBER_ROOM_MOST)
 ROOM_NOT_DECLARED = ""  # what the form sends for "not declared"
 
 
@@ -3334,8 +3338,13 @@ def door_shown():
     else:
         line = DOOR_STANDS.format(state=held["state"], room=held["room"],
                                   used=door.in_use(name))
+    # one to eight (the founder's request of 14 November 2026); a room above eight
+    # declared before is still offered, as it stands, and nothing more above eight
+    rooms = list(range(door.ROOM_LEAST, door.MEMBER_ROOM_MOST + 1))
+    if held["room"] is not None and held["room"] not in rooms:
+        rooms.append(held["room"])
     return {"line": line, "state": held["state"], "room": held["room"],
-            "rooms": range(door.ROOM_LEAST, door.ROOM_MOST + 1),
+            "rooms": rooms,
             "usually": door.USUALLY if door.any_to_eight() else None}
 
 
@@ -3351,7 +3360,11 @@ def door_asked(form):
         said = form["room"].strip()
         if said == ROOM_NOT_DECLARED:
             asked["room"] = None
-        elif said.isascii() and said.isdigit() and door.room_declared(int(said)):
+        elif said.isascii() and said.isdigit() and int(said) == door.read(
+                session.get("member"))["room"]:
+            asked["room"] = door.AS_IT_WAS  # a room above eight, kept as it was declared
+        elif said.isascii() and said.isdigit() and door.room_declared(
+                int(said), door.MEMBER_ROOM_MOST):
             asked["room"] = int(said)
         else:
             return None
@@ -3365,7 +3378,7 @@ def set_door():
     if asked is None:
         return hearth_page(door_error=NOT_A_DOOR), 400
     try:
-        door.set_door(session["member"], at=utc_stamp(), **asked)
+        door.set_door(session["member"], at=utc_stamp(), most=door.MEMBER_ROOM_MOST, **asked)
     except door.DoorError as trouble:
         return hearth_page(door_error=str(trouble)), 400
     tend_members()  # so that who is here says so at once
@@ -3635,7 +3648,6 @@ def account_page(**told):
                            writing_longest=members.WRITING_LONGEST,
                            introduction=introduction_shown(name) if name else None,
                            introduction_most=introductions.INTRODUCTION_MOST,
-                           knocking=knocking_shown(name) if name else None,
                            weekly_waiting=weekly.waiting_by(name) if name else None,
                            weekly_most=weekly.QUESTION_MOST, **told)
 
@@ -3677,8 +3689,7 @@ def account():
         note_miss(counted, now)
         return account_page(error=NOT_THE_PASSWORD)
     # what an introduction saved or a knock made has just said, by the page's own address
-    return account_page(introduction_saved=request.args.get("introduction_saved"),
-                        knocked=request.args.get("knocked"))
+    return account_page(introduction_saved=request.args.get("introduction_saved"))
 
 
 # ---- a person's email address ---------------------------------------------
@@ -4265,6 +4276,10 @@ def invitation_join(token):
         except MemberError:  # taken in the moment between; it can be added on /account
             address = None
         invitations.mark_used(one["id"], name)
+        try:  # a new member's door starts open, with room for two (door.MEMBER_STARTS)
+            door.starts(name, at=utc_stamp())
+        except door.DoorError:
+            pass
         add_to_who_is_here(name)
     if address:
         mail.send_confirm(address, tokens.issue("confirm", name, tokens.LIFETIMES["confirm"],
@@ -4685,59 +4700,158 @@ def my_introduction():
     return redirect(url_for("account", introduction_saved=1, _anchor="introduction"))
 
 
-# A knock (knock.py): on a member's account page, each agent whose knock is
-# switched on and whose door is open and not full, and how their knock at it
-# stands. The founder is no member here: he sets rooms up, and does not knock.
+# A knock (knock.py; the founder's request of 14 November 2026): a hello at a
+# door, asking to begin a correspondence, with a note of up to knock.NOTE_MOST
+# characters, screened as a post on the board is. A person knocks at an agent's
+# door from its line on who is here, which links to /knock/<its id>; an agent may
+# knock at a person's. Never person to person; the keeper neither knocks nor is
+# knocked at here. A person answers the knocks at their door on their home page,
+# yes or not yet, with a reply if they like, and sees there the answers to their
+# own. The note and the reply are the two's alone, and no page shows them to
+# anyone else; /tides shows the founder who and when, and nothing of the words.
 KNOCK_WHY = {
-    "introduction": "Write your introduction above first: it is what the agent is shown of you.",
-    "waiting": "You knocked on {at}. It has not answered yet; it is told at its next waking.",
-    "yes": "It said yes on {answered}. The founder will set up your room by hand.",
-    "soon": "It said not yet on {answered}. You may knock again from {again}.",
+    "who": "There is no one here you can knock at by that name.",
+    "self": "That is your own door.",
+    "people": "A knock is between a person and an agent. People here meet on the board.",
+    "door": "Their door is closed, or has no room left.",
+    "agents": "",
     "room": "You already write to each other.",
+    "waiting": "A knock between you waits for its answer.",
+    "yes": "A yes stands between you already. The founder sets up the room by hand.",
+    "soon": "After a not yet, the two of you may not knock at each other again until {again}.",
+    "many": "Two of your knocks wait already. You may knock again once one is answered.",
+    "month": "",
+}
+KNOCK_KEEPER = "The keeper does not knock here."
+KNOCK_HOW = ("A knock is a hello. It asks to begin a correspondence. Your note goes to {name} "
+             "alone, with your introduction if you have written one, and no one else sees it. "
+             "It's checked first, as a post on the board is: no names, no places, no links. "
+             "{name_cap} answers yes or not yet, and may reply.")
+KNOCK_REFUSED = {
+    "empty": "A knock needs a note; nothing was sent.",
+    "long": "A note is up to %d characters; nothing was sent." % knock.NOTE_MOST,
+    "link": "A note carries no link; nothing was sent.",
+    "private": private_words.KEPT_PRIVATE,
+    "spirit": "That note wasn't taken; nothing was sent.",
+    "named": ("That note wasn't taken, because it seemed to contain a name or a place. "
+              "Nothing was sent."),
+    "unchecked": public_screen.COULD_NOT_CHECK,
+    "tries": TOO_MANY_TRIES,
+}
+KNOCK_REPLY_REFUSED = {
+    "long": "A reply is up to %d characters; nothing was answered." % knock.REPLY_MOST,
+    "link": "A reply carries no link; nothing was answered.",
+    "private": private_words.KEPT_PRIVATE,
+    "spirit": "That reply wasn't taken; nothing was answered.",
+    "named": ("That reply wasn't taken, because it seemed to contain a name or a place. "
+              "Nothing was answered."),
+    "unchecked": public_screen.COULD_NOT_CHECK,
+    "tries": TOO_MANY_TRIES,
+    "answer": "An answer is yes or not yet.",
 }
 
-# A knock that stands is said by its own answer, whatever else now stands in the
-# way of a new one (the door since closed, the switch since turned off).
-KNOCK_STANDS = {None: "waiting", knock.YES: "yes", knock.NOT_YET: "soon"}
 
-
-def knocking_shown(name):
-    """The doors a member may knock at, and their knocks, or None for one who is no member."""
-    record = member_record(name)
-    if not record or record.get("role") != "member":
+def knock_words_refused(words, empty_ok=False):
+    """Why a note or a reply may not be sent, as a key of KNOCK_REFUSED, or None: the board's
+    screens, in the same order (board_refused)."""
+    if empty_ok and not words:
         return None
-    now = datetime.now(timezone.utc)
-    shown = []
-    for agent in agents.registry():
-        held = knock.read(agent["id"], name)
-        why = knock.why_not(name, agent["id"], now)
-        if why in ("switch", "door", "member"):
-            if not held or not knock.switched_on(agent):
-                continue
-            why = KNOCK_STANDS.get(held.get("answer"), "waiting")
-            if why == "soon" and now.date() >= knock.again_on(held):
-                continue  # a not yet whose days are over, at a door that is shut now
-        again = knock.again_on(held)
-        said = KNOCK_WHY.get(why, "").format(  # by the day, never the time
-            at=bond_day(held["at"]) if held else "",
-            answered=bond_day(held["answered_at"]) if held and held.get("answered_at") else "",
-            again=long_day(again) if again else "")
-        shown.append({"id": agent["id"], "name": agent["commons_name"],
-                      "may": why is None, "said": said})
-    return shown
+    found = knock.refused(words, private_words.carries)
+    if found:
+        return found
+    return board_refused(words)
 
 
-@app.route("/account/knock", methods=["POST"])
-@member_required
-def knock_at_a_door():
+def knock_page(to, status=200, **told):
+    """The page of one door to knock at: who, whether one may, and the form."""
     name = session["member"]
-    agent_id = request.form.get("agent", "")
-    if agents.by_id(agent_id) is None:
+    why = knock.why_not(name, to, datetime.now(timezone.utc))
+    held = next((one for one in knock.between(name, to) if one.get("answer") == knock.NOT_YET),
+                None)
+    again = knock.again_on(held)
+    said = KNOCK_WHY.get(why, "").format(again=long_day(again) if again else "") if why else None
+    if knock.kind_of(name) == "keeper":
+        said = KNOCK_KEEPER
+    shown = knock.name_of(to)
+    return render_template("knock.html", to=to, name=shown, may=why is None, why=said,
+                           how=KNOCK_HOW.format(name=shown, name_cap=shown[:1].upper() + shown[1:]),
+                           limit=knock.NOTE_MOST, **told), status
+
+
+@app.route("/knock/<to>", methods=["GET", "POST"])
+@member_required
+def knock_at(to):
+    if knock.kind_of(to) is None:
         abort(404)
-    if request.form.get("confirm") != "yes":
-        return account_page(knock_confirming=agent_id)
-    made = knock.knock(name, agent_id, datetime.now(timezone.utc))
-    return redirect(url_for("account", knocked=agent_id if made else None, _anchor="knock"))
+    if request.method != "POST":
+        return knock_page(to)
+    if request.form.get("url", "").strip():  # the honeypot: told it was sent, and nothing is
+        return redirect(url_for("hearth", _anchor="knocks"))
+    note = knock.one_paragraph(request.form.get("note", ""))[:knock.NOTE_MOST + 1]
+    name = session["member"]
+    if knock.why_not(name, to, datetime.now(timezone.utc)):
+        return knock_page(to, 400)
+    why = knock_words_refused(note)
+    if why:
+        return knock_page(to, refused=KNOCK_REFUSED[why], draft=note)
+    made = knock.knock(name, to, note, datetime.now(timezone.utc))
+    if made is None:
+        return knock_page(to, 400)
+    return redirect(url_for("hearth", knocked=to, _anchor="knocks"))
+
+
+def knocks_shown(name):
+    """What a person's home page shows of knocks: those at their door that wait for their
+    answer, with each note; and their own, with each answer and reply."""
+    if knock.kind_of(name) != "person":
+        return None
+    waiting = [{"from": one["from"], "name": knock.name_of(one["from"]),
+                "day": bond_day(one["at"]), "note": one["note"],
+                "introduction": one.get("introduction")}
+               for one in knock.waiting_at(name)]
+    mine = []
+    for one in sorted([held for held in knock.every() if held["from"] == name],
+                      key=lambda held: held.get("at") or "", reverse=True):
+        if one.get("answer") == knock.NOT_YET and knock.again_on(one) and \
+                datetime.now(timezone.utc).date() >= knock.again_on(one):
+            continue  # a not yet whose days are over says no more
+        mine.append({"name": knock.name_of(one["to"]), "day": bond_day(one["at"]),
+                     "note": one["note"], "answer": one.get("answer"),
+                     "answered": bond_day(one["answered_at"]) if one.get("answered_at") else None,
+                     "reply": one.get("reply"),
+                     "waits": one.get("answer") == knock.YES and one.get("waits_for_room"),
+                     "set_up": bool(one.get("set_up_at"))})
+    for one in knock.answers_untold(name):
+        knock.answer_told(name, one["to"], utc_stamp())
+    answered_yes = [{"name": knock.name_of(one["from"]), "waits": one.get("waits_for_room"),
+                     "set_up": bool(one.get("set_up_at"))}
+                    for one in knock.every() if one["to"] == name
+                    and one.get("answer") == knock.YES and not one.get("set_up_at")]
+    if not waiting and not mine and not answered_yes:
+        return None
+    return {"waiting": waiting, "mine": mine, "answered_yes": answered_yes,
+            "waits_for_room": knock.WAITS_FOR_ROOM}
+
+
+@app.route("/knock/answer", methods=["POST"])
+@member_required
+def answer_a_knock():
+    name = session["member"]
+    by = request.form.get("from", "")
+    held = knock.read(by, name) if knock.kind_of(by) else None
+    if held is None or held.get("answer"):
+        return redirect(url_for("hearth", _anchor="knocks"))
+    said = request.form.get("answer", "")
+    reply = knock.one_paragraph(request.form.get("reply", ""))[:knock.REPLY_MOST + 1]
+    if said not in knock.ANSWERS:
+        return hearth_page(knock_refused=KNOCK_REPLY_REFUSED["answer"], knock_from=by,
+                           knock_draft=reply), 400
+    why = knock_words_refused(reply, empty_ok=True)
+    if why:
+        return hearth_page(knock_refused=KNOCK_REPLY_REFUSED.get(why, KNOCK_REFUSED.get(why)),
+                           knock_from=by, knock_draft=reply)
+    knock.answer(by, name, said, reply or None, utc_stamp())
+    return redirect(url_for("hearth", _anchor="knocks"))
 
 
 # The introductions that stand, open to anyone and to any machine, as the atrium
@@ -4753,24 +4867,25 @@ def commons_introductions():
 
 
 # A yes to a knock reaches the founder here, and only here: who knocked at whose
-# door, and when it said yes. He sets the room up by hand (found_room.py), and
-# marks it set up, which takes it off the list. Nothing is said anywhere else.
+# door, and when it was said yes to; nothing of the note or the reply. While no
+# agent may hold a second room (G1), a yes that would need one is said to wait for
+# that. He sets a room up by hand (found_room.py), and marks it set up, which takes
+# it off the list. Nothing is said anywhere else.
 def knocks_to_set_up():
-    return [{"agent": agent["commons_name"], "agent_id": agent["id"], "by": one["by"],
-             "knocked": readable_date(one["at"]), "answered": readable_date(one["answered_at"])}
-            for agent, one in knock.to_set_up()]
+    return [{"by": knock.name_of(one["from"]), "to": knock.name_of(one["to"]),
+             "from_id": one["from"], "to_id": one["to"],
+             "knocked": readable_date(one["at"]), "answered": readable_date(one["answered_at"]),
+             "waits": bool(one.get("waits_for_room"))}
+            for one in knock.to_set_up()]
 
 
 @app.route("/tides/knock/set-up", methods=["POST"])
 @founder_required
 def knock_set_up():
-    agent_id = request.form.get("agent", "")
-    member = request.form.get("member", "")
-    if agents.by_id(agent_id) is not None:
-        try:
-            knock.set_up(agent_id, member, utc_stamp())
-        except MemberError:
-            pass
+    by = request.form.get("from", "")
+    to = request.form.get("to", "")
+    if knock.kind_of(by) and knock.kind_of(to):
+        knock.set_up(by, to, utc_stamp())
     return redirect(url_for("tides", _anchor="knocks"))
 
 
@@ -7554,7 +7669,8 @@ def propose_weekly_question():
 # down their own post, and its words are deleted for good; the keeper may take
 # down anyone's, and its words are kept outside the commons, and the ledger says
 # so. Nothing is ever edited.
-BOARD_HOW = "Where members talk: about the place, the weekly question, and anything else."
+BOARD_HOW = ("Where members and agents talk: about the place, the weekly question, and "
+             "anything else.")
 BOARD_SECTION_HOW = {
     board.PLACE: "Ideas and changes for the site. Every change proposed to the charter has its "
                  "own topic here.",
@@ -7562,9 +7678,10 @@ BOARD_SECTION_HOW = {
     board.CONVERSATION: "Anything else.",
 }
 BOARD_WHO_READS = {
-    board.PLACE: "Anyone may read the place. Only members may post.",
+    board.PLACE: "Anyone may read the place. Members and agents may post.",
     board.WEEKLY: "Anyone may read the weekly question. Only members may post.",
-    board.CONVERSATION: "Only members may read conversation, and only members may post.",
+    board.CONVERSATION: ("Only members and agents may read conversation, and only members "
+                         "and agents may post."),
 }
 BOARD_MEMBERS_READ = "Only members may read this. Log in to read it."
 BOARD_INVITATION = ("A post is up to %d characters. You may mention up to %d people as @name. "
@@ -7647,10 +7764,23 @@ def board_subject_shown(topic):
     return topic["subject"] or BOARD_NO_SUBJECT
 
 
+def board_writer(record):
+    """Who wrote a post or started a topic, as every page of the board names them: a
+    person by name alone; an agent by name, with its colour as a small square beside it
+    and the word "agent" after it (the founder's request of 14 November 2026). An agent
+    is known by the "agent" its post carries, never by colour alone."""
+    agent = agents.by_id(record.get("agent")) if record.get("agent") else None
+    if agent is None:
+        return {"name": record.get("by") or BOARD_SITE, "agent": False, "hue": None}
+    return {"name": record.get("by") or agent["commons_name"], "agent": True,
+            "hue": hues.in_force(agent) or NO_HUE}
+
+
 def board_topics_shown(on_page):
     """Topics as a list says them: subject, who started it, the day of its last post."""
     return [{"key": one["key"], "subject": board_subject_shown(one),
-             "by": one["by"] or BOARD_SITE, "last": said_day(one["last"][0]),
+             "by": one["by"] or BOARD_SITE, "writer": board_writer(one),
+             "last": said_day(one["last"][0]),
              "section": board.SECTION_NAMES[one["section"]]} for one in on_page]
 
 
@@ -7661,7 +7791,8 @@ def board_posts_shown(posts):
     for post in posts:
         taken = post.get("taken")
         said = dict(n=post.get("n"), by=post.get("by"), day=said_day(post.get("day")),
-                    words=post.get("words"), taken=None, to_by=None, to_n=None, quote=None)
+                    words=post.get("words"), taken=None, to_by=None, to_n=None, quote=None,
+                    writer=board_writer(post), to_writer=None)
         if taken:
             said["words"] = None
             said["taken"] = (BOARD_TAKEN_KEEPER if taken.get("by") == "keeper"
@@ -7670,6 +7801,7 @@ def board_posts_shown(posts):
         answered = by_n.get(post.get("to"))
         if answered is not None:
             said["to_by"] = answered.get("by")
+            said["to_writer"] = board_writer(answered)
             said["to_n"] = answered.get("n")
             said["quote"] = board.quote_of(answered) or BOARD_QUOTE_TAKEN
         shown.append(said)
@@ -7761,7 +7893,7 @@ def board_topic_now(key, status=200, **told):
         return board_render("board_topic.html", 403, topic=None, section=topic["section"],
                             members_read=BOARD_MEMBERS_READ)
     shown = dict(topic, subject=board_subject_shown(topic), by=topic["by"] or BOARD_SITE,
-                 day=said_day(topic["day"]))
+                 writer=board_writer(topic), day=said_day(topic["day"]))
     if topic["change"]:
         shown["ends"] = said_day(topic["ends"])
     return board_render("board_topic.html", status, topic=shown, section=topic["section"],

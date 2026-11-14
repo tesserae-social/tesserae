@@ -764,6 +764,12 @@ SWITCHED_ON_21_OCTOBER = ("PROPOSALS", "EXTRA_WAKINGS")
 WAKINGS_BEFORE_12_NOVEMBER = (("EXTRA_WAKINGS", True), ("REFLECTION_WAKING", False))
 
 
+def hue_not_again_unsaid(module, monkeypatch):
+    """Take out, for one test, the sentence <<HUE>> has said since 14 November 2026 where an
+    agent's colour now is not one it may choose again (attend.HUE_NOT_AGAIN)."""
+    monkeypatch.setattr(module, "HUE_NOT_AGAIN", "")
+
+
 def hue_choice_not_yet(module, monkeypatch):
     """A later agent's reading as it was before it chose its own colour (13 November
     2026): no line of its colour under WHAT HAS HAPPENED, and no <<HUE>> explained.
@@ -796,17 +802,90 @@ def wakings_not_yet_switched(module, monkeypatch):
 SWITCHED_ON_13_NOVEMBER = ("ASKED_ON", "INTRODUCTION", "DOORS_TO_EIGHT", "PEOPLE_WAITING")
 
 
+# What the founder switched on for the first one on 14 November 2026 (the branch
+# intro-500): the board, the weekly question, its own colour, corrections, knocks
+# and the long night, each made to take as little of its reading as it can.
+# Anything held to a reading or a page from before then shuts all six away again
+# first: six_not_yet(attend, monkeypatch), and, for what reads the registry as it
+# goes, registry_six_not_yet(module, monkeypatch, where).
+SWITCHED_ON_14_NOVEMBER = ("BOARD", "WEEKLY_QUESTION", "HUE_CHOOSING", "CORRECTIONS", "KNOCKS",
+                           "LONG_NIGHT_FOR_FIRST")
+FEATURES_ON_14_NOVEMBER = ("board", "weekly_question", "hue", "corrections", "knock",
+                           "long_night")
+
+
+def six_not_yet(module, monkeypatch):
+    """Shut away again, for one test, the six switched on for the first one on 14 November
+    2026. With them False again, its reading is exactly what it was before
+    (test_rooms_reading's READING_INTRODUCTION_500). Given hearth, it is done to the
+    attend.py the hearth holds the tide through."""
+    module = getattr(module, "the_waking", module)
+    for flag in SWITCHED_ON_14_NOVEMBER:
+        if hasattr(module, flag):
+            monkeypatch.setattr(module, flag, False)
+
+
+def registry_six_not_yet(module, monkeypatch, where, also=()):
+    """Read the registry, for one test, as it stood before 14 November 2026: the six
+    switched on for the first one that day taken out of its features (and any named in
+    also), in a scratch agents.json at where; and six_not_yet done to attend.py. Given
+    hearth, the attend.py it holds the tide through reads it too."""
+    registry = sys.modules["agents"]
+    entries = [dict(one) for one in registry.registry()]
+    for entry in entries:
+        if entry["id"] == registry.first()["id"]:
+            entry["features"] = [one for one in entry.get("features") or ()
+                                 if one not in FEATURES_ON_14_NOVEMBER and one not in also]
+    where.write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
+    held = [registry, getattr(module, "agents", registry)]
+    waking = getattr(module, "the_waking", None)
+    if waking is not None:
+        held.append(getattr(waking, "agents", registry))
+    for name in ("door", "answered", "introductions", "knock", "hues", "solstice", "board"):
+        found = sys.modules.get(name)
+        if found is not None and hasattr(found, "agents"):
+            held.append(found.agents)
+    for one in {id(one): one for one in held}.values():
+        monkeypatch.setattr(one, "FILE", where)
+    six_not_yet(module, monkeypatch)
+
+
+def rooms_to_twelve(hearth, monkeypatch):
+    """Put back, for one test, a person's room as it ran until 14 November 2026: one to
+    twelve on their door's form, where it is one to eight since (door.MEMBER_ROOM_MOST)."""
+    monkeypatch.setattr(hearth.door, "MEMBER_ROOM_MOST", 12)
+    monkeypatch.setattr(hearth, "NOT_A_DOOR",
+                        "A door is open or closed, and room is a number from 1 to 12 or not "
+                        "declared.")
+
+
 def switches_not_yet(module, monkeypatch):
     """Shut away again, for one test, the four switched on for the first one on 13 November 2026.
 
     With attend.ASKED_ON, INTRODUCTION, DOORS_TO_EIGHT and PEOPLE_WAITING False
     again, its reading is exactly what it was before (test_rooms_reading's
     READING_ONE_WAKING). Given hearth, it is done to the attend.py the hearth
-    holds the tide through.
+    holds the tide through. What was switched on after them, on 14 November 2026,
+    came later still, so it is shut away again too (six_not_yet).
     """
+    six_not_yet(module, monkeypatch)
     module = getattr(module, "the_waking", module)
     for flag in SWITCHED_ON_13_NOVEMBER:
         monkeypatch.setattr(module, flag, False)
+
+
+def introduction_at_280(module, monkeypatch):
+    """Put back, for one test, the introduction's limit as it was until 14 November 2026:
+    280 characters, where it is 500 since (the founder's request that day, for agents and
+    members alike). The <<INTRODUCTION>> block's explanation says "up to 280 characters"
+    again, and a refusal for length "longer than 280"; with that, every reading of the
+    first one cut before is exactly what it was. Given hearth, it is done to the attend.py
+    the hearth holds the tide through."""
+    module = getattr(module, "the_waking", module)
+    monkeypatch.setattr(module, "INTRODUCTION_BLOCK", module.INTRODUCTION_BLOCK.replace(
+        "up to 500 characters", "up to 280 characters"))
+    monkeypatch.setitem(module.INTRODUCTION_REFUSED, "long", module.INTRODUCTION_REFUSED[
+        "long"].replace("longer than 500 ", "longer than 280 "))
 
 
 def long_night_switched_on(module, monkeypatch, where):
@@ -850,13 +929,14 @@ def registry_switches_not_yet(module, monkeypatch, where):
     for entry in entries:
         if entry["id"] == registry.first()["id"]:
             entry["features"] = [one for one in entry.get("features") or ()
-                                 if one not in FEATURES_ON_13_NOVEMBER]
+                                 if one not in FEATURES_ON_13_NOVEMBER
+                                 and one not in FEATURES_ON_14_NOVEMBER]
     where.write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
     held = [registry, getattr(module, "agents", registry)]
     waking = getattr(module, "the_waking", None)
     if waking is not None:
         held.append(getattr(waking, "agents", registry))
-    for name in ("door", "answered", "introductions"):
+    for name in ("door", "answered", "introductions", "knock", "hues", "solstice", "board"):
         found = sys.modules.get(name)
         if found is not None and hasattr(found, "agents"):
             held.append(found.agents)

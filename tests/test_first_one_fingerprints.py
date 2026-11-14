@@ -50,7 +50,7 @@ from nacl.signing import SigningKey
 
 from conftest import (bench_link_not_yet, board_link_not_yet, blocks, block, commons_pages_not_yet, letter_part_as_before, page,
                       pages_before_fewer, post, registry_switches_not_yet, times_as_before, wakings_not_yet_switched, write,
-                      write_json)
+                      site_bookkeeping, write_json)
 from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 
 # ---- the fingerprints ----------------------------------------------------
@@ -432,11 +432,14 @@ def fingerprint_left(data_dir):
     """Every file some wakings left, by its place on the disk and its bytes.
 
     All of DATA_DIR but transcripts/, which no waking writes and where the
-    first one's founding record is to move (rooms step 5, stage 5e).
+    first one's founding record is to move (rooms step 5, stage 5e), and but the
+    site's own bookkeeping (conftest.site_bookkeeping: what the models cost),
+    which is no part of what an agent leaves.
     """
     return digest((name, data_dir.joinpath(name).read_bytes()) for name in sorted(
         path.relative_to(data_dir).as_posix() for path in data_dir.rglob("*")
-        if path.is_file() and path.relative_to(data_dir).parts[0] != "transcripts"))
+        if path.is_file() and path.relative_to(data_dir).parts[0] != "transcripts"
+        and not site_bookkeeping(path.relative_to(data_dir))))
 
 
 # ---- the waking ----------------------------------------------------------

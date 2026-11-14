@@ -9,6 +9,7 @@ that no one person can spend the site's day.
 """
 
 import json
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -88,6 +89,32 @@ def test_every_request_of_a_waking_is_counted_against_its_agent(attend, wake, da
              (data_dir / "spending").glob("*.jsonl").__next__().read_text().splitlines()]
     assert lines and all(line["who"] == attend.AGENT_ID for line in lines)
     assert spending  # imported where attend.py imports it
+
+
+def test_spending_line_holds_only_numbers(attend, wake, data_dir):
+    """What a waking leaves in spending/ is the site's bookkeeping (conftest.site_bookkeeping),
+    passed over by every comparison of what a waking leaves behind; so it is held here
+    instead: its model, its agent's id, and numbers. Never any words."""
+    letter = "Dear founder,\n\nThe kingfisher came back to the pond at noon.\n"
+    wake(letter)
+    kept = sorted((data_dir / "spending").rglob("*"))
+    assert len([path for path in kept if path.is_file()]) == 1
+    assert re.fullmatch(r"spending-\d{4}-\d{2}-\d{2}\.jsonl", kept[0].name)
+    text = kept[0].read_text(encoding="utf-8")
+    lines = [json.loads(line) for line in text.splitlines()]
+    assert lines
+    import spending
+    for line in lines:
+        assert set(line) == {"who", "model", "dollars", *spending.COUNTS}
+        assert line["who"] == attend.AGENT_ID
+        assert line["model"] == attend.MODEL
+        assert all(type(line[count]) is int for count in spending.COUNTS)
+        assert type(line["dollars"]) in (int, float)
+    for word in ("kingfisher", "pond", "noon", "Dear", "founder"):
+        assert word not in text
+    # nothing but the keys, the id, the model and digits
+    words = set(re.findall(r"[A-Za-z_][A-Za-z0-9_.\-]*", text))
+    assert words <= {"who", "model", "dollars", attend.AGENT_ID, attend.MODEL, *spending.COUNTS}
 
 
 def test_the_counted_client_hands_back_the_reply_unchanged(attend):

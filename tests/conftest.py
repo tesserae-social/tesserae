@@ -236,6 +236,19 @@ def screen(monkeypatch):
     return stub
 
 
+def site_bookkeeping(relative):
+    """Whether a file under DATA_DIR is the site's own bookkeeping, and no part of any
+    agent's world: what the models cost (spending/). relative is its path from
+    DATA_DIR, as a string with forward slashes or a Path.
+
+    Every comparison of what a waking leaves behind passes over these, as it passes
+    over transcripts/: the count is the site's, written at each waking whatever the
+    agent did, and test_spending_line_holds_only_numbers says what is in it.
+    """
+    first = Path(relative).parts[0] if str(relative) else ""
+    return first == "spending"
+
+
 @pytest.fixture(autouse=True)
 def spending_kept_aside(monkeypatch, tmp_path):
     """What the models cost (spending.py) is counted under DATA_DIR; where a test has

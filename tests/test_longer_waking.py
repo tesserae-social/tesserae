@@ -23,7 +23,7 @@ import pytest
 
 from conftest import (FOUNDING_TRANSCRIPT, SWITCHED_ON_21_OCTOBER, Turn, block, blocks,
                       lines_of, page, read_json, shut_away, write, write_json)
-from conftest import heartbeat_not_yet_public
+from conftest import heartbeat_not_yet_public, site_bookkeeping
 from conftest import notebook_unexplained, wakings_not_yet_switched
 from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
@@ -148,8 +148,10 @@ def as_sent(asked):
 
 
 def left_in(data_dir):
+    """Every file under DATA_DIR and its bytes, but the site's own bookkeeping."""
     return {path.relative_to(data_dir).as_posix(): path.read_bytes()
-            for path in sorted(data_dir.rglob("*")) if path.is_file()}
+            for path in sorted(data_dir.rglob("*"))
+            if path.is_file() and not site_bookkeeping(path.relative_to(data_dir))}
 
 
 def sequence(exchange):

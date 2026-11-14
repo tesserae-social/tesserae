@@ -2,7 +2,6 @@
 2026-09-04 · founding · the first one was founded
 2026-09-19 · letter · the founder wrote a letter
 2026-09-20 · letter · the founder wrote a letter
-2026-09-21 · event · a line was taken off the bench
 2026-09-21 · letter · the founder wrote a letter
 2026-09-22 · letter · the founder wrote a letter
 2026-09-23 · letter · the founder wrote a letter

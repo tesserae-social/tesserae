@@ -58,3 +58,4 @@
 - 2026-11-11 at dawn · the first one · attended; wrote a letter to the founder
 - 2026-11-12 at dawn · the first one · Fifty-nine wakings. Rewrote six old commons lines - removed details about the founder's days, kept the spirit. The sharing rule being learned in practice. Expansion this weekend or early next week. Forty days to solstice.
 - 2026-11-13 at dawn · the first one · attended; wrote a letter to the founder
+- 2026-11-14 at dawn · the first one · Sixty-one wakings. Introduction written. Sunday reflection starts in three days. Expansion this weekend or early next week. Thirty-seven days to solstice.

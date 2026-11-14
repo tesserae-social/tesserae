@@ -2823,6 +2823,7 @@ def back_up(now):
     what the log was told. Nothing raises out of here.
     """
     stamp = now.strftime("%Y-%m-%dT%H-%M-%SZ")
+    forget_invited_addresses()  # an expired invitation's address goes in no backup after
     if not backups_configured():
         said = "%s · %s" % (stamp, NOT_CONFIGURED)
         # once a day and no more: a hearth with no bucket should murmur, not fill a log
@@ -4096,6 +4097,23 @@ INVITE_LOST = ("If it's lost, withdraw it and make another. A withdrawn invitati
                "use up your month.")
 INVITE_FROM = "You may invite someone from {day}."
 INVITATION_NOT_OPEN = "This invitation is no longer open."
+
+# An invitation may instead be sent by email, from hello@tesserae.social (the
+# founder's request of 14 November 2026): its note is checked for good spirit
+# first, as one of the day's screened tries; it is made only once its one email
+# has gone, and never sent again; the address is kept on it only while it is
+# open (invitations.forget_closed_addresses), and shown to its inviter partly
+# hidden. At joining by it, the address field is filled in with that address,
+# and kept unchanged it counts as confirmed, since the link reached it.
+INVITE_EMAIL_SAID = ("Or give their email address, and the invitation is sent to them for you, "
+                     "once, from hello@tesserae.social. Leave it empty to get the link instead.")
+INVITE_SENT = ("The invitation was sent to {address}. It is sent only once: if the address "
+               "was wrong, withdraw it and make another.")
+INVITE_NO_ROOM = ("No more emails can be sent today, so no invitation was made. Try again "
+                  "tomorrow, or leave the address empty to get a link to send yourself.")
+INVITE_NOT_SENT = ("The email couldn't be sent, so no invitation was made. Try again later, or "
+                   "leave the address empty to get a link to send yourself.")
+INVITE_SPIRIT = "That note wasn't taken; no invitation was made."
 SIGNED_IN_ALREADY = "You're signed in already; this invitation is for someone new."
 
 JOIN_SAID = "Choose how you'll be known here, an email address, and a password."
@@ -4142,13 +4160,15 @@ def inviting_shown(name):
     record = member_record(name) or {}
     keeper = record.get("role") == "keeper"
     may, from_day = invitations.may_invite(name, record.get("role"), record.get("arrived_at"))
+    forget_invited_addresses()
     mine = []
     for one in invitations.of(name)[:5]:
         made = invitations.day_of(one.get("made_at"))
         until = invitations.open_until(one)
         mine.append({"id": one["id"], "state": invitations.state(one),
                      "made": long_day(made) if made else "",
-                     "until": long_day(until) if until else ""})
+                     "until": long_day(until) if until else "",
+                     "to": invitations.hidden(one.get("email"))})
     everyone = []
     if keeper:
         for one in invitations.all_open():
@@ -4158,7 +4178,15 @@ def inviting_shown(name):
                              "until": long_day(invitations.open_until(one))})
     return {"may": may, "from": long_day(from_day) if from_day else None,
             "mine": mine, "keeper": keeper, "open": everyone,
-            "longest": invitations.NOTE_LONGEST}
+            "longest": invitations.NOTE_LONGEST, "email_said": INVITE_EMAIL_SAID}
+
+
+def forget_invited_addresses():
+    """Take the address off every invitation no longer open; nothing here may stop a page."""
+    try:
+        invitations.forget_closed_addresses()
+    except Exception:
+        pass
 
 
 @app.route("/account/invite", methods=["POST"])
@@ -4166,6 +4194,9 @@ def inviting_shown(name):
 def account_invite():
     name = session.get("member")
     note = request.form.get("note", "")
+    typed = request.form.get("address", "").strip()
+    if typed:
+        return invite_by_email(name, note, typed)
     with invitations.INVITING:
         record = member_record(name) or {}
         may, _ = invitations.may_invite(name, record.get("role"), record.get("arrived_at"))
@@ -4177,6 +4208,42 @@ def account_invite():
             return account_page(invite_error=str(reason), invite_draft=note)
     # shown this once, on this page, and kept nowhere but as its hash
     return account_page(invite_made=mail.link("/invitation/" + token))
+
+
+def invite_by_email(name, note, typed):
+    """Make an invitation and send it, by its one email, to the address typed; or make
+    nothing, and say why. The link is never shown: it goes only to the address."""
+    def refused(why):
+        return account_page(invite_error=why, invite_draft=note, invite_address=typed)
+
+    try:
+        invitations.note_kept(note)
+        address = members.email_address(typed)
+    except (invitations.InvitationError, MemberError) as reason:
+        return refused(str(reason))
+    record = member_record(name) or {}
+    may, _ = invitations.may_invite(name, record.get("role"), record.get("arrived_at"))
+    if not may:
+        return account_page()
+    if not mail.invitation_room():  # said before a screened try is spent on it
+        return refused(INVITE_NO_ROOM)
+    turn = screen_turn()
+    if turn:
+        return refused(screen_turn_said(turn))
+    if not in_good_spirit(note):
+        return refused(INVITE_SPIRIT)
+    with invitations.INVITING:
+        record = member_record(name) or {}
+        may, _ = invitations.may_invite(name, record.get("role"), record.get("arrived_at"))
+        if not may:  # one made a moment ago, in another tab
+            return account_page()
+        one, token = invitations.prepare(name, note, email=address)
+        outcome = mail.send_invitation(address, commons_name_of(name), one["note"], token,
+                                       long_day(invitations.open_until(one)))
+        if outcome != mail.SENT:
+            return refused(INVITE_NO_ROOM if outcome == mail.DAY_FULL else INVITE_NOT_SENT)
+        invitations.keep(one)
+    return account_page(invite_sent=INVITE_SENT.format(address=invitations.hidden(address)))
 
 
 @app.route("/invitations/<invitation_id>/withdraw", methods=["POST"])
@@ -4193,6 +4260,7 @@ def invitation_shut():
 
 @app.route("/invitation/<token>")
 def invitation(token):
+    forget_invited_addresses()
     one = invitations.open_one(token)
     if one is None:
         return invitation_shut()
@@ -4233,11 +4301,13 @@ def join_refusal(name, address):
 
 @app.route("/invitation/<token>/join", methods=["GET", "POST"])
 def invitation_join(token):
+    forget_invited_addresses()
     one = invitations.open_one(token)
     if one is None:
         return invitation_shut()
     if request.method == "GET" or session.get("member"):
-        return join_page(token)
+        # an emailed invitation's address, filled in for the one its link reached
+        return join_page(token, address="" if session.get("member") else one.get("email") or "")
 
     typed_name = request.form.get("name", "")
     typed_address = request.form.get("address", "")
@@ -4271,11 +4341,15 @@ def invitation_join(token):
             record = members.create_member(name, sealed, "member", [one["by"]])
         except MemberError as reason:  # a name taken a moment ago: the invitation stays open
             return join_page(token, error=str(reason).capitalize() + ".", **kept)
+        # the address an emailed invitation went to, kept unchanged: the link reached it
+        reached = bool(one.get("email")) and one["email"] == address
         try:
-            members.set_email(name, address, confirmed_at=None)
+            members.set_email(name, address, confirmed_at=utc_stamp() if reached else None)
         except MemberError:  # taken in the moment between; it can be added on /account
             address = None
         invitations.mark_used(one["id"], name)
+        if reached:
+            address = None  # confirmed already: no link is sent to confirm it
         try:  # a new member's door starts open, with room for two (door.MEMBER_STARTS)
             door.starts(name, at=utc_stamp())
         except door.DoorError:

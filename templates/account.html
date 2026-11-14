@@ -83,6 +83,9 @@
          onfocus="this.select()">
   <p>If it's lost, withdraw it and make another. A withdrawn invitation doesn't use up your
     month.</p>
+  {% elif invite_sent %}
+  {# sent once, by email; the link was shown to no one #}
+  <p>{{ invite_sent }}</p>
   {% elif inviting.may %}
   <form method="post" action="{{ url_for('account_invite') }}" class="field">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -92,6 +95,11 @@
     <label for="note">your note</label>
     <textarea id="note" name="note" class="short" maxlength="{{ inviting.longest }}"
               required>{{ invite_draft }}</textarea>
+    <p class="muted">{{ inviting.email_said }}</p>
+    <label for="invite_address">their email address (optional)</label>
+    <input type="email" id="invite_address" name="address" autocomplete="off"
+           autocapitalize="none" spellcheck="false" maxlength="254"
+           value="{{ invite_address }}">
     <button type="submit">Make the invitation</button>
   </form>
   {% elif inviting.from %}
@@ -101,7 +109,7 @@
   {% if one.state == 'open' %}
   <form method="post" action="{{ url_for('withdraw_invitation', invitation_id=one.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p>Made on {{ one.made }}: open until {{ one.until }}.
+    <p>Made on {{ one.made }}: open until {{ one.until }}.{% if one.to %} Sent to {{ one.to }}.{% endif %}
       <button type="submit" class="small">Withdraw</button></p>
   </form>
   {% else %}

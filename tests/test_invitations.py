@@ -701,3 +701,210 @@ def test_an_address_kept_unconfirmed_does_not_block_it_on_account_either(
     assert confirm_by(member, outbox.sent[-1]).status_code == 200
     assert hearth.members.member_by_email("birch@example.org") == MEMBER
     assert hearth.members.email_of(NEWCOMER) is None
+
+
+# ---- an invitation sent by email (the founder's request of 14 November 2026) -------------
+
+INVITED = "Nell.Invited@Example.org"
+INVITED_KEPT = "nell.invited@example.org"
+INVITED_HIDDEN = "n•••@example.org"
+EMAILED_LINK = re.compile(r"Read more and accept: https://hearth\.tesserae\.social/invitation/"
+                          r"([A-Za-z0-9_-]{43})\n")
+EMAIL_SAID = ("Or give their email address, and the invitation is sent to them for you, once, "
+              "from hello@tesserae.social. Leave it empty to get the link instead.")
+
+
+@pytest.fixture
+def reader(hearth, monkeypatch):
+    from conftest import Reader
+    stub = Reader()
+    monkeypatch.setattr(hearth, "Anthropic", stub)
+    return stub
+
+
+def invite_by_email(client, note=NOTE, address=INVITED):
+    return post(client, "/account/invite", data={"note": note, "address": address})
+
+
+def emailed_link(sent):
+    found = EMAILED_LINK.search(sent["text"])
+    assert found, sent["text"]
+    return found.group(1)
+
+
+def test_the_form_offers_an_address_beside_the_note(member):
+    said = page(member.get("/account"))
+    assert EMAIL_SAID in plain(said)
+    assert '<label for="invite_address">their email address (optional)</label>' in said
+    assert 'name="address"' in said and "Make the invitation" in said
+
+
+def test_an_emailed_invitation_says_the_approved_words_and_nothing_more(
+        hearth, member, reader, outbox, data_dir):
+    answer = invite_by_email(member)
+    said = page(answer)
+    assert answer.status_code == 200
+    assert ("The invitation was sent to %s. It is sent only once: if the address was wrong, "
+            "withdraw it and make another." % INVITED_HIDDEN) in plain(said)
+    assert not LINK.search(said) and "/invitation/" not in said  # the link goes only by email
+    [sent] = outbox.sent
+    link = emailed_link(sent)
+    assert sent["to"] == INVITED_KEPT
+    assert sent["subject"] == "Birch invited you to Tesserae"
+    assert sent["text"] == (
+        "Birch has invited you to Tesserae, a small community of AIs and people, open by "
+        "invitation only.\n\n"
+        "From birch:\n" + NOTE + "\n\n"
+        "Read more and accept: https://hearth.tesserae.social/invitation/" + link + "\n"
+        "This invitation works once and lasts until 29 October 2026.\n\n"
+        "If you weren't expecting this, you can ignore it. Nothing happens.\n\n"
+        "Replies to this address aren't read.\n")
+    # no image, no pixel, no link but the invitation's own
+    assert re.findall(r"https?://\S+", sent["text"]) == [
+        "https://hearth.tesserae.social/invitation/" + link]
+    assert "<img" not in sent["text"] and "html" not in sent
+    # the note was read for good spirit, once
+    assert len(reader.asked) == 1 and "I think you" in repr(reader.asked[0]["messages"])
+    [kept] = files(data_dir)
+    assert kept["email"] == INVITED_KEPT and kept["by"] == MEMBER
+    assert hearth.app.test_client().get("/invitation/" + link).status_code == 200
+    # its inviter sees the address partly hidden, and only in their own list
+    assert ("Made on 15 October 2026: open until 29 October 2026. Sent to %s."
+            % INVITED_HIDDEN) in plain(page(member.get("/account")))
+    log = (data_dir / "mail.log").read_text(encoding="utf-8")
+    assert log.rstrip().endswith("invitation · sent") and INVITED_KEPT not in log
+    # one in thirty days, as by a link
+    assert "You may invite someone from 14 November 2026." in page(member.get("/account"))
+
+
+def test_the_founder_s_is_from_his_commons_name_and_never_a_title(hearth, keeper, reader, outbox):
+    invite_by_email(keeper)
+    [sent] = outbox.sent
+    assert sent["subject"] == "The founder invited you to Tesserae"
+    assert sent["text"].startswith("The founder has invited you to Tesserae,")
+    assert "\n\nFrom the founder:\n" in sent["text"]
+    assert FOUNDER_NAME not in sent["text"] and "Founder of" not in sent["text"]
+
+
+def test_an_empty_address_gives_the_link_as_before(member, reader, outbox, data_dir):
+    assert LINK.search(page(invite_by_email(member, address="   ")))
+    assert outbox.sent == [] and reader.asked == []
+    assert files(data_dir)[0]["email"] is None
+
+
+def test_a_note_not_in_good_spirit_makes_and_sends_nothing(member, reader, outbox, data_dir):
+    reader.says = "NO"
+    said = page(invite_by_email(member))
+    assert "That note wasn't taken; no invitation was made." in plain(said)
+    assert INVITED in html.unescape(said)  # what was typed is kept, to change and try again
+    assert outbox.sent == [] and files(data_dir) == []
+
+
+def test_it_is_counted_in_the_day_s_screened_tries(hearth, member, reader, outbox, data_dir,
+                                                 monkeypatch):
+    monkeypatch.setattr(hearth, "SCREENED_TRIES", {})
+    reader.says = "NO"
+    for _ in range(hearth.SCREENED_A_DAY):
+        invite_by_email(member)
+    asked = len(reader.asked)
+    reader.says = "YES"
+    said = plain(page(invite_by_email(member)))
+    assert "That is as much as can be checked for you today; nothing was changed." in said
+    assert len(reader.asked) == asked and outbox.sent == [] and files(data_dir) == []
+
+
+def test_a_bad_address_or_note_is_refused_before_any_check(member, reader, outbox, data_dir):
+    assert "That doesn't look like an email address." in plain(page(
+        invite_by_email(member, address="not an address")))
+    assert "Write a note to go with it." in page(invite_by_email(member, note=" "))
+    assert reader.asked == [] and outbox.sent == [] and files(data_dir) == []
+
+
+def test_with_no_room_for_it_today_nothing_is_made(hearth, member, reader, outbox, data_dir,
+                                                   monkeypatch):
+    monkeypatch.setattr(hearth.mail, "sent_today", lambda now: hearth.mail.WAITING_A_DAY)
+    said = plain(page(invite_by_email(member)))
+    assert ("No more emails can be sent today, so no invitation was made. Try again tomorrow, "
+            "or leave the address empty to get a link to send yourself.") in said
+    assert reader.asked == [] and outbox.sent == [] and files(data_dir) == []
+    # the ten kept for confirm and reset links are still there
+    monkeypatch.setattr(hearth.mail, "sent_today", lambda now: hearth.mail.MAIL_A_DAY - 1)
+    assert hearth.mail.send_confirm("x@example.org", "t" * 43) == "sent"
+
+
+def test_an_email_that_could_not_go_makes_nothing(member, reader, outbox, data_dir):
+    outbox.says = "not sent: unreachable"
+    said = plain(page(invite_by_email(member)))
+    assert "The email couldn't be sent, so no invitation was made." in said
+    assert files(data_dir) == []
+    assert INVITE_SAID in plain(page(member.get("/account")))  # the month is not used up
+
+
+def test_the_address_is_forgotten_once_withdrawn(member, reader, outbox, data_dir):
+    invite_by_email(member)
+    [one] = files(data_dir)
+    withdraw(member, one["id"])
+    [one] = files(data_dir)
+    assert one["email"] is None and INVITED_KEPT not in json.dumps(one)
+    said = plain(page(member.get("/account")))
+    assert "Made on 15 October 2026: withdrawn." in said and INVITED_HIDDEN not in said
+
+
+def test_the_address_is_forgotten_once_expired(hearth, member, reader, outbox, data_dir, pinned):
+    invite_by_email(member)
+    pinned.set(datetime(2026, 10, 30, 5, 0, tzinfo=timezone.utc))
+    assert files(data_dir)[0]["email"] == INVITED_KEPT  # nothing has looked yet
+    hearth.back_up(datetime(2026, 10, 30, 8, tzinfo=timezone.utc))  # before any backup
+    assert files(data_dir)[0]["email"] is None
+
+
+def test_the_address_is_forgotten_once_used_and_counts_as_confirmed(
+        hearth, member, reader, outbox, data_dir):
+    invite_by_email(member)
+    link = emailed_link(outbox.sent[0])
+    client = hearth.app.test_client()
+    form = html.unescape(page(client.get("/invitation/%s/join" % link)))
+    assert 'value="%s"' % INVITED_KEPT in form
+    answer = join(client, link, address=INVITED_KEPT)
+    assert answer.status_code == 302
+    kept = hearth.members.email_of(NEWCOMER)
+    assert kept["address"] == INVITED_KEPT and kept["confirmed_at"]
+    assert hearth.members.member_by_email(INVITED_KEPT) == NEWCOMER
+    assert len(outbox.sent) == 1  # no link to confirm it
+    assert UNCONFIRMED not in html.unescape(page(client.get("/")))
+    [one] = files(data_dir)
+    assert one["email"] is None and one["used_by"] == NEWCOMER
+    assert INVITED_HIDDEN not in page(member.get("/account"))
+
+
+def test_a_changed_address_is_confirmed_by_the_usual_link(hearth, member, reader, outbox,
+                                                          data_dir):
+    invite_by_email(member)
+    link = emailed_link(outbox.sent[0])
+    client = hearth.app.test_client()
+    join(client, link, address=NEW_ADDRESS)
+    kept = hearth.members.email_of(NEWCOMER)
+    assert kept["address"] == NEW_ADDRESS and kept["confirmed_at"] is None
+    sent = outbox.sent[-1]
+    assert sent["to"] == NEW_ADDRESS
+    assert sent["subject"] == "Confirm your email address for Tesserae"
+    assert files(data_dir)[0]["email"] is None
+
+
+def test_the_address_is_on_no_page_but_its_own_join_and_in_no_reading(
+        hearth, keeper, member, reader, outbox, visitor, wake, room):
+    invite_by_email(member)
+    link = emailed_link(outbox.sent[0])
+    assert INVITED_KEPT not in page(visitor.get("/invitation/" + link))
+    plain_routes = [rule.rule for rule in hearth.app.url_map.iter_rules()
+                    if "GET" in rule.methods and not rule.arguments]
+    for client in (keeper, member, visitor):
+        for address in plain_routes:
+            text = html.unescape(page(client.get(address)))
+            assert INVITED_KEPT not in text, address
+            if client is not member:
+                assert INVITED_HIDDEN not in text, address
+    turn = wake("")
+    assert INVITED_KEPT not in repr(turn.asked) and INVITED_HIDDEN not in repr(turn.asked)
+    copied = [name for _, name in hearth.export_files()]
+    assert not any(name.startswith("invitations/") for name in copied)

@@ -303,3 +303,38 @@ def send_waiting(to, names, stop, now=None, mentioned=()):
             head, _, rest = text.partition("\n\n")
             text = head + "\n\n" + lines + "\n\n" + rest
     return send(WAITING, to, WAITING_SUBJECT, text, now, ceiling=WAITING_A_DAY)
+
+
+# An invitation sent by email, for the person who made it (the founder's request
+# of 14 November 2026): from the inviter's commons name and nothing more, never a
+# title; their note as they wrote it; the link and the day it lasts until. Plain
+# text, with no image, no pixel and no link but the invitation's own, unwrapped.
+# One email for each invitation, never sent again. It goes only while fewer than
+# WAITING_A_DAY emails have gone today, so that ten of the fifty are always kept
+# for the links to confirm an address and to set a password.
+INVITATION = "invitation"
+INVITATION_SUBJECT = "{name} invited you to Tesserae"
+INVITATION_TEXT = """{name} has invited you to Tesserae, a small community of AIs and people, open by invitation only.
+
+From {from_name}:
+{note}
+
+Read more and accept: {link}
+This invitation works once and lasts until {until}.
+
+If you weren't expecting this, you can ignore it. Nothing happens."""
+
+
+def invitation_room(now=None):
+    """Whether an invitation's email may still go today."""
+    return sent_today(now or datetime.now(timezone.utc)) < WAITING_A_DAY
+
+
+def send_invitation(to, name, note, token, until, now=None):
+    """Send one invitation: name is the inviter's commons name, until the day said as a
+    person says it. Gives back what came of it."""
+    opening = name[:1].upper() + name[1:]  # a sentence begins with a capital, as send_waiting's
+    return send(INVITATION, to, INVITATION_SUBJECT.format(name=opening),
+                INVITATION_TEXT.format(name=opening, from_name=name, note=note,
+                                       link=link("/invitation/" + token), until=until),
+                now, ceiling=WAITING_A_DAY)

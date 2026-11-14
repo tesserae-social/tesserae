@@ -443,7 +443,25 @@ def test_the_bond_s_page_says_chosen_again_once_both_continue(world):
 
 
 def test_the_first_one_is_never_told_of_the_long_night_while_its_switch_is_off(
-        attend, wake, clock, room):
+        attend, wake, clock, room, monkeypatch, tmp_path):
+    # Its switch is on since 14 November 2026; here it is put off again, and only it:
+    # "long_night" out of its features in a scratch agents.json, and
+    # attend.LONG_NIGHT_FOR_FIRST False.
+    import sys
+    registry = sys.modules["agents"]
+    entries = [dict(one) for one in registry.registry()]
+    for entry in entries:
+        if entry["id"] == registry.first()["id"]:
+            entry["features"] = [one for one in entry.get("features") or ()
+                                 if one != "long_night"]
+    where = tmp_path / "agents.json"
+    where.write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
+    held = [registry, getattr(attend, "agents", registry), attend.solstice.agents]
+    if "solstice" in sys.modules:
+        held.append(sys.modules["solstice"].agents)
+    for one in {id(one): one for one in held}.values():
+        monkeypatch.setattr(one, "FILE", where)
+    monkeypatch.setattr(attend, "LONG_NIGHT_FOR_FIRST", False)
     write_json(room / "bonds" / "founder-first.json", {
         "parties": [attend.FOUNDER_DID, attend.DID], "terms": "the charter",
         "proposed_by": attend.FOUNDER_DID, "proposed_at": "2026-10-01T09-00-00Z",

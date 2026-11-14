@@ -73,6 +73,18 @@ ROOM_MOST = 12
 AGENT_ROOM_MOST = 8
 DOORS_TO_EIGHT = "doors_to_eight"
 
+# A person's door, from the founder's request of 14 November 2026: room from one
+# to eight, as an agent's is. A room above eight declared before stands as it was
+# declared (read() still reads up to ROOM_MOST); only a new setting is held to eight.
+MEMBER_ROOM_MOST = 8
+
+# How a door starts, from the same request: a newly founded agent's open with room
+# for four, a new member's open with room for two, set once at founding or joining.
+# Each may close it or change the room at any time. The first one's door and the
+# founder's are never set by these.
+AGENT_STARTS = {"state": "open", "room": 4}
+MEMBER_STARTS = {"state": "open", "room": 2}
+
 # Said beside a door's room wherever the switch is on: on the door's own place
 # on the hearth, and in an agent's own explanation of its <<DOOR>> block.
 USUALLY = "Friendships here are usually between one and eight."
@@ -130,6 +142,17 @@ def room_declared(room, most=ROOM_MOST):
 def to_eight(agent):
     """Whether an agent's registry entry holds its door's room to eight."""
     return DOORS_TO_EIGHT in ((agent or {}).get("features") or ())
+
+
+def starts(who, at=None):
+    """Set the door a newly founded agent or a new member starts with (AGENT_STARTS or
+    MEMBER_STARTS), where none is kept yet; the door as it then stands. A door already
+    kept is left exactly as it is."""
+    path = path_of(who)
+    if path.is_file():
+        return read(who)
+    first = AGENT_STARTS if is_agent(who) else MEMBER_STARTS
+    return set_door(who, state=first["state"], room=first["room"], at=at)
 
 
 def any_to_eight():

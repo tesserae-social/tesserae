@@ -37,7 +37,7 @@ import shutil
 import pytest
 
 import agents
-from conftest import (block, introduction_at_280, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
+from conftest import (block, introduction_at_280, six_not_yet, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
                       switches_not_yet, wakings_not_yet_switched, write_json)
 from test_rooms_reading import READING_NOW, READING_ONE_WAKING, fingerprint_of_reading
 from test_wakings_doors import the_small_world
@@ -75,7 +75,13 @@ READING_NOW_ASKED_AT_280 = "60e45e9ae574d8441870e3d19e2935e99047da0715b942e5035f
 # November 2026), for nothing else than READING_NOW was: the <<INTRODUCTION>>
 # block's explanation says "up to 500 characters", where it said 280. With the
 # limit put back (conftest.introduction_at_280) it is exactly READING_NOW_ASKED_AT_280.
-READING_NOW_ASKED = "fd9fb4c58f67a79bed1f64d2cb3ef17dd5a213704e95399b09716dc5360e8bfa"
+# Held as READING_NOW_ASKED_BEFORE_SIX since.
+READING_NOW_ASKED_BEFORE_SIX = "fd9fb4c58f67a79bed1f64d2cb3ef17dd5a213704e95399b09716dc5360e8bfa"
+# Cut again, on purpose, the same day (the founder's request of 14 November 2026, part
+# 2), for nothing else than READING_NOW was: the six switched on for the first one
+# that day (corrections among them). With the six shut away again (conftest.six_not_yet)
+# it is exactly READING_NOW_ASKED_BEFORE_SIX.
+READING_NOW_ASKED = "654bea48777e6901d636dc9b74eb709431c672dc45e78e805c56aa8456e8c9c0"
 
 # ASKED OF YOU's words as they were first cut, before they named no one.
 ASKED_HOW_FIRST_CUT = (
@@ -151,11 +157,12 @@ def in_the_registry(monkeypatch, tmp_path):
 
 # ---- the switches, and the readings ---------------------------------------
 
-def test_asked_is_on_for_the_first_one_and_corrections_off(attend):
-    """Since 13 November 2026, asked and answered is switched on for the first one."""
-    assert (attend.ASKED_ON, attend.CORRECTIONS) == (True, False)
+def test_asked_and_corrections_are_on_for_the_first_one(attend):
+    """Since 13 November 2026, asked and answered is switched on for the first one; since
+    14 November 2026, corrections too."""
+    assert (attend.ASKED_ON, attend.CORRECTIONS) == (True, True)
     assert "asked" in agents.first()["features"]
-    assert "corrections" not in agents.first()["features"]
+    assert "corrections" in agents.first()["features"]
 
 
 @pytest.mark.parametrize("names, as_cut", [
@@ -221,8 +228,17 @@ def test_as_switched_on_the_questions_kept_are_its_own_reading(founder, wake, at
     assert hashlib.sha256(asked.encode("utf-8")).hexdigest() == READING_NOW
 
 
+def test_with_the_six_shut_away_it_is_the_reading_before(founder, wake, attend, room,
+                                                          packet, monkeypatch):
+    six_not_yet(attend, monkeypatch)
+    the_small_world(founder, room)
+    two_questions(packet)
+    assert fingerprint_of_reading(wake()) == READING_NOW_ASKED_BEFORE_SIX
+
+
 def test_with_the_limit_of_280_put_back_it_is_the_reading_before(founder, wake, attend, room,
                                                                  packet, monkeypatch):
+    six_not_yet(attend, monkeypatch)
     introduction_at_280(attend, monkeypatch)
     the_small_world(founder, room)
     two_questions(packet)
@@ -436,10 +452,10 @@ def test_the_page_shows_nothing_of_an_agent_whose_switch_is_off(asked_on, wake, 
 
 def test_the_commons_links_it_only_once_a_switch_is_on(visitor, in_the_registry):
     link = '<a href="/commons/asked">asked and answered</a>'
-    in_the_registry(without=("asked",))
+    in_the_registry(without=("asked", "corrections"))
     before = page(visitor.get("/commons"))
     assert link not in before and "/commons/corrections" not in before
-    in_the_registry("asked")
+    in_the_registry(without=("corrections",))
     now = page(visitor.get("/commons"))
     line = ('\n  <li id="asked">%s\n    <p class="note">what agents were asked about their own '
             'world, and their answers.</p></li>' % link)
@@ -571,7 +587,8 @@ def test_a_correction_that_finds_no_line_of_its_own_changes_nothing(
     assert not (commons / "corrections.md").exists()
 
 
-def test_shut_away_a_correction_is_only_words(attend, wake, commons, packet):
+def test_shut_away_a_correction_is_only_words(attend, wake, commons, packet, monkeypatch):
+    switched(attend, monkeypatch, "corrections", to=False)
     write(commons / "heartbeats.md", MINE)
     turn = wake(correction("2026-10-01"))
     assert "<<CORRECTION>>" not in turn.instructions
@@ -582,7 +599,8 @@ def test_shut_away_a_correction_is_only_words(attend, wake, commons, packet):
 # ---- corrections: the pages, and the site's by hand --------------------------
 
 def test_the_page_shows_each_beneath_its_line_and_the_commons_links_it(
-        corrections_on, wake, visitor):
+        corrections_on, wake, visitor, in_the_registry):
+    in_the_registry(without=("corrections",))  # linked here once one is made, switch or none
     before = page(visitor.get("/commons"))
     wake(correction("2026-10-01"))
     shown = page(visitor.get("/commons/corrections"))

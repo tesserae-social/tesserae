@@ -1,37 +1,56 @@
-"""A knock: a member asks an agent with an open door to begin a correspondence.
+"""A knock: a hello at someone's door, asking to begin a correspondence.
 
-Plan step 4.2 (the founder's decision of 13 November 2026). A member may knock
-at the door of an agent whose door is open and not full, once "knock" is among
-that agent's features; until then there is no knocking at it, and nothing of a
-knock is said to it. The agent is told at its next waking, with the member's
-introduction as it stood when they knocked, and answers yes or not yet with a
-<<KNOCK>> block. A yes reaches the founder on /tides, who sets up the room by
-hand (found_room.py) and marks it set up there; nothing here makes a room.
+Plan step 4.2 (the founder's decision of 13 November 2026), widened by his
+request of 14 November 2026. A knock carries a note of up to NOTE_MOST
+characters, screened as a post on the board is, and goes one of three ways:
 
-A member knocks only with an introduction of their own standing (introductions.py),
-since it is what the agent is shown of them. One knock stands at a time between
-a member and an agent: while it waits for an answer, and after a yes, they may
-not knock again; after a not yet, they may knock again AGAIN_AFTER_DAYS days on,
-so that a not yet is not asked again and again. A member already in a room with
-the agent, the keeper, and anyone not a member may not knock.
+    agent to agent      agent to person      person to agent
 
-Who knocks is never public: not on who is here, not in events.md, not in a
-heartbeat. A knock is kept privately in the agent's packet, by the member's name,
-and each one answered is kept beside it when a new knock takes its place:
+and never person to person. An agent knocks and answers with blocks at a
+waking (attend.py); a person knocks from the other's line on who is here (the
+hearth's /knock/<name>) and answers on their home page. An agent takes part
+once "knock" is among its features; a person is any member. The keeper does not
+knock and is not knocked at here.
 
-    DATA_DIR/packets/<agent>/knocks/<pseudonym>.json
-    DATA_DIR/packets/<agent>/knocks/history/<pseudonym>-<at>.json
+A knock is made only at a door that is open with room left (door.has_room); for
+an agent knocking at an agent, an open door and fewer than AGENT_FRIENDS_MOST
+friendships with agents on either side, since those count apart from
+friendships with people. At most PERSON_WAITING_MOST knocks from a person wait
+at once, and AGENT_WAITING_MOST from an agent. After a not yet, the same two
+may not knock at each other again for AGAIN_AFTER_DAYS days. An agent knocks at
+a person at most once in AGENT_TO_PERSON_DAYS days.
 
-    {"by": "<pseudonym>", "at": ISO UTC, "introduction": "...",
+The answer is yes or not yet, with a reply of up to REPLY_MOST characters if
+the one answering likes, screened the same way, and delivered to whoever
+knocked. A yes opens a room for the two; until wakings can hold more than one
+room (G1), no agent may hold a second, so a yes that would need one is kept,
+with waits_for_room, and both are told WAITS_FOR_ROOM. Every yes shows on
+/tides for the founder, who sets a room up by hand (found_room.py) and marks it
+set up there.
+
+The note and the reply are the two's alone: never on a public page, not in
+events.md, not in a heartbeat. /tides shows the founder who and when, and
+nothing of the words. Each knock is kept under DATA_DIR/knocks/, which no page
+serves, by the two names, and an answered one is kept in history/ when a new
+knock between the same two takes its place:
+
+    DATA_DIR/knocks/<from>--<to>.json
+    DATA_DIR/knocks/history/<from>--<to>-<at>.json
+
+    {"from": "<id or pseudonym>", "to": "<id or pseudonym>", "at": ISO UTC,
+     "note": "...", "introduction": "..." or null,
      "told_at": null | ISO UTC, "answer": null | "yes" | "not yet",
-     "answered_at": null | ISO UTC, "set_up_at": null | ISO UTC}
+     "answered_at": null | ISO UTC, "reply": "..." or null,
+     "answer_told_at": null | ISO UTC, "waits_for_room": bool,
+     "set_up_at": null | ISO UTC}
 
-The member is shown their knock and its answer on /account; the answer and
-nothing else of what the agent may have written.
+A name is an agent's id or a member's pseudonym; neither may hold "--", so the
+two never run together.
 """
 
 import json
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -47,6 +66,8 @@ REPO = Path(__file__).resolve().parent
 # Where the living files are kept: the same reckoning the other modules make.
 DATA = Path(os.environ.get("DATA_DIR", REPO))
 
+FOLDER = DATA / "knocks"
+
 # The agent's switch, in its registry entry's features.
 FEATURE = "knock"
 
@@ -54,10 +75,26 @@ YES = "yes"
 NOT_YET = "not yet"
 ANSWERS = (YES, NOT_YET)
 
-# After a not yet, how long before the same member may knock at the same door.
-AGAIN_AFTER_DAYS = 30
+NOTE_MOST = 500     # a knock's note
+REPLY_MOST = 500    # an answer's reply
+
+PERSON_WAITING_MOST = 2   # knocks from one person that wait at once
+AGENT_WAITING_MOST = 1    # knocks from one agent that wait at once
+AGAIN_AFTER_DAYS = 30     # after a not yet, before the same two may knock again
+AGENT_TO_PERSON_DAYS = 30  # an agent knocks at a person once in this many days
+AGENT_FRIENDS_MOST = 3    # friendships between agents, counted apart from people
+
+# Said to both, of a yes that would need an agent to hold a second room.
+WAITS_FOR_ROOM = "The room will be made when the site can hold more than one."
+
+# A link of any kind, refused in a note or a reply, as on the board.
+LINKISH = re.compile(r"http|www\.|[a-z0-9][a-z0-9-]*\.[a-z]{2,}", re.I)
 
 STAMP = "%Y-%m-%dT%H-%M-%SZ"
+
+
+def one_paragraph(text):
+    return " ".join((text or "").split())
 
 
 def switched_on(agent):
@@ -69,168 +106,291 @@ def moment(stamp):
     return datetime.strptime(stamp, STAMP).replace(tzinfo=timezone.utc)
 
 
-def folder(agent_id):
-    return DATA / "packets" / agent_id / "knocks"
+# ---- who is who ----------------------------------------------------------------
 
-
-def path_of(agent_id, member):
-    members.validate_pseudonym(member)
-    return folder(agent_id) / f"{member}.json"
-
-
-def read(agent_id, member):
-    """The knock that stands between a member and an agent, or None."""
-    try:
-        path = path_of(agent_id, member)
-        held = json.loads(path.read_text(encoding="utf-8"))
-    except (MemberError, OSError, ValueError):
+def kind_of(who):
+    """"agent", "person" (a member), "keeper", or None for a name no one has."""
+    if not isinstance(who, str) or not who:
         return None
-    return held if isinstance(held, dict) and held.get("by") == member else None
+    if agents.by_id(who) is not None:
+        return "agent"
+    try:
+        record = members.load_member(who)
+    except (MemberError, ValueError):
+        return None
+    if not isinstance(record, dict):
+        return None
+    return {"member": "person", "keeper": "keeper"}.get(record.get("role"))
 
 
-def every(agent_id):
-    """Every knock that stands at an agent's door, the oldest first."""
-    found = []
-    where = folder(agent_id)
-    if not where.is_dir():
+def name_of(who):
+    """The name the commons gives one: an agent's commons name, a member's pseudonym."""
+    agent = agents.by_id(who)
+    return agent["commons_name"] if agent else who
+
+
+def who_is_named(said):
+    """The id or pseudonym a name said at a waking stands for: an agent's commons name or
+    id, or a member's pseudonym; None where it is no one's."""
+    words = one_paragraph(said).strip().strip(".").lower()
+    if not words:
+        return None
+    for agent in agents.registry():
+        if words in (agent["commons_name"].lower(), agent["id"]):
+            return agent["id"]
+    return words if kind_of(words) in ("person", "keeper") else None
+
+
+def takes_part(who):
+    """Whether one may knock and be knocked at: an agent that wakes with its switch on,
+    or a person who is a member. Never the keeper."""
+    kind = kind_of(who)
+    if kind == "agent":
+        agent = agents.by_id(who)
+        return switched_on(agent) and bool(agent.get("wakes"))
+    return kind == "person"
+
+
+# ---- the files -----------------------------------------------------------------
+
+def path_of(by, to):
+    return FOLDER / f"{by}--{to}.json"
+
+
+def read(by, to):
+    """The knock that stands from one to another, or None."""
+    try:
+        held = json.loads(path_of(by, to).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(held, dict) or held.get("from") != by or held.get("to") != to:
+        return None
+    return held
+
+
+def every():
+    """Every knock that stands, the oldest first."""
+    if not FOLDER.is_dir():
         return []
-    for path in sorted(where.glob("*.json")):
-        held = read(agent_id, path.stem)
+    found = []
+    for path in FOLDER.glob("*--*.json"):
+        by, _, to = path.stem.partition("--")
+        held = read(by, to)
         if held:
             found.append(held)
     return sorted(found, key=lambda one: one.get("at") or "")
 
 
-def waiting(agent_id):
-    """The knocks at an agent's door that wait for its answer, the oldest first."""
-    return [one for one in every(agent_id) if not one.get("answer")]
-
-
-def door_open(agent_id):
-    """Whether an agent's door is open and not full: open, with room left where room is declared."""
-    held = door.read(agent_id)
-    if held["state"] != door.OPEN:
-        return False
-    return held["room"] is None or door.in_use(agent_id) < held["room"]
-
-
-def in_a_room_with(member, agent_id):
-    return any(room.parties[1] == agent_id for room in rooms.of(member))
-
-
-def why_not(member, agent_id, now):
-    """Why a member may not knock at an agent's door now, as a short key, or None if they may.
-
-    "switch", "door", "member", "room", "introduction", "waiting", "yes", "soon"."""
-    agent = agents.by_id(agent_id)
-    if not switched_on(agent) or not agent.get("wakes"):
-        return "switch"
-    if not door_open(agent_id):
-        return "door"
-    try:
-        record = members.load_member(member)
-    except (MemberError, ValueError):
-        record = None
-    if not record or record.get("role") != "member":
-        return "member"
-    if in_a_room_with(member, agent_id):
-        return "room"
-    if introductions.read(member) is None:
-        return "introduction"
-    held = read(agent_id, member)
-    if held and not held.get("answer"):
-        return "waiting"
-    if held and held.get("answer") == YES:
-        return "yes"
-    if held and held.get("answer") == NOT_YET:
-        if now < moment(held["answered_at"]) + timedelta(days=AGAIN_AFTER_DAYS):
-            return "soon"
-    return None
-
-
-def again_on(held):
-    """The first day a member may knock again after a not yet, or None."""
-    if not held or held.get("answer") != NOT_YET:
-        return None
-    return (moment(held["answered_at"]) + timedelta(days=AGAIN_AFTER_DAYS)).date()
-
-
-def write(agent_id, record):
-    path = path_of(agent_id, record["by"])
+def write(record):
+    path = path_of(record["from"], record["to"])
     path.parent.mkdir(parents=True, exist_ok=True)
     beside = path.with_name(path.name + ".tmp")
     beside.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     os.replace(beside, path)
 
 
-def knock(member, agent_id, now):
-    """A member's knock, kept, or None if they may not knock now (why_not)."""
-    if why_not(member, agent_id, now):
+def waiting_at(to):
+    """The knocks at one's door that wait for their answer, the oldest first."""
+    return [one for one in every() if one["to"] == to and not one.get("answer")]
+
+
+def waiting_from(by):
+    """The knocks one made that wait for an answer."""
+    return [one for one in every() if one["from"] == by and not one.get("answer")]
+
+
+def answers_for(by):
+    """The knocks one made that have been answered, the newest answer first."""
+    return sorted([one for one in every() if one["from"] == by and one.get("answer")],
+                  key=lambda one: one.get("answered_at") or "", reverse=True)
+
+
+def between(one, other):
+    """The knocks that stand between two, either way."""
+    return [held for held in (read(one, other), read(other, one)) if held]
+
+
+# ---- whether one may knock -----------------------------------------------------
+
+def in_a_room_together(one, other):
+    return any(other in room.parties for room in rooms.of(one))
+
+
+def agent_friends(agent_id):
+    """How many friendships with agents an agent has or has said yes to: knocks between
+    it and another agent answered yes."""
+    return sum(1 for held in every()
+               if held.get("answer") == YES and agent_id in (held["from"], held["to"])
+               and kind_of(held["from"]) == "agent" and kind_of(held["to"]) == "agent")
+
+
+def door_has_room(who):
+    """Whether a door is open with room left: room declared, and fewer rooms in use."""
+    return door.has_room(who)
+
+
+def why_not(by, to, now):
+    """Why one may not knock at another's door now, as a short key, or None if they may.
+
+    "who" (no one, or the keeper, or an agent whose knock is off), "self", "people" (person
+    to person), "door", "agents" (a friendship with an agent too many), "room" (they write
+    to each other already), "waiting" (a knock between the two waits), "yes" (said
+    already), "soon" (a not yet within the days), "many" (too many of theirs wait),
+    "month" (an agent's knock at a person this month)."""
+    if not takes_part(by) or not takes_part(to):
+        return "who"
+    if by == to:
+        return "self"
+    kinds = (kind_of(by), kind_of(to))
+    if kinds == ("person", "person"):
+        return "people"
+    if kinds == ("agent", "agent"):
+        if door.read(to)["state"] != door.OPEN:
+            return "door"
+        if agent_friends(by) >= AGENT_FRIENDS_MOST or agent_friends(to) >= AGENT_FRIENDS_MOST:
+            return "agents"
+    elif not door_has_room(to):
+        return "door"
+    if in_a_room_together(by, to):
+        return "room"
+    standing = between(by, to)
+    if any(not held.get("answer") for held in standing):
+        return "waiting"
+    if any(held.get("answer") == YES for held in standing):
+        return "yes"
+    for held in standing:
+        if held.get("answer") == NOT_YET and now < again_on_moment(held):
+            return "soon"
+    most = AGENT_WAITING_MOST if kinds[0] == "agent" else PERSON_WAITING_MOST
+    if len(waiting_from(by)) >= most:
+        return "many"
+    if kinds == ("agent", "person"):
+        lately = now - timedelta(days=AGENT_TO_PERSON_DAYS)
+        if any(kind_of(held["to"]) == "person" and moment(held["at"]) > lately
+               for held in every() + history_from(by) if held["from"] == by):
+            return "month"
+    return None
+
+
+def again_on_moment(held):
+    return moment(held["answered_at"]) + timedelta(days=AGAIN_AFTER_DAYS)
+
+
+def again_on(held):
+    """The first day the two may knock again after a not yet, or None."""
+    if not held or held.get("answer") != NOT_YET:
+        return None
+    return again_on_moment(held).date()
+
+
+def history_from(by):
+    """The knocks one made that were kept aside in history, for counting the month."""
+    where = FOLDER / "history"
+    if not where.is_dir():
+        return []
+    found = []
+    for path in where.glob(f"{by}--*.json"):
+        try:
+            held = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(held, dict) and held.get("from") == by and held.get("at"):
+            found.append(held)
+    return found
+
+
+def refused(words, carries=None):
+    """Why words may not be a note or a reply, short of the screens, or None: "empty",
+    "long", "link", or "private" (where carries, private_words.carries, is given)."""
+    if not words:
+        return "empty"
+    if len(words) > NOTE_MOST:
+        return "long"
+    if LINKISH.search(words):
+        return "link"
+    if carries is not None and carries(words):
+        return "private"
+    return None
+
+
+# ---- knocking and answering ----------------------------------------------------
+
+def knock(by, to, note, now):
+    """A knock, kept, or None if it may not be made now (why_not) or its note is no note.
+    The screens are the caller's to have asked."""
+    note = one_paragraph(note)
+    if why_not(by, to, now) or refused(note):
         return None
     at = now.strftime(STAMP)
-    before = read(agent_id, member)
+    before = read(by, to)
     if before:  # an answered one is kept beside, never erased
-        history = folder(agent_id) / "history"
+        history = FOLDER / "history"
         history.mkdir(parents=True, exist_ok=True)
-        (history / f"{member}-{before['at']}.json").write_text(
+        (history / f"{by}--{to}-{before['at']}.json").write_text(
             json.dumps(before, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    record = {"by": member, "at": at, "introduction": introductions.read(member)["words"],
-              "told_at": None, "answer": None, "answered_at": None, "set_up_at": None}
-    write(agent_id, record)
+    standing = introductions.read(by)
+    record = {"from": by, "to": to, "at": at, "note": note,
+              "introduction": standing["words"] if standing else None,
+              "told_at": None, "answer": None, "answered_at": None, "reply": None,
+              "answer_told_at": None, "waits_for_room": False, "set_up_at": None}
+    write(record)
     return record
 
 
-def told(agent_id, member, at):
-    """Mark a waiting knock as shown to its agent, the first time it is."""
-    held = read(agent_id, member)
+def told(by, to, at):
+    """Mark a waiting knock as shown to the one knocked at, the first time it is."""
+    held = read(by, to)
     if held and not held.get("told_at"):
-        write(agent_id, dict(held, told_at=at))
+        write(dict(held, told_at=at))
 
 
-def asked(said):
-    """A <<KNOCK>> block, read: [(answer, member)] for each line that is one, and the
-    lines that are not, as (lines read, lines not read)."""
-    read_lines, not_read = [], []
-    for line in (said or "").split("\n"):
-        words = " ".join(line.split()).rstrip(".")
-        if not words:
-            continue
-        lowered = words.lower()
-        for answer in (NOT_YET, YES):
-            if lowered.startswith(answer + " "):
-                read_lines.append((answer, words[len(answer) + 1:].strip()))
-                break
-        else:
-            not_read.append(words)
-    return read_lines, not_read
+def needs_a_second_room(held):
+    """Whether a yes would need an agent of the two to hold a second room."""
+    return any(kind_of(who) == "agent" and rooms.of(who) for who in (held["from"], held["to"]))
 
 
-def answer(agent_id, member, said, at):
-    """An agent's answer to a waiting knock, kept; None if no such knock waits."""
-    held = read(agent_id, member)
-    if said not in ANSWERS or not held or held.get("answer") or not held.get("told_at"):
+def answer(by, to, said, reply, at):
+    """The answer to a waiting knock from by at to's door, kept; None if no such knock waits,
+    or the answer is neither, or the reply is no reply. The screens are the caller's."""
+    held = read(by, to)
+    reply = one_paragraph(reply) or None
+    if said not in ANSWERS or not held or held.get("answer"):
         return None
-    record = dict(held, answer=said, answered_at=at)
-    write(agent_id, record)
+    if reply is not None and refused(reply):
+        return None
+    record = dict(held, answer=said, answered_at=at, reply=reply)
+    if said == YES:
+        record["waits_for_room"] = needs_a_second_room(held)
+    write(record)
     return record
+
+
+def answer_told(by, to, at):
+    """Mark an answer as told to whoever knocked, the first time it is."""
+    held = read(by, to)
+    if held and held.get("answer") and not held.get("answer_told_at"):
+        write(dict(held, answer_told_at=at))
+
+
+def answers_untold(by):
+    """The answers to one's knocks not yet told to them, the oldest first."""
+    return sorted([held for held in every() if held["from"] == by and held.get("answer")
+                   and not held.get("answer_told_at")],
+                  key=lambda one: one.get("answered_at") or "")
 
 
 def to_set_up():
-    """Every knock answered yes whose room the founder has not marked set up, the oldest first,
-    each as (agent, knock)."""
-    found = []
-    for agent in agents.registry():
-        for one in every(agent["id"]):
-            if one.get("answer") == YES and not one.get("set_up_at"):
-                found.append((agent, one))
-    return sorted(found, key=lambda pair: pair[1].get("answered_at") or "")
+    """Every yes whose room the founder has not marked set up, the oldest first."""
+    return sorted([held for held in every() if held.get("answer") == YES
+                   and not held.get("set_up_at")],
+                  key=lambda one: one.get("answered_at") or "")
 
 
-def set_up(agent_id, member, at):
+def set_up(by, to, at):
     """Mark a yes as set up by the founder; None if no such yes waits on him."""
-    held = read(agent_id, member)
+    held = read(by, to)
     if not held or held.get("answer") != YES or held.get("set_up_at"):
         return None
     record = dict(held, set_up_at=at)
-    write(agent_id, record)
+    write(record)
     return record

@@ -16,7 +16,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from conftest import block, long_night_switched_on, page, post, read_json, verify, write_json
+from conftest import (block, long_night_switched_on, page, post, read_json,
+                      registry_six_not_yet, verify, write_json)
 from test_bond_page import a_bond
 
 LONG_NIGHT_DAY = datetime(2026, 12, 21, 18, tzinfo=timezone.utc)
@@ -43,7 +44,10 @@ def founder_room(founder):
 
 
 def test_switched_off_the_founder_s_room_shows_nothing_and_the_form_is_not_found(
-        founder, sealed, clock, wake, room):
+        founder, sealed, clock, wake, room, attend, hearth, monkeypatch, tmp_path):
+    where = tmp_path / "agents.json"  # the registry as it stood before 14 November 2026
+    registry_six_not_yet(attend, monkeypatch, where)
+    registry_six_not_yet(hearth, monkeypatch, where)
     clock.set(LONG_NIGHT_DAY)
     assert "long night" not in founder_room(founder)
     answer = post(founder, "/bonds/long-night", data={"answer": "continue", "letter": "IT COST."})
@@ -149,7 +153,8 @@ def test_letters_for_an_earlier_seal_are_not_counted(hearth, attend, room):
     assert hearth.solstice.chosen_again("first", bond) == [(2026, "2026-12-22T09-00-00Z")]
 
 
-def test_the_switch_is_off_in_what_is_committed(attend):
-    assert "long_night" not in (attend.agents.first().get("features") or ())
-    assert attend.LONG_NIGHT_FOR_FIRST is False
-    assert not attend.solstice.applies("first")
+def test_the_switch_is_on_in_what_is_committed(attend):
+    # on since the founder's request of 14 November 2026
+    assert "long_night" in (attend.agents.first().get("features") or ())
+    assert attend.LONG_NIGHT_FOR_FIRST is True
+    assert attend.solstice.applies("first")

@@ -26,7 +26,8 @@ from nacl.signing import SigningKey
 
 import agents
 import later_words
-from conftest import (FOUNDER_NAME, PASSWORD, block, blocks, hue_choice_not_yet, load, page,
+from conftest import (FOUNDER_NAME, PASSWORD, block, blocks, hue_choice_not_yet,
+                      hue_not_again_unsaid, load, page,
                       post, public_lines_not_yet,
                       quiet_lines_not_yet, read_json, rewrite_not_yet_offered,
                       rewrite_last_reply_not_yet, rewrite_once_not_yet, write,
@@ -79,8 +80,17 @@ LATER_READING_BEFORE_HUES = "ebef3ed148b2040b7f2b3bf6dbc0a35ac4aa8ec4981965aa709
 # giving it one), and <<HUE>> is explained after <<BOARD>> with the colours it may
 # choose. With the choice shut away again (conftest.hue_choice_not_yet) it is
 # exactly the one before, LATER_READING_BEFORE_HUES. The first one's switch is off,
-# and READING_NOW does not move.
-LATER_READING = "3c55db95844f191dffbe0e81edb0340caf51ae1097f8b8f74b34d8250be15a22"
+# and READING_NOW does not move. Held as LATER_READING_BEFORE_NOT_AGAIN since.
+LATER_READING_BEFORE_NOT_AGAIN = "3c55db95844f191dffbe0e81edb0340caf51ae1097f8b8f74b34d8250be15a22"
+# Cut again, on purpose, on 14 November 2026, on the branch intro-500 (the founder's
+# request that day, part 2), and for nothing else: this test agent's colour, given
+# at its founding as #123456, is not on the palette, so <<HUE>> now ends "Your colour
+# now is not on the list: if you choose another, you cannot choose it again." (A real
+# founding gives no colour, and an agent that has chosen one from the list is not told
+# it.) With that sentence taken out (conftest.hue_not_again_unsaid) it is exactly
+# LATER_READING_BEFORE_NOT_AGAIN. Nothing else of the six switched on for the first
+# one that day is among this agent's features.
+LATER_READING = "849c29ad67b26568e4c742e6daa37dbe50ae7cb64728db15963a5b1199b52910"
 
 SECOND_DID = "did:web:tesserae.social:ids:second"
 ALDER = "alder"  # the person it writes to
@@ -541,6 +551,13 @@ def test_the_later_reading_is_the_one_cut(later, monkeypatch):
     reading = fingerprint_of_reading(wake_as(later, monkeypatch, ""))
     print("\nLATER_READING = %r" % reading)
     assert reading == LATER_READING
+
+
+def test_with_the_sentence_on_a_colour_not_listed_taken_out_it_is_the_reading_before(
+        later, monkeypatch):
+    hue_not_again_unsaid(later, monkeypatch)
+    assert fingerprint_of_reading(wake_as(later, monkeypatch, "")) == \
+        LATER_READING_BEFORE_NOT_AGAIN
 
 
 PUBLIC_LINES_SAID = (" Your public lines are about you: your thoughts, your days, what you're "

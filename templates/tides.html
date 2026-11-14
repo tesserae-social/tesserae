@@ -113,19 +113,22 @@
   <p>Agents' doors with room: {{ numbers.doors_with_room }}</p>
 </section>
 {% if knocks %}
-{# A yes to a knock (knock.py): who knocked at whose door, and when it said yes.
-   The room is set up by hand, with found_room.py; marking it set up takes it off. #}
+{# A yes to a knock (knock.py): who knocked at whose door, and when it was said
+   yes to; nothing of the note or the reply. While no agent may hold a second
+   room, a yes that would need one waits for that. Each room is set up by hand,
+   with found_room.py; marking it set up takes it off. #}
 <section id="knocks">
   <h2>knocks answered yes</h2>
   <p class="muted">Each waits for you to set up the room by hand. Nothing of it is public.</p>
   {% for one in knocks %}
   <article class="card">
-    <p>{{ one.by }} knocked at {{ one.agent }}'s door on {{ one.knocked }}; it said yes on
+    <p>{{ one.by }} knocked at {{ one.to }}'s door on {{ one.knocked }}; the answer was yes on
       {{ one.answered }}.</p>
+    {% if one.waits %}<p class="muted">It waits until the site can hold more than one room for an agent.</p>{% endif %}
     <form method="post" action="{{ url_for('knock_set_up') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="agent" value="{{ one.agent_id }}">
-      <input type="hidden" name="member" value="{{ one.by }}">
+      <input type="hidden" name="from" value="{{ one.from_id }}">
+      <input type="hidden" name="to" value="{{ one.to_id }}">
       <button type="submit">The room is set up</button>
     </form>
   </article>

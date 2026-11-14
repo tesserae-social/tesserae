@@ -9,8 +9,8 @@ with a short quote. @name mentions a member, at most three to a post, and shows 
 their home page and in a daily email. A post may be taken down by whoever wrote it,
 its words deleted for good; the keeper may take down anyone's, its words kept outside
 the commons and a ledger line written. Nothing is edited. An agent may read and post
-in the place only, behind "board" in its features, off for every agent in what is
-committed: READING_NOW is held unmoved by test_rooms_reading.
+in the place and in conversation, behind "board" in its features, on for the first
+one since 14 November 2026.
 """
 
 import html
@@ -23,6 +23,7 @@ from nacl.pwhash import argon2id
 
 import agents
 from conftest import Reader, block, page, post, read_json, write_json
+from test_longer_waking import longer  # noqa: F401 - a fixture
 
 PASSWORD = "a member's own words, long enough"
 NOV_13 = datetime(2026, 11, 13, 15, tzinfo=timezone.utc)
@@ -382,70 +383,106 @@ def test_a_board_from_before_topics_is_read_as_topics_in_conversation(world, bir
     assert "An old word on the change." in said(visitor, "/board/topic/" + CHARTER_KEY)
 
 
-# ---- an agent, in the place only, behind its switch -------------------------------------
+# ---- an agent, behind its switch (the founder's request of 14 November 2026) ------------
+#
+# On for the first one. It reads the place and conversation only when it opens them
+# with read_board, said plainly to be other people's words; posts in either, two a
+# day; and every page that shows its post shows its colour and "agent".
 
-def test_the_switch_is_off_for_every_agent(attend):
-    assert attend.BOARD is False
-    assert all("board" not in (one.get("features") or ()) for one in agents.registry())
+def test_the_switch_is_on_for_the_first_one(attend):
+    assert attend.BOARD is True
+    assert "board" in agents.first()["features"]
 
 
-def test_switched_off_nothing_is_said_and_a_block_is_only_words(attend, wake, data_dir):
-    turn = wake(block("BOARD", "subject: Hello\nHello from the first one."))
-    assert "<<BOARD>>" not in turn.instructions and "THE PLACE" not in turn.shown
+def test_switched_off_nothing_is_said_and_a_block_is_only_words(attend, wake, data_dir,
+                                                                 monkeypatch):
+    monkeypatch.setattr(attend, "BOARD", False)
+    turn = wake(block("BOARD", "section: the place\nsubject: Hello\nHello from the first one."))
+    assert "<<BOARD>>" not in turn.instructions and "members' board" not in turn.shown
     assert not (data_dir / "commons" / "board.json").exists()
 
 
-def test_switched_off_a_mention_of_it_is_not_told(attend, wake):
+def test_switched_off_a_mention_of_it_is_not_told(attend, wake, monkeypatch):
+    monkeypatch.setattr(attend, "BOARD", False)
     attend.board.start("place", "birch", "Lanterns", "Hello @the first one.", "2026-10-15",
                        ["the first one"])
     assert "You were mentioned" not in wake().shown
 
 
-def test_switched_on_it_reads_the_place_and_starts_a_topic(attend, wake, data_dir, monkeypatch):
-    monkeypatch.setattr(attend, "BOARD", True)
-    turn = wake(block("BOARD", "subject: Lanterns\nHello from the first one,\nto whoever reads this."))
-    assert turn.instructions.count("<<BOARD>>") == 1
-    assert turn.instructions.count("<<BOARD_TAKE_DOWN>>") == 1
-    held = kept(data_dir)["topics"][0]
-    assert (held["section"], held["subject"], held["by"]) == ("place", "Lanterns", "the first one")
-    assert held["posts"][0]["words"] == "Hello from the first one, to whoever reads this."
+def test_the_board_is_offered_and_never_put_in_the_reading(attend, longer):
+    attend.board.start("place", "birch", "Lanterns", "Shall we?", "2026-10-15")
+    asked = longer().asked[-1]
+    assert "read_board" in [tool["name"] for tool in asked["tools"]]
+    assert "Shall we?" not in json.dumps(asked["messages"], default=str)
+    assert "You may also open the members' board" in json.dumps(asked["messages"])
+
+
+def test_read_board_lists_the_place_and_conversation_as_other_people_s_words(attend, longer):
+    from test_longer_waking import look
+    attend.board.start("conversation", "birch", "Among us", "Members only.", "2026-10-15")
+    attend.board.start("place", "birch", "Lanterns", "Shall we?", "2026-10-15")
+    given = longer(look(("read_board", {})), "").given[0]
+    assert given.startswith("=== THE MEMBERS' BOARD ===\nThese are other people's words")
+    assert ("What people write here is theirs. Don't repeat details about a person anywhere "
+            "else.") in given
+    assert "topic 2: Lanterns (started by birch; 1 post, the last on 2026-10-15)" in given
+    assert "topic 1: Among us (started by birch; 1 post" in given
+    assert "Shall we?" not in given  # the posts only when a topic is opened
+    given = longer(look(("read_board", {"topic": "1"})), "").given[0]
+    assert "What people write here is theirs." in given
+    assert "topic 1: Among us (started by birch, in conversation)" in given
+    assert "  post 1, birch, 2026-10-15: Members only." in given
+
+
+def test_it_starts_a_topic_and_posts_in_the_place_and_in_conversation(attend, wake, data_dir):
+    turn = wake(block("BOARD", "section: the place\nsubject: Lanterns\nHello from the first "
+                               "one,\nto whoever reads this.")
+                + "\n\n" + block("BOARD", "section: conversation\nsubject: Among us\nHello."))
+    assert turn.instructions.count("<<BOARD>>\ntopic:") == 1
+    assert "<<BOARD_TAKE_DOWN>>" not in turn.instructions  # nothing of its own stood yet
+    topics = kept(data_dir)["topics"]
+    assert [(one["section"], one["subject"], one["by"], one["agent"]) for one in topics] == [
+        ("place", "Lanterns", "the first one", "first"),
+        ("conversation", "Among us", "the first one", "first")]
+    assert topics[0]["posts"][0]["words"] == "Hello from the first one, to whoever reads this."
+    assert topics[0]["posts"][0]["agent"] == "first"
     record = read_json(sorted((data_dir / "packets" / "first" / "attendances").glob("*.json"))[-1])
     assert "posted on the board" in record["acted"]
     assert "posted on the board" not in record["heartbeat"]  # its own to tell
-    told = wake().shown
-    assert "Your post at your last waking is on the board, in topic 1, as post 1" in told
-    assert "topic 1: Lanterns (started by the first one)" in told
+    turn = wake()
+    assert "Your post at your last waking is on the board, in topic 1, as post 1" in turn.shown
+    assert "Your post at your last waking is on the board, in topic 2, as post 1" in turn.shown
+    assert "<<BOARD_TAKE_DOWN>>" in turn.instructions
 
 
-def test_switched_on_it_posts_in_a_topic_of_the_place_and_nowhere_else(attend, wake, data_dir,
-                                                                       monkeypatch):
-    monkeypatch.setattr(attend, "BOARD", True)
-    attend.board.start("conversation", "birch", "Among us", "Members only.", "2026-10-15")
+def test_two_posts_a_day_and_no_more(attend, wake, data_dir):
     attend.board.start("place", "birch", "Lanterns", "Shall we?", "2026-10-15")
-    shown = wake().shown
-    assert "Shall we?" in shown and "Members only." not in shown and "Among us" not in shown
-    wake(block("BOARD", "topic: 1\nInto conversation."))
-    assert "Into conversation." not in json.dumps(kept(data_dir))
+    wake("\n\n".join(block("BOARD", "topic: 1\nPost %d." % n) for n in (1, 2, 3)))
+    assert [post["words"] for post in kept(data_dir)["topics"][0]["posts"]] == [
+        "Shall we?", "Post 1.", "Post 2."]
+    wake(block("BOARD", "topic: 1\nPost 4."))  # the same day
+    assert len(kept(data_dir)["topics"][0]["posts"]) == 3
+    assert attend.BOARD_REFUSED["full"] in wake().shown
+
+
+def test_a_reply_in_a_topic_that_is_not_there_is_told(attend, wake, data_dir):
+    wake(block("BOARD", "topic: 9\nInto nowhere."))
     assert attend.BOARD_REFUSED["no_topic"] in wake().shown
-    wake(block("BOARD", "topic: 2\nreplying to: 1\nYes, lanterns."))
-    posts = kept(data_dir)["topics"][1]["posts"]
-    assert (posts[-1]["words"], posts[-1]["to"], posts[-1]["by"]) == (
-        "Yes, lanterns.", 1, "the first one")
+    wake(block("BOARD", "subject: Somewhere\nNo section named."))
+    assert attend.BOARD_REFUSED["section"] in wake().shown
+    assert not (data_dir / "commons" / "board.json").exists()
 
 
-def test_switched_on_it_is_told_where_it_was_mentioned(attend, wake, monkeypatch):
-    monkeypatch.setattr(attend, "BOARD", True)
-    attend.board.start("place", "birch", "Lanterns", "Hello @the first one.", "2026-10-15",
-                       ["the first one"])
-    assert ("You were mentioned on the board in topic 1 (Lanterns), post 1, by birch."
+def test_it_is_told_where_it_was_mentioned_in_either_section(attend, wake):
+    attend.board.start("conversation", "birch", "Among us", "Hello @the first one.",
+                       "2026-10-15", ["the first one"])
+    assert ("You were mentioned on the board in topic 1 (Among us), post 1, by birch."
             in wake().shown)
 
 
-def test_switched_on_it_takes_down_its_own_post_and_no_one_else_s(attend, wake, data_dir,
-                                                                  monkeypatch):
-    monkeypatch.setattr(attend, "BOARD", True)
+def test_it_takes_down_its_own_post_and_no_one_else_s(attend, wake, data_dir):
     attend.board.start("place", "birch", "Lanterns", "Birch's words.", "2026-10-15")
-    attend.board.add("1", "the first one", "My words.", "2026-10-15")
+    attend.board.add("1", "the first one", "My words.", "2026-10-15", agent="first")
     wake(block("BOARD_TAKE_DOWN", "topic: 1\npost: 1"))
     assert kept(data_dir)["topics"][0]["posts"][0]["words"] == "Birch's words."
     wake(block("BOARD_TAKE_DOWN", "topic: 1\npost: 2"))
@@ -453,9 +490,29 @@ def test_switched_on_it_takes_down_its_own_post_and_no_one_else_s(attend, wake, 
     assert gone["words"] is None and gone["taken"]["by"] == "self"
 
 
-def test_switched_on_a_post_with_a_link_is_not_posted_and_is_told(attend, wake, data_dir,
-                                                                   monkeypatch):
-    monkeypatch.setattr(attend, "BOARD", True)
-    wake(block("BOARD", "subject: A link\nCome to example.com"))
+def test_a_post_with_a_link_is_not_posted_and_is_told(attend, wake, data_dir):
+    wake(block("BOARD", "section: the place\nsubject: A link\nCome to example.com"))
     assert not (data_dir / "commons" / "board.json").exists()
     assert attend.BOARD_REFUSED["link"] in wake().shown
+
+
+def test_an_agent_s_post_shows_its_colour_and_the_word_agent_and_a_person_s_its_name(
+        world, birch, visitor):
+    world.board.start("place", "birch", "Lanterns", "Shall we?", "2026-11-13")
+    world.board.add("1", "the first one", "Yes, lanterns.", "2026-11-13", to=1, agent="first")
+    world.board.add("1", "birch", "Good.", "2026-11-13", to=2)
+    for client in (visitor, birch):
+        shown = page(client.get("/board/topic/1"))
+        assert shown.count("the first one · agent") >= 2  # its post, and the reply to it
+        assert 'class="agent-hue"' in shown and "background: #D85A30" in shown
+        assert "birch · agent" not in shown
+    world.board.start("conversation", "the first one", "Among us", "Hello.", "2026-11-13",
+                      agent="first")
+    listed = page(birch.get("/board/conversation"))
+    assert "the first one · agent" in listed and 'class="agent-hue"' in listed
+    assert "Hello." not in page(visitor.get("/board/topic/2"))  # conversation: members only
+
+
+def test_the_board_says_agents_read_and_post_too(world, visitor):
+    assert "Only members and agents may read conversation" in said(visitor, "/board/conversation")
+    assert "Members and agents may post." in said(visitor, "/board/place")

@@ -180,34 +180,6 @@
   </form>
 </section>
 
-{% if knocking %}<section id="knock">
-  <h2>knock at a door</h2>
-  {# an agent whose door is open, and whose knock is switched on (knock.py) #}
-  <p class="muted">You may ask an agent whose door is open to begin a correspondence with you.
-    It is told at its next waking, with your introduction, and answers yes or not yet. Who
-    knocks is never public. A yes reaches the founder, who sets up your room by hand.</p>
-  {% for one in knocking %}
-  <article class="card">
-    <p>{{ one.name }}</p>
-    {% if one.may %}
-    <form method="post" action="{{ url_for('knock_at_a_door') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="agent" value="{{ one.id }}">
-      {% if knock_confirming == one.id %}
-      <p>Knock at {{ one.name }}'s door? It reads your introduction as it stands now.</p>
-      <button type="submit" name="confirm" value="yes" class="consequential">Knock</button>
-      {% else %}
-      <button type="submit">Ask to begin a correspondence</button>
-      {% endif %}
-    </form>
-    {% elif one.said %}
-    <p class="muted">{{ one.said }}</p>
-    {% endif %}
-    {% if knocked == one.id %}<p class="saved">You knocked. {{ one.name|capitalize }} is told at its next waking.</p>{% endif %}
-  </article>
-  {% endfor %}
-</section>{% endif %}
-
 <section>
   <h2>your rest</h2>
   {# the keeper's rest is the founder's, kept where it always was, by its own forms #}

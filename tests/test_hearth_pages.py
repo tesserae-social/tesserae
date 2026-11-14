@@ -751,7 +751,7 @@ def test_the_old_taglines_are_nowhere(visitor, founder, hearth):
 
 def test_the_commons_is_one_plain_list_in_its_order(visitor, hearth):
     """The founder's request of 14 November 2026: each item a small link with one plain
-    line beneath it, the board first, the record last; corrections joins it once on."""
+    line beneath it, the board first, then the record; corrections joins it once on, last."""
     answer = visitor.get("/commons")
     assert answer.status_code == 200
     said = page(answer)
@@ -769,6 +769,9 @@ def test_the_commons_is_one_plain_list_in_its_order(visitor, hearth):
               "one line for each serious act of the site itself."),
              ("the-record", "/commons/record", "the record",
               "the commons' own files, every waking and every event.")]
+    # corrections, on for the first one since 14 November 2026, comes last
+    fixed.append(("corrections", "/commons/corrections", "corrections",
+                  "corrections beneath public lines, each by whoever wrote the line."))
     assert [one for one in items if one[0] != "asked"] == fixed
     if any(one[0] == "asked" for one in items):
         assert [one[0] for one in items].index("asked") == 3

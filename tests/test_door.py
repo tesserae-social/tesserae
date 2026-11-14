@@ -351,9 +351,9 @@ def test_the_founders_controls_open_close_and_set_the_room(founder, hearth, data
     assert 'name="state" value="open">Open the door</button>' in section
     assert "Close the door" not in section  # a closed door is offered its opening, and only that
     assert '<option value="" selected>not declared</option>' in section
-    for room in range(1, 13):
+    for room in range(1, 9):  # one to eight, from the founder's request of 14 November 2026
         assert '<option value="%d">%d</option>' % (room, room) in section
-    assert '<option value="13"' not in section and '<option value="0"' not in section
+    assert '<option value="9"' not in section and '<option value="0"' not in section
 
     answer = post(founder, "/door", data={"state": "open"})
     assert answer.status_code == 302 and answer.headers["Location"] == "/"
@@ -416,7 +416,7 @@ def test_a_visitor_sets_no_door(visitor, data_dir):
 def test_a_door_that_is_no_door_is_turned_back_at_the_hearth(founder, data_dir, sent):
     answer = post(founder, "/door", data=sent)
     assert answer.status_code == 400
-    assert "A door is open or closed, and room is a number from 1 to 12 or not declared." \
+    assert "A door is open or closed, and room is a number from 1 to 8 or not declared." \
         in door_section(page(answer))
     assert not door_file(data_dir, FOUNDER_NAME).exists()
 
@@ -502,7 +502,7 @@ def test_each_members_line_gains_their_door(founder, member, hearth, commons):
     post(founder, "/door", data={"room": ""})
     assert lines_of(path)[1] == FOUNDER_TENDED + " · door closed"
 
-    post(member, "/door", data={"state": "open", "room": "12"})
+    post(member, "/door", data={"state": "open", "room": "8"})
     assert lines_of(path) == [FIRST_LINE + " · door closed", FOUNDER_TENDED + " · door closed",
                               MEMBER_LINE + " · door open · has room", NOTE]
 
@@ -521,7 +521,7 @@ def test_only_the_founder_s_line_loses_keeps_the_hearth(founder, member, hearth,
 
 def test_who_is_here_never_says_a_number_of_a_door(founder, hearth, commons):
     path = members_md(commons, FOUNDER_LINE)
-    for room in range(1, 13):
+    for room in range(1, 9):
         post(founder, "/door", data={"state": "open", "room": str(room)})
         said = lines_of(path)[0]
         assert said.startswith(FOUNDER_TENDED + " · door open · ")
@@ -917,3 +917,31 @@ def test_the_two_hands_say_the_one_door(wake, attend, hearth, packet, commons, m
     assert lines_of(path) == [FIRST_LINE + " · door open · has room",
                               FOUNDER_TENDED + " · door closed"]
     assert json.loads((packet / "door.json").read_text(encoding="utf-8"))["room"] == 2
+
+
+# ---- one to eight, and how a door starts (the founder's request of 14 November 2026) ----
+
+def test_a_person_s_room_is_one_to_eight_and_one_above_eight_declared_before_stands(
+        founder, member, hearth, data_dir):
+    assert post(member, "/door", data={"room": "9"}).status_code == 400
+    assert hearth.door.read(MEMBER)["room"] is None
+    hearth.door.set_door(MEMBER, state="open", room=12, at="2026-10-01T09-00-00Z")
+    section = door_section(page(member.get("/")))
+    assert '<option value="12" selected>12</option>' in section
+    assert '<option value="11"' not in section
+    assert post(member, "/door", data={"room": "12"}).status_code == 302  # kept as it stands
+    assert hearth.door.read(MEMBER)["room"] == 12
+    post(member, "/door", data={"room": "3"})
+    assert hearth.door.read(MEMBER)["room"] == 3
+    assert post(member, "/door", data={"room": "12"}).status_code == 400  # not again
+
+
+def test_a_door_starts_open_with_room_for_two_or_four_and_one_kept_is_left(hearth, data_dir):
+    come_in(hearth.members, MEMBER)
+    assert hearth.door.starts(MEMBER, at="2026-11-15T09-00-00Z")["room"] == 2
+    assert hearth.door.read(MEMBER)["state"] == "open"
+    hearth.door.set_door(MEMBER, state="closed", at="2026-11-15T10-00-00Z")
+    hearth.door.starts(MEMBER, at="2026-11-15T11-00-00Z")  # kept: left exactly as it is
+    assert hearth.door.read(MEMBER)["state"] == "closed"
+    assert hearth.door.AGENT_STARTS == {"state": "open", "room": 4}
+    assert not door_file(data_dir, "first").exists()  # the first one's is never set by it

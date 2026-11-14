@@ -89,12 +89,6 @@ def test_a_line_of_events_keeps_no_protected_word(hearth, attend, listed, common
     assert written[1].endswith(" · event · a letter for the founder")
 
 
-def test_a_line_on_the_bench_keeps_no_protected_word(hearth, listed, commons):
-    hearth.place_line("2026-10-18", "a friend of Quillon", "hello from Varrowmere")
-    assert lines_of(commons / "bench.md") == [
-        "- 2026-10-18 · a friend of the founder · hello"]
-
-
 def test_who_is_here_keeps_no_protected_word_once_it_is_tended(hearth, listed, commons):
     write(commons / "members.md", "member · Quillon · keeps the hearth\n")
     hearth.tend_members()
@@ -104,7 +98,7 @@ def test_who_is_here_keeps_no_protected_word_once_it_is_tended(hearth, listed, c
 
 # ---- as it is served -------------------------------------------------------
 
-@pytest.mark.parametrize("name", ["heartbeats.md", "events.md", "bench.md", "members.md",
+@pytest.mark.parametrize("name", ["heartbeats.md", "events.md", "members.md",
                                   "offerings.md", "bonds.md"])
 def test_every_file_of_the_commons_is_served_with_no_protected_word(
         hearth, visitor, listed, commons, name):
@@ -114,10 +108,12 @@ def test_every_file_of_the_commons_is_served_with_no_protected_word(
     assert said == "- 2026-10-15 · the founder heading; two days\n"
 
 
-def test_the_bench_page_shows_no_protected_word(hearth, visitor, listed, commons):
-    write(commons / "bench.md", "- 2026-10-15 · a passerby · hello Quillon\n")
-    said = page(visitor.get("/bench"))
-    assert "hello the founder" in said and "Quillon" not in said
+def test_the_board_shows_no_protected_word(hearth, visitor, listed, commons):
+    # written before the word was on the list (the board refuses one written after)
+    hearth.board.start("place", "a-passerby", "hello Quillon", "hello from Quillon", "2026-10-15")
+    for path in ("/board", "/board/place", "/board/topic/1"):
+        said = page(visitor.get(path))
+        assert "hello the founder" in said and "Quillon" not in said, path
 
 
 def test_a_bond_page_shows_no_protected_word(visitor, listed, placed, threshold_module):
@@ -137,7 +133,7 @@ def test_an_offering_is_shown_with_no_protected_word_and_signed_as_it_was(
     one = only_placed(room)
     write(data_dir / "private-words.txt", "lake => water\n")
     assert "The water was still" in page(visitor.get("/commons/offerings/%s.md" % one["id"]))
-    assert "The water was still" in page(visitor.get("/commons"))
+    assert "The water was still" in page(visitor.get("/offerings"))
     signed = page(visitor.get("/offerings/%s.json" % one["id"]))
     assert "The lake was still" in signed and "water" not in signed
 

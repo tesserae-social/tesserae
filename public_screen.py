@@ -3,13 +3,13 @@
 The private word list (private_words.py) holds back the names it knows. This
 asks about the ones it does not: whether a text that is about to be published
 contains a real person's name or a specific place that could identify someone.
-It is one call to the same small utility model the bench reads its lines with,
+It is one call to the same small utility model that reads every public line for good spirit,
 answered strictly YES or NO. The site's own names for its people - "the
 founder", "the first one", and every member's pseudonym as it stands - are
 handed to it as allowed, and are never a reason for a YES.
 
 It runs on everything public that is written by a hand rather than by the
-hearth: a line on the bench, a witness's line and its correction, a promise
+hearth: a post on the board, a witness's line and its correction, a promise
 made public, an offering's words, the first one's line for the commons, and the
 founder's line beside a letter. A YES publishes nothing and signs nothing.
 Anything else - an answer that is not exactly one of the two words, an error,

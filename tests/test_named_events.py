@@ -401,12 +401,13 @@ def test_the_word_a_founding_a_letter_and_the_bench_stay_unnamed(hearth, commons
     write(commons / "events.md", "2026-09-02 · word · the word was published\n"
                                  "2026-09-04 · founding · the first one was founded\n")
     assert hearth.note_letter()
-    hearth.place_line("2026-10-15", "a visitor", "A FAKE LINE, FOR THE TESTS.")
-    assert hearth.take_off(hearth.bench_lines()[0]["raw"])
+    # the bench is gone (14 November 2026); a line it left in the record before then
+    # is still never read for a name
+    with (commons / "events.md").open("a", encoding="utf-8") as events:
+        events.write("2026-10-15 · event · a line was taken off the bench\n")
     written = lines_of(commons / "events.md")
     assert [line.split(" · ")[1] for line in written] == ["word", "founding", "letter", "event"]
     assert written[2].startswith("2026-10-15 · letter · the founder wrote a letter")
-    assert written[3] == "2026-10-15 · event · " + hearth.TAKEN_OFF
     for line in written:
         day, kind, words = line.split(" · ", 2)
         assert agents.named(kind, words) is None, line

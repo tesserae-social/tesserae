@@ -7,7 +7,7 @@ the day once a daily limit is reached. The limits are set here, in one place:
 
     CAP_PER_AGENT   dollars a day for each agent's own requests
     CAP_SCREENS     dollars a day for every screening call, site-wide: the public
-                    screen (public_screen.ask) and the bench's word on good spirit
+                    screen (public_screen.ask) and the word on good spirit
                     (hearth.in_good_spirit), from a page or at a waking alike
 
 Each request is counted with its provider's own usage numbers, as the reply

@@ -13,7 +13,7 @@
    room_bond_any.html, once its thirty days have passed (13 November 2026). #}
 {% block content %}{% if weekly_question %}
 {# this week's question, an offer and nothing more (weekly.py); with none, nothing #}
-<p class="note">{{ weekly_question }}</p>{% endif %}{% if guide %}
+<p class="note">{{ weekly_question }}{% if weekly_topic %} <a href="{{ url_for('board_topic', key=weekly_topic) }}">its topic on the board</a>{% endif %}</p>{% endif %}{% if guide %}
 {% include "guide.html" %}{% endif %}
 {% if proposal_waits %}
 {% include "room_proposals.html" %}

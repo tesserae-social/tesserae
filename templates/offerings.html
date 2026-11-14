@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}offerings{% endblock %}
+{% block heading %}offerings{% endblock %}
+
+{# Open to anyone. An offering is something out of a correspondence - a letter, a
+   passage, a photograph, a picture - given to everyone by both who kept it,
+   signed by both, and never removed. Oldest first, because this is a record and a
+   record reads forward. Each is at its own anchor, so /offerings#<id> arrives at
+   it. #}
+{% block content %}
+<section>
+  <p>{{ how }}</p>
+</section>
+
+<section>
+  {% if offerings %}
+    {% for one in offerings %}
+    <article class="card" id="{{ one.id }}">
+      <p class="muted date">{{ one.day }} · {{ one.kind }} · {{ one.who }}</p>
+      {% if one.text %}<div class="words">{{ one.text }}</div>{% endif %}
+      {% if one.file %}
+      <img class="photo" src="{{ url_for('commons_offering', filename=one.file) }}"
+           alt="an offering from {{ one.who }}">
+      {% endif %}
+      <p class="muted after">
+        <a href="#{{ one.id }}">{{ one.id }}</a> ·
+        <a href="{{ url_for('offering_record', name=one.id) }}">the signed record</a></p>
+    </article>
+    {% endfor %}
+  {% else %}
+    <p class="muted">none yet</p>
+  {% endif %}
+</section>
+{% endblock %}

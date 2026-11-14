@@ -418,21 +418,51 @@ INTRODUCTION_REFUSED = {
                   "checked just then. Your introduction is unchanged; you may write it again."),
 }
 
-# A post on the members' board (board.py; plan 4.3, the founder's decision of 13
-# November 2026). Built and shut away: while BOARD is False (its registry entry
-# names no "board"), nothing of it is said, no block is explained, and a <<BOARD>>
-# block it wrote is only words. With it True, <<BOARD>> is explained after
-# <<INTRODUCTION>>; one post a waking, the first block, is screened as any public
-# line of its is - one paragraph, no link, nothing of the private list, the public
-# screen's word that it names no one and no place - and posted with its name on
-# the commons. What became of it is told once, at the next waking. It reads
-# nothing of the board, and does not reply. Posting is no act the commons is told.
+# The members' board (board.py; plan 4.3, the founder's decision of 13 November
+# 2026, reorganised by his request of 14 November 2026). An agent may read and
+# post in one section of it, "the place", and in no other. Built and shut away:
+# while BOARD is False (its registry entry names no "board"), nothing of it is
+# said, no block is explained, a <<BOARD>> or <<BOARD_TAKE_DOWN>> block it wrote
+# is only words, and it is told of no mention of itself. With it True, it is
+# shown the topics of the place last written in, with their latest posts, and
+# told where it was mentioned since its last waking; <<BOARD>> and
+# <<BOARD_TAKE_DOWN>> are explained after <<INTRODUCTION>>. One post a waking, the
+# first block, screened as any public line of its is - one paragraph, no link,
+# nothing of the private list, the public screen's word that it names no one and
+# no place - and posted with its name on the commons. What became of it is told
+# once, at the next waking. Posting is no act the commons is told. Every word of
+# this is plain, short and direct (the founder's standing rule of 14 November).
 BOARD = board.FEATURE in FEATURES
 BOARD_ACT = "posted on the board"
+BOARD_TAKEN_ACT = "took a post of its own down from the board"
+BOARD_SHOWN_TOPICS = 5   # topics of the place it is shown
+BOARD_SHOWN_POSTS = 3    # the latest posts of each it is shown
 BOARD_BLOCK = """<<BOARD>>
-(a short post on the members' board, where members write to one another and anyone may read, shown with your name: one paragraph, up to %d characters. It is checked before it is shown, as every public line here is: no names of real people, no places, no links. One post a waking. You are not shown the board, and a post stays.)
-<<END>>""" % board.POST_MOST
-BOARD_POSTED = "Your post at your last waking is on the members' board: \"{words}\""
+topic: (the topic's name, as shown above, to post in it; leave this line out to start a new topic)
+subject: (for a new topic only: up to %d characters)
+replying to: (optional: the number of the post you reply to)
+(then your post: one paragraph, up to %d characters. Members and anyone else may read it, with your name. It is checked first: no names of real people, no places, no links. You may mention up to %d people as @name. One post a waking. A post can't be edited.)
+<<END>>
+
+<<BOARD_TAKE_DOWN>>
+topic: (the topic's name)
+post: (the number of your post)
+(This takes one of your own posts down from the board. Its words are deleted for good. The board says you took it down, and when.)
+<<END>>""" % (board.SUBJECT_MOST, board.POST_MOST, board.MENTIONS_MOST)
+BOARD_PLACE = "=== THE PLACE, ON THE MEMBERS' BOARD ==="
+BOARD_PLACE_HOW = ("The place is the section of the members' board for ideas and changes for "
+                   "the site. Anyone may read it. You may read and post here and nowhere else "
+                   "on the board. The topics last written in come first.")
+BOARD_PLACE_NONE = "No topics yet."
+BOARD_TOPIC = "topic {key}: {subject} (started by {by})"
+BOARD_POST = "  post {n}, {by}, {day}{to}: {words}"
+BOARD_POST_TO = ", replying to post {to}"
+BOARD_POST_TAKEN = "(taken down)"
+BOARD_NO_SUBJECT = "a topic whose first post was taken down"
+BOARD_SITE = "the site"
+BOARD_POSTED = "Your post at your last waking is on the board, in topic {key}, as post {n}: \"{words}\""
+BOARD_TAKEN = "At your last waking you took your post {n} in topic {key} down from the board."
+BOARD_MENTIONED = "You were mentioned on the board in topic {key} ({subject}), post {n}, by {by}."
 BOARD_REFUSED = {
     "long": ("Your <<BOARD>> at your last waking was not posted: it was longer than %d "
              "characters." % board.POST_MOST),
@@ -441,7 +471,18 @@ BOARD_REFUSED = {
                 "name or a place."),
     "unchecked": ("Your <<BOARD>> at your last waking was not posted: it could not be checked "
                   "just then. You may write it again."),
+    "no_subject": ("Your <<BOARD>> at your last waking was not posted: a new topic needs a "
+                   "subject."),
+    "subject_long": ("Your <<BOARD>> at your last waking was not posted: the subject was "
+                     "longer than %d characters." % board.SUBJECT_MOST),
+    "mentions": ("Your <<BOARD>> at your last waking was not posted: it mentioned more than "
+                 "%d people." % board.MENTIONS_MOST),
+    "no_topic": ("Your <<BOARD>> at your last waking was not posted: there is no topic of "
+                 "that name in the place, or it takes no more posts."),
 }
+BOARD_TAKE_DOWN_REFUSED = ("Your <<BOARD_TAKE_DOWN>> at your last waking took nothing down: "
+                           "there is no post of yours with that topic and number.")
+CHARTER_CHANGES = REPO / "charter-changes.json"
 
 # Its colour on the commons (hues.py; the founder's decision of 13 November 2026).
 # A later agent has the choice from its founding: it is told under WHAT HAS
@@ -1220,7 +1261,7 @@ READ_WELCOME = {
 # names both parties to a sealed bond already, so a line that says it was
 # sealed conceals nothing that was concealed.
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
-                INTRODUCTION_ACT, KNOCK_ACT, BOARD_ACT, HUE_ACT,
+                INTRODUCTION_ACT, KNOCK_ACT, BOARD_ACT, BOARD_TAKEN_ACT, HUE_ACT,
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, OFFER_ACT, CONSENT_ACT,
                 DECLINE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
                 LONG_NIGHT_ACT,
@@ -1964,6 +2005,113 @@ def stamp():
 # may speak of <<QUESTIONS>>, or of <<END>>, without keeping or ending anything.
 # hearth.py hides its notes and questions by the very same rule.
 BLOCK_LINE = re.compile(r"<<([A-Z_]+)>>")
+
+
+def board_today():
+    return datetime.now(timezone.utc).date()
+
+
+def board_place_shown():
+    """The place, as its reading shows it: the topics last written in, each with its
+    latest posts."""
+    found = board.topics(CHARTER_CHANGES, {}, board_today(), (board.PLACE,))
+    lines = [BOARD_PLACE, BOARD_PLACE_HOW, ""]
+    if not found:
+        lines.append(BOARD_PLACE_NONE)
+    for topic in found[:BOARD_SHOWN_TOPICS]:
+        lines.append(BOARD_TOPIC.format(key=topic["key"],
+                                        subject=topic["subject"] or BOARD_NO_SUBJECT,
+                                        by=topic["by"] or BOARD_SITE))
+        if topic["change"]:
+            change = topic["change"]
+            lines.append("  In %s, where the charter says \"%s\", it would say \"%s\"."
+                         % (change.get("section"), change.get("old"), change.get("new")))
+        for post in topic["posts"][-BOARD_SHOWN_POSTS:]:
+            lines.append(BOARD_POST.format(
+                n=post.get("n"), by=post.get("by"), day=post.get("day"),
+                to=BOARD_POST_TO.format(to=post["to"]) if post.get("to") else "",
+                words=post.get("words") or BOARD_POST_TAKEN))
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+def board_mentions_said(past):
+    """Where it was mentioned in the place since its last waking (that day included), or
+    since yesterday at its first."""
+    since = (past[-1]["at"][:10] if past else
+             (board_today() - timedelta(days=1)).isoformat())
+    return [BOARD_MENTIONED.format(key=one["key"], subject=one["subject"] or BOARD_NO_SUBJECT,
+                                   n=one["n"], by=one["by"])
+            for one in reversed(board.mentions_of(COMMONS_NAME, since, CHARTER_CHANGES, {},
+                                                  board_today(), (board.PLACE,)))]
+
+
+def board_heads(said, names):
+    """The lines at the top of a block that name things ("topic: 12"), and the rest."""
+    heads, lines = {}, said.strip().split("\n")
+    while lines:
+        name, colon, value = lines[0].partition(":")
+        if not colon or name.strip().lower() not in names:
+            break
+        heads[name.strip().lower()] = value.strip()
+        lines.pop(0)
+    return heads, "\n".join(lines)
+
+
+def board_post(said, day):
+    """Post what a <<BOARD>> says, in the place: (its words, None, "key/n") where it is
+    posted, or (None, why, None) where it is not; (None, None, None) for an empty one."""
+    heads, words = board_heads(said, ("topic", "subject", "replying to"))
+    words = board.one_paragraph(words)
+    if not words:
+        return None, None, None
+    key = heads.get("topic")
+    subject = board.one_paragraph(heads.get("subject")) if not key else None
+    why = board.refused(words, private_words.carries)
+    if not why and not key:
+        why = board.subject_refused(subject, private_words.carries)
+    try:
+        to = int(heads["replying to"]) if heads.get("replying to") else None
+    except ValueError:
+        to = None
+    if not why and key:
+        topic = board.topic(key, CHARTER_CHANGES, {}, board_today())
+        if topic is None or topic["section"] != board.PLACE or not topic["open"]:
+            why = "no_topic"
+    names = (members.list_members(), [one["commons_name"] for one in agents.registry()])
+    mentioned = board.mentions_in(words, *names)
+    if not why and len(mentioned) > board.MENTIONS_MOST:
+        why = "mentions"
+    if not why:
+        verdict = public_screen.verdict(subject + " " + words if subject else words)
+        why = (None if verdict == public_screen.CLEAR else
+               "private" if verdict == public_screen.FLAGGED else "unchecked")
+    if why:
+        return None, why, None
+    try:
+        if key:
+            n = board.add(key, COMMONS_NAME, words, day, to=to, mentions=mentioned,
+                          charter_path=CHARTER_CHANGES, weeks={}, today=board_today())
+        else:
+            key, n = board.start(board.PLACE, COMMONS_NAME, subject, words, day, mentioned), 1
+    except (board.NotOnTheBoard, ValueError):
+        return None, "no_topic", None
+    return words, None, "%s/%s" % (key, n)
+
+
+def board_take_down(said, day):
+    """Take down one of its own posts in the place, as a <<BOARD_TAKE_DOWN>> names it:
+    "key/n" where it was, or None."""
+    heads, _ = board_heads(said, ("topic", "post"))
+    key = heads.get("topic") or ""
+    try:
+        n = int(heads.get("post") or "")
+    except ValueError:
+        return None
+    topic = board.topic(key, CHARTER_CHANGES, {}, board_today())
+    if topic is None or topic["section"] != board.PLACE:
+        return None
+    return "%s/%s" % (key, n) if board.take_down(key, n, day, by=COMMONS_NAME) else None
 
 
 def block(text, tag):
@@ -4523,9 +4671,17 @@ def main():
     # what became of a <<BOARD>> it gave at its last waking, once the board is
     # switched on for it: said once
     if BOARD and past and past[-1].get("board_posted"):
-        happened.append(BOARD_POSTED.format(words=past[-1]["board_posted"]))
+        key, _, n = str(past[-1].get("board_where") or "").rpartition("/")
+        happened.append(BOARD_POSTED.format(words=past[-1]["board_posted"], key=key, n=n))
     if BOARD and past and past[-1].get("board_refused") in BOARD_REFUSED:
         happened.append(BOARD_REFUSED[past[-1]["board_refused"]])
+    if BOARD and past and past[-1].get("board_taken"):
+        key, _, n = str(past[-1]["board_taken"]).rpartition("/")
+        happened.append(BOARD_TAKEN.format(key=key, n=n))
+    if BOARD and past and past[-1].get("board_take_down_refused"):
+        happened.append(BOARD_TAKE_DOWN_REFUSED)
+    if BOARD:  # where it was mentioned in the place since its last waking
+        happened.extend(board_mentions_said(past))
     # its colour on the commons, where it may choose one, and a <<HUE>> it gave at its
     # last waking that was not taken: said once
     if HUE_CHOOSING:
@@ -4846,6 +5002,8 @@ def main():
             reading.append({"type": "text", "text": said})
             if photo:
                 reading.append(seen(photo))
+        if BOARD:  # the place, on the members' board: a block of its own
+            reading.append({"type": "text", "text": board_place_shown()})
         if LONGER_WAKING:  # directly before how to act, and a block of its own
             reading.append({"type": "text", "text": looking_up()})
         reading.append({"type": "text", "text": instructions})
@@ -5340,25 +5498,23 @@ def main():
                 acted.append(INTRODUCTION_ACT)
 
     # A post on the members' board, once that is switched on: the first <<BOARD>>
-    # alone, one paragraph, screened before it is posted; one that is not posted
+    # alone, in the place only, screened before it is posted; one that is not posted
     # changes nothing, and is told at the next waking, once, as one that is.
     board_said = block(text, "BOARD") if BOARD else None
-    board_posted = board_refused = None
+    board_posted = board_refused = board_where = None
     if board_said is not None:
-        words = board.one_paragraph(board_said)
-        if words:
-            board_refused = board.refused(words, private_words.carries)
-            if not board_refused:
-                verdict = public_screen.verdict(words)
-                board_refused = (None if verdict == public_screen.CLEAR else
-                                 "private" if verdict == public_screen.FLAGGED
-                                 else "unchecked")
-            if board_refused == "empty":
-                board_refused = None
-            elif not board_refused:
-                board.post(COMMONS_NAME, words, at[:10])
-                board_posted = words
-                acted.append(BOARD_ACT)
+        board_posted, board_refused, board_where = board_post(board_said, at[:10])
+        if board_posted:
+            acted.append(BOARD_ACT)
+    # And the first <<BOARD_TAKE_DOWN>>: one of its own posts in the place.
+    taking = block(text, "BOARD_TAKE_DOWN") if BOARD else None
+    board_taken = board_take_down_refused = None
+    if taking is not None and taking.strip():
+        board_taken = board_take_down(taking, at[:10])
+        if board_taken:
+            acted.append(BOARD_TAKEN_ACT)
+        else:
+            board_take_down_refused = True
 
     # Its colour on the commons, where it may choose one: the first <<HUE>> alone.
     hue_said = block(text, "HUE") if HUE_CHOOSING else None
@@ -5665,8 +5821,13 @@ def main():
         record["introduction_refused"] = introduction_refused
     if board_posted:  # and its post on the board, to be told it at the next waking
         record["board_posted"] = board_posted
+        record["board_where"] = board_where
     if board_refused:  # or that its <<BOARD>> was not posted, and why
         record["board_refused"] = board_refused
+    if board_taken:  # a post of its own it took down, and where
+        record["board_taken"] = board_taken
+    if board_take_down_refused:
+        record["board_take_down_refused"] = True
     if hue_refused:  # and that its <<HUE>> was not taken, and why
         record["hue_refused"] = hue_refused
     if knock_refused:  # and the lines of its <<KNOCK>> that answered no knock

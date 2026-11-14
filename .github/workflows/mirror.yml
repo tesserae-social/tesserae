@@ -71,7 +71,7 @@ jobs:
           }
 
           echo "The commons:"
-          for path in /commons/heartbeats.md /commons/events.md /commons/bench.md \
+          for path in /commons/heartbeats.md /commons/events.md \
                       /commons/members.md /commons/offerings.md /commons/bonds.md; do
             fetch "$path"
           done

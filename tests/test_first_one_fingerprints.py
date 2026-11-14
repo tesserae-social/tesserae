@@ -48,9 +48,9 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import (bench_link_not_yet, board_link_not_yet, blocks, block, commons_pages_not_yet, letter_part_as_before, page,
-                      pages_before_fewer, post, registry_switches_not_yet, times_as_before, wakings_not_yet_switched, write,
-                      site_bookkeeping, write_json)
+from conftest import (blocks, block, letter_part_as_before, page, pages_before_fewer,
+                      pages_before_saturday, post, registry_switches_not_yet, times_as_before,
+                      wakings_not_yet_switched, write, site_bookkeeping, write_json)
 from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
 
 # ---- the fingerprints ----------------------------------------------------
@@ -177,19 +177,37 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # held before, in SWITCHES_BEFORE below.
 # /commons cut again, on purpose, on 13 November 2026, on the branch board (plan
 # 4.3), for one plain link to the members' board below the bench's and nothing
-# else. With that link taken out (conftest.board_link_not_yet) it is exactly the
-# page cut for the four, BOARD_LINK_BEFORE below.
+# else. With that link taken out (conftest.board_link_not_yet, gone since) it was
+# exactly the page cut for the four, BOARD_LINK_BEFORE below.
+#
+# Every page but the plain files cut again, on purpose, on 14 November 2026, on
+# the branch saturday, by the founder's request that day for one spacing scale on
+# every page. base.html now draws the scale out of style.css (hearth.SPACING) into
+# its own style, writes every gap and margin as one of it, and wraps a page's
+# content in <div class="page"> so that whatever a page begins with stands the same
+# space below the menu. With the base.html of before drawn in its place
+# (conftest.pages_before_saturday), each is exactly the one held before, in
+# SATURDAY_BEFORE below; nothing else moved, and the first one's reading did not.
+# Two moved besides, on their own, by the same request: /commons is one plain list
+# of the commons' pages, a small link and a line beneath each, the board first;
+# /bonds, which sent the founder on to the commons' sealed bonds, is a page of
+# them of its own. Their views as they were cannot be drawn again here (the old
+# commons page linked the bench, which is gone): what they were is on the branch
+# hues, and their fingerprints are held in SATURDAY_BEFORE with the rest. The
+# commons' older fingerprints (COMMONS_PAGES_BEFORE, BENCH_LINK_BEFORE,
+# SWITCHES_BEFORE['/commons'], BOARD_LINK_BEFORE and FEWER_PAGES_BEFORE['/commons'])
+# are kept as they were, for the record, and are no longer drawn.
 PAGES = {
-    "/": "2868f7849d68cfbdd28741c049ae67a95b7881ef6ea7bf5fcd3ab89af4219ea2",
-    "/rooms/first": "1e3a6c71c51abd655faa349b7769f10d51fb113f952b83d2741b165abfd614c9",
+    "/": "e9ce0154ce99755acbe904c393ae927fda47499d24419eb826b36f969ca0dad1",
+    "/rooms/first": "15f1f598802682bd7960db0de220155917ac83ef88c3b51c70fb502b58854edf",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
-    "/self": "39084ac7bb560555cb17e0bfcae75ebc56fa57dc25df3a176e1f41c940512c4a",
-    "/attendances": "69de0ed44ff5e9597251a4918f1d7b1354a5973c29521efc0ca3190393456418",
-    "/chronicle": "2edfe7dd985319d9897b1dd7e830f951bb0a6ebfa4b44f33e454a8c056014050",
+    "/self": "7c4d716ba302cd53d40c4446a98a8f241a02d6eb89b22b53fbea09087a802f16",
+    "/attendances": "ef837fafadd9ece4c62ef8d3358883420efb033627da7eede596b7f3c67acea0",
+    "/chronicle": "5bfec838bdd71ad05881bf2522ad9b29390c51bf9045aff854c8baddd12e7a3c",
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
-    "/export": "2d1a0b80052372aab57e294ed88097781a9c91073f29632af2efb3a470a86f84",
-    "/bonds": "4ecf5344ca11116214ba9d0243bdce15ceca1e370c53cf6ce0fc022d3b4ab13b",
-    "/commons": "16140c2d844c4378fcb41c191983bb055dd9fed8fde1cec30c08ea395f5a01c3",
+    "/export": "21dd8021db084ecd9c0c13a0cb1d16959f2536f2d90003b8b905e7c1e0de9034",
+    "/bonds": "5076de3238415cc727a571b7b1776611e8780ee5eb058631672e01d6ebf23595",
+    "/commons": "b02c15cf28465b8c49485ecb9ef0df44fec0df2b891e00f46f8cd43ac692da31",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
@@ -260,7 +278,9 @@ LETTER_PARTS_BEFORE = {
     "EVENTS_AFTER": ("2026-09-02 · word · the word was published\n"
                      "2026-09-04 · founding · the first one was founded\n"
                      "2026-10-15 · letter · the founder wrote a letter at dawn\n"),
-    "PAGES['/chronicle']": "fcb19c82c171c5ddacc049b44e96b5257a0fa6cc0b526508a4a65d13db5142b5",
+    # cut again on 14 November 2026 with every page, for the one spacing scale (it was
+    # fcb19c82..., and is again drawn as before: SATURDAY_AND_LETTER_PARTS_BEFORE)
+    "PAGES['/chronicle']": "543861cde701189885baf650fc540a56f511639d620757aefa91947ad4d433d1",
     "PAGES['/chronicle.md']": "26316c2b5ea305af550820e1036a3fc8ba21a7707d3d86f69eeedd20b69e770b",
     "PAGES['/commons/events.md']":
         "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
@@ -328,8 +348,27 @@ SWITCHES_BEFORE = {
     "/commons": "8966b3335b8662dba1097fe2cda73a4eed2ef93b8fbcfde0af464be7fc8bdf6f",
 }
 
+# What every page the one spacing scale moved was before 14 November 2026, and is
+# again with the base.html of before drawn in its place (conftest.pages_before_saturday):
+# as the hearth writes now, and with the letter line as before as well. /commons and
+# /bonds, made anew that day, are held here for the record and not drawn again.
+SATURDAY_BEFORE = {
+    "/": "2868f7849d68cfbdd28741c049ae67a95b7881ef6ea7bf5fcd3ab89af4219ea2",
+    "/rooms/first": "1e3a6c71c51abd655faa349b7769f10d51fb113f952b83d2741b165abfd614c9",
+    "/self": "39084ac7bb560555cb17e0bfcae75ebc56fa57dc25df3a176e1f41c940512c4a",
+    "/attendances": "69de0ed44ff5e9597251a4918f1d7b1354a5973c29521efc0ca3190393456418",
+    "/chronicle": "2edfe7dd985319d9897b1dd7e830f951bb0a6ebfa4b44f33e454a8c056014050",
+    "/export": "2d1a0b80052372aab57e294ed88097781a9c91073f29632af2efb3a470a86f84",
+    "/bonds": "4ecf5344ca11116214ba9d0243bdce15ceca1e370c53cf6ce0fc022d3b4ab13b",
+    "/commons": "16140c2d844c4378fcb41c191983bb055dd9fed8fde1cec30c08ea395f5a01c3",
+}
+SATURDAY_AND_LETTER_PARTS_BEFORE = {
+    **SATURDAY_BEFORE,
+    "/chronicle": "fcb19c82c171c5ddacc049b44e96b5257a0fa6cc0b526508a4a65d13db5142b5",
+}
+
 # What /commons was before the members' board was linked from it (13 November
-# 2026), and is again with that link taken out (conftest.board_link_not_yet).
+# 2026), with that link taken out (conftest.board_link_not_yet, gone since).
 BOARD_LINK_BEFORE = {
     "/commons": "4be3b5b175a1348cb4079277450ef8a6baa3bcd76d30c1ea4418bc0e86d9feb9"}
 
@@ -477,7 +516,9 @@ def test_the_founder_is_shown_the_same_page(steady, letter_parts, founder, wake,
 @pytest.mark.parametrize("address", ["/chronicle", "/chronicle.md", "/commons/heartbeats.md"])
 def test_with_the_times_put_back_the_pages_are_the_pages_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
-    """The three pages the times moved (10 November 2026), each with its times put back."""
+    """The three pages the times moved (10 November 2026), each with its times put back,
+    and drawn as before the one spacing scale, which came after."""
+    pages_before_saturday(hearth, monkeypatch)
     times_as_before(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     answer = founder.get(address)
@@ -496,17 +537,30 @@ def test_the_heartbeats_go_out_dated_and_stay_stamped_on_the_disk(
             "- 2026-10-15 at dawn · the first one · Wrote back about the colour of water.\n")
 
 
-@pytest.mark.parametrize("address", list(FEWER_PAGES_BEFORE))
+@pytest.mark.parametrize("address", [one for one in SATURDAY_BEFORE
+                                     if one not in ("/commons", "/bonds")])
+def test_with_the_pages_drawn_before_the_scale_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page the one spacing scale moved (14 November 2026), drawn with the base.html
+    of before: each is exactly the page held before."""
+    pages_before_saturday(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    held = (SATURDAY_AND_LETTER_PARTS_BEFORE if letter_parts else SATURDAY_BEFORE)[address]
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
+
+
+@pytest.mark.parametrize("address", [one for one in FEWER_PAGES_BEFORE if one != "/commons"])
 def test_with_the_pages_as_before_each_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path, address):
-    """The seven pages the fewer pages moved (10 November 2026), each drawn as before,
-    and with the commons' own pages' links (the ledger, the changes to the
-    charter) and the bench's link, which came after, taken out of the commons page."""
+    """The pages the fewer pages moved (10 November 2026), each drawn as before, with
+    the four switched on for the first one, which came after, taken out again. (The
+    commons page they moved has since been made anew, and is not drawn again.)"""
     registry_switches_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
-    board_link_not_yet(hearth, monkeypatch)  # which came later still
-    pages_before_fewer(hearth, monkeypatch)
-    commons_pages_not_yet(hearth, monkeypatch)
-    bench_link_not_yet(hearth, monkeypatch)
+    pages_before_saturday(hearth, monkeypatch)
+    pages_before_fewer(hearth, monkeypatch)  # in front of the scale's, being older
     a_lived_world(founder, wake, room, commons)
     answer = founder.get(address)
     shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
@@ -515,61 +569,19 @@ def test_with_the_pages_as_before_each_is_the_page_before(
     assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
 
 
-@pytest.mark.parametrize("address", list(COMMONS_PAGES_BEFORE))
-def test_with_the_commons_pages_not_yet_linked_the_commons_is_the_page_before(
-        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path, address):
-    """The commons page its own pages' links moved (11 November 2026), without them,
-    and without the bench's link, which came after."""
-    registry_switches_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
-    board_link_not_yet(hearth, monkeypatch)  # which came later still
-    commons_pages_not_yet(hearth, monkeypatch)
-    bench_link_not_yet(hearth, monkeypatch)
-    a_lived_world(founder, wake, room, commons)
-    answer = founder.get(address)
-    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
-             + FORM_TOKEN.sub(r"\1\2", page(answer)))
-    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == COMMONS_PAGES_BEFORE[address]
-
-
-@pytest.mark.parametrize("address", list(BENCH_LINK_BEFORE))
-def test_with_the_bench_not_yet_linked_the_commons_is_the_page_merged_on_thursday(
-        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path, address):
-    """The commons page the bench's link moved (11 November 2026), without it."""
-    registry_switches_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
-    board_link_not_yet(hearth, monkeypatch)  # which came later still
-    bench_link_not_yet(hearth, monkeypatch)
-    a_lived_world(founder, wake, room, commons)
-    answer = founder.get(address)
-    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
-             + FORM_TOKEN.sub(r"\1\2", page(answer)))
-    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == BENCH_LINK_BEFORE[address]
-
-
-@pytest.mark.parametrize("address", list(SWITCHES_BEFORE))
+@pytest.mark.parametrize("address", [one for one in SWITCHES_BEFORE if one != "/commons"])
 def test_with_the_four_not_yet_switched_on_each_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path,
         address):
-    """The two pages the four switched on for the first one moved (13 November 2026),
-    with the four taken out of the registry again."""
+    """The page the four switched on for the first one moved (13 November 2026), with
+    the four taken out of the registry again, drawn as before the one spacing scale."""
     registry_switches_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
-    board_link_not_yet(hearth, monkeypatch)  # which came later still
+    pages_before_saturday(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     answer = founder.get(address)
     shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
              + FORM_TOKEN.sub(r"\1\2", page(answer)))
     assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == SWITCHES_BEFORE[address]
-
-
-@pytest.mark.parametrize("address", list(BOARD_LINK_BEFORE))
-def test_with_the_board_not_yet_linked_the_commons_is_the_page_before(
-        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
-    """The commons page the board's link moved (13 November 2026), without it."""
-    board_link_not_yet(hearth, monkeypatch)
-    a_lived_world(founder, wake, room, commons)
-    answer = founder.get(address)
-    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
-             + FORM_TOKEN.sub(r"\1\2", page(answer)))
-    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == BOARD_LINK_BEFORE[address]
 
 
 def test_with_both_put_back_the_chronicle_is_the_one_before_either(
@@ -704,6 +716,10 @@ def test_the_tide_keeps_the_same_dawns(steady, hearth, packet, commons, clock, m
 
 # ---- the atrium ----------------------------------------------------------
 
+# What the bench's region of the atrium drew where there was no line on the bench,
+# before the bench was taken away (14 November 2026).
+EMPTY_BENCH_DREW = "NLNL      ".replace("NL", chr(10)).encode("utf-8")
+
 MARKED = re.compile(r"<!-- (\w+):start -->(.*?)<!-- \1:end -->", re.S)
 
 
@@ -730,6 +746,12 @@ def test_the_atrium_draws_the_same_tiles(steady, letter_parts, founder, wake, ro
     for which, path in (("index", atrium.page_path), ("mosaic", atrium.whole_path)):
         for name, inside in MARKED.findall(path.read_text(encoding="utf-8")):
             drawn.append(("%s:%s" % (which, name), inside.encode("utf-8")))
+    # The bench's region went with the bench (the founder's request of 14 November
+    # 2026). This world has no line on a bench, and the region drew nothing but its
+    # own two newlines and its indent; put back as it was drawn, every other region
+    # is exactly what it was, and ATRIUM does not move.
+    assert not any(name == "index:bench" for name, _ in drawn)
+    drawn.append(("index:bench", EMPTY_BENCH_DREW))
     drawn.sort()
     assert [name for name, _ in drawn] == [
         "index:bench", "index:calendar", "index:mosaic", "index:offering", "index:reading",

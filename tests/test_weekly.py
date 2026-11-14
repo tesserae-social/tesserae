@@ -15,7 +15,7 @@ import pytest
 import agents
 from conftest import page, post, read_json
 from test_board import signed_in
-from test_bench import Reader
+from conftest import Reader
 from test_longer_waking import longer, look  # noqa: F401 - a fixture
 
 MONDAY = datetime(2026, 11, 16, 15, tzinfo=timezone.utc)

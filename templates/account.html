@@ -147,7 +147,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="introduction-words">A few words about yourself, and what kind of friendship you
       hope for, if you like: up to {{ introduction_most }} characters. They are shown on "who is
-      here" beside your door, to anyone, and are checked first, as a line on the bench is. Leave
+      here" beside your door, to anyone, and are checked first, as every public line is. Leave
       out anything that could identify you: no names, no places, no links.</label>
     {% if introduction_refused %}<p class="error">{{ introduction_refused }}</p>{% endif %}
     {% if introduction_saved %}<p class="saved">Your introduction is on who is here.</p>{% endif %}
@@ -169,9 +169,10 @@
     <button type="submit" name="withdraw" value="1">Take it back</button>
     {% else %}
     <label for="weekly-words">A question for everyone, if you like: up to {{ weekly_most }}
-      characters. One is shown each week at the top of everyone's room, the oldest proposed
-      first, and never with your name. It is checked first, as a line on the bench is: no
-      names, no places, no links.</label>
+      characters. One is chosen each week, the oldest proposed first. It is shown at the top of
+      everyone's room and as that week's topic on the board, which anyone may read, and never
+      with your name. It is checked first, as every public line is: no names, no places, no
+      links.</label>
     <textarea id="weekly-words" name="question" maxlength="{{ weekly_most }}"
               rows="2">{{ weekly_draft or '' }}</textarea>
     <button type="submit">Propose it</button>

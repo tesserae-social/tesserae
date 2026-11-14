@@ -65,10 +65,6 @@
         <!-- calendar:end -->
       </section>
 
-      <!-- bench:start -->
-
-      <!-- bench:end -->
-
       <footer>
         <p><a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>
       </footer>
@@ -336,15 +332,6 @@
     f = f.map(part => part.trim());
     return f.length === 3 && MEMBER_KINDS.includes(f[0]) && f[1] && f[2] ? f : null;
   }).filter(Boolean);
-  // a line of bench.md: a day, the name it was signed with, and the line itself --
-  // a middot inside the words is the visitor's to write, so the cut is on the first two
-  const parseBench = text => text.split(/\r?\n/).map(line => {
-    let f = line.trim().replace(/^-+/, "").split(DOT);
-    if (f.length > 3) f = [...f.slice(0, 2), f.slice(2).join(DOT)];
-    f = f.map(part => part.trim());
-    const t = f.length === 3 && f[2] ? when(DAY.exec(f[0])) : null;
-    return t ? [human(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()), f[2], f[1]] : null;
-  }).filter(Boolean);
   // one day after another from the first thing that happened to today, each with
   // its slots: its tiles, or a hole. The run ends today, so a pause at the end of
   // it shows as holes. With a span, only that many of the most recent days are kept.
@@ -498,15 +485,6 @@
   };
   const calendarBlock = (year, month, day) => [`<p class="calendar">${
     esc(`it is ${season(month, day)} ${DOT} ${nextRite(year, month, day)}`)}</p>`];
-  // an empty bench is not a section that says so: it is no section at all
-  const benchBlock = lines => lines.length ? [
-    '<section class="bench">',
-    "  <h2>the visitor's bench</h2>",
-    '  <ul class="lines">',
-    ...lines.map(([day, words, who]) =>
-      `    <li><span class="when">${day}</span> ${DOT} ${esc(words)} ${DOT} ${esc(who)}</li>`),
-    "  </ul>",
-    "</section>"] : [];
   const edge = (name, side) => {
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_COMMENT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) if (n.data.trim() === `${name}:${side}`) return n;
@@ -521,9 +499,9 @@
     start.parentNode.insertBefore(slot.content, end);
   };
   const draw = (said, offerings, latest, record) => {
-    const [eventsText, beatsText, benchText, membersText, bondsText, citizens,
+    const [eventsText, beatsText, membersText, bondsText, citizens,
            introductions] = said;
-    const beats = parseBeats(beatsText, citizens), bench = parseBench(benchText);
+    const beats = parseBeats(beatsText, citizens);
     const members = parseMembers(membersText), bonds = parseBonds(bondsText);
     // once there is a list of bonds, a seal is drawn from it, one tile a bond, and
     // the seal lines of events.md are passed over
@@ -545,8 +523,7 @@
       : [["mosaic", frameBlock(front)], ["reading", readingBlock(front)],
          ["offering", offeringBlock(latest, record)],
          ["who", whoBlock(members, bonds, citizens, introductions)],
-         ["calendar", calendarBlock(now.year, now.month, now.day)],
-         ["bench", benchBlock(bench)]];
+         ["calendar", calendarBlock(now.year, now.month, now.day)]];
     const where = blocks.map(([name]) => [edge(name, "start"), edge(name, "end")]);
     if (where.some(([a, b]) => !a || !b)) return;
     where.forEach((pair, at) => fill(pair, blocks[at][1]));
@@ -557,16 +534,16 @@
     .then(answer => { if (!answer.ok) throw new Error(name); return answer.text(); });
   // a hearth with no list of bonds yet is a list with nothing on it, not a quiet
   // hearth; and one with no list of citizens yet has the first one alone
-  Promise.all([...["events.md", "heartbeats.md", "bench.md", "members.md", "offerings.md"]
+  Promise.all([...["events.md", "heartbeats.md", "members.md", "offerings.md"]
     .map(name => asked(`commons/${name}`)), asked("commons/bonds.md").catch(() => ""),
     asked("commons/agents.json").then(JSON.parse).catch(() => null),
     asked("commons/introductions.json").then(JSON.parse).catch(() => null)])
-    .then(([eventsText, beatsText, benchText, membersText, offeringsText, bondsText, listed,
+    .then(([eventsText, beatsText, membersText, offeringsText, bondsText, listed,
             introduced]) => {
       // only the newest offering is shown here, so only the newest is read
       const offerings = parseOfferings(offeringsText);
       const latest = offerings.length ? offerings[offerings.length - 1] : null;
-      const said = [eventsText, beatsText, benchText, membersText, bondsText,
+      const said = [eventsText, beatsText, membersText, bondsText,
                     citizensOf(listed), introductionsOf(introduced)];
       if (!latest) return draw(said, offerings, null, null);
       return asked(`commons/offerings/${latest[1]}.json`)

@@ -8,7 +8,6 @@ Rewrites only the text between the marker comments in index.html:
     <!-- offering:start --> ...  <!-- offering:end -->
     <!-- who:start -->      ...  <!-- who:end -->
     <!-- calendar:start --> ...  <!-- calendar:end -->
-    <!-- bench:start -->    ...  <!-- bench:end -->
 
 Everything outside those markers is left byte for byte as it was.
 
@@ -20,7 +19,6 @@ carries a key to the colours: every tile says what it is in its own title.
 It reads:
     commons/heartbeats.md          the attendances
     commons/events.md              the history (created if missing)
-    commons/bench.md               the lines left on the bench
     commons/members.md             who is here
     commons/offerings.md           what the two of them have given the commons,
                                    and commons/offerings/<id>.json beside it for
@@ -79,7 +77,6 @@ WHOLE = os.path.join(ROOT, "mosaic.html")
 STYLE = os.path.join(ROOT, "style.css")
 HEARTBEATS = os.path.join(DATA, "commons", "heartbeats.md")
 EVENTS = os.path.join(DATA, "commons", "events.md")
-BENCH = os.path.join(DATA, "commons", "bench.md")
 MEMBERS = os.path.join(DATA, "commons", "members.md")
 OFFERINGS = os.path.join(DATA, "commons", "offerings.md")
 OFFERED = os.path.join(DATA, "commons", "offerings")
@@ -258,13 +255,6 @@ def heartbeats_text(hearth):
     if hearth:
         return fetch(hearth, "heartbeats.md")
     return read_text(HEARTBEATS) if os.path.exists(HEARTBEATS) else ""
-
-
-def bench_text(hearth):
-    """The text of bench.md: from a hearth if one is named, else from the disk."""
-    if hearth:
-        return fetch(hearth, "bench.md")
-    return read_text(BENCH) if os.path.exists(BENCH) else ""
 
 
 def members_text(hearth):
@@ -1045,37 +1035,6 @@ def calendar_block(today):
     return ['<p class="calendar">%s</p>' % html.escape(calendar_text(today))]
 
 
-def parse_bench(text):
-    """One (day, line, name) per line of bench.md, in the order written.
-
-    A middot inside the words is the visitor's to write, so the cut is made on
-    the first two only and whatever follows is the line entire.
-    """
-    out = []
-    for line in text.splitlines():
-        fields = [part.strip() for part in line.strip().lstrip("-").split(DOT, 2)]
-        if len(fields) < 3 or not fields[2]:
-            continue
-        try:
-            when = datetime.datetime.strptime(fields[0], "%Y-%m-%d").date()
-        except ValueError:
-            continue
-        out.append((when, fields[2], fields[1]))
-    return out
-
-
-def bench_block(lines):
-    """The bench, or nothing at all: an empty bench is not a section that says so."""
-    if not lines:
-        return []
-    out = ['<section class="bench">', "  <h2>the visitor's bench</h2>", '  <ul class="lines">']
-    for when, words, who in lines:
-        out.append('    <li><span class="when">%s</span> %s %s %s %s</li>'
-                   % (human(when), DOT, html.escape(words), DOT, html.escape(who)))
-    out.append("  </ul>")
-    out.append("</section>")
-    return out
-
 # ---------------------------------------------------------------- the hues
 
 # A citizen with no hue in its entry, which one founded here is always given: a
@@ -1265,7 +1224,6 @@ def main():
         events = parse_events(events_text(hearth))
         citizens = citizens_text(hearth)
         heartbeats = parse_heartbeats(heartbeats_text(hearth), citizens)
-        bench = parse_bench(bench_text(hearth))
         members = parse_members(members_text(hearth))
         offerings = parse_offerings(offerings_text(hearth))
         sealed = parse_bonds(bonds_text(hearth))
@@ -1291,7 +1249,6 @@ def main():
     page = splice(page, "offering", offering_block(latest, record), newline)
     page = splice(page, "who", who_block(members, sealed, citizens, introduced), newline)
     page = splice(page, "calendar", calendar_block(today), newline)
-    page = splice(page, "bench", bench_block(bench), newline)
 
     whole = whole_page(page, newline)
     whole = splice(whole, "whole", whole_block(days(tiles, today)), newline)
@@ -1307,9 +1264,9 @@ def main():
 
     print(
         "atrium: %d tiles in %d slots at %dpx (%d events, %d attendances, %d offerings), "
-        "%d on the bench, %d here, %d sealed bonds, %d slots on the front page, as of %s"
+        "%d here, %d sealed bonds, %d slots on the front page, as of %s"
         % (len(tiles), len(cells), tile_size(len(cells)), len(events), len(heartbeats),
-           len(offerings), len(bench), len(members), len(sealed), len(front), human(today))
+           len(offerings), len(members), len(sealed), len(front), human(today))
     )
 
 

@@ -5,7 +5,7 @@ Every public line the hearth writes now goes through the list of protected
 words (private_words.py), and so does every one it serves. The lines written
 before there was a list are on the disk as they were written, and on the next
 night's mirror. This reads each file of the commons that is kept as lines -
-heartbeats, events, members, the bench, the offerings' list and the bonds'
+heartbeats, events, members, the offerings' list and the bonds'
 list - and says each protected word in it as its replacement, or leaves it
 out, the one way the hearth now does.
 
@@ -39,7 +39,7 @@ ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("DATA_DIR", ROOT))
 
 # The files of the commons that are kept as lines, in the order they are read.
-LINES = ("heartbeats.md", "events.md", "members.md", "bench.md", "offerings.md", "bonds.md")
+LINES = ("heartbeats.md", "events.md", "members.md", "offerings.md", "bonds.md")
 
 AMENDED = "some heartbeat words were amended to keep private names private"
 MARK = b"\xef\xbb\xbf"

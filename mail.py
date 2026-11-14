@@ -274,14 +274,32 @@ WAITING_TEXT = """{who} {has} written to you at Tesserae.
 To stop these emails, open this link: {stop}"""
 
 
-def send_waiting(to, names, stop, now=None):
-    """Tell a person who has written to them, by the names the commons gives them."""
+# A line for each topic of the board a person was mentioned in since their last
+# email, in a daily email only, after who has written (or alone).
+MENTIONED_LINE = "You were mentioned on the board in {subject}."
+MENTIONS_TEXT = """{lines}
+
+{link}
+
+To stop these emails, open this link: {stop}"""
+
+
+def send_waiting(to, names, stop, now=None, mentioned=()):
+    """Tell a person who has written to them, by the names the commons gives them, and
+    in which topics of the board they were mentioned, by their subjects."""
     names = [name for name in names if isinstance(name, str) and name]
-    if not names:
+    mentioned = [one for one in mentioned or () if isinstance(one, str) and one]
+    if not names and not mentioned:
         return NOT_SENT % "no one wrote"
-    who = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
-    return send(WAITING, to, WAITING_SUBJECT,
-                WAITING_TEXT.format(who=who[:1].upper() + who[1:],
-                                    has="has" if len(names) == 1 else "have",
-                                    link=link("/login"), stop=stop), now,
-                ceiling=WAITING_A_DAY)
+    lines = "\n".join(MENTIONED_LINE.format(subject=one) for one in mentioned)
+    if not names:
+        text = MENTIONS_TEXT.format(lines=lines, link=link("/login"), stop=stop)
+    else:
+        who = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+        text = WAITING_TEXT.format(who=who[:1].upper() + who[1:],
+                                   has="has" if len(names) == 1 else "have",
+                                   link=link("/login"), stop=stop)
+        if lines:
+            head, _, rest = text.partition("\n\n")
+            text = head + "\n\n" + lines + "\n\n" + rest
+    return send(WAITING, to, WAITING_SUBJECT, text, now, ceiling=WAITING_A_DAY)

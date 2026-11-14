@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}the record{% endblock %}
+{% block heading %}the record{% endblock %}
+
+{# Open to anyone: the commons' own files, as they are written. #}
+{% block content %}
+<section>
+  <p>These are the commons' own files, as they are written.</p>
+  <ul class="list">
+    {%- for label, view, what in files %}
+    <li><a href="{{ url_for(view) }}">{{ label }}</a>
+      <p class="note">{{ what }}</p></li>
+    {%- endfor %}
+  </ul>
+</section>
+{% endblock %}

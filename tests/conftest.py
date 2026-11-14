@@ -208,6 +208,28 @@ def outbox(monkeypatch):
     return stub
 
 
+class Reader:
+    """The small model that reads one line for good spirit (hearth.in_good_spirit), stubbed:
+    what it was asked, and what it says."""
+
+    def __init__(self, says="YES", breaks=False):
+        self.says = says
+        self.breaks = breaks
+        self.asked = []
+
+    def __call__(self, *args, **kwargs):
+        reader = self
+
+        class Messages:
+            def create(self, **asked):
+                reader.asked.append(asked)
+                if reader.breaks:
+                    raise RuntimeError("the model could not be reached")
+                return SimpleNamespace(content=[SimpleNamespace(text=reader.says)])
+
+        return SimpleNamespace(messages=Messages())
+
+
 class Screen:
     """The public screen, stubbed: it answers NO, the word that clears a text, unless a
     test says otherwise. A test may set says to another answer, to an exception to
@@ -584,7 +606,6 @@ def atrium(env, clock, monkeypatch, data_dir, tmp_path):
     monkeypatch.setattr(module, "STYLE", str(style))
     monkeypatch.setattr(module, "HEARTBEATS", str(data_dir / "commons" / "heartbeats.md"))
     monkeypatch.setattr(module, "EVENTS", str(data_dir / "commons" / "events.md"))
-    monkeypatch.setattr(module, "BENCH", str(data_dir / "commons" / "bench.md"))
     monkeypatch.setattr(module, "MEMBERS", str(data_dir / "commons" / "members.md"))
     monkeypatch.setattr(module, "OFFERINGS", str(data_dir / "commons" / "offerings.md"))
     monkeypatch.setattr(module, "OFFERED", str(data_dir / "commons" / "offerings"))
@@ -955,37 +976,45 @@ def pages_before_fewer(hearth, monkeypatch):
     env = hearth.app.jinja_env
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_FEWER)), env.loader]))
+    bench_linked_as_before(hearth, monkeypatch)
 
 
-def commons_pages_not_yet(hearth, monkeypatch):
-    """Take out, for one test, the commons' own pages linked from its foot (11 November 2026).
+def bench_linked_as_before(hearth, monkeypatch):
+    """Let a page drawn as before link the bench where it linked it, /bench.
 
-    Until the ledger and the page of changes to the charter were made, the
-    commons page ended with the files of the record and the one line on
-    heartbeats. With hearth.COMMONS_PAGES empty it is exactly that page again,
-    byte for byte.
+    The bench was taken away on 14 November 2026, and its view with it; a template
+    kept from before then still names it in its menu. Its address is built as it
+    was built then, and only for such a template: nothing today names it."""
+    def as_before(error, endpoint, values):
+        if endpoint == "bench":
+            return "/bench"
+        raise error
+    monkeypatch.setattr(hearth.app, "url_build_error_handlers",
+                        [as_before, *hearth.app.url_build_error_handlers])
+
+
+PAGES_BEFORE_SATURDAY = Path(__file__).resolve().parent / "pages_before_saturday"
+
+
+def pages_before_saturday(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before the one spacing scale (14
+    November 2026).
+
+    Until then base.html kept its gaps in pixels of its own, and drew a page's content
+    straight after the menu, and letters.html kept a few gaps of its own inline.
+    Today base.html draws the scale out of style.css and wraps the content in <div
+    class="page">, and letters.html's gaps are the scale's. The two as they were are
+    kept in tests/pages_before_saturday and drawn in place of today's; every page that did
+    not change on its own that day then gives the fingerprint it gave before.
+    (/commons and /bonds changed on their own: the commons became one plain list
+    and the list of sealed bonds a page of its own. What they were is on the
+    branch hues, and their fingerprints are held in test_first_one_fingerprints.)
     """
-    monkeypatch.setattr(hearth, "COMMONS_PAGES", [])
-
-
-def bench_link_not_yet(hearth, monkeypatch):
-    """Take out, for one test, the link to the bench near the top of the commons page.
-
-    Until 11 November 2026 the commons page began with its sealed bonds; the
-    bench was in a member's menu. With hearth.COMMONS_BENCH_LINK None it is
-    exactly that page again, byte for byte.
-    """
-    monkeypatch.setattr(hearth, "COMMONS_BENCH_LINK", None)
-
-
-def board_link_not_yet(hearth, monkeypatch):
-    """Take out, for one test, the link to the members' board below the bench's.
-
-    Until 13 November 2026 (plan 4.3) the commons page linked the bench alone near
-    its top. With hearth.COMMONS_BOARD_LINK None it is exactly that page again,
-    byte for byte.
-    """
-    monkeypatch.setattr(hearth, "COMMONS_BOARD_LINK", None)
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_SATURDAY)), env.loader]))
+    bench_linked_as_before(hearth, monkeypatch)
 
 
 # The words that explained <<REWRITE>> before each line could be rewritten only

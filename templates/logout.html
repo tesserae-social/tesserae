@@ -11,6 +11,6 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit">Log out</button>
   </form>
-  <p class="muted" style="margin-top: 24px"><a href="{{ url_for('hearth') }}">back to the hearth</a></p>
+  <p class="muted" style="margin-top: var(--space-4)"><a href="{{ url_for('hearth') }}">back to the hearth</a></p>
 </section>
 {% endblock %}

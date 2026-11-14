@@ -8,6 +8,22 @@
     --link: #993c1d;
   }
 
+  /* The one spacing scale (14 November 2026). Every gap and margin on every page
+     is one of these: the atrium, the whole mosaic, the documents, and every page
+     of the hearth, which draws what lies between the two markers below into its
+     own style (hearth.SPACING is read from here), and nothing else of this file. */
+  /* spacing:start */
+  :root {
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 16px;
+    --space-4: 24px;
+    --space-5: 40px;
+    --space-6: 64px;
+    --space-7: 96px;
+  }
+  /* spacing:end */
+
   * { box-sizing: border-box; }
 
   html { -webkit-text-size-adjust: 100%; }
@@ -27,7 +43,7 @@
     width: 100%;
     max-width: 600px;
     margin: 0 auto;
-    padding: 72px 24px 96px;
+    padding: var(--space-6) var(--space-4) var(--space-7);
   }
 
   /* The atrium's main is the whole window across, so that the mosaic can stand
@@ -36,32 +52,32 @@
      main is the column itself, as it was. */
   .atrium main {
     max-width: none;
-    padding-top: 16px;
+    padding-top: var(--space-3);
     padding-left: 0;
     padding-right: 0;
   }
 
   /* the whole mosaic's page opens with words, at the height a document does */
-  .whole main { padding-top: 72px; }
+  .whole main { padding-top: var(--space-6); }
 
   .column {
     width: 100%;
     max-width: 600px;
     margin: 0 auto;
-    padding: 0 24px;
+    padding: 0 var(--space-4);
   }
 
   header {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: var(--space-3);
   }
 
   header svg { display: block; flex: none; }
 
   /* the line under the name that says, in a sentence, what this place is */
   .tagline {
-    margin: 0.4rem 0 0;
+    margin: var(--space-2) 0 0;
     color: var(--ink-soft);
   }
 
@@ -69,7 +85,7 @@
      size of the lines that only murmur. It wraps where it must, between one
      link and the next and never inside one. */
   .menu {
-    margin: 0.6rem 0 0;
+    margin: var(--space-2) 0 0;
     font-size: 0.9rem;
     color: var(--ink-soft);
   }
@@ -89,14 +105,14 @@
     color: var(--ink);
   }
 
-  /* one rhythm between everything at the top level: 64px, whatever follows what */
-  section { margin-top: 64px; }
+  /* one rhythm between everything at the top level, whatever follows what */
+  section { margin-top: var(--space-6); }
 
   /* a section's label: the second size, the body's weight, and quiet
      ink. Its own top margin is smaller than the rhythm, so where a label opens a
      section the two collapse and the rhythm is what shows. */
   h2 {
-    margin: 2.75rem 0 0.75rem;
+    margin: var(--space-5) 0 var(--space-3);
     font-size: 1.3rem;
     font-weight: 400;
     letter-spacing: 0.06em;
@@ -110,9 +126,9 @@
      quotation inside it. It sits under the menu at the paragraphs' own gap.
      The first paragraph is the sentence, and stands alone; the other three
      wait behind a question, for whoever asks it. */
-  .intro { margin-top: 1.1rem; }
+  .intro { margin-top: var(--space-3); }
 
-  .intro p { margin: 0 0 1.1rem; }
+  .intro p { margin: 0 0 var(--space-3); }
 
   .intro p:last-child { margin-bottom: 0; }
 
@@ -130,7 +146,7 @@
     border-radius: 2px;
   }
 
-  .intro details[open] summary { margin-bottom: 1.1rem; }
+  .intro details[open] summary { margin-bottom: var(--space-3); }
 
   /* The frame: the last year of the mosaic, as a frame of tiles round the
      page's words. It is a grid of cells one tile square, as many across as the
@@ -154,7 +170,7 @@
     grid-auto-rows: minmax(var(--tile), auto);
     gap: var(--gap);
     justify-content: center;
-    margin: 0 16px;
+    margin: 0 var(--space-3);
   }
 
   .frame .mosaic { display: contents; }
@@ -164,9 +180,19 @@
     grid-row: 3 / span var(--down, 1);
     justify-self: center;
     align-self: start;
-    padding-top: 40px;
-    padding-bottom: 40px;
+    padding-top: var(--space-5);
+    padding-bottom: var(--space-5);
   }
+
+  /* In the atrium's column every block keeps one rhythm (the founder's request of
+     14 November 2026): a section stands as far below what comes before it as the
+     reading line stands below the intro, and no further. The foot keeps a little
+     more, above its rule. */
+  .frame .column section { margin-top: var(--space-3); }
+
+  .frame .column section > h2:first-child { margin-top: 0; }
+
+  .frame .column footer { margin-top: var(--space-5); }
 
   /* what a tile is, and the way to the rest of the mosaic: one quiet line in
      the column's own measure, on a row of its own after the last tile */
@@ -175,8 +201,8 @@
     justify-self: center;
     width: 100%;
     max-width: 600px;
-    margin: 14px 0 0;
-    padding: 0 24px;
+    margin: var(--space-3) 0 0;
+    padding: 0 var(--space-4);
     font-size: 0.9rem;
     color: var(--ink-soft);
   }
@@ -185,7 +211,7 @@
      width, less 16px at either side. It lies outside the columns the words
      keep, so its width is the page's own and never 100vw, which counts the
      scrollbar and would push the page sideways. */
-  .band { margin: 24px 16px 0; }
+  .band { margin: var(--space-4) var(--space-3) 0; }
 
   /* The mosaic as a list that lays itself out: all of history, oldest at the
      top left, in rows as wide as the band. The tile size and the gap are
@@ -218,7 +244,7 @@
   .mosaic .year {
     width: 100%;
     height: auto;
-    margin-top: 10px;
+    margin-top: var(--space-2);
     font-size: 0.9rem;
     line-height: 1.2;
     color: var(--ink-soft);
@@ -280,7 +306,7 @@
      changes as you move and the page below it must not, so it keeps a line's
      room, or the room the page's script finds the longest tile's words need. */
   .reading {
-    margin: 14px 0 0;
+    margin: var(--space-3) 0 0;
     min-height: var(--reading, 1.65em);
     font-size: 0.9rem;
     color: var(--ink-soft);
@@ -292,7 +318,7 @@
     position: sticky;
     top: 0;
     z-index: 1;
-    padding-bottom: 10px;
+    padding-bottom: var(--space-2);
     background: var(--paper);
   }
 
@@ -302,18 +328,18 @@
      down its left is all that marks it as quoted -- it is read in the same
      family and the same size as the page around it. */
   .offered .when {
-    margin: 0 0 14px;
+    margin: 0 0 var(--space-3);
     font-size: 0.9rem;
     color: var(--ink-soft);
   }
 
   .offered blockquote {
     margin: 0;
-    padding-left: 20px;
+    padding-left: var(--space-4);
     border-left: 2px solid var(--rule);
   }
 
-  .offered blockquote p { margin: 0 0 1.1rem; }
+  .offered blockquote p { margin: 0 0 var(--space-3); }
 
   .offered blockquote p:last-child { margin-bottom: 0; }
 
@@ -327,7 +353,7 @@
 
   /* the way to the rest is a link like any other link, in the size of the
      words above it */
-  .offered p:last-child { margin: 18px 0 0; }
+  .offered p:last-child { margin: var(--space-3) 0 0; }
 
   .who .members {
     margin: 0;
@@ -335,7 +361,7 @@
     list-style: none;
   }
 
-  .who .members li { margin: 0 0 6px; }
+  .who .members li { margin: 0 0 var(--space-2); }
 
   .who .fact { color: var(--ink-soft); }
 
@@ -350,7 +376,7 @@
     display: inline-block;
     width: 11px;
     height: 11px;
-    margin-right: 8px;
+    margin-right: var(--space-2);
     border-radius: 2px;
     background: var(--mark);
   }
@@ -369,7 +395,7 @@
     display: inline-block;
     width: 16px;
     height: 16px;
-    margin-left: 4px;
+    margin-left: var(--space-1);
     vertical-align: -2px;
   }
 
@@ -377,13 +403,13 @@
 
   /* a short line saying what something is, under the first place it is met */
   .note {
-    margin: 8px 0 0;
+    margin: var(--space-2) 0 0;
     font-size: 0.9rem;
     color: var(--ink-soft);
   }
 
   .calendar {
-    margin: 18px 0 0;
+    margin: var(--space-3) 0 0;
     font-size: 0.9rem;
     color: var(--ink-soft);
   }
@@ -410,35 +436,21 @@
     text-decoration-thickness: 1px;
   }
 
-  .bench p { margin: 0 0 16px; }
-
-  /* a visitor's line is read in the page's own words, like every other line
-     here: what marks it as theirs is the name at the end of it */
-  .bench .lines {
-    margin: 0 0 16px;
-    padding: 0;
-    list-style: none;
-  }
-
-  .bench .lines li { margin: 0 0 6px; }
-
-  .bench .when { color: var(--ink-soft); }
-
   footer {
-    margin-top: 64px;
-    padding-top: 24px;
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
     border-top: 1px solid var(--rule);
     font-size: 0.9rem;
     color: var(--ink-soft);
   }
 
-  footer p { margin: 0 0 4px; }
+  footer p { margin: 0 0 var(--space-1); }
 
   @media (max-width: 480px) {
-    main { padding: 48px 20px 72px; }
+    main { padding: var(--space-5) var(--space-3) var(--space-6); }
     /* the columns draw in their gutters with the page; the tiles keep their own */
-    .column, .rest { padding-left: 20px; padding-right: 20px; }
-    .whole main { padding-top: 48px; }
+    .column, .rest { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .whole main { padding-top: var(--space-5); }
   }
 
   /* ---- the documents -------------------------------------------------- */
@@ -448,14 +460,14 @@
      under them. The headings are where the two part: the atrium's h2 is a quiet
      lowercase label, and a document's is a heading its author wrote. */
   .home {
-    margin: 0 0 40px;
+    margin: 0 0 var(--space-5);
     font-size: 0.9rem;
   }
 
   /* the same way back, under the menu of the whole mosaic's page */
-  .whole .home { margin: 0.6rem 0 0; }
+  .whole .home { margin: var(--space-2) 0 0; }
 
-  .document h1 { margin: 0 0 24px; }
+  .document h1 { margin: 0 0 var(--space-4); }
 
   /* A document's h2 is a heading its author wrote, not the atrium's quiet
      lowercase label: its own case, its own size, its own weight, and none of
@@ -469,29 +481,29 @@
 
   /* the one heading level the atrium has no use for */
   .document h3 {
-    margin: 2rem 0 0.6rem;
+    margin: var(--space-4) 0 var(--space-2);
     font-size: 1rem;
     font-weight: 600;
     text-transform: none;
   }
 
-  .document p { margin: 0 0 1.1rem; }
+  .document p { margin: 0 0 var(--space-3); }
 
   /* a document quotes the way the atrium quotes: the same words, set in from
      the margin behind a rule, and nothing else to mark them */
   .document blockquote {
-    margin: 1.5rem 0;
-    padding-left: 20px;
+    margin: var(--space-4) 0;
+    padding-left: var(--space-4);
     border-left: 2px solid var(--rule);
   }
 
   /* the rule a document parts itself with, as the hearth has always drawn one */
   .document hr {
-    margin: 22px 0;
+    margin: var(--space-4) 0;
     border: 0;
     border-top: 1px solid var(--rule);
   }
 
-  .document ul, .document ol { padding-left: 24px; }
+  .document ul, .document ol { padding-left: var(--space-4); }
 
-  .document li { margin: 0 0 8px; }
+  .document li { margin: 0 0 var(--space-2); }

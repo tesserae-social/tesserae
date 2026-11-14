@@ -2,7 +2,7 @@
 
 The founder's decision of 13 November 2026. A member signed in may propose a
 question on /account, one line of up to QUESTION_MOST characters, screened as a
-line on the bench is (the hearth asks the screens: no link, nothing of the
+public line is (the hearth asks the screens: no link, nothing of the
 private list, in good spirit, and the public screen's word that it names no one
 and no place). A member has at most one proposal waiting at a time.
 
@@ -18,8 +18,10 @@ features, and at a longer waking, it is given one more thing it may look at,
 read_weekly_question (attend.py); nothing of it is put in its reading. The
 switch is off for every agent in what is committed.
 
-Kept outside the commons, since nothing here is public but the question of the
-week, and that only in a room:
+Since the founder's request of 14 November 2026 each week's question also has a
+topic of its own on the members' board, in "the weekly question", which anyone may
+read (board.py): the question itself is public from its week, and who proposed it
+never. Kept outside the commons, since nothing else here is public:
 
     DATA_DIR/weekly-questions.json
     {"waiting": [{"words": "...", "by": "<pseudonym>", "at": ISO UTC}, ...],
@@ -48,7 +50,7 @@ FEATURE = "weekly_question"
 # How it is offered at the top of a room.
 SHOWN = "This week's question, if you'd like it: {words}"
 
-# A link of any kind, as the bench refuses one.
+# A link of any kind, refused in every public line.
 LINKISH = re.compile(r"http|www\.|[a-z0-9][a-z0-9-]*\.[a-z]{2,}", re.I)
 
 LOCK = threading.Lock()

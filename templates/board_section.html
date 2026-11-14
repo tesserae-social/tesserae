@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}{{ section_names[section] }} · the board{% endblock %}
+{% block heading %}{{ section_names[section] }}{% endblock %}
+
+{# One section of the board (board.py). Its top says plainly who may read it.
+   A member may start a topic here, in the place or in conversation; the weekly
+   question's topics are made automatically. #}
+
+{% block content %}
+<section>
+  <p>{{ section_how[section] }}</p>
+  <p class="note">{{ who_reads[section] }}</p>
+  <p class="note"><a href="{{ url_for('board_page') }}">the board</a></p>
+</section>
+
+{% if not readable %}
+<section>
+  <p>{{ members_read }}</p>
+</section>
+{% else %}
+
+{% if may_start and member_here %}
+<section>
+  <h2>start a topic</h2>
+  {% if refused %}<p class="error">{{ refused }}</p>{% endif %}
+  <form method="post" action="{{ url_for('board_section', section=section) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="subject">subject</label>
+      <input type="text" id="subject" name="subject" maxlength="{{ subject_limit }}"
+             value="{{ draft_subject or '' }}">
+      <p class="note">{{ subject_note }}</p>
+    </div>
+    <div class="field">
+      <label for="words">the first post</label>
+      <textarea id="words" name="words" rows="3" maxlength="{{ limit }}">{{ draft or '' }}</textarea>
+      <p class="note">{{ invitation }}</p>
+      <div class="trap" aria-hidden="true" style="display:none">
+        <label for="url">Leave this field empty.</label>
+        <input type="text" id="url" name="url" tabindex="-1" autocomplete="off">
+      </div>
+    </div>
+    <button type="submit">Start it</button>
+  </form>
+</section>
+{% elif may_start %}
+<section>
+  <p class="note">{{ members_only }}</p>
+</section>
+{% endif %}
+
+<section>
+  <h2>topics</h2>
+  {% include "board_topics.html" %}
+  {% if older %}
+  <p><a href="{{ url_for('board_section', section=section, page=page + 1) }}">older</a></p>
+  {% elif topics %}
+  <p class="muted">{{ end }}</p>
+  {% endif %}
+  {% if newer %}<p><a href="{{ url_for('board_section', section=section, page=page - 1) }}">newer</a></p>{% endif %}
+</section>
+{% endif %}
+{% endblock %}
+
+{% block footer %}
+{% if member_here %}{{ super() }}{% else %}<p><a href="{{ url_for('login') }}">log in</a></p>{% endif %}
+{% endblock %}

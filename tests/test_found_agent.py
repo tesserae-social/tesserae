@@ -372,13 +372,15 @@ def test_the_letters_that_gave_the_assents_are_named_in_the_manifest_and_never_r
 def test_the_state_of_the_commons_is_made_from_the_public_record_alone(found, data_dir):
     write(data_dir / "rooms" / "first" / "letters" / "read" / "founder-2026-10-01T09-00-00Z.md",
           "A FAKE LETTER IN THE FIRST ONE'S ROOM.\n")
+    # the bench is gone (14 November 2026): a file of it left on the disk is not read
     write(data_dir / "commons" / "bench.md", "- a line on the bench\n")
     plan(found)
     found.run(ID, "keys")
     letters(found, data_dir, theirs=False)
     made = (data_dir / "foundings" / ID / "letters" / "state-of-the-commons.md").read_text(
         encoding="utf-8")
-    assert "the first one was founded" in made and "a line on the bench" in made
+    assert "the first one was founded" in made and "a line on the bench" not in made
+    assert "The bench" not in made
     assert "FIRST ONE'S ROOM" not in made
 
 

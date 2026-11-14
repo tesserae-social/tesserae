@@ -185,7 +185,7 @@ def test_once_the_screens_cap_is_reached_nothing_is_asked(env, screen, monkeypat
     assert screen.asked == []
 
 
-def test_the_bench_s_word_on_good_spirit_is_not_asked_past_the_cap(hearth, monkeypatch):
+def test_the_word_on_good_spirit_is_not_asked_past_the_cap(hearth, monkeypatch):
     import spending
     monkeypatch.setattr(spending, "spent_out", lambda who, now=None: who == spending.SCREENS)
     monkeypatch.setattr(hearth, "Anthropic", lambda: pytest.fail("asked past the cap"))
@@ -218,7 +218,8 @@ def test_the_limit_is_one_count_across_every_page(hearth, founder, monkeypatch, 
     screen.says = "YES"
     for _ in range(hearth.SCREENED_A_DAY):
         post(founder, "/account/introduction", data={"introduction": "I like rivers."})
-    answer = post(founder, "/board", data={"words": "Good morning, everyone."})
+    answer = post(founder, "/board/place", data={"subject": "Mornings",
+                                                  "words": "Good morning, everyone."})
     assert hearth.TOO_MANY_TRIES in page(answer).replace("&#39;", "'")
 
 

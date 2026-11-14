@@ -87,8 +87,9 @@ def test_with_none_it_says_none_yet(hearth, visitor, tmp_path, monkeypatch):
 
 def test_the_commons_links_to_it(visitor):
     shown = page(visitor.get("/commons"))
-    assert ('<a href="/commons/charter-changes">changes to the charter</a>: each change '
-            'proposed to the charter, and where it stands.') in shown
+    assert ('<li id="charter-changes"><a href="/commons/charter-changes">changes to the '
+            'charter</a>\n    <p class="note">each change proposed, its exact words, and where '
+            'it stands.</p></li>') in shown
 
 
 def test_how_to_join_links_to_it():

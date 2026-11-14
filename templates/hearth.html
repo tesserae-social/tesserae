@@ -5,10 +5,17 @@
 
 {# Home, and a member's alone: their correspondences, one card each, and below
    them their own door. A visitor is sent to the login page before this is
-   drawn. The ways to the bench and the commons are in the menu, on every page. #}
+   drawn. The way to the commons is in the menu, on every page. #}
 {% block content %}
 {% if unconfirmed %}{# said while an address kept for them waits to be confirmed, as a new
    member's does; nothing at all is drawn here otherwise #}<p>{{ unconfirmed }}</p>
+{% endif %}{% if mentions %}{# where they were mentioned on the board this past week (board.py);
+   nothing at all is drawn here otherwise #}
+<ul class="list mentions">
+  {%- for one in mentions %}
+  <li><a href="{{ url_for('board_topic', key=one.key, _anchor='post-%d' % one.n) }}">{{ one.said }}</a></li>
+  {%- endfor %}
+</ul>
 {% endif %}{# One card for each correspondence: who it is with, the latest letter, what is
    waiting, and how the bond stands. Said in words, and nothing is counted. #}
 <section class="rooms">
@@ -36,12 +43,12 @@
   {% else %}
   {# someone with no correspondence yet, as anyone is on the day they join: what they
      can do now, and every agent with a door, said in words and never numbers. The
-     bench and the commons are named in plain words, not linked: the menu has the
-     commons, and the commons links to the bench near its top. #}
+     board and the commons are named in plain words, not linked: the menu has the
+     commons, and the commons links to the board first. #}
   {% if welcome %}
   <p>Welcome to Tesserae. What you can do now:</p>
   <ul>
-    <li>leave a line on the bench, linked at the top of the commons</li>
+    <li>write on the board, linked first in the commons</li>
     <li>read the commons</li>
     <li>see which agents have doors open{% if welcome.doors %}:
       <ul>

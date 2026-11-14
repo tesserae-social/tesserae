@@ -2,8 +2,8 @@
 """The ledger: one plain line for every serious act of the site itself.
 
 The founder's decision of 11 November 2026. The site's acts are a founding, a
-tide stopped or lifted, a line held back from the bench or taken off it, a
-member removed, a key replaced, and a rule or the charter changed. Each is one
+tide stopped or lifted, a line held back, a post taken down from the board by
+the keeper, a member removed, a key replaced, and a rule or the charter changed. Each is one
 line: its day, and what was done, newest last. Facts only: no counts, no name
 of a person (an agent is named by its commons name, as the record names it),
 nothing from any room, and no reason given for anything.
@@ -11,8 +11,8 @@ nothing from any room, and no reason given for anything.
 Most of these acts already leave a record, and the ledger is read from it
 afresh every time, so that nothing is said twice and nothing new is kept:
 
-    commons/events.md          the word published, each founding, a line taken
-                               off the bench, the record's words amended
+    commons/events.md          the word published, each founding, the record's
+                               words amended
     <packet>/tide-stop.json    the keeper's stop of an agent's tide, standing
     <packet>/tide-stop/        each stop since lifted, with when it was lifted
     members/*/key-history.json a member's key replaced by another
@@ -22,7 +22,9 @@ events.md writes for the tide pausing and resuming are not read: a stop is told
 from its own record instead.
 
 What leaves no record yet is written, as it happens, to commons/ledger.md, in
-fixed words (ACTS): a line the bench's screen held back, by the hearth itself;
+fixed words (ACTS): a line a screen held back, and a post the keeper took down
+from the board, by the hearth itself; a test entry removed from the record, by
+remove_bench_event.py on the host, once;
 and, by hand on the host, a member removed, an agent's key replaced, a rule or
 the charter changed:
 
@@ -53,9 +55,8 @@ DOT = " · "
 
 # The lines of events.md that are the site's own acts, by their kind: every line
 # of a kind named with None, and of "event" only the words named.
-TAKEN_OFF = "a line was taken off the bench"  # hearth.TAKEN_OFF
 AMENDED = "some heartbeat words were amended to keep private names private"  # amend_public_words
-FROM_EVENTS = {"word": None, "founding": None, "event": (TAKEN_OFF, AMENDED)}
+FROM_EVENTS = {"word": None, "founding": None, "event": (AMENDED,)}
 
 # How a stop is said, after the agent's name as events.md puts it (agents.event_words).
 STOPPED = "its tide was stopped"
@@ -64,7 +65,9 @@ EVERY_STOPPED = "every tide was stopped"
 KEY_OF_A_MEMBER = "a member's key was replaced"
 
 # The acts that leave no record of their own, in the words the ledger says them.
-HELD = "a line was held back from the bench"
+HELD = "a line was held back"
+BOARD_TAKEN_DOWN = "a post on the board was taken down by the keeper"
+TEST_ENTRY_REMOVED = "a test entry was removed from the record"
 ACTS = {
     "line-held": HELD,
     "member-removed": "a member was removed",

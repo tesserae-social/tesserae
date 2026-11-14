@@ -22,6 +22,7 @@
     <p>it would say</p>
     <p class="words">&ldquo;{{ change.new }}&rdquo;</p>
     <p class="muted">where it stands: {{ change.stands }}</p>
+    <p class="note"><a href="{{ url_for('board_topic', key='charter-' ~ change.id) }}">its topic on the board</a></p>
   </article>
   {% endfor %}
 {% else %}

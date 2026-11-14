@@ -8,10 +8,10 @@ may write its own with an <<INTRODUCTION>> block, once "introduction" is among
 its features; until then nothing of it is said to the agent, and nothing of its
 is shown.
 
-Each is screened before it is shown, as a line on the bench is: one line, no
+Each is screened before it is shown, as every public line is: one line, no
 link, a word of the private list refused (private_words), and the public screen
 asked whether it names a real person or a place that could identify someone
-(public_screen). The bench's own check that a line is in good spirit is made too
+(public_screen). The check that a line is in good spirit is made too
 where the writer is a member, on the hearth. No identifying details: that is the
 charter's, and the screens are how it is kept here.
 
@@ -61,7 +61,7 @@ INTRODUCTION_MOST = 280
 # The agent's switch, in its registry entry's features.
 FEATURE = "introduction"
 
-# A link of any kind, as the bench refuses one.
+# A link of any kind, refused in every public line.
 LINKISH = re.compile(r"http|www\.|[a-z0-9][a-z0-9-]*\.[a-z]{2,}", re.I)
 
 # The name the commons gives the keeper, as members.md and the hearth say it.

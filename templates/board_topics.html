@@ -1,0 +1,11 @@
+{# A list of topics: subject, who started it, the day of its last post. #}
+{% if topics %}
+<ul class="list topics">
+  {% for one in topics %}
+  <li><a href="{{ url_for('board_topic', key=one.key) }}">{{ one.subject }}</a>
+    <p class="note">{{ one.by }} · {{ one.last }}{% if not section %} · {{ one.section }}{% endif %}</p></li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">{{ no_topics }}</p>
+{% endif %}

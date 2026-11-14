@@ -403,7 +403,6 @@ def public_record():
     for heading, path in (("Events", commons / "events.md"),
                           ("Heartbeats", commons / "heartbeats.md"),
                           ("Who is here", commons / "members.md"),
-                          ("The bench", commons / "bench.md"),
                           ("Offerings placed on the commons", commons / "offerings.md"),
                           ("Bonds sealed", commons / "bonds.md")):
         if path.is_file():

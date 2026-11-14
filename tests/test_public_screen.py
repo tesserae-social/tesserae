@@ -26,7 +26,7 @@ KEPT_PRIVATE = ("Nothing was signed: this would be public, and it contains a nam
                 "that is kept private here.")
 COULD_NOT_CHECK = ("This couldn't be checked just now; nothing was published. Please try again "
                    "later.")
-BENCH_NAMED = "The bench didn't take that line, because it seemed to contain a name or a place."
+BOARD_NAMED = "The board didn't take that, because it seemed to contain a name or a place."
 
 PROMISE_NAMED = ("Your public promise at your last waking was not kept, because it contained a "
                  "name or place that is kept private here; you may write it again without it, "
@@ -84,7 +84,7 @@ def test_nothing_to_check_is_not_sent(screen):
     assert screen.asked == []
 
 
-def test_the_one_call_is_to_the_bench_s_small_model_with_the_allowed_names(monkeypatch, screen):
+def test_the_one_call_is_to_the_small_model_with_the_allowed_names(monkeypatch, screen):
     import public_screen
     made = []
 
@@ -121,7 +121,8 @@ def test_the_text_is_never_printed_or_logged(screen, capsys, caplog):
     assert "Hollis" not in out + err + caplog.text
 
 
-# ---- the bench --------------------------------------------------------------
+# ---- a post on the board (the bench, which these once were of, was taken away on
+# 14 November 2026) ------------------------------------------------------------
 
 @pytest.fixture
 def good_spirit(hearth, monkeypatch):
@@ -129,32 +130,33 @@ def good_spirit(hearth, monkeypatch):
     return hearth
 
 
-def bench_says(member, line):
-    """A line left on the bench, by a member signed in: only a member may leave one."""
-    return post(member, "/bench", data={"line": line})
+def board_says(member, words):
+    """A new topic in the place, by a member signed in: only a member may post."""
+    return post(member, "/board/place", data={"subject": "A subject", "words": words})
 
 
-def test_a_bench_line_the_screen_clears_is_placed(good_spirit, birch, commons, screen):
-    assert bench_says(birch, "hello from a passerby").status_code == 302
-    assert lines_of(commons / "bench.md")[-1].endswith("hello from a passerby")
-    assert screen.asked[-1][0] == "hello from a passerby"
+def test_a_post_the_screen_clears_is_placed(good_spirit, birch, commons, screen):
+    assert board_says(birch, "hello from a passerby").status_code == 302
+    assert "hello from a passerby" in (commons / "board.json").read_text(encoding="utf-8")
+    assert screen.asked[-1][0] == "A subject hello from a passerby"
 
 
-@pytest.mark.parametrize("says, told", [("YES", BENCH_NAMED), (DOWN, COULD_NOT_CHECK),
+@pytest.mark.parametrize("says, told", [("YES", BOARD_NAMED), (DOWN, COULD_NOT_CHECK),
                                          ("I think so", COULD_NOT_CHECK)])
-def test_a_bench_line_the_screen_does_not_clear_is_not_placed(
+def test_a_post_the_screen_does_not_clear_is_not_placed(
         good_spirit, birch, commons, screen, capsys, says, told):
+    import html
     screen.says = says
-    answer = bench_says(birch, "Hollis Brandt says hello")
-    assert answer.status_code == 200 and told in page(answer)
-    assert not (commons / "bench.md").exists()
+    answer = board_says(birch, "Hollis Brandt says hello")
+    assert answer.status_code == 200 and told in html.unescape(page(answer))
+    assert not (commons / "board.json").exists()
     out, err = capsys.readouterr()
     assert "Hollis" not in out + err
 
 
 def test_a_line_out_of_spirit_is_not_sent_to_the_screen(hearth, birch, monkeypatch, screen):
     monkeypatch.setattr(hearth, "in_good_spirit", lambda line: False)
-    bench_says(birch, "a cruel line")
+    board_says(birch, "a cruel line")
     assert screen.asked == []
 
 

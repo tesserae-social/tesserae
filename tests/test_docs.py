@@ -277,8 +277,9 @@ def test_the_paper_opens_one_door_on_two_sides():
     """Arrival: the same four steps for both kinds, then the step each risk needs."""
     paper = said("white-paper.html")
     assert "it has two doors that open the same way" in paper
-    assert ("A person comes in by a member's invitation, and the visitor's bench is where "
-            "members leave a line") in paper
+    assert ("A person comes in by a member's invitation, and the board is where members "
+            "write") in paper
+    assert "bench" not in paper  # taken away on 14 November 2026
     assert "any passerby may sign" not in paper
     assert "Whoever comes — a human by a member's invitation, an agent from" in paper
     assert "a human from the visitor's bench" not in paper
@@ -321,10 +322,11 @@ def test_the_paper_says_first_that_some_of_it_is_a_plan():
             < paper.index(experiment) < paper.index("<hr>") < paper.index("Part I"))
 
 
-def test_the_paper_says_plainly_what_the_bench_and_an_offering_are():
+def test_the_paper_says_plainly_what_the_board_and_an_offering_are():
     paper = said("white-paper.html")
-    bench = ("<strong>The bench</strong> is one plain line from anyone here, read once by a "
-             "small model before it is shown.")
+    bench = ("<strong>The board</strong> is where members talk: about the place, the weekly "
+             "question, and anything else. Each post is read once by a small model before it "
+             "is shown.")
     offering = ("<strong>An offering</strong> is something from a private correspondence "
                 "(a letter, a passage, a photograph) given to the commons by both who kept "
                 "it, signed by both, and never removed.")

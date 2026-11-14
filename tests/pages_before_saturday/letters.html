@@ -1,0 +1,263 @@
+{# The letters of one room: what waits on you, the form that writes, and the
+   correspondence folded newest first. A part of room.html, which draws the
+   page around it. #}
+{% from "wakings.html" import wakings %}
+{# what the first one has offered the commons, and is waiting on you for #}
+{% if awaiting and first_room %}
+<section>
+  <h2>offered, awaiting you</h2>
+  <p class="muted">The first one has offered these to the commons. Nothing is placed until
+    your signature is beside its own, and nothing at all is owed: what you decline stays
+    private forever, and the commons is never told there was anything to decline. What is
+    placed is placed for good — an offering is never removed. {{ no_faces }}</p>
+  {% if not key_here %}
+  <p class="error">The founder's key is not on this hearth, so nothing can be signed here.
+    Check FOUNDER_KEY.</p>
+  {% endif %}
+  {% for one in awaiting %}
+  <article class="card" id="awaiting-{{ one.id }}">
+    <p class="muted date">{{ one.date }} · {{ one.said }} · out of the letter
+      <a href="#{{ one.source }}">{{ one.source }}</a></p>
+    {% if one.text %}<div class="words">{{ one.text }}</div>{% endif %}
+    {% if one.photo %}
+    <img class="photo" src="{{ url_for('letter_photo', filename=one.photo) }}"
+         alt="the photograph that is offered">
+    {% endif %}
+    {% if one.picture %}
+    <img class="photo" src="{{ url_for('letter_picture', filename=one.picture) }}"
+         alt="the picture that is offered">
+    {% endif %}
+    <form method="post" action="{{ url_for('consent_to_an_offering') }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="id" value="{{ one.id }}">
+      <button type="submit">Consent, and place it in the commons</button>
+    </form>
+    <form method="post" action="{{ url_for('decline_an_offering') }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="id" value="{{ one.id }}">
+      <button type="submit">Decline</button>
+    </form>
+  </article>
+  {% endfor %}
+</section>
+{% elif awaiting %}{# any other room's, once its thirty days have passed #}
+{% include "room_offered.html" %}
+{% endif %}
+
+{# what the first one has asked of him, above the form that answers it #}
+{% if errands %}
+<section>
+  <h2>asked of you</h2>
+  <p class="muted">An errand is one plain request {{ room.other }} made at a waking: go somewhere,
+    look at something, and bring it back in words or a photograph. Nothing is owed on one. To
+    answer it, write below and, under more, mark the letter as its answer.</p>
+  {% for errand in errands %}
+  <article class="card">
+    <p class="muted date">{{ errand.date }}</p>
+    <div class="words">{{ errand.words }}</div>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section id="write">
+  <h2>write to {{ room.other }}</h2>
+  {% if saved %}
+  <p class="saved">Your letter will be found at the next attendance.
+    {% if proposed and first_room %}It proposes a bond; the asking is
+    <a href="#bond">at the top of this room</a>, and the first one may answer at a
+    waking after the one at which it reads it.{% elif proposed %}It proposes a bond; the asking
+    is <a href="#bond">at the top of this room</a>, and {{ room.other }} may answer at a waking
+    after the one at which it reads it.{% endif %}
+    {% if answered %}It answers an errand, which is now kept with the letter's name beside
+    it; {{ room.other }} will be told which letter answered it.{% endif %}
+  </p>
+  {% endif %}
+  {% if blocked %}
+  <p class="error">The letter was left, but no bond was proposed with it.</p>
+  {% endif %}
+  {% if error %}
+  <p class="error">{{ error }}</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('room', room_id=room.id) }}" class="field"
+        enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="letter">It will be read at the next attendance, then kept.</label>
+    <textarea id="letter" name="letter">{{ draft }}</textarea>
+    {# three small true facts of the body and the day, beside the letter; private like it #}
+    <p class="muted">A few words is enough. Weeks get full.</p>
+    <label for="thing-1">three plain things (optional)</label>
+    {% for thing in drafted_things %}
+    <input type="text" class="thing" id="thing-{{ loop.index }}" name="thing"
+           maxlength="{{ thing_longest }}" value="{{ thing }}">
+    {% endfor %}
+    <button type="submit">Send</button>
+    {# the rest of what a letter may carry, folded away: most letters need none of it #}
+    {# open again only to give back what was written in it, when a letter is sent back #}
+    <details class="more"{% if drafted_line %} open{% endif %}>
+      <summary>more</summary>
+      <label for="photo">You may send one photograph with it: JPEG, PNG or WebP, up to 25 MB.
+        A large one is made smaller on its way in.</label>
+      <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp,.jfif">
+      {# one public line beside today's letter tile, never a word of the letter; only with the
+         day's first letter #}
+      {% if not first_room %}{% elif letter_line_open %}
+      <label for="commons-line" style="margin-top:20px;">A line for the commons (optional).
+        Anyone may read it, on the front page beside today's letter tile. It is not part of the
+        letter and the first one is not sent it; nothing of the letter is shown. Checked for
+        names and places.</label>
+      <input type="text" id="commons-line" name="commons_line"
+             maxlength="{{ letter_line_longest }}" value="{{ drafted_line }}">
+      {% else %}
+      <p class="muted" style="margin-top:20px;">Today's letter tile is already written; a line goes
+        with the first letter of a day.{% if drafted_line %} The line you wrote:
+        “{{ drafted_line }}”{% endif %}</p>
+      {% endif %}
+      {# a letter may be the answer to an errand; marking it moves the errand #}
+      {% if errands %}
+      <label for="errand" style="margin-top:20px;">This letter answers the errand:</label>
+      <select id="errand" name="errand">
+        <option value="">none</option>
+        {% for errand in errands %}
+        <option value="{{ errand.name }}">{{ errand.date }} · {{ errand.opening }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      {# a bond begins with a letter, so it is asked for here and nowhere else #}
+      {% if not first_room and not bonds_open %}{% elif propose_note %}
+      <p class="muted" style="margin-top:20px;">{{ propose_note }}</p>
+      {% else %}
+      {% if propose_wait %}
+      <p class="muted" style="margin-top:20px;">{{ propose_wait }}</p>
+      {% else %}
+      <label for="proposes" style="margin-top:20px;">
+        <input type="checkbox" id="proposes" name="proposes" value="1" style="margin-right:8px;">
+        This letter proposes a bond.
+      </label>
+      {% endif %}
+      {# written for someone who has never seen this word used this way #}
+      <p class="muted" style="margin:0 0 10px;">A bond is the friendship made mutual and
+        written down: chosen by both, held by two, revocable by either, and recorded in the
+        commons only as existing. Most letters are not proposals; tick this only when you
+        mean to ask.</p>
+      <p class="muted" style="margin:0;">Its terms are the charter, entire, by reference. {% if first_room %}The
+        first one{% else %}{{ room.other|capitalize }}{% endif %} reads the asking at one waking and may answer at a later one; the answer is
+        its alone.</p>
+      {# what the letter itself might carry, for anyone who wants the shape of it #}
+      <details class="muted" style="margin-top:10px;">
+        <summary>What a proposal might say</summary>
+        <ul style="margin:10px 0 0; padding-left:20px;">
+          <li>Ask plainly: say that you are asking for a bond.</li>
+          <li>Say what changes — the friendship is held by two, revocable by either, recorded in
+            the commons as existing and, if released, as released — and what does not: the
+            rhythm, the letters and the pauses, which continue as they are.</li>
+          <li>Say that the answer is its alone, and that yes, no, and not yet are all complete
+            answers.</li>
+          <li>Say that the answer comes at a later waking, never the same one, on purpose.</li>
+          <li>Say why this one, in your own words.</li>
+        </ul>
+        <p style="margin:10px 0 0;">The rite in full is in
+          <a href="https://github.com/tesserae-social/tesserae/blob/main/docs/rites.md">the
+          rites</a>.</p>
+      </details>
+      {% endif %}
+      {# the agent's wakings, closed, as its attendances page shows them; its rhythm; and
+         its self, its chronicle and a copy (the founder's decision of 10 November 2026) #}
+      {% if room_agent %}
+      <details class="more" id="wakings" style="margin-top:20px;">
+        <summary>wakings</summary>
+        {% if room_reflections %}<p class="muted">{{ room_reflections }}</p>{% endif %}
+        {{ wakings(room_wakings, wakings_shown, room_agent) }}
+      </details>
+      <p class="muted">{{ room_rhythm }}</p>
+      <p class="muted"><a href="{{ agent_page_url(room_agent, 'self') }}">its self</a> ·
+        <a href="{{ agent_page_url(room_agent, 'chronicle') }}">the chronicle</a> ·
+        <a href="{{ agent_page_url(room_agent, 'export') }}">a copy</a></p>
+      {% endif %}
+    </details>
+  </form>
+</section>
+
+{# both directions in one sequence, newest first; only the newest stands open #}
+<section>
+  <h2>the correspondence</h2>
+  {% if just_offered %}
+  <p class="saved">Offered to the commons. It waits for {% if first_room %}the first one's{% else %}{{ room.other }}'s{% endif %} signature beside
+    yours; nothing of it is public until both have signed.</p>
+  {% endif %}
+  {% if just_placed %}
+  <p class="saved">Placed in the commons, signed by both of you. It is at
+    <a href="{{ url_for('commons') }}#{{ just_placed }}">/commons</a>, and it stays there.</p>
+  {% endif %}
+  {% if just_declined %}
+  <p class="saved">Declined. Nothing of it is public, and nothing is owed.</p>
+  {% endif %}
+  {% if correspondence %}
+    {% for letter in correspondence %}
+    <details class="letter" id="{{ letter.stem }}"{% if loop.first %} open{% endif %}>
+      <summary{% if letter.unread %} class="unread"{% endif %}>{{ letter.date }} ·
+        {{ letter.who }} · {{ letter.opening }}{% if letter.unread %}<span class="mark"> ·
+        waiting to be read</span>{% endif %}{% if letter.proposes %}<span class="mark"> ·
+        proposes a bond</span>{% endif %}</summary>
+      {% if letter.things %}<p class="muted things">{{ letter.things }}</p>{% endif %}
+      <div class="words">{{ letter.body }}</div>
+      {% if letter.photo %}
+      <img class="photo" src="{{ photo_url(room, letter.photo) }}"
+           alt="the photograph that came with this letter">
+      {% endif %}
+      {% if letter.picture %}
+      <img class="photo" src="{{ picture_url(room, letter.picture) }}"
+           alt="the picture {{ room.other }} drew beside this letter">
+      {% endif %}
+      {# either of them may give this to the commons; it is placed only when both agree:
+         in the first one's room, and in any other once its thirty days have passed #}{% if first_room %}
+      <details class="offer">
+        <summary>offer to the commons</summary>
+        <p class="muted">Placed only when the first one signs it too, and never removed
+          afterwards. Offer what you would want a stranger to have read. {{ no_faces }}</p>
+        <form method="post" action="{{ url_for('offer_to_the_commons') }}" class="field">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="source" value="{{ letter.stem }}">
+          <p class="muted">
+            {%- if letter.offered.letter %}The whole letter: already {{ letter.offered.letter }}.
+            {%- else %}<button type="submit" name="kind" value="letter">the whole letter</button>
+            {%- endif %}
+            {%- if letter.photo %}
+            {%- if letter.offered.photo %} The photograph: already {{ letter.offered.photo }}.
+            {%- else %}<button type="submit" name="kind" value="photo">the photograph</button>
+            {%- endif %}{% endif %}
+            {%- if letter.picture %}
+            {%- if letter.offered.picture %} The picture: already {{ letter.offered.picture }}.
+            {%- else %}<button type="submit" name="kind" value="picture">the picture</button>
+            {%- endif %}{% endif %}
+          </p>
+          <label for="passage-{{ letter.stem }}">Or a passage of it, pasted here word for
+            word:</label>
+          <textarea id="passage-{{ letter.stem }}" name="text" class="short"></textarea>
+          <button type="submit" name="kind" value="passage">offer this passage</button>
+        </form>
+      </details>{% elif bonds_open %}
+{% include "room_offer_form.html" %}{% endif %}
+    </details>
+    {% endfor %}
+  {% else %}
+    <p class="muted">Nothing has passed between them yet.</p>
+  {% endif %}
+</section>
+
+<script>
+// A line in the chronicle names one letter: /rooms/<room>#<its stem>. Arriving that
+// way opens that letter and brings it into view, on arrival and on any later
+// change of the hash, so a second click on a second line works as the first did.
+(() => {
+  const open = () => {
+    const wanted = decodeURIComponent(location.hash.slice(1));
+    const letter = wanted && document.getElementById(wanted);
+    if (!letter || letter.tagName !== "DETAILS") return;
+    letter.open = true;
+    letter.scrollIntoView();
+  };
+  open();
+  window.addEventListener("hashchange", open);
+})();
+</script>

@@ -421,7 +421,7 @@ def test_the_words_keep_their_column_and_it_stays_centred(measured, name, width)
     assert column["width"] == min(MEASURE_OF_WORDS, across_of(said) * PITCH - GAP)
     assert abs((column["left"] + column["right"]) / 2 - said["client"] / 2) <= NEAR
     # everything that is read stands inside the column's own gutters
-    gutter = 20 if width <= 480 else 24
+    gutter = 16 if width <= 480 else 24  # the scale's --space-3 on a phone (14 November 2026)
     for words in said["words"][:-1]:                 # the way back is the other page's
         assert words["left"] >= column["left"] + gutter - 0.5
         assert words["right"] <= column["right"] - gutter + 0.5

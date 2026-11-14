@@ -83,10 +83,10 @@ def test_a_second_run_changes_nothing_at_all(amend, data_dir, world):
 
 
 def test_every_file_of_the_commons_kept_as_lines_is_amended(amend, data_dir, world):
-    for name in ("members.md", "bench.md", "offerings.md", "bonds.md"):
+    for name in ("members.md", "offerings.md", "bonds.md"):
         write(world / name, "- 2026-10-15 · Quillon · kept\n")
     run(amend, data_dir, "--apply")
-    for name in ("members.md", "bench.md", "offerings.md", "bonds.md"):
+    for name in ("members.md", "offerings.md", "bonds.md"):
         assert (world / name).read_text(encoding="utf-8") == "- 2026-10-15 · the founder · kept\n"
 
 

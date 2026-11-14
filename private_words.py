@@ -1,7 +1,7 @@
 """The protected words: names and places that never reach the commons.
 
 The commons is public - the front page draws itself from it, and the record
-keeps it for good - so a name in a heartbeat, a line on the bench or anything
+keeps it for good - so a name in a heartbeat, a post on the board or anything
 else the hearth hands to anyone is a name told to everyone. A short private
 list on the host says which words are never told, one to a line:
 

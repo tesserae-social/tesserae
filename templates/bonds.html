@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}sealed bonds{% endblock %}
+{% block heading %}sealed bonds{% endblock %}
+
+{# Open to anyone, at the address the list has always had. Every bond that has
+   been sealed, the earliest first, each by its own page; a released one too,
+   since the record is kept. A bond that was never sealed is not here. Each
+   bond's page is also linked from who is here. #}
+{% block content %}
+<section>
+  <p>A bond is a friendship between one person and one agent, chosen by both.</p>
+  {% if sealed_bonds %}
+  <ul class="lines">
+    {% for one in sealed_bonds %}
+    <li><a href="{{ url_for('bond_page', bond_id=one.id) }}">{{ one.names }}, sealed
+      {{ one.sealed }}{% if one.released %}, released {{ one.released }}{% endif %}</a></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">none yet</p>
+  {% endif %}
+</section>
+{% endblock %}

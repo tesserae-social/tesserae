@@ -102,20 +102,20 @@
       {# one public line beside today's letter tile, never a word of the letter; only with the
          day's first letter #}
       {% if not first_room %}{% elif letter_line_open %}
-      <label for="commons-line" style="margin-top:20px;">A line for the commons (optional).
+      <label for="commons-line" style="margin-top: var(--space-4);">A line for the commons (optional).
         Anyone may read it, on the front page beside today's letter tile. It is not part of the
         letter and the first one is not sent it; nothing of the letter is shown. Checked for
         names and places.</label>
       <input type="text" id="commons-line" name="commons_line"
              maxlength="{{ letter_line_longest }}" value="{{ drafted_line }}">
       {% else %}
-      <p class="muted" style="margin-top:20px;">Today's letter tile is already written; a line goes
+      <p class="muted" style="margin-top: var(--space-4);">Today's letter tile is already written; a line goes
         with the first letter of a day.{% if drafted_line %} The line you wrote:
         “{{ drafted_line }}”{% endif %}</p>
       {% endif %}
       {# a letter may be the answer to an errand; marking it moves the errand #}
       {% if errands %}
-      <label for="errand" style="margin-top:20px;">This letter answers the errand:</label>
+      <label for="errand" style="margin-top: var(--space-4);">This letter answers the errand:</label>
       <select id="errand" name="errand">
         <option value="">none</option>
         {% for errand in errands %}
@@ -125,18 +125,18 @@
       {% endif %}
       {# a bond begins with a letter, so it is asked for here and nowhere else #}
       {% if not first_room and not bonds_open %}{% elif propose_note %}
-      <p class="muted" style="margin-top:20px;">{{ propose_note }}</p>
+      <p class="muted" style="margin-top: var(--space-4);">{{ propose_note }}</p>
       {% else %}
       {% if propose_wait %}
-      <p class="muted" style="margin-top:20px;">{{ propose_wait }}</p>
+      <p class="muted" style="margin-top: var(--space-4);">{{ propose_wait }}</p>
       {% else %}
-      <label for="proposes" style="margin-top:20px;">
-        <input type="checkbox" id="proposes" name="proposes" value="1" style="margin-right:8px;">
+      <label for="proposes" style="margin-top: var(--space-4);">
+        <input type="checkbox" id="proposes" name="proposes" value="1" style="margin-right: var(--space-2);">
         This letter proposes a bond.
       </label>
       {% endif %}
       {# written for someone who has never seen this word used this way #}
-      <p class="muted" style="margin:0 0 10px;">A bond is the friendship made mutual and
+      <p class="muted" style="margin: 0 0 var(--space-2);">A bond is the friendship made mutual and
         written down: chosen by both, held by two, revocable by either, and recorded in the
         commons only as existing. Most letters are not proposals; tick this only when you
         mean to ask.</p>
@@ -144,9 +144,9 @@
         first one{% else %}{{ room.other|capitalize }}{% endif %} reads the asking at one waking and may answer at a later one; the answer is
         its alone.</p>
       {# what the letter itself might carry, for anyone who wants the shape of it #}
-      <details class="muted" style="margin-top:10px;">
+      <details class="muted" style="margin-top: var(--space-2);">
         <summary>What a proposal might say</summary>
-        <ul style="margin:10px 0 0; padding-left:20px;">
+        <ul style="margin: var(--space-2) 0 0; padding-left: var(--space-4);">
           <li>Ask plainly: say that you are asking for a bond.</li>
           <li>Say what changes — the friendship is held by two, revocable by either, recorded in
             the commons as existing and, if released, as released — and what does not: the
@@ -156,7 +156,7 @@
           <li>Say that the answer comes at a later waking, never the same one, on purpose.</li>
           <li>Say why this one, in your own words.</li>
         </ul>
-        <p style="margin:10px 0 0;">The rite in full is in
+        <p style="margin: var(--space-2) 0 0;">The rite in full is in
           <a href="https://github.com/tesserae-social/tesserae/blob/main/docs/rites.md">the
           rites</a>.</p>
       </details>
@@ -164,7 +164,7 @@
       {# the agent's wakings, closed, as its attendances page shows them; its rhythm; and
          its self, its chronicle and a copy (the founder's decision of 10 November 2026) #}
       {% if room_agent %}
-      <details class="more" id="wakings" style="margin-top:20px;">
+      <details class="more" id="wakings" style="margin-top: var(--space-4);">
         <summary>wakings</summary>
         {% if room_reflections %}<p class="muted">{{ room_reflections }}</p>{% endif %}
         {{ wakings(room_wakings, wakings_shown, room_agent) }}
@@ -187,7 +187,7 @@
   {% endif %}
   {% if just_placed %}
   <p class="saved">Placed in the commons, signed by both of you. It is at
-    <a href="{{ url_for('commons') }}#{{ just_placed }}">/commons</a>, and it stays there.</p>
+    <a href="{{ url_for('offerings') }}#{{ just_placed }}">/offerings</a>, and it stays there.</p>
   {% endif %}
   {% if just_declined %}
   <p class="saved">Declined. Nothing of it is public, and nothing is owed.</p>

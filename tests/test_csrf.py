@@ -57,9 +57,14 @@ def changing_routes(hearth):
     return found
 
 
-def bench_line(hearth, line="The lake was still this morning."):
-    hearth.place_line("2026-10-15", "a passerby", line)
-    return f"- 2026-10-15 · a passerby · {line}"
+def board_post(hearth, words="The lake was still this morning."):
+    """A topic in the place with one post, by someone else; its key. (The bench, where
+    these tests once left a line, was taken away on 14 November 2026.)"""
+    return hearth.board.start("place", "a-passerby", "A subject", words, "2026-10-15")
+
+
+def board_kept(hearth):
+    return [post["words"] for topic in hearth.board.read()["topics"] for post in topic["posts"]]
 
 
 # ---- the guard -----------------------------------------------------------
@@ -72,7 +77,8 @@ def test_every_post_without_a_token_is_refused_but_the_exempt(hearth, keeper):
     routes = changing_routes(hearth)
     endpoints = {endpoint for endpoint, _, _ in routes}
     # the walk found what it should: a sanity check on the walk, not the list
-    assert {"login", "logout", "letters", "seal_bond", "take_off_bench", "bench"} <= endpoints
+    assert {"login", "logout", "letters", "seal_bond", "board_take_down",
+            "board_section"} <= endpoints
 
     let_through = set()
     for endpoint, method, path in routes:
@@ -85,7 +91,7 @@ def test_every_post_without_a_token_is_refused_but_the_exempt(hearth, keeper):
 def test_nothing_the_founder_does_is_exempt(hearth):
     founders = {rule.endpoint for rule in hearth.app.url_map.iter_rules()
                 if getattr(hearth.app.view_functions[rule.endpoint], "__wrapped__", None)}
-    assert "take_off_bench" in founders
+    assert "seal_bond" in founders
     assert not founders & set(hearth.CSRF_EXEMPT)
 
 
@@ -105,17 +111,18 @@ def test_there_is_no_attend_button_to_post_to_even_with_its_token(founder, heart
     assert held == []
 
 
-def test_the_bench_take_off_with_its_token_takes_the_line_off(founder, hearth, commons):
-    raw = bench_line(hearth)
-    answer = post(founder, "/bench/take-off", data={"line": raw, "confirm": "yes"})
+def test_the_board_take_down_with_its_token_takes_the_post_down(founder, hearth, commons):
+    key = board_post(hearth)
+    answer = post(founder, "/board/take-down", data={"key": key, "n": "1", "confirm": "yes"})
     assert answer.status_code == 302
-    assert lines_of(commons / "bench.md") == []
+    assert board_kept(hearth) == [None]
 
 
-def test_the_bench_take_off_without_its_token_takes_nothing(founder, hearth, commons):
-    raw = bench_line(hearth)
-    assert refused(founder.post("/bench/take-off", data={"line": raw, "confirm": "yes"}))
-    assert lines_of(commons / "bench.md") == [raw]
+def test_the_board_take_down_without_its_token_takes_nothing(founder, hearth, commons):
+    key = board_post(hearth)
+    assert refused(founder.post("/board/take-down",
+                                data={"key": key, "n": "1", "confirm": "yes"}))
+    assert board_kept(hearth) == ["The lake was still this morning."]
 
 
 def a_keeper(hearth):
@@ -143,9 +150,9 @@ def test_the_token_may_come_as_a_header(founder, hearth):
 
 
 def test_every_form_on_the_founders_pages_carries_the_token(founder, hearth, commons):
-    bench_line(hearth)
+    key = board_post(hearth)
     held = token(founder)
-    for path in ("/", "/rooms/first", "/attendances", "/export", "/bench"):
+    for path in ("/", "/rooms/first", "/attendances", "/export", "/board/topic/" + key):
         said = page(founder.get(path))
         forms = said.count("<form")
         assert forms, path
@@ -208,27 +215,30 @@ def test_the_hearths_own_origin_is_taken(founder, packet):
     assert (packet / "tide-stop.json").exists()
 
 
-def test_a_foreign_origin_is_refused_at_the_bench_too(visitor, hearth, commons, monkeypatch):
+A_TOPIC = {"subject": "Mornings", "words": "A quiet morning."}
+
+
+def test_a_foreign_origin_is_refused_at_the_board_too(visitor, hearth, commons, monkeypatch):
     monkeypatch.setattr(hearth, "in_good_spirit", lambda line: True)
-    answer = visitor.post("/bench", data={"line": "A quiet morning."},
+    answer = visitor.post("/board/place", data=A_TOPIC,
                           headers={"Origin": "https://somewhere-else.example"})
     assert refused(answer)
-    assert lines_of(commons / "bench.md") == []
+    assert board_kept(hearth) == []
 
 
-def test_the_bench_takes_no_line_without_a_token(keeper, visitor, hearth, commons,
+def test_the_board_takes_no_post_without_a_token(keeper, visitor, hearth, commons,
                                                  monkeypatch):
     monkeypatch.setattr(hearth, "in_good_spirit", lambda line: True)
     for client in (keeper, visitor):
-        assert refused(client.post("/bench", data={"line": "A quiet morning."}))
-    assert lines_of(commons / "bench.md") == []
+        assert refused(client.post("/board/place", data=A_TOPIC))
+    assert board_kept(hearth) == []
 
 
-def test_the_bench_takes_a_members_line_with_its_token(keeper, hearth, commons, monkeypatch):
+def test_the_board_takes_a_members_post_with_its_token(keeper, hearth, commons, monkeypatch):
     monkeypatch.setattr(hearth, "in_good_spirit", lambda line: True)
-    answer = post(keeper, "/bench", data={"line": "A quiet morning."})
+    answer = post(keeper, "/board/place", data=A_TOPIC)
     assert answer.status_code == 302
-    assert len(lines_of(commons / "bench.md")) == 1
+    assert board_kept(hearth) == ["A quiet morning."]
 
 
 # ---- the token's life ----------------------------------------------------
@@ -310,7 +320,7 @@ def test_a_visitor_at_logout_is_sent_to_the_hearth_with_no_cookie(visitor):
 
 
 def test_the_founders_nav_signs_out_by_a_form_with_the_token(founder):
-    for path in ("/", "/rooms/first", "/bench"):
+    for path in ("/", "/rooms/first", "/board"):
         said = page(founder.get(path))
         assert the_way_out(founder) + "log out</button>" in said, path
         assert 'href="/logout"' not in said, path
@@ -327,17 +337,17 @@ def test_a_members_nav_signs_out_by_a_form_with_the_token(keeper, hearth):
         assert 'href="/logout"' not in said
 
 
-def test_at_the_bench_the_way_out_is_the_menu_s_and_the_footer_repeats_nothing(founder, keeper):
-    # for someone signed in the bench has nothing at its foot, so it has no footer
+def test_at_the_board_the_way_out_is_the_menu_s_and_the_footer_repeats_nothing(founder, keeper):
+    # for someone signed in the board has nothing at its foot, so it has no footer
     for client in (founder, keeper):
-        said = page(client.get("/bench"))
+        said = page(client.get("/board"))
         assert said.count(the_way_out(client) + "log out</button>") == 1
         assert "<footer>" not in said
         assert 'href="/login"' not in said
 
 
 def test_a_visitor_is_shown_log_in_and_no_way_out(visitor):
-    for path in ("/commons", "/bench"):
+    for path in ("/commons", "/board"):
         answer = visitor.get(path)
         said = page(answer)
         assert '<a href="/login">log in</a>' in said, path
@@ -346,7 +356,7 @@ def test_a_visitor_is_shown_log_in_and_no_way_out(visitor):
 
 
 def test_a_refusal_changes_nothing_and_shows_no_page_behind_it(founder, hearth, commons):
-    raw = bench_line(hearth)
-    answer = founder.post("/bench/take-off", data={"line": raw})
+    key = board_post(hearth)
+    answer = founder.post("/board/take-down", data={"key": key, "n": "1"})
     assert refused(answer)
-    assert "Take this line off the bench?" not in page(answer)
+    assert "Take this post down?" not in page(answer)

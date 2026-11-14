@@ -142,7 +142,8 @@ def test_no_route_a_visitor_can_reach_emails_anyone_but_the_three(hearth, watche
 def test_every_route_is_walked(hearth, watched):
     """The walk reads the url_map itself: a route added later is in it."""
     walked = {rule.endpoint for rule in hearth.app.url_map.iter_rules()}
-    assert {"bench", "board_page", "forgot", "room", "account", "witness_bond",
+    assert {"board_page", "board_section", "board_topic", "board_take_down", "forgot", "room",
+            "account", "witness_bond",
             "propose_weekly_question", "my_introduction"} <= walked
 
 
@@ -178,5 +179,6 @@ def test_the_watch_sees_a_member_s_line_go_to_a_model(hearth, watched):
     """So that a walk that saw nothing saw nothing because there was nothing."""
     client = hearth.app.test_client()
     post(client, "/login", data={"pseudonym": MEMBER, "password": MEMBER_PASSWORD})
-    post(client, "/bench", data={"line": "A kind word on a quiet day."})
+    post(client, "/board/place", data={"subject": "A quiet day",
+                                       "words": "A kind word on a quiet day."})
     assert watched.reached

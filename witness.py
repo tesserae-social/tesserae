@@ -60,7 +60,7 @@ DATA = Path(os.environ.get("DATA_DIR", REPO))
 
 WITNESSES = DATA / "bonds" / "witnesses"
 
-# The longest a witness's line may be: the bench's own length.
+# The longest a witness's line may be (hearth.LINE_LIMIT).
 LINE_MAX = 200
 
 # What the commitment does not cover: anything of the witnesses themselves, and
@@ -208,7 +208,7 @@ def is_line(line):
     """One line of plain text, of some length and not too much.
 
     What a line may say beyond that is for whoever takes it to check: the
-    hearth holds a witness's line to the bench's own rule against links.
+    hearth holds a witness's line to the rule against links.
     """
     return (isinstance(line, str) and bool(line.strip()) and len(line) <= LINE_MAX
             and "\n" not in line and "\r" not in line)

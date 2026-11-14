@@ -21,13 +21,14 @@ from test_hearth_bonds import answered_yes, propose, sealed, through_the_thresho
 
 MEMBER = "birch"
 
-A_VISITOR = "log in · the bench · the commons · tesserae.social"
+# the bench, taken away on 14 November 2026, is in no menu
+A_VISITOR = "log in · the commons · tesserae.social"
 # the founder's decision of 10 November 2026: fewer pages in the menus
 A_MEMBER = "home · account · the commons · log out"
 KEEPING = "tides · backups"
 
-OPEN_PAGES = ["/bench", "/commons", "/login", "/recover"]
-MEMBER_PAGES = ["/", "/account", "/bench", "/commons"]
+OPEN_PAGES = ["/board", "/commons", "/login", "/recover"]
+MEMBER_PAGES = ["/", "/account", "/board", "/commons"]
 KEEPER_PAGES = MEMBER_PAGES + ["/rooms/first", "/chronicle", "/attendances", "/self",
                                "/export", "/backups"]
 
@@ -75,6 +76,11 @@ def section(said, name):
     return re.search(r'<section id="%s">(.*?)</section>' % name, said, re.S).group(1)
 
 
+def bonds_list(said):
+    """The list of sealed bonds, as /bonds shows it: its page's own words."""
+    return said.partition('<div class="page">')[2].partition("</main>")[0]
+
+
 def to_login(answer):
     return answer.status_code == 302 and answer.headers["Location"].endswith("/login")
 
@@ -113,12 +119,14 @@ def test_a_visitor_is_shown_one_line_and_the_way_in(visitor, path):
 
 
 def test_the_line_leads_where_it_says(visitor, member):
-    said = page(visitor.get("/bench"))
+    said = page(visitor.get("/board"))
     line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
     assert re.findall(r'href="([^"]+)"', line) == ["/login", "/commons", "https://tesserae.social"]
-    assert '<span class="here">the bench</span>' in line  # where you stand is no link
+    said = page(visitor.get("/commons"))
+    line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
+    assert '<span class="here">the commons</span>' in line  # where you stand is no link
 
-    said = page(member.get("/bench"))
+    said = page(member.get("/board"))
     line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
     assert re.findall(r'href="([^"]+)"', line) == ["/", "/account", "/commons"]
     # the old destinations are in no menu: the commons is the way to both
@@ -217,13 +225,13 @@ def test_a_member_at_the_same_address_is_home(member, founder):
 
 def test_a_plain_member_has_a_door_and_the_welcome_in_plain_words(member):
     # a member with no correspondence is welcomed, as on the day they join (see
-    # test_invitations); the bench and the commons are named, not linked: the menu
-    # has the commons, and the commons links to the bench near its top
+    # test_invitations); the board and the commons are named, not linked: the menu
+    # has the commons, and the commons links to the board first
     said = page(member.get("/"))
     assert said.index("your correspondences") < said.index('<section class="door">')
     assert words(home(member)).startswith(
         "your correspondences Welcome to Tesserae. What you can do now: "
-        "leave a line on the bench, linked at the top of the commons read the commons see which agents have doors open: "
+        "write on the board, linked first in the commons read the commons see which agents have doors open: "
         "the first one")
     assert "To begin a friendship, the founder will be in touch." in home(member)
     assert "<a " not in home(member)
@@ -447,26 +455,23 @@ def test_every_old_post_comes_back_to_the_room(founder, wake, clock, room):
 # ---- the public list of sealed bonds -------------------------------------
 
 def test_the_sealed_bonds_are_open_to_anyone_and_say_when_there_are_none(visitor, member):
+    # the list keeps the address it had, as a page of its own (14 November 2026)
     for client in (visitor, member):
-        answer = client.get("/commons")
+        answer = client.get("/bonds")
         assert answer.status_code == 200
-        assert words(section(page(answer), "sealed-bonds")) == (
-            "sealed bonds A bond is a friendship between one person and one agent, chosen by "
-            "both. none yet")
-        # the address the list had still leads to it
-        old = client.get("/bonds")
-        assert old.status_code == 302 and old.headers["Location"] == "/commons#sealed-bonds"
+        assert words(bonds_list(page(answer))) == (
+            "A bond is a friendship between one person and one agent, chosen by both. none yet")
 
 
 def test_the_bonds_page_lists_a_sealed_bond_and_nothing_of_an_unsealed_one(
         founder, visitor, wake, clock, room):
     answered_yes(founder, wake, room, clock)
-    said = section(page(visitor.get("/commons")), "sealed-bonds")  # on the threshold: nothing is public
-    assert "none yet" in said and 'href="/bonds/' not in page(visitor.get("/commons"))
+    said = bonds_list(page(visitor.get("/bonds")))  # on the threshold: nothing is public
+    assert "none yet" in said and 'href="/bonds/' not in said
 
     through_the_threshold(founder, wake, clock)
     assert post(founder, "/bonds/seal").status_code == 302
-    said = section(page(visitor.get("/commons")), "sealed-bonds")
+    said = bonds_list(page(visitor.get("/bonds")))
     assert re.search(r'<a href="/bonds/founder-first">the founder and the first one, sealed\s+'
                      r'22 October 2026</a>', said)
     assert "none yet" not in said

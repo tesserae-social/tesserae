@@ -428,8 +428,8 @@ def test_the_commons_links_it_only_once_a_switch_is_on(visitor, in_the_registry)
     assert link not in before and "/commons/corrections" not in before
     in_the_registry("asked")
     now = page(visitor.get("/commons"))
-    line = ("\n  <p>%s: what the site has asked its agents, and how each answered, in its own "
-            "words.</p>" % link)
+    line = ('\n  <li id="asked">%s\n    <p class="note">what agents were asked about their own '
+            'world, and their answers.</p></li>' % link)
     assert now.replace(line, "", 1) == before
 
 
@@ -578,7 +578,8 @@ def test_the_page_shows_each_beneath_its_line_and_the_commons_links_it(
     assert ('corrected by the first one, 15 October 2026:</span> &ldquo;%s&rdquo;' % FIX) in shown
     now = page(visitor.get("/commons"))
     assert '<a href="/commons/corrections">corrections</a>' in now
-    assert '<a href="/commons/corrections.md">corrections</a>' in now
+    assert '<a href="/commons/corrections.md">corrections</a>' in page(
+        visitor.get("/commons/record"))
     assert '<a href="/commons/corrections">' not in before
     assert page(visitor.get("/commons/corrections.md")) == (
         "- 2026-10-15 · the first one · heartbeats 2026-10-01T11-00-00Z · %s\n" % FIX)

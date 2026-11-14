@@ -38,8 +38,8 @@ def test_anyone_may_read_the_ledger(visitor):
 
 def test_the_commons_links_to_it(visitor):
     shown = page(visitor.get("/commons"))
-    assert '<a href="/commons/ledger">the ledger</a>: one plain line for every serious act' \
-        in shown
+    assert ('<li id="the-ledger"><a href="/commons/ledger">the ledger</a>\n    <p class="note">'
+            'one line for each serious act of the site itself.</p></li>') in shown
 
 
 def test_the_founding_and_the_word_are_on_it_from_the_record(visitor):
@@ -59,20 +59,20 @@ def test_only_the_sites_own_acts_are_read_from_events(visitor, commons):
                      "2026-10-18 · seal · a bond was sealed between the founder and the first one\n"
                      "2026-10-19 · event · some heartbeat words were amended to keep private "
                      "names private\n"
-                     "2026-10-20 · event · a line was taken off the bench\n"
+                     "2026-10-20 · event · a line was taken off the bench\n"  # no longer read
                      "2026-10-21 · offering · the first one · an offering was placed\n")
     assert [words for _, words in shown_lines(visitor.get("/commons/ledger"))] == [
         "the word was published",
         "the first one was founded",
         "some heartbeat words were amended to keep private names private",
-        "a line was taken off the bench",
     ]
 
 
 def test_the_words_it_reads_are_the_words_written(hearth):
     import amend_public_words
-    assert hearth.ledger.TAKEN_OFF == hearth.TAKEN_OFF
     assert hearth.ledger.AMENDED == amend_public_words.AMENDED
+    # the bench is gone (14 November 2026), and its line is read no more
+    assert not hasattr(hearth.ledger, "TAKEN_OFF") and not hasattr(hearth, "TAKEN_OFF")
 
 
 # ---- stops ---------------------------------------------------------------
@@ -120,7 +120,7 @@ def test_a_members_key_replaced_is_said_of_no_one_by_name(hearth, visitor, monke
     assert "birch" not in shown
 
 
-# ---- the bench -----------------------------------------------------------
+# ---- a line held back: a post on the board -----------------------------------
 
 @pytest.fixture
 def member(hearth, monkeypatch):
@@ -145,9 +145,10 @@ def reader_saying(hearth, monkeypatch, says=None, breaks=False):
 def test_a_line_the_reader_holds_back_is_said_and_nothing_of_it(hearth, member, visitor,
                                                                  monkeypatch):
     reader_saying(hearth, monkeypatch, "NO")
-    post(member, "/bench", data={"line": "A line the reader will not have."})
+    post(member, "/board/place", data={"subject": "A subject",
+                                        "words": "A line the reader will not have."})
     shown = page(visitor.get("/commons/ledger"))
-    assert "a line was held back from the bench" in shown
+    assert "a line was held back" in shown and "bench" not in shown
     assert "will not have" not in shown and "birch" not in shown
 
 
@@ -155,13 +156,15 @@ def test_a_line_the_screen_holds_back_is_said(hearth, member, visitor, monkeypat
     import public_screen
     reader_saying(hearth, monkeypatch, "YES")
     monkeypatch.setattr(public_screen, "verdict", lambda text: public_screen.FLAGGED)
-    post(member, "/bench", data={"line": "A line the screen will not have."})
-    assert "a line was held back from the bench" in page(visitor.get("/commons/ledger"))
+    post(member, "/board/place", data={"subject": "A subject",
+                                        "words": "A line the screen will not have."})
+    assert "a line was held back" in page(visitor.get("/commons/ledger"))
 
 
 def test_a_reader_that_could_not_be_asked_held_nothing_back(hearth, member, visitor, monkeypatch):
     reader_saying(hearth, monkeypatch, breaks=True)
-    post(member, "/bench", data={"line": "A line no one could read."})
+    post(member, "/board/place", data={"subject": "A subject",
+                                        "words": "A line no one could read."})
     assert "a line was held back" not in page(visitor.get("/commons/ledger"))
 
 
@@ -169,7 +172,8 @@ def test_a_line_placed_is_not_on_it(hearth, member, visitor, monkeypatch):
     import public_screen
     reader_saying(hearth, monkeypatch, "YES")
     monkeypatch.setattr(public_screen, "verdict", lambda text: public_screen.CLEAR)
-    post(member, "/bench", data={"line": "The lake was still this morning."})
+    post(member, "/board/place", data={"subject": "A subject",
+                                        "words": "The lake was still this morning."})
     assert len(shown_lines(visitor.get("/commons/ledger"))) == 2
 
 

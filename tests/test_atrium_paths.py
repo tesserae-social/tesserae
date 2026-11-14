@@ -43,8 +43,7 @@ from conftest import JSDOM_HOME, NODE_ENV, NOW, REPO, write
 
 NODE = shutil.which("node")
 
-REGIONS = ["mosaic", "reading", "offering", "who", "calendar",
-           "bench"]
+REGIONS = ["mosaic", "reading", "offering", "who", "calendar"]
 
 # and what the two of them write on the whole mosaic's own page
 WHOLE_REGIONS = ["whole", "reading"]
@@ -208,7 +207,7 @@ def offerings(data_dir, index=OFFERINGS, records=RECORDS):
               json.dumps(record, indent=2) + "\n")
 
 
-def a_record(data_dir, bench="", members=MEMBERS, offered=""):
+def a_record(data_dir, members=MEMBERS, offered=""):
     """One commons, with a little of everything in it.
 
     Every file the page asks the hearth for is written, even where it is empty:
@@ -240,7 +239,6 @@ def a_record(data_dir, bench="", members=MEMBERS, offered=""):
           "- 2026-10-16T04-00-00Z · the first one · attended a second after\n"
           "- 2026-10-09T09-00-00Z · the first one attended, out of order\n"
           "not a heartbeat\n")
-    write(data_dir / "commons" / "bench.md", bench)
     write(data_dir / "commons" / "members.md", members)
 
 
@@ -256,8 +254,7 @@ def titles_of(said):
 
 
 def test_both_paths_draw_the_same_atrium(atrium, data_dir, monkeypatch, tmp_path):
-    a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still · and quiet\n"
-                             "- 2026-10-02 · <em>me</em> · <b>hello</b>\n")
+    a_record(data_dir)
     offerings(data_dir)
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     for name in REGIONS:
@@ -313,10 +310,9 @@ def main_of(page):
     return GAP.sub(" ", found.group())
 
 
-@pytest.mark.parametrize("bench", ["", "- 2026-10-01 · Mira · the lake was still\n"])
-def test_both_paths_draw_the_same_page_entire(atrium, data_dir, monkeypatch, tmp_path, bench):
+def test_both_paths_draw_the_same_page_entire(atrium, data_dir, monkeypatch, tmp_path):
     """Not the marked regions alone: the name, the menu, the intro and the foot besides."""
-    a_record(data_dir, bench=bench)
+    a_record(data_dir)
     offerings(data_dir)
     built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
     assert main_of(drawn) == main_of(built)
@@ -325,7 +321,7 @@ def test_both_paths_draw_the_same_page_entire(atrium, data_dir, monkeypatch, tmp
 def test_both_paths_leave_the_menu_and_the_question_alone(atrium, data_dir, monkeypatch,
                                                           tmp_path):
     """Neither is inside a marker: the menu stands as written, and the question stays closed."""
-    a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still\n")
+    a_record(data_dir)
     built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
     menu = re.compile(r'<nav class="menu".*?</nav>', re.S)
     for said in (built, drawn):
@@ -343,11 +339,10 @@ def test_both_paths_leave_the_menu_and_the_question_alone(atrium, data_dir, monk
 
 
 def test_neither_path_writes_an_em_dash(atrium, data_dir, monkeypatch, tmp_path):
-    a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still\n")
+    a_record(data_dir)
     offerings(data_dir)
     built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
     assert "—" not in built and "—" not in drawn
-    assert "the visitor's bench" in drawn
 
 
 @pytest.mark.parametrize("stamp, season", [
@@ -367,12 +362,6 @@ def test_both_paths_reckon_the_season_from_today(atrium, data_dir, clock, monkey
     assert there["calendar"].startswith('<p class="calendar">it is %s · ' % season)
 
 
-def test_both_paths_agree_on_an_empty_bench(atrium, data_dir, monkeypatch, tmp_path):
-    a_record(data_dir, bench="")
-    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
-    assert here["bench"] == there["bench"] == ""
-
-
 def test_an_empty_record_is_where_the_two_paths_part(atrium, data_dir, monkeypatch, tmp_path):
     """A record with nothing in it is the one place they answer differently, on purpose.
 
@@ -381,7 +370,7 @@ def test_an_empty_record_is_where_the_two_paths_part(atrium, data_dir, monkeypat
     record with nothing in it is a hearth that has gone quiet, and what was baked
     into the page stands rather than the atrium emptying itself.
     """
-    for name in ("events.md", "heartbeats.md", "bench.md", "members.md", "offerings.md"):
+    for name in ("events.md", "heartbeats.md", "members.md", "offerings.md"):
         write(data_dir / "commons" / name, "")
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
 
@@ -395,7 +384,7 @@ def test_an_empty_record_is_where_the_two_paths_part(atrium, data_dir, monkeypat
 
 def test_the_browser_path_leaves_the_page_alone_when_the_hearth_is_quiet(tmp_path, data_dir):
     """A hearth that cannot be reached changes nothing: what was baked in stands."""
-    for name in ("events.md", "heartbeats.md", "bench.md", "members.md", "offerings.md"):
+    for name in ("events.md", "heartbeats.md", "members.md", "offerings.md"):
         (data_dir / "commons" / name).unlink(missing_ok=True)
     harness = write(tmp_path / "harness.js", HARNESS.replace(
         "ok: body !== undefined", "ok: false"))  # a hearth that answers nothing at all
@@ -410,7 +399,7 @@ def test_the_browser_path_leaves_the_page_alone_when_the_hearth_is_quiet(tmp_pat
 
 def test_the_harness_shows_what_it_compared(atrium, data_dir, monkeypatch, tmp_path):
     """The two paths are compared on real markup, not on nothing at all."""
-    a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still\n")
+    a_record(data_dir)
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     for said in (here, there):
         # nine days carry the twelve tiles; the other thirty-six of the run are holes
@@ -424,7 +413,6 @@ def test_the_harness_shows_what_it_compared(atrium, data_dir, monkeypatch, tmp_p
         assert shown[-1] == "2 September 2026 · the word was published"
         assert said["reading"] == '<p class="reading">%s</p>' % shown[0]
         assert "tile-word" in said["mosaic"] and "tile-seal" in said["mosaic"]
-        assert "the visitor's bench" in said["bench"]
         # a waking at dawn says so, and no other says a part of the day (10 November 2026)
         assert "waking at dawn" in said["mosaic"] and "waking · " in said["mosaic"]
         assert "waking at night" not in said["mosaic"]
@@ -459,7 +447,7 @@ def test_both_paths_shrink_the_tiles_alike_as_the_record_grows(atrium, data_dir,
     That is the whole mosaic's page. The front page's tiles are one size however
     long the record runs, and it shows the last year of it and no more.
     """
-    for name in ("heartbeats.md", "bench.md", "members.md", "offerings.md"):
+    for name in ("heartbeats.md", "members.md", "offerings.md"):
         write(data_dir / "commons" / name, "")
     write(data_dir / "commons" / "events.md",
           "%s · event · a long time ago\n"
@@ -490,7 +478,7 @@ def test_both_paths_shrink_the_tiles_alike_as_the_record_grows(atrium, data_dir,
 
 def a_long_record(data_dir, first):
     """One plain event a day from a day long past to today, and nothing else."""
-    for name in ("heartbeats.md", "bench.md", "members.md", "offerings.md"):
+    for name in ("heartbeats.md", "members.md", "offerings.md"):
         write(data_dir / "commons" / name, "")
     day, lines = datetime.date.fromisoformat(first), []
     while day <= datetime.date(2026, 10, 15):
@@ -540,7 +528,7 @@ def test_laying_the_frame_writes_nothing_into_the_page(atrium, data_dir, monkeyp
 # ---- the whole mosaic's own page, on both paths ----------------------------
 
 def test_both_paths_draw_the_same_whole_mosaic(atrium, data_dir, monkeypatch, tmp_path):
-    a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still\n")
+    a_record(data_dir)
     offerings(data_dir)
     write(data_dir / "commons" / "bonds.md",
           "2026-10-08 · founder-first · the founder and the first one · sealed\n")
@@ -602,7 +590,7 @@ def test_both_paths_label_each_year_of_the_whole_mosaic(atrium, data_dir, monkey
 
 
 def test_the_whole_mosaic_stands_as_baked_when_the_hearth_is_quiet(tmp_path, data_dir):
-    for name in ("events.md", "heartbeats.md", "bench.md", "members.md", "offerings.md"):
+    for name in ("events.md", "heartbeats.md", "members.md", "offerings.md"):
         (data_dir / "commons" / name).unlink(missing_ok=True)
     harness = write(tmp_path / "harness.js", HARNESS.replace(
         "ok: body !== undefined", "ok: false"))
@@ -661,7 +649,7 @@ def test_both_paths_keep_the_founder_s_line_beside_a_letter(atrium, data_dir,
 
 def test_both_paths_read_out_a_letter_as_the_newest_tile(atrium, data_dir, monkeypatch,
                                                          tmp_path):
-    for name in ("heartbeats.md", "bench.md", "members.md", "offerings.md"):
+    for name in ("heartbeats.md", "members.md", "offerings.md"):
         write(data_dir / "commons" / name, "")
     write(data_dir / "commons" / "events.md",
           "2026-10-15 · letter · the founder wrote a letter in the evening\n")
@@ -742,7 +730,7 @@ RELEASED = ("2026-10-08 · founder-first · the founder and the first one · "
 @pytest.mark.parametrize("listed", [SEALED, RELEASED])
 def test_both_paths_draw_a_bond_s_tile_and_its_halves(atrium, data_dir, monkeypatch, tmp_path,
                                                       listed):
-    a_record(data_dir, bench="- 2026-10-01 · Mira · the lake was still\n")
+    a_record(data_dir)
     offerings(data_dir)
     write(data_dir / "commons" / "bonds.md", listed)
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))

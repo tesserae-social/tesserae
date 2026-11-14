@@ -143,14 +143,6 @@ def test_a_dated_line_that_is_not_a_day_is_passed_over(atrium):
         (datetime.date(2026, 10, 10), "the first one · yes")]
 
 
-def test_a_line_of_the_bench_keeps_the_visitor_s_own_middot(atrium):
-    read = atrium.parse_bench(stamps(
-        "- 2026-10-01 · Mira · stillness · and then the lake",
-        "- 2026-10-02 · a passerby · ",
-        "- nonsense · a passerby · a line"))
-    assert read == [(datetime.date(2026, 10, 1), "stillness · and then the lake", "Mira")]
-
-
 # ---- the hour a waking fell on -------------------------------------------
 
 @pytest.mark.parametrize("hour, part", [
@@ -412,33 +404,6 @@ def test_an_empty_record_draws_an_empty_mosaic(atrium):
     assert atrium.reading_text([]) == ""
     assert atrium.reading_block([]) == ['<p class="reading"></p>']
     assert atrium.frame_block([]) == ['<ul class="mosaic" aria-label="the mosaic">', "</ul>"]
-
-
-# ---- the bench, and the way to it ----------------------------------------
-
-def test_an_empty_bench_is_no_section_at_all(atrium):
-    assert atrium.bench_block([]) == []
-
-
-def test_a_bench_with_lines_shows_them_and_no_way_to_leave_one(atrium):
-    lines = atrium.parse_bench("- 2026-10-01 · Mira · the lake was still\n")
-    drawn = atrium.bench_block(lines)
-    assert drawn[0] == '<section class="bench">'
-    assert "  <h2>the visitor's bench</h2>" in drawn
-    assert ('    <li><span class="when">1 October 2026</span> · the lake was still '
-            "· Mira</li>") in drawn
-    # only a member may leave a line, and does so at the hearth, so the front page
-    # offers no way to
-    assert not any("Leave a line" in line or "/bench" in line for line in drawn)
-    assert drawn[-2:] == ["  </ul>", "</section>"]
-    assert not hasattr(atrium, "BENCH_URL")
-
-
-def test_what_a_visitor_wrote_is_escaped_on_the_bench(atrium):
-    lines = atrium.parse_bench("- 2026-10-01 · <em>me</em> · <b>hello</b>\n")
-    drawn = "".join(atrium.bench_block(lines))
-    assert "&lt;b&gt;hello&lt;/b&gt;" in drawn
-    assert "&lt;em&gt;me&lt;/em&gt;" in drawn
 
 
 # ---- who is here ---------------------------------------------------------
@@ -778,15 +743,15 @@ def test_the_atrium_is_rebuilt_from_the_commons(atrium, data_dir, monkeypatch, c
 
     page = atrium.page_path.read_text(encoding="utf-8")
     assert "the first one · attended; wrote a letter" in page
-    assert '<section class="bench">' in page
-    assert "the lake was still" in page
+    # the bench is gone (14 November 2026): a file of it left on the disk is not read
+    assert "bench" not in page.split("<script>")[0] and "the lake was still" not in page
     # no key to the colours, on either page: the tiles say what they are themselves
     for said in (page, atrium.whole_path.read_text(encoding="utf-8")):
         assert '<p class="caption">' not in said and '<p class="legend">' not in said
     assert "so far" not in page and "as of" not in page
     said = capsys.readouterr().out
     assert ("3 tiles in 44 slots at 34px (2 events, 1 attendances, 0 offerings), "
-            "1 on the bench, 0 here") in said
+            "0 here") in said
     assert "44 slots on the front page" in said
 
 
@@ -823,10 +788,8 @@ def test_the_atrium_has_no_em_dash_anywhere():
 
 
 def test_nothing_the_builder_writes_has_an_em_dash(atrium, data_dir, monkeypatch):
-    write(data_dir / "commons" / "bench.md", "- 2026-10-01 · Mira · the lake was still\n")
     monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
     atrium.main()
-    assert '<section class="bench">' in atrium.page_path.read_text(encoding="utf-8")
     assert EM_DASH not in atrium.page_path.read_text(encoding="utf-8")
 
 
@@ -946,7 +909,7 @@ TYPE_SCALE = {
     "h1": {"font-size": "2rem", "font-weight": "600", "color": "var(--ink)"},
     "h2": {"font-size": "1.3rem", "font-weight": "400", "color": "var(--ink-soft)",
            "letter-spacing": "0.06em", "text-transform": "lowercase",
-           "margin": "2.75rem 0 0.75rem"},
+           "margin": "var(--space-5) 0 var(--space-3)"},
 }
 
 # the four sizes the atrium is set in, and nothing else. The documents wear this
@@ -1018,16 +981,73 @@ def test_only_the_section_label_is_tracked_out():
 
 @pytest.mark.parametrize("path", [STYLE, BASE], ids=["atrium", "hearth"])
 def test_the_rhythm_between_sections_is_one_measure(path):
-    """Everything at the top level stands 64px off what came before it."""
+    """Everything at the top level stands the scale's 64px off what came before it."""
     rules = stylesheet(path)
-    assert rules["section"]["margin-top"] == "64px", path.name
-    assert rules["footer"]["margin-top"] == "64px", path.name
+    assert rules["section"]["margin-top"] == "var(--space-6)", path.name
+    assert rules["footer"]["margin-top"] == "var(--space-6)", path.name
+
+
+# The one spacing scale (the founder's request of 14 November 2026): kept once, in
+# style.css between its markers, and drawn by the hearth into base.html; every gap
+# and margin on every page is one of its steps. A control's own inner padding (a
+# field, a button, a notice), the mosaic's tiles and the gap between them, and the
+# 3px that sets a chronicle's mark on its line are drawing, not gaps, and keep theirs.
+SCALE = {"--space-1": "4px", "--space-2": "8px", "--space-3": "16px", "--space-4": "24px",
+         "--space-5": "40px", "--space-6": "64px", "--space-7": "96px"}
+NOT_GAPS = {".book .mark", "input[type=\"text\"], input[type=\"password\"], input[type=\"date\"]",
+            "select", "button", "button.small", ".saved, .error", ".mosaic", ".frame",
+            "button.as-link, button.as-link:hover, button.as-link:focus"}
+ON_THE_SCALE = re.compile(r"^(0|auto|var\(--space-\d\)|var\(--gap\)|var\(--gap, 4px\))$")
+
+
+def test_the_one_spacing_scale_is_kept_once_and_drawn_at_the_hearth(hearth):
+    sheet = STYLE.read_text(encoding="utf-8").replace("\r\n", "\n")
+    block = sheet[sheet.index("  /* spacing:start */"):
+                  sheet.index("  /* spacing:end */") + len("  /* spacing:end */")]
+    assert stylesheet(STYLE)[":root"].items() >= SCALE.items()
+    assert str(hearth.SPACING) == block
+    assert "{{ spacing }}" in BASE.read_text(encoding="utf-8")
+    shown = hearth.app.test_client().get("/login").get_data(as_text=True)
+    assert block in shown
+
+
+@pytest.mark.parametrize("path", [STYLE, BASE], ids=["atrium", "hearth"])
+def test_every_gap_is_a_step_of_the_scale(path):
+    for selector, said in stylesheet(path).items():
+        if selector in NOT_GAPS:
+            continue
+        for name, value in said.items():
+            if not name.startswith(("margin", "padding", "gap")):
+                continue
+            for part in value.split():
+                assert ON_THE_SCALE.match(part), "%s: %s %s: %s" % (path.name, selector, name, value)
+
+
+def test_every_page_begins_the_same_space_below_the_menu():
+    """Home, account, the commons, /tides and /backups alike: the content is drawn in one
+    wrapper, whatever it begins with, and the wrapper keeps the rhythm's own space."""
+    rules = stylesheet(BASE)
+    assert rules[".page"] == {"margin-top": "var(--space-6)"}
+    assert rules[".page > :first-child"] == {"margin-top": "0"}
+    base = BASE.read_text(encoding="utf-8")
+    assert '<div class="page">\n  {% block content %}{% endblock %}\n  </div>' in base.replace(
+        "\r\n", "\n")
+
+
+def test_the_main_page_s_sections_keep_one_rhythm():
+    """Who is here stands as far below the reading line as the reading line below the
+    intro: no section of the column keeps a larger gap of its own."""
+    rules = stylesheet(STYLE)
+    assert rules[".frame .column section"] == {"margin-top": "var(--space-3)"}
+    assert rules[".reading"]["margin"] == "var(--space-3) 0 0"  # the same
+    assert rules[".frame .column section > h2:first-child"] == {"margin-top": "0"}
 
 
 def test_the_intro_and_the_offering_keep_the_page_s_rhythm():
     rules = stylesheet(STYLE)
     # the intro sits under the name at the paragraphs' own gap, and no more
-    assert rules[".intro"]["margin-top"] == rules[".intro p"]["margin"].split()[2] == "1.1rem"
+    assert rules[".intro"]["margin-top"] == rules[".intro p"]["margin"].split()[2] == \
+        "var(--space-3)"
     # the offering is a section, so the section's rhythm is the whole of what it
     # gets: no margin of its own to fall out of step with
     assert ".offered" not in rules
@@ -1072,7 +1092,7 @@ def test_the_whole_mosaic_stands_in_a_band_of_rows_as_long_as_they_need(atrium):
     assert frame["width"] == "100%"
     for gone in ("height", "max-height", "max-width", "overflow-y", "overflow"):
         assert gone not in frame, gone
-    assert rules[".band"] == {"margin": "24px 16px 0"}
+    assert rules[".band"] == {"margin": "var(--space-4) var(--space-3) 0"}
     assert atrium.FRAME_WIDTH // atrium.FRAME_HEIGHT == 3
 
 
@@ -1081,10 +1101,10 @@ def test_the_frame_is_a_grid_the_tiles_and_the_words_share():
     rules = stylesheet(STYLE)
     # the atrium's main is the window's width, and the frame stands in it with a
     # small even margin at either side, from the page's own top corner
-    assert rules[".atrium main"] == {"max-width": "none", "padding-top": "16px",
+    assert rules[".atrium main"] == {"max-width": "none", "padding-top": "var(--space-3)",
                                      "padding-left": "0", "padding-right": "0"}
     frame = rules[".frame"]
-    assert frame["margin"] == "0 16px"
+    assert frame["margin"] == "0 var(--space-3)"
     assert frame["display"] == "grid"
     assert frame["grid-template-columns"] == "repeat(auto-fill, var(--tile))"
     assert frame["grid-auto-rows"] == "minmax(var(--tile), auto)"
@@ -1098,10 +1118,10 @@ def test_the_frame_is_a_grid_the_tiles_and_the_words_share():
     assert column["grid-row"] == "3 / span var(--down, 1)"
     # the column is what main was: the same measure, centred, the same gutters
     assert rules[".column"] == {"width": "100%", "max-width": "600px", "margin": "0 auto",
-                                "padding": "0 24px"}
+                                "padding": "0 var(--space-4)"}
     assert column["justify-self"] == "center"
     assert rules["main"]["max-width"] == "600px"      # a document's column is as it was
-    assert rules["main"]["padding"] == "72px 24px 96px"
+    assert rules["main"]["padding"] == "var(--space-6) var(--space-4) var(--space-7)"
     assert "max-width" not in rules[".intro"] and "width" not in rules[".intro"]
     # the way to the rest is a row of its own, in the column's measure
     assert rules[".rest"]["grid-column"] == "1 / -1"
@@ -1109,9 +1129,10 @@ def test_the_frame_is_a_grid_the_tiles_and_the_words_share():
 
     css = COMMENT.sub("", STYLE.read_text(encoding="utf-8"))
     narrow = re.search(r"@media \(max-width: 480px\) \{(.*?)\n  \}", css, re.S).group(1)
-    assert "main { padding: 48px 20px 72px; }" in narrow
-    # the gutters a narrow page draws in
-    assert ".column, .rest { padding-left: 20px; padding-right: 20px; }" in narrow
+    assert "main { padding: var(--space-5) var(--space-3) var(--space-6); }" in narrow
+    # the gutters a narrow page draws in: the scale's 16px (14 November 2026)
+    assert (".column, .rest { padding-left: var(--space-3); padding-right: var(--space-3); }"
+            in narrow)
 
 
 def test_the_front_page_s_tile_is_one_size_in_all_three_places(atrium):
@@ -1164,7 +1185,7 @@ def test_the_frame_holds_one_column_of_words_then_the_tiles_then_the_way_on():
     for stop in ("<header>", '<nav class="menu"', '<div class="intro">', "<details>",
                  '<p class="reading">',
                  "<!-- offering:start -->", '<section class="who">', '<p class="calendar">',
-                 "<!-- bench:start -->", "<footer>"):
+                 "<footer>"):
         assert words.count(stop) == 1, stop
     # the reading line is directly under the sentence and its question, and no
     # key follows it: the tiles say what they are in their own titles
@@ -1669,7 +1690,7 @@ def test_the_old_list_of_links_is_gone(atrium):
 
 
 # what the builder and the page's own script each write, in the order they stand
-REGIONS = ["mosaic", "reading", "offering", "who", "calendar", "bench"]
+REGIONS = ["mosaic", "reading", "offering", "who", "calendar"]
 
 # The page as it is read, top to bottom, with what lies between each pair of
 # markers left out: the name, the menu, the sentence, the question and what
@@ -1719,8 +1740,6 @@ SKELETON = """<main>
         <p class="note">A door open means someone is open to a new friendship.</p>
         <!-- calendar:start --><!-- calendar:end -->
       </section>
-
-      <!-- bench:start --><!-- bench:end -->
 
       <footer>
         <p><a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>
@@ -1778,7 +1797,6 @@ def test_the_sections_stand_in_the_order_they_are_read():
 
 def test_a_rebuild_leaves_everything_outside_the_markers_as_it_was(atrium, data_dir,
                                                                     monkeypatch):
-    write(data_dir / "commons" / "bench.md", "- 2026-10-01 · Mira · the lake was still\n")
     monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
     atrium.main()
     built = atrium.page_path.read_text(encoding="utf-8")
@@ -1797,8 +1815,7 @@ ATRIUM_RULES = [
     ".intro summary", ".intro summary:focus-visible", ".mosaic", ".mosaic li", ".mosaic .empty",
     ".tile-founding", ".tile-word", ".tile-attendance", ".tile-dawn", ".tile-day", ".tile-evening",
     ".tile-night", ".tile-seal", ".tile-event", ".reading", ".who .members", ".who .fact", ".who .swatch", ".calendar",
-    "a, a:visited", ".bench p", ".bench .lines",
-    ".bench .when", "footer", "footer p",
+    "a, a:visited", "footer", "footer p",
 ]
 
 

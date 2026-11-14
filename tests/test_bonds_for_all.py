@@ -322,7 +322,7 @@ def test_an_offering_of_the_agent_s_is_placed_once_its_person_signs(world):
                  alder_key(world.data))
     index = (world.data / "commons" / "offerings.md").read_text(encoding="utf-8")
     assert index.rstrip().endswith("· letter · alder and the second one")
-    assert "alder and the second one" in page(world.client.get("/commons"))
+    assert "alder and the second one" in page(world.client.get("/offerings"))
 
 
 def test_an_offering_of_the_person_s_waits_on_the_agent(world):

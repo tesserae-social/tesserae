@@ -408,14 +408,15 @@ def a_placed_offering(founder, wake, room, kind="passage", source=HIS, text=PASS
 
 
 def offerings_section(client):
-    """The offerings as /commons shows them: the section, and nothing around it."""
-    said = page(client.get("/commons"))
-    return said[said.index('<section id="offerings">'):said.index('<section id="the-record">')]
+    """The offerings as their own page shows them (14 November 2026): its main, and nothing
+    around it."""
+    said = page(client.get("/offerings"))
+    return said[said.index("<main>"):said.index("</main>")]
 
 
 def test_the_offerings_are_open_to_anyone(visitor, founder, wake, room):
     one = a_placed_offering(founder, wake, room)
-    answer = visitor.get("/commons")
+    answer = visitor.get("/offerings")
     assert answer.status_code == 200
     said = offerings_section(visitor)
     assert '<article class="card" id="%s">' % one["id"] in said
@@ -517,14 +518,15 @@ def test_a_pending_offering_is_at_no_address(visitor, founder, room):
 def test_the_old_address_leads_to_the_offerings_and_keeps_each_anchor(visitor, founder, wake,
                                                                      room):
     one = a_placed_offering(founder, wake, room)
-    # The anchor never reaches the hearth: a browser keeps it and carries it
-    # across a redirect that names none. So /offerings#<id>, as the atrium
-    # links it, arrives at /commons#<id>, and that id is on the page there.
+    # The offerings have their own page again, at the address they always had
+    # (14 November 2026), so /offerings#<id>, as the atrium links it, arrives at
+    # that offering; the commons lists the page, and its record lists the index.
     answer = visitor.get("/offerings")
-    assert answer.status_code == 302 and answer.headers["Location"] == "/commons"
-    said = page(visitor.get("/offerings", follow_redirects=True))
+    assert answer.status_code == 200
+    said = page(answer)
     assert said.count('id="%s"' % one["id"]) == 1
-    assert 'href="/commons/offerings.md"' in said
+    assert 'href="/offerings"' in page(visitor.get("/commons"))
+    assert 'href="/commons/offerings.md"' in page(visitor.get("/commons/record"))
     # and the signed record is at the address it always had
     assert visitor.get("/offerings/%s.json" % one["id"]).status_code == 200
 

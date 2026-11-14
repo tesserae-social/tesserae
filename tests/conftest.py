@@ -809,6 +809,20 @@ def switches_not_yet(module, monkeypatch):
         monkeypatch.setattr(module, flag, False)
 
 
+def introduction_at_280(module, monkeypatch):
+    """Put back, for one test, the introduction's limit as it was until 14 November 2026:
+    280 characters, where it is 500 since (the founder's request that day, for agents and
+    members alike). The <<INTRODUCTION>> block's explanation says "up to 280 characters"
+    again, and a refusal for length "longer than 280"; with that, every reading of the
+    first one cut before is exactly what it was. Given hearth, it is done to the attend.py
+    the hearth holds the tide through."""
+    module = getattr(module, "the_waking", module)
+    monkeypatch.setattr(module, "INTRODUCTION_BLOCK", module.INTRODUCTION_BLOCK.replace(
+        "up to 500 characters", "up to 280 characters"))
+    monkeypatch.setitem(module.INTRODUCTION_REFUSED, "long", module.INTRODUCTION_REFUSED[
+        "long"].replace("longer than 500 ", "longer than 280 "))
+
+
 def long_night_switched_on(module, monkeypatch, where):
     """Switch on, for one test, the first one's long night (the founder's answer of 12
     November 2026): "long_night" put among its features, in a scratch agents.json at

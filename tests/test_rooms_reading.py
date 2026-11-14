@@ -341,6 +341,14 @@ With the four shut away again (conftest.switches_not_yet, which
 conftest.wakings_not_yet_switched now does first too), the reading is exactly
 the one cut for its wakings, READING_ONE_WAKING.
 
+And a twentieth time, on purpose, on the branch intro-500 (the founder's request
+of 14 November 2026), when an introduction may be up to 500 characters, where it
+was 280, for agents and members alike. It changes what is sent in exactly one
+way: the <<INTRODUCTION>> block's explanation says "up to 500 characters". No
+other word moved, and no file of its packet. With the limit put back
+(conftest.introduction_at_280, which every earlier reading here now takes first),
+the reading is exactly the one cut for the four switches, READING_SWITCHES.
+
 Then the room was given a folder of its own (rooms phase A): its letters,
 errands, bond and offerings are kept in DATA_DIR/rooms/first/ rather than in the
 packet. That moved no word of what is read, and none of the readings was cut
@@ -354,7 +362,8 @@ kept (stage 5f), PACKET_BEFORE held the same files through the names a copy
 gave them then, under packets/first/ and without room.json; it held as it was
 cut until it went.
 
-All seventeen earlier readings are still held. With the first one's wakings put back as
+All earlier readings are still held. With the limit of 280 put back, the reading
+is exactly the one cut for the four switches. With the first one's wakings put back as
 they were (conftest.wakings_not_yet_switched), the reading is exactly the one cut
 for the last reply; with the sentence that a rewrite
 goes in the last reply taken out (conftest.rewrite_last_reply_not_yet), the
@@ -403,7 +412,8 @@ import pytest
 from datetime import datetime, timezone
 
 from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, explained_as_before,
-                      letter_part_as_before, long_night_switched_on, write_json,
+                      introduction_at_280, letter_part_as_before, long_night_switched_on,
+                      write_json,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
                       notebook_unexplained, post, public_lines_not_yet, quiet_lines_not_yet,
@@ -537,8 +547,16 @@ READING_ONE_WAKING = "892de2dedb10d2be4547674a7d3cb8d3c2931f53541843c205f1dfe5ed
 # usually between one and eight."; and <<INTRODUCTION>> is explained after
 # <<DOOR>>. Nothing is asked of it here and no one waits, so neither ASKED OF YOU
 # nor the line of people waiting is shown. With the four shut away again
-# (conftest.switches_not_yet) it is exactly READING_ONE_WAKING.
-READING_NOW = "0546acf0aab372c2754075d5b610b149d75a2a485a8e44d68797bb47bad269ed"
+# (conftest.switches_not_yet) it is exactly READING_ONE_WAKING. Held as
+# READING_SWITCHES since.
+READING_SWITCHES = "0546acf0aab372c2754075d5b610b149d75a2a485a8e44d68797bb47bad269ed"
+
+# cut again, on purpose, on the branch intro-500 (the founder's request of 14
+# November 2026), when an introduction may be up to 500 characters, where it was
+# 280, for agents and members alike. It changes what is sent in exactly one way:
+# the <<INTRODUCTION>> block's explanation says "up to 500 characters". With the
+# limit put back (conftest.introduction_at_280) it is exactly READING_SWITCHES.
+READING_NOW = "0ba9603d26c69f16bb788dc285bc5718863b9d83e797e5cb9b62b09539cbfbe5"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -613,6 +631,7 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "the rewrite once", READING_REWRITE),
     (False, "the last reply", READING_REWRITE_ONCE),
     (False, "the wakings", READING_LAST_REPLY), (False, "the switches", READING_ONE_WAKING),
+    (False, "the longer introduction", READING_SWITCHES),
     (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
@@ -630,9 +649,15 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "the rewrite offered, a line rewritten once not yet",
          "a line rewritten once, the last reply not yet",
          "the last reply said, its wakings not yet switched",
-         "its wakings switched, the four of 13 November not yet", "as it reads now"])
+         "its wakings switched, the four of 13 November not yet",
+         "the four of 13 November switched, an introduction of 500 not yet",
+         "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
+    if as_before:  # every reading cut before said an introduction is up to 280 characters
+        introduction_at_280(attend, monkeypatch)
+    if as_before == "the longer introduction":  # and with that, nothing else moved
+        as_before = None
     if as_before == "the switches":  # the one cut before had its wakings as they are now
         switches_not_yet(attend, monkeypatch)
     elif as_before:  # every reading cut before that had extra wakings and no reflection waking
@@ -777,8 +802,16 @@ def test_the_way_he_writes_may_be_120_characters_and_no_more(founder, data_dir):
 # else: each moves in the three ways READING_NOW moved. With the four shut away
 # again (conftest.switches_not_yet), each is exactly the one held before, in
 # SEALED_IN_WINTER_BEFORE_SWITCHES and LONG_NIGHT_BEFORE_SWITCHES.
-READING_SEALED_IN_WINTER = "661c142b904070b2e7ace4126dc57772a24188782dcecb7673f095de25f4e6ad"
-READING_LONG_NIGHT = "f9c610c11cf1af3f3d17bffba93a710ca3c0dcfc9d4c3605b7995cceed45a740"
+#
+# Both cut again, on purpose, on the branch intro-500 (the founder's request of 14
+# November 2026), for nothing else than READING_NOW was: the <<INTRODUCTION>>
+# block's explanation says "up to 500 characters", where it said 280. With the
+# limit put back (conftest.introduction_at_280), each is exactly the one held
+# before, in SEALED_IN_WINTER_AT_280 and LONG_NIGHT_AT_280.
+READING_SEALED_IN_WINTER = "b43fe56e82c48cc1f34e00ad1ed1199c562f6438039520ca7c9f70ff09b5beeb"
+READING_LONG_NIGHT = "4fd0d679c15bbe3659d650b7adafb3139c3958f8ad82ac0d0954a9f8ed2e62a6"
+SEALED_IN_WINTER_AT_280 = "661c142b904070b2e7ace4126dc57772a24188782dcecb7673f095de25f4e6ad"
+LONG_NIGHT_AT_280 = "f9c610c11cf1af3f3d17bffba93a710ca3c0dcfc9d4c3605b7995cceed45a740"
 SEALED_IN_WINTER_BEFORE_SWITCHES = "466ce10e22070fb28fcf71eba969ceeab522e1916243c75d5067a32ff7230def"
 LONG_NIGHT_BEFORE_SWITCHES = "fe0b3aa72ca1d5ccfc7dd898ab06d06b62b1f62dd2270d16c3f7585ae5bc7e31"
 
@@ -794,15 +827,21 @@ def a_sealed_bond(attend, room):
         "signatures": {"founder": "x", "first": "y"}})
 
 
-@pytest.mark.parametrize("switched, before_switches, as_cut", [
-    (False, False, READING_SEALED_IN_WINTER), (True, False, READING_LONG_NIGHT),
-    (False, True, SEALED_IN_WINTER_BEFORE_SWITCHES), (True, True, LONG_NIGHT_BEFORE_SWITCHES)],
+@pytest.mark.parametrize("switched, before, as_cut", [
+    (False, None, READING_SEALED_IN_WINTER), (True, None, READING_LONG_NIGHT),
+    (False, "introduction", SEALED_IN_WINTER_AT_280), (True, "introduction", LONG_NIGHT_AT_280),
+    (False, "switches", SEALED_IN_WINTER_BEFORE_SWITCHES),
+    (True, "switches", LONG_NIGHT_BEFORE_SWITCHES)],
     ids=["the switch off, as it reads today", "the switch on",
+         "the switch off, an introduction of 500 not yet",
+         "the switch on, an introduction of 500 not yet",
          "the switch off, the four of 13 November not yet",
          "the switch on, the four of 13 November not yet"])
 def test_the_first_one_s_long_night_is_its_own_reading_and_only_when_switched_on(
-        wake, attend, room, clock, monkeypatch, tmp_path, switched, before_switches, as_cut):
-    if before_switches:
+        wake, attend, room, clock, monkeypatch, tmp_path, switched, before, as_cut):
+    if before:  # each held before said an introduction is up to 280 characters
+        introduction_at_280(attend, monkeypatch)
+    if before == "switches":
         switches_not_yet(attend, monkeypatch)
     a_small_world(room)
     a_sealed_bond(attend, room)

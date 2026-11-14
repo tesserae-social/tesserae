@@ -32,6 +32,7 @@ import subprocess
 import pytest
 
 import build_atrium as atrium
+import introductions
 from conftest import REPO, write
 
 PLACES = [
@@ -91,7 +92,9 @@ addEventListener("load", () => setTimeout(() => {
     columns: document.querySelectorAll(".column").length,
     words: ["header", ".menu", ".intro", ".reading", ".who",
             ".calendar", "footer", ".home"].map(s => box(one(s))),
-    intro: box(one(".intro")), reading: box(line), caption: box(one(".caption")),
+    intro: box(one(".intro")), introduction: box(one(".who .introduction")),
+    introductionSpill: one(".who .introduction") ?
+      one(".who .introduction").scrollWidth - one(".who .introduction").clientWidth : null, reading: box(line), caption: box(one(".caption")),
     legend: box(one(".legend")), rest: box(one(".rest")), home: box(one(".home")),
     // the page's quiet ink, read off a probe: no line of the page is sure to wear it
     quiet: (() => { const probe = document.createElement("span");
@@ -191,6 +194,22 @@ def shown(page, name, scripted=True, forced=True):
 RECORD = a_long_record()
 YEAR = atrium.slots(RECORD, TODAY, atrium.FRONT_SPAN_DAYS)
 
+# An introduction as long as one may be (500 characters since the founder's request
+# of 14 November 2026), with a run of letters in it longer than any line of the
+# column is wide: the case that would push a narrow page sideways.
+LONGEST = ("I am new here, and glad of it. I like long walks before anyone else is up, "
+           "bread that takes two days, and letters that take their time. ")
+LONGEST += "a" * 90 + " "
+LONGEST += ("I hope for a friendship that is slow and honest, " * 8)
+LONGEST = (LONGEST * 2)[:introductions.INTRODUCTION_MOST].strip().ljust(
+    introductions.INTRODUCTION_MOST, "o")
+WHO = [("member", "hazel", "door open")]
+
+
+def introduced(page):
+    """The front page with who is here baked in: one member, and the longest introduction."""
+    return atrium.splice(page, "who", atrium.who_block(WHO, (), [], [("hazel", LONGEST)]), "\n")
+
 
 @pytest.fixture(scope="module")
 def measured(tmp_path_factory):
@@ -200,6 +219,8 @@ def measured(tmp_path_factory):
     pages = {
         "front": shown(front, "front"),                      # a year and more of tiles
         "noscript": shown(front, "noscript", scripted=False),
+        # who is here with the longest introduction, as the builder bakes it
+        "introduced": shown(introduced(front), "introduced", scripted=False),
         "whole": shown(whole, "whole"),
         # the whole mosaic with the scrollbar the browser gives it: forcing one onto
         # the root changes which box the page scrolls in, and so what a line sticks to
@@ -230,9 +251,11 @@ def measured(tmp_path_factory):
             for which, what in found.items()}
 
 
-EVERY = [(name, width) for name in ("front", "noscript", "whole", "today", "wholetoday")
+EVERY = [(name, width) for name in ("front", "noscript", "introduced", "whole", "today",
+                                    "wholetoday")
          for width in WIDTHS]
-FRONTS = [(name, width) for name in ("front", "noscript", "today") for width in WIDTHS]
+FRONTS = [(name, width) for name in ("front", "noscript", "introduced", "today")
+          for width in WIDTHS]
 
 
 def across_of(said):
@@ -412,6 +435,25 @@ def test_a_phone_is_laid_the_same_with_the_script_as_without(measured, width):
 
 
 # ---- the front page: the words, the year, and the way on -------------------
+
+def test_the_longest_introduction_is_one_a_member_may_write():
+    assert len(LONGEST) == introductions.INTRODUCTION_MOST == 500
+    assert introductions.refused(LONGEST) is None
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_the_longest_introduction_wraps_inside_the_column(measured, width):
+    """500 characters, a long run of letters among them, stand beneath the door
+    inside the column's gutters at every width, phones too, and push nothing sideways."""
+    said = measured["introduced", width]
+    column, words = said["column"], said["introduction"]
+    gutter = 16 if width <= 480 else 24
+    assert words and words["height"] > 0
+    assert said["introductionSpill"] == 0    # no word of it runs past its own box
+    assert words["left"] >= column["left"] + gutter - 0.5
+    assert words["right"] <= column["right"] - gutter + 0.5
+    assert said["scroll"] == said["client"] and said["right"] <= said["client"]
+
 
 @pytest.mark.parametrize("name, width", FRONTS)
 def test_the_words_keep_their_column_and_it_stays_centred(measured, name, width):

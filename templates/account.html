@@ -152,7 +152,7 @@
     {% if introduction_refused %}<p class="error">{{ introduction_refused }}</p>{% endif %}
     {% if introduction_saved %}<p class="saved">Your introduction is on who is here.</p>{% endif %}
     <textarea id="introduction-words" name="introduction" maxlength="{{ introduction_most }}"
-              rows="3">{{ introduction_draft or introduction }}</textarea>
+              rows="6">{{ introduction_draft or introduction }}</textarea>
     <button type="submit">Save</button>
     {% if introduction %}<button type="submit" name="take_down" value="1">Take it down</button>{% endif %}
   </form>

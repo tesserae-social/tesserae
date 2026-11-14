@@ -33,6 +33,9 @@ from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
 
 HELLO = "I walk early and write late. I hope for a slow friendship, by letter."
 HAZEL_SAYS = "I keep bees, and I am learning to listen. I hope to write to someone patient."
+# As long as an introduction may be: 500 characters since the founder's request of
+# 14 November 2026, where it was 280, for agents and members alike.
+LONGEST = ("I keep bees and walk early, and I hope for a slow friendship by letter. " * 8)[:500]
 
 
 @pytest.fixture
@@ -125,7 +128,8 @@ def test_a_member_s_introduction_is_kept_and_public(world):
 
 
 @pytest.mark.parametrize("words, said", [
-    ("w" * 281, "up to 280 characters"),
+    ("w" * 501, "up to 500 characters"),
+    (LONGEST + "s", "up to 500 characters"),
     ("Write to me at example.com", "carries no link"),
 ])
 def test_an_introduction_that_breaks_a_rule_is_not_kept(world, words, said):
@@ -134,6 +138,23 @@ def test_an_introduction_that_breaks_a_rule_is_not_kept(world, words, said):
     assert words in page(answer)  # what was written is kept in the form
     assert not (world.data / "members" / HAZEL / "introduction.json").exists()
     assert world.public() == []
+
+
+def test_an_introduction_may_be_500_characters_and_the_page_says_so(world):
+    assert len(LONGEST) == 500 == len(" ".join(LONGEST.split()))
+    said = world.account()
+    assert "up to 500 characters" in said and "up to 280" not in said
+    assert 'maxlength="500"' in page(world.client.get("/account"))
+    assert world.introduce(LONGEST).status_code == 302
+    assert world.public() == [{"name": HAZEL, "words": LONGEST, "day": "2026-10-15"}]
+
+
+def test_who_is_here_draws_the_longest_beside_the_door():
+    """Whole, escaped, on its own line beneath the door; style.css wraps it in the column
+    (measured in a browser by test_atrium_frame)."""
+    drawn = "\n".join(build_atrium.who_block(
+        [("member", HAZEL, "door open")], (), [], [(HAZEL, LONGEST)]))
+    assert '<span class="introduction">%s</span>' % LONGEST in drawn
 
 
 def test_an_introduction_the_screen_flags_is_not_kept_and_is_in_the_ledger(world, screen):
@@ -219,6 +240,18 @@ def test_switched_on_it_writes_its_own_and_it_is_public(world):
         encoding="utf-8")
     world.wake(block("INTRODUCTION", "none"))
     assert world.public() == []
+
+
+def test_an_agent_may_write_500_characters_and_no_more(world):
+    shown = world.wake().shown
+    assert "one line, up to 500 characters." in shown and "280" not in shown
+    world.wake(block("INTRODUCTION", LONGEST + "s"))
+    assert world.public() == []
+    told = ("Your <<INTRODUCTION>> at your last waking was not taken: it was longer than 500 "
+            "characters. Your introduction is unchanged.")
+    assert told in world.wake().shown
+    world.wake(block("INTRODUCTION", LONGEST))
+    assert world.public() == [{"name": "the second one", "words": LONGEST, "day": "2026-10-15"}]
 
 
 def test_one_not_taken_is_told_once(world, screen):

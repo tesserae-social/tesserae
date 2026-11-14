@@ -366,8 +366,13 @@
   .who .fact { color: var(--ink-soft); }
 
   /* an introduction, in its writer's own words, on a line of its own beneath
-     the door it was written beside (plan 4.1) */
-  .who .introduction { display: block; }
+     the door it was written beside (plan 4.1). Up to 500 characters since 14
+     November 2026, so a run of letters longer than the column is wide breaks
+     where it must rather than push a phone's page sideways. */
+  .who .introduction {
+    display: block;
+    overflow-wrap: anywhere;
+  }
 
   /* A citizen's swatch is its own solid colour. The class is one per citizen,
      worked out from the name, so a hue reckoned from a citizen's key can take

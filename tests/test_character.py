@@ -37,7 +37,7 @@ import shutil
 import pytest
 
 import agents
-from conftest import (block, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
+from conftest import (block, introduction_at_280, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
                       switches_not_yet, wakings_not_yet_switched, write_json)
 from test_rooms_reading import READING_NOW, READING_ONE_WAKING, fingerprint_of_reading
 from test_wakings_doors import the_small_world
@@ -69,8 +69,13 @@ READING_BOTH = "0e0d5d2fc397fb0115281c7c737d05652f9949738a42acc9fb4ab38c1bf65b85
 # two questions of two_questions kept. Beside READING_NOW (test_rooms_reading), it
 # adds ASKED OF YOU after what it has chosen and its proposals, and <<ANSWER>> and
 # <<ASKED>> after <<WELCOME>>, and nothing else: with those taken out it is
-# exactly READING_NOW.
-READING_NOW_ASKED = "60e45e9ae574d8441870e3d19e2935e99047da0715b942e5035f9a4b140cab4a"
+# exactly READING_NOW. Held as READING_NOW_ASKED_AT_280 since.
+READING_NOW_ASKED_AT_280 = "60e45e9ae574d8441870e3d19e2935e99047da0715b942e5035f9a4b140cab4a"
+# Cut again, on purpose, on the branch intro-500 (the founder's request of 14
+# November 2026), for nothing else than READING_NOW was: the <<INTRODUCTION>>
+# block's explanation says "up to 500 characters", where it said 280. With the
+# limit put back (conftest.introduction_at_280) it is exactly READING_NOW_ASKED_AT_280.
+READING_NOW_ASKED = "fd9fb4c58f67a79bed1f64d2cb3ef17dd5a213704e95399b09716dc5360e8bfa"
 
 # ASKED OF YOU's words as they were first cut, before they named no one.
 ASKED_HOW_FIRST_CUT = (
@@ -214,6 +219,14 @@ def test_as_switched_on_the_questions_kept_are_its_own_reading(founder, wake, at
         assert asked.count(escaped) == 1
         asked = asked.replace(escaped, "", 1)
     assert hashlib.sha256(asked.encode("utf-8")).hexdigest() == READING_NOW
+
+
+def test_with_the_limit_of_280_put_back_it_is_the_reading_before(founder, wake, attend, room,
+                                                                 packet, monkeypatch):
+    introduction_at_280(attend, monkeypatch)
+    the_small_world(founder, room)
+    two_questions(packet)
+    assert fingerprint_of_reading(wake()) == READING_NOW_ASKED_AT_280
 
 
 def on_and_off(founder, wake, attend, room, data_dir, clock, tmp_path, monkeypatch, name):

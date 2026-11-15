@@ -59,6 +59,7 @@ import door
 import introductions
 import members
 import rooms
+import safe_write
 from members import MemberError
 
 REPO = Path(__file__).resolve().parent
@@ -182,11 +183,10 @@ def every():
 
 
 def write(record):
-    path = path_of(record["from"], record["to"])
-    path.parent.mkdir(parents=True, exist_ok=True)
-    beside = path.with_name(path.name + ".tmp")
-    beside.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    os.replace(beside, path)
+    """A knock, written whole or not at all (safe_write; the founder's request of 15
+    November 2026)."""
+    safe_write.write_text(path_of(record["from"], record["to"]),
+                          json.dumps(record, indent=2, ensure_ascii=False) + "\n")
 
 
 def waiting_at(to):
@@ -323,11 +323,11 @@ def knock(by, to, note, now):
         return None
     at = now.strftime(STAMP)
     before = read(by, to)
+    if before is None and path_of(by, to).exists():
+        return None  # one is there that can't be read: never taken for none, never written over
     if before:  # an answered one is kept beside, never erased
-        history = FOLDER / "history"
-        history.mkdir(parents=True, exist_ok=True)
-        (history / f"{by}--{to}-{before['at']}.json").write_text(
-            json.dumps(before, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        safe_write.write_text(FOLDER / "history" / f"{by}--{to}-{before['at']}.json",
+                              json.dumps(before, indent=2, ensure_ascii=False) + "\n")
     standing = introductions.read(by)
     record = {"from": by, "to": to, "at": at, "note": note,
               "introduction": standing["words"] if standing else None,

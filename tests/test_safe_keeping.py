@@ -12,7 +12,8 @@ c4 and c5):
   * the board's file, the keeper's record of what was taken down, and the
     commons' lines (heartbeats.md, where a line is rewritten) are written beside
     themselves and put in place whole; one that is there and can't be read is
-    never taken for an empty one: nothing is written to it, and /tides says so.
+    never taken for an empty one: nothing is written to it, and /tides says so;
+  * and, later the same day, the weekly questions and each knock the same way.
 """
 
 import html
@@ -27,7 +28,9 @@ from conftest import NOW, block, page, post, write
 from test_backup import KEY, bucket, log_lines  # noqa: F401 - a fixture
 from test_board import signed_in
 from test_export import a_whole_world
+from test_introductions import make_world, switched_registry  # noqa: F401 - a fixture
 from test_kept_words import world  # noqa: F401 - a fixture
+from test_later_citizen import HAZEL
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
 
 NOT_WHOLE = "backed up, nothing deleted"
@@ -225,3 +228,61 @@ def test_a_rewrite_is_written_whole_and_leaves_nothing_beside_it(world):  # noqa
     world.wake(block("REWRITE", "%s\nA quieter day." % own.split(" · ")[0][2:]))
     assert "A quieter day" in heartbeats.read_text(encoding="utf-8")
     assert [path.name for path in heartbeats.parent.glob("*heartbeats*")] == ["heartbeats.md"]
+
+
+# ---- the weekly questions and the knocks (the founder's request of 15 November 2026) ----
+
+ASKS = "What is one small thing that went well this week?"
+
+
+def test_the_weekly_questions_are_written_whole_and_leave_nothing_beside_them(hearth, data_dir):
+    import weekly
+    weekly.propose("birch", ASKS, "2026-11-15T09-00-00Z")
+    assert [path.name for path in data_dir.glob("*weekly*")] == ["weekly-questions.json"]
+    assert weekly.read()["waiting"][0]["words"] == ASKS
+
+
+def test_weekly_questions_that_cannot_be_read_are_not_written_over_and_tides_says_so(
+        hearth, data_dir, monkeypatch, founder):
+    import weekly
+    kept = data_dir / "weekly-questions.json"
+    kept.write_text('{"waiting": [{"words": ', encoding="utf-8")
+    assert weekly.unreadable()
+    with pytest.raises(weekly.Unreadable):
+        weekly.propose("birch", ASKS, "2026-11-15T09-00-00Z")
+    assert weekly.withdraw("birch") is False
+    assert weekly.this_week(NOW.date()) is None
+    assert kept.read_text(encoding="utf-8") == '{"waiting": [{"words": '
+    assert "The weekly questions' file (weekly-questions.json) is there and can't be read." in \
+        tides_said(founder)
+    # a member is told, and no screened try is spent on it
+    monkeypatch.setattr(hearth, "in_good_spirit", lambda line: pytest.fail("screened"))
+    birch = signed_in(hearth, monkeypatch, "birch")
+    said = " ".join(html.unescape(page(post(birch, "/account/weekly-question",
+                                            data={"question": ASKS}))).split())
+    assert "Questions can't be kept just now; nothing was proposed." in said
+    assert kept.read_text(encoding="utf-8") == '{"waiting": [{"words": '
+
+
+def test_with_nothing_wrong_tides_says_nothing_of_the_weekly_questions(hearth, data_dir, founder):
+    import weekly
+    weekly.propose("birch", ASKS, "2026-11-15T09-00-00Z")
+    assert "weekly-questions.json" not in tides_said(founder)
+
+
+def test_a_knock_is_written_whole_and_leaves_nothing_beside_it(hearth, data_dir):
+    knock = hearth.knock
+    knock.write({"from": "hazel", "to": "second", "at": "x", "note": "A FAKE NOTE."})
+    assert [path.name for path in knock.FOLDER.iterdir()] == ["hazel--second.json"]
+    assert knock.FOLDER == data_dir / "knocks"
+    assert knock.read("hazel", "second")["note"] == "A FAKE NOTE."
+
+
+def test_a_knock_that_cannot_be_read_is_never_written_over(
+        env, clock, monkeypatch, switched_registry, data_dir, member_vaults):  # noqa: F811
+    world = make_world(env, clock, monkeypatch, data_dir, member_vaults)
+    torn = data_dir / "knocks" / ("%s--second.json" % HAZEL)
+    write(torn, '{"from": "hazel", "to": "sec')
+    world.post("/knock/second", note="I would like to write to you.")
+    assert torn.read_text(encoding="utf-8") == '{"from": "hazel", "to": "sec'
+    assert not (data_dir / "knocks" / "history").exists()

@@ -5743,6 +5743,9 @@ BACKUPS_PAGE = """{% extends "base.html" %}
 {% if backed_up %}
 <p class="saved">{{ backed_up }}</p>
 {% endif %}
+{% if by_hand_refused %}
+<p class="error">{{ by_hand_refused }}</p>
+{% endif %}
 
 {% if backing_up %}
 <form method="post" action="{{ url_for('backup_now') }}">
@@ -6139,6 +6142,8 @@ UNREADABLE_SAID = {
                            "and can't be read. Nothing more is taken down until it can."),
     "heartbeats.md": ("The commons' lines (commons/heartbeats.md) are there and can't be read. "
                       "No agent's line is rewritten until they can."),
+    "weekly-questions.json": ("The weekly questions' file (weekly-questions.json) is there and "
+                              "can't be read. No question is proposed until it can."),
 }
 
 
@@ -6148,7 +6153,9 @@ def tides_troubles():
     said = [UNREADABLE_SAID[name] for name in board.unreadable()]
     if the_waking.heartbeats_unreadable(HEARTBEATS):
         said.append(UNREADABLE_SAID["heartbeats.md"])
-    backup = backup_not_whole_note()
+    if weekly.unreadable():
+        said.append(UNREADABLE_SAID["weekly-questions.json"])
+    backup =backup_not_whole_note()
     if backup:
         said.append(backup)
     return said
@@ -6330,12 +6337,51 @@ def lift_stop():
 # A backup is taken every day without asking, but the founder may take one now:
 # before a change he is unsure of, or after a morning worth keeping. It runs
 # here, while he waits, and he is shown the line it wrote and nothing more.
+#
+# Limited (the founder's request of 15 November 2026, audit c4): each backup taken
+# lets the oldest go once thirty are kept, so many presses could push out every good
+# one. None is taken by hand while BY_HAND_MOST have been uploaded in the last day
+# (by hand or by the daily one, as backup.log says), or while one is being taken.
+# The daily backup is never held back by this.
+BY_HAND_MOST = 3
+BY_HAND_HOURS = 24
+BY_HAND = threading.Lock()
+BY_HAND_REFUSED = {
+    "many": ("No backup was taken: %d have been taken in the last day, the most there may be. "
+             "Older backups are deleted as new ones come, so this keeps them. The daily one "
+             "is still taken." % BY_HAND_MOST),
+    "running": "No backup was taken: one is being taken now.",
+}
+
+
+def uploaded_lately(now):
+    """How many backups backup.log says were uploaded in the last BY_HAND_HOURS."""
+    since = now - timedelta(hours=BY_HAND_HOURS)
+    count = 0
+    for line in backup_lines():
+        parts = parts_of(line)
+        if len(parts) >= 2 and parts[1] in (BACKED_UP, NOT_WHOLE):
+            try:
+                count += moment(parts[0]) > since
+            except ValueError:
+                continue  # a line that is not a line is stepped over
+    return count
+
+
 @app.route("/backup-now", methods=["POST"])
 @founder_required
 def backup_now():
     if request.form.get("confirm") != "yes":
         return backups_page(backing_up=True)
-    return backups_page(backed_up=back_up(datetime.now(timezone.utc)))
+    if not BY_HAND.acquire(blocking=False):
+        return backups_page(by_hand_refused=BY_HAND_REFUSED["running"])
+    try:
+        now = datetime.now(timezone.utc)
+        if uploaded_lately(now) >= BY_HAND_MOST:
+            return backups_page(by_hand_refused=BY_HAND_REFUSED["many"])
+        return backups_page(backed_up=back_up(now))
+    finally:
+        BY_HAND.release()
 
 
 def sealed_bonds_shown():
@@ -7841,6 +7887,8 @@ WEEKLY_REFUSED = {
     "unchecked": public_screen.COULD_NOT_CHECK,
     "waiting": "One of your questions is waiting already; nothing more was proposed.",
     "tries": TOO_MANY_TRIES,
+    # weekly-questions.json is there and can't be read: nothing is written over it (weekly.py)
+    "unreadable": "Questions can't be kept just now; nothing was proposed. Please try again later.",
 }
 
 
@@ -7878,7 +7926,9 @@ def propose_weekly_question():
         weekly.withdraw(name)
         return redirect(url_for("account", _anchor="weekly-question"))
     words = weekly.one_line(request.form.get("question", ""))[:weekly.QUESTION_MOST + 1]
-    if weekly.waiting_by(name):
+    if weekly.unreadable():  # before any screened try is spent
+        why = "unreadable"
+    elif weekly.waiting_by(name):
         why = "waiting"
     else:
         why = weekly_refused(words)
@@ -7886,6 +7936,8 @@ def propose_weekly_question():
         return account_page(weekly_draft=words, weekly_refused=WEEKLY_REFUSED[why])
     try:
         weekly.propose(name, words, utc_stamp())
+    except weekly.Unreadable:
+        return account_page(weekly_draft=words, weekly_refused=WEEKLY_REFUSED["unreadable"])
     except ValueError:
         return account_page(weekly_draft=words, weekly_refused=WEEKLY_REFUSED["waiting"])
     return redirect(url_for("account", weekly_saved=1, _anchor="weekly-question"))

@@ -545,6 +545,38 @@ def test_backing_up_by_hand_runs_it_and_shows_the_line(founder, bucket, hearth, 
     assert line.startswith("%s · backed up · " % STAMP) and line.endswith("· kept 1")
 
 
+def test_backing_up_by_hand_stops_at_three_in_a_day(founder, bucket, hearth, clock):
+    # the founder's request of 15 November 2026: many presses would push out every good one
+    for _ in range(hearth.BY_HAND_MOST):
+        assert "· backed up ·" in page(post(founder, "/backup-now", data={"confirm": "yes"}))
+        clock.shift(minutes=1)
+    held = post(founder, "/backup-now", data={"confirm": "yes"})
+    assert "No backup was taken: 3 have been taken in the last day" in " ".join(page(held).split())
+    assert len(log_lines(hearth)) == hearth.BY_HAND_MOST
+    assert len(bucket.keys) == hearth.BY_HAND_MOST
+    clock.shift(hours=24)  # a day after the first, one may be taken again
+    assert "· backed up ·" in page(post(founder, "/backup-now", data={"confirm": "yes"}))
+    # the daily one is never held back
+    assert " · backed up · " in hearth.back_up(hearth.datetime.now(hearth.timezone.utc))
+
+
+def test_a_backup_that_failed_is_not_counted_against_the_day(founder, bucket, hearth):
+    hearth.note_backup("%s · error · the bucket was not there" % STAMP)
+    hearth.note_backup("%s · error · the bucket was not there" % STAMP)
+    hearth.note_backup("%s · error · the bucket was not there" % STAMP)
+    assert "· backed up ·" in page(post(founder, "/backup-now", data={"confirm": "yes"}))
+
+
+def test_none_is_taken_by_hand_while_one_is_being_taken(founder, bucket, hearth):
+    assert hearth.BY_HAND.acquire(blocking=False)
+    try:
+        held = post(founder, "/backup-now", data={"confirm": "yes"})
+    finally:
+        hearth.BY_HAND.release()
+    assert "No backup was taken: one is being taken now." in page(held)
+    assert bucket.keys == []
+
+
 def test_backing_up_by_hand_with_nothing_set_up_says_so(founder, unconfigured):
     done = post(founder, "/backup-now", data={"confirm": "yes"})
     assert UNCONFIGURED in " ".join(page(done).split())

@@ -64,6 +64,7 @@ from PIL import Image, ImageOps
 # the atrium's section name the same thing the same way.
 from build_atrium import (CITIZEN_ZONE, NO_HUE, DOT, KIND_WORDS, dated_heartbeats, LETTER_WORDS, is_letter_line,
                           parse_events)
+import build_atrium
 
 # An offering is made by two hands, so both hands work through the one module:
 # what is offered here and what is offered at a waking are one record.
@@ -4381,11 +4382,81 @@ def invite_by_email(name, note, typed, from_name, typed_name):
             return account_page()
         one, token = invitations.prepare(name, note, email=address, from_name=from_name)
         outcome = mail.send_invitation(address, from_name, one["note"], token,
-                                       long_day(invitations.open_until(one)))
+                                       long_day(invitations.open_until(one)),
+                                       tiles=invitation_tiles())
         if outcome != mail.SENT:
             return refused(INVITE_NO_ROOM if outcome == mail.DAY_FULL else INVITE_NOT_SENT)
         invitations.keep(one)
     return account_page(invite_sent=INVITE_SENT.format(address=invitations.hidden(address)))
+
+
+# The strip of tiles at the top of an emailed invitation (the founder's request of
+# 15 November 2026): the front page's latest tiles, reckoned from the commons as the
+# atrium reckons them (build_atrium.tiles_from and slots), each as the colour the
+# atrium's stylesheet draws it in, and nothing else of it: no words, no link. Holes
+# (days the record is silent on) are left out. Anything that goes wrong here gives
+# no strip, and the invitation goes without one.
+TILE_RULE = re.compile(r"([^{}]+)\{([^{}]*)\}")
+TILE_SELECTOR = re.compile(r"(?:\.[A-Za-z0-9_-]+)+")
+TILE_FILL = re.compile(r"background(?:-color)?\s*:\s*(#[0-9A-Fa-f]{6}|transparent)")
+TILE_EDGE = re.compile(r"(?:border\s*:[^;]*?|box-shadow\s*:\s*inset[^;]*?)(#[0-9A-Fa-f]{6})")
+
+
+def tile_rules(sheet):
+    """Each rule of a stylesheet that names classes alone: (classes, fill, edge), in order."""
+    sheet = re.sub(r"/\*.*?\*/", "", sheet, flags=re.S)
+    rules = []
+    for selectors, said in TILE_RULE.findall(sheet):
+        fill = TILE_FILL.search(said)
+        edge = TILE_EDGE.search(said)
+        if not (fill or edge):
+            continue
+        for selector in selectors.split(","):
+            selector = selector.strip()
+            if TILE_SELECTOR.fullmatch(selector):
+                rules.append((frozenset(selector[1:].split(".")),
+                              fill.group(1) if fill else None, edge.group(1) if edge else None))
+    return rules
+
+
+def tile_colours(css, rules):
+    """The (fill, edge) a tile of these classes is drawn in: the most particular rule wins,
+    and of two as particular the later, as in a browser. A transparent fill is None."""
+    classes = set(css.split())
+    fill = edge = None
+    fill_by = edge_by = (-1, -1)
+    for order, (named, one_fill, one_edge) in enumerate(rules):
+        if not named <= classes:
+            continue
+        weight = (len(named), order)
+        if one_fill and weight > fill_by:
+            fill, fill_by = one_fill, weight
+        if one_edge and weight > edge_by:
+            edge, edge_by = one_edge, weight
+    return (None if fill == "transparent" else fill), edge
+
+
+def invitation_tiles():
+    """The front page's latest tiles, as (fill, edge) colours, newest first as the front page
+    lays them; [] if none."""
+    try:
+        citizens = hues.public()
+        events = parse_events(read_text(EVENTS)) if EVENTS.exists() else []
+        heartbeats = build_atrium.parse_heartbeats(
+            dated_heartbeats(read_text(HEARTBEATS)) if HEARTBEATS.exists() else "", citizens)
+        offerings = build_atrium.parse_offerings(
+            read_text(OFFERINGS_INDEX) if OFFERINGS_INDEX.exists() else "")
+        index = Path(public_bonds.INDEX)
+        sealed = build_atrium.parse_bonds(read_text(index) if index.exists() else "")
+        tiles = build_atrium.tiles_from(events, heartbeats, offerings, sealed, citizens)
+        front = [slot for slot in build_atrium.slots(tiles, build_atrium.today_here(),
+                                                     build_atrium.FRONT_SPAN_DAYS)
+                 if slot != build_atrium.EMPTY]
+        sheet = (REPO / "style.css").read_text(encoding="utf-8")
+        rules = tile_rules(sheet + "\n" + "\n".join(build_atrium.hues_block(citizens)))
+        return [tile_colours(css, rules) for css, _, _ in reversed(front[-mail.INVITATION_TILES:])]
+    except Exception:
+        return []
 
 
 @app.route("/invitations/<invitation_id>/withdraw", methods=["POST"])

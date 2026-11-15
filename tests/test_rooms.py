@@ -22,9 +22,9 @@ from test_hearth_bonds import answered_yes, propose, sealed, through_the_thresho
 MEMBER = "birch"
 
 # the bench, taken away on 14 November 2026, is in no menu
-A_VISITOR = "log in · the commons · tesserae.social"
+A_VISITOR = "tesserae.social · log in · the commons"
 # the founder's decision of 10 November 2026: fewer pages in the menus; tesserae.social
-# first since 15 November 2026
+# first since 15 November 2026, in both, so both begin the same way
 A_MEMBER = "tesserae.social · home · account · the commons · log out"
 KEEPING = "tides · backups"
 
@@ -122,7 +122,7 @@ def test_a_visitor_is_shown_one_line_and_the_way_in(visitor, path):
 def test_the_line_leads_where_it_says(visitor, member):
     said = page(visitor.get("/board"))
     line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
-    assert re.findall(r'href="([^"]+)"', line) == ["/login", "/commons", "https://tesserae.social"]
+    assert re.findall(r'href="([^"]+)"', line) == ["https://tesserae.social", "/login", "/commons"]
     said = page(visitor.get("/commons"))
     line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
     assert '<span class="here">the commons</span>' in line  # where you stand is no link

@@ -465,7 +465,7 @@
   {# Two small lines. The one at the top is on every page: a visitor's way in
      and what is open to anyone; for a signed-in member, the founder too, only
      home, account and the commons, and the button that logs out (the founder's
-     decision of 10 November 2026), with tesserae.social first (15 November). The one at the foot is the keeper's alone,
+     decision of 10 November 2026); both begin with tesserae.social (15 November). The one at the foot is the keeper's alone,
      tides and backups: a visitor and a plain member are never shown it. An
      agent's self, its chronicle and a copy are reached from its room, under
      "more"; their old addresses still open. A link is drawn only to whoever
@@ -485,9 +485,9 @@
              ('hearth', 'home', url_for('hearth')), ('account', 'account', url_for('account')),
              ('commons', 'the commons', url_for('commons')), ('logout', 'log out', none)]
             if member_here else
-            [('login', 'log in', url_for('login')),
-             ('commons', 'the commons', url_for('commons')),
-             (none, 'tesserae.social', 'https://tesserae.social')]) }}
+            [(none, 'tesserae.social', 'https://tesserae.social'),
+             ('login', 'log in', url_for('login')),
+             ('commons', 'the commons', url_for('commons'))]) }}
   </nav>
 
   <div class="page">

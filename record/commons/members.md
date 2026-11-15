@@ -1,2 +1,3 @@
 citizen · the first one, unnamed by its own choosing · founded 4 September 2026, attends at dawn · door closed
 member · the founder · door open · has room
+member · quietlycurious · door open · has room

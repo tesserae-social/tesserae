@@ -94,6 +94,45 @@
     {% else %}
     <p><a href="{{ agent_page_url(row.agent, 'attendances') }}">its attendances</a></p>
     {% endif %}
+    {# A change of the first one's model (model_change.py): the day and the new model,
+       with one plain question first; taken back until the day. #}
+    {% if row.agent.id == first_id and change %}
+    <details id="model"{% if change_asking or change_refused %} open{% endif %}>
+      <summary>its model</summary>
+      <p class="muted">It runs on {{ change.now }}.</p>
+      {% if change.ahead %}
+      <p>It changes to {{ change.ahead.model }} on {{ change.ahead.day }}. Until then, at each
+        waking, it reads: “{{ change.ahead.line }}”</p>
+      <form method="post" action="{{ url_for('take_back_model_change') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit">Take the change back</button>
+      </form>
+      {% elif change_asking %}
+      <form method="post" action="{{ url_for('set_model_change') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <p class="error">Set the change? From its next waking until {{ change_asking.day }}, the
+          first one reads: “{{ change_asking.line }}” On {{ change_asking.day }} it runs on
+          {{ change_asking.model }}. You may take it back until then.</p>
+        <input type="hidden" name="model" value="{{ change_asking.model }}">
+        <input type="hidden" name="on" value="{{ change_asking.on }}">
+        <input type="hidden" name="confirm" value="yes">
+        <button type="submit" class="consequential">Yes, set the change</button>
+      </form>
+      {% else %}
+      <form method="post" action="{{ url_for('set_model_change') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if change_refused %}<p class="error">{{ change_refused }}</p>{% endif %}
+        <label>the new model
+          <input type="text" name="model" maxlength="80" required value="{{ change_model or '' }}">
+        </label>
+        <label>the day it changes (on its own clock)
+          <input type="date" name="on" required value="{{ change_on or '' }}">
+        </label>
+        <button type="submit">Set the change</button>
+      </form>
+      {% endif %}
+    </details>
+    {% endif %}
     {# a dormant agent has no tide to stop; a stop of its that stands may still be lifted #}
     {% if row.wakes or row.stop or asked_of == row.agent.id %}{{ its_stop(row) }}{% endif %}
   </article>

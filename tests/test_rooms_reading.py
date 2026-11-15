@@ -784,6 +784,21 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
     assert (files, reading) == (PACKET_IN_ROOMS, as_cut)
 
 
+def test_a_record_of_model_changes_that_holds_nothing_moves_nothing(
+        founder, wake, attend, room, data_dir):
+    """A change of its model set and taken back on /tides (model_change.py; the founder's
+    request of 15 November 2026) leaves its record of changes on the disk, holding
+    nothing: the reading is READING_NOW, byte for byte. Until a day is set, nothing moves."""
+    write_json(data_dir / "model-changes.json", {})
+    a_small_world(room)
+    answer = post(founder, "/rooms/first", content_type="multipart/form-data", data={
+        "letter": "The lake was grey this morning, and then it was not.\n\nI am asking.",
+        "thing": ["cold hands", "", "a heron on the far bank"],
+        "errand": ERRAND, "proposes": "1"})
+    assert answer.status_code == 302
+    assert fingerprint_of_reading(wake()) == READING_NOW
+
+
 def test_with_the_letter_line_as_before_the_files_are_the_files_before(
         founder, wake, attend, hearth, room, data_dir, monkeypatch):
     letter_part_as_before(hearth, monkeypatch)

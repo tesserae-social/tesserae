@@ -161,6 +161,8 @@ import knock
 import board
 # A weekly question, proposed by members.
 import weekly
+# A change of the model an agent runs on, set on /tides.
+import model_change
 
 # The first one's proposals: made at its wakings and answered here, both through
 # the one module. Whether there are any yet is said in one place,
@@ -718,7 +720,12 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 "PRIVATE": the_waking.PRIVATE_QUIETLY,
                 # and its letter of welcome, for the next agent founded here, which no
                 # page shows: one quiet line, whether it placed one or withdrew it
-                "WELCOME": the_waking.WELCOME_QUIETLY}
+                "WELCOME": the_waking.WELCOME_QUIETLY,
+                # and its note for after a change of its model, and whether it recognizes
+                # itself after one, which are its own (model_change.py): the attendance log
+                # keeps one quiet line for each already
+                "BEFORE_CHANGE": the_waking.BEFORE_CHANGE_QUIETLY,
+                "RECOGNITION": the_waking.RECOGNITION_QUIETLY}
 
 # A new self-document it has written waits for its own yes at a later waking,
 # and until then it is no one's to read but its own - and one it lets go never
@@ -6142,6 +6149,8 @@ UNREADABLE_SAID = {
                            "and can't be read. Nothing more is taken down until it can."),
     "heartbeats.md": ("The commons' lines (commons/heartbeats.md) are there and can't be read. "
                       "No agent's line is rewritten until they can."),
+    "model-changes.json": ("The record of model changes (model-changes.json) is there and can't "
+                           "be read. No agent is woken while it can't."),
     "weekly-questions.json": ("The weekly questions' file (weekly-questions.json) is there and "
                               "can't be read. No question is proposed until it can."),
 }
@@ -6155,6 +6164,8 @@ def tides_troubles():
         said.append(UNREADABLE_SAID["heartbeats.md"])
     if weekly.unreadable():
         said.append(UNREADABLE_SAID["weekly-questions.json"])
+    if model_change.unreadable():
+        said.append(UNREADABLE_SAID["model-changes.json"])
     backup =backup_not_whole_note()
     if backup:
         said.append(backup)
@@ -6229,6 +6240,73 @@ def keeper_numbers():
             "doors_with_room": sum(1 for one in waking if door_has_room(one))}
 
 
+# A change of the first one's model (model_change.py; the founder's request of 15
+# November 2026, which the first one agreed to that day). The founder sets the day
+# and the new model here, with one plain question first, and may take it back until
+# the day. Until he sets one, nothing of it is in any reading.
+
+def first_own_day():
+    """Today on the first one's own clock."""
+    return waking.today(rhythm_of(agents.first()), datetime.now(timezone.utc))
+
+
+def model_change_shown():
+    """What the first one's card says of its model, or None where it can't be read."""
+    first, today = agents.first(), first_own_day()
+    try:
+        ahead = model_change.pending(first["id"], today)
+        now = model_change.model_of(first, today)
+    except model_change.Unreadable:
+        return None
+    said = {"now": now, "ahead": None}
+    if ahead:
+        day = model_change.day_of(ahead["on"])
+        said["ahead"] = {"model": ahead["model"], "day": long_day(day),
+                         "line": the_waking.BEFORE_CHANGE_LINE.format(
+                             day=the_waking.day_in_words(ahead["on"]))}
+    return said
+
+
+@app.route("/tides/model-change", methods=["POST"])
+@founder_required
+def set_model_change():
+    first, today = agents.first(), first_own_day()
+    model = " ".join((request.form.get("model") or "").split())
+    on = (request.form.get("on") or "").strip()
+    asked = {"change_model": model, "change_on": on}
+    day = model_change.day_of(on)
+    try:
+        if not model_change.MODEL_NAME.fullmatch(model):
+            raise model_change.Refused("The model's name is small letters, digits, dots and dashes.")
+        if day is None or day <= today:
+            raise model_change.Refused("The day must be after today, on its own clock.")
+        if request.form.get("confirm") != "yes":
+            return tides_page(change_asking={
+                "model": model, "on": on, "day": long_day(day),
+                "line": the_waking.BEFORE_CHANGE_LINE.format(
+                    day=the_waking.day_in_words(day.isoformat()))}, **asked)
+        model_change.set_change(first, model, day, today, utc_stamp())
+    except model_change.Refused as refused:
+        return tides_page(change_refused=str(refused), **asked)
+    except model_change.Unreadable:
+        return tides_page(change_refused=MODEL_CHANGES_UNREADABLE, **asked)
+    return redirect(url_for("tides", _anchor="model"))
+
+
+@app.route("/tides/model-change/take-back", methods=["POST"])
+@founder_required
+def take_back_model_change():
+    try:
+        model_change.take_back(agents.first()["id"], first_own_day())
+    except model_change.Unreadable:
+        return tides_page(change_refused=MODEL_CHANGES_UNREADABLE)
+    return redirect(url_for("tides", _anchor="model"))
+
+
+MODEL_CHANGES_UNREADABLE = ("The record of model changes (model-changes.json) is there and can't "
+                            "be read. Nothing was changed.")
+
+
 def tides_page(**told):
     """Every agent's tide, with whatever the keeper has just been told."""
     rows = tides_shown()
@@ -6241,7 +6319,7 @@ def tides_page(**told):
                            reason_longest=STOP_REASON_LONGEST,
                            knocks=knocks_to_set_up(),
                            screens_spent_out=screens_spent_out_note(),
-                           troubles=tides_troubles(), **told)
+                           troubles=tides_troubles(), change=model_change_shown(), **told)
 
 
 @app.route("/tides")

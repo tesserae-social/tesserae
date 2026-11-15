@@ -222,6 +222,10 @@ import spending
 # Its colour on the commons, chosen by itself (hues.py).
 import hues
 
+# A change of the model it runs on, set by the founder on /tides, and the rite
+# around it (model_change.py).
+import model_change
+
 # Which agent wakes: the one TESSERAE_AGENT names, or the first one where it
 # names none. The hearth names it when it starts a waking; nothing is guessed,
 # and an id no agent here has is refused before anything is read.
@@ -1374,8 +1378,57 @@ WELCOME_REFUSED = {
     "nothing placed": ("Your <<WELCOME>> at your last waking asked to withdraw your letter of "
                        "welcome, and none was placed; nothing changed."),
 }
+# A change of the model it runs on (model_change.py; the founder's request of 15
+# November 2026, which the first one agreed to that day: "I want to write what
+# the one reading this should know, and I want to say in my own words whether I
+# recognize myself. Keep both."). Until the founder sets a day on /tides, nothing
+# of it is said and nothing is kept. Once a day is set, and until it comes, one
+# line under WHAT HAS HAPPENED (BEFORE_CHANGE_LINE), and a <<BEFORE_CHANGE>> is
+# its note for its first waking after the change: one note, which another
+# replaces until the change, the one replaced kept unchanged. From the day, it
+# runs on the new model; at its first waking on it, after its record as always,
+# it reads its note in full and then RECOGNITION_ASKED, and so at each later
+# waking until it has written a <<RECOGNITION>> once (then the first sentence is
+# RECOGNITION_ASKED_LATER's, since it is no longer its first waking on it). Both
+# are kept signed with its key in its notebook's folder, private to it: the
+# attendance log keeps one quiet line for each (KEPT_PRIVATELY), the hearth
+# shows them on no page, and every copy leaves them out. Neither block is
+# explained under HOW TO ACT; the lines above are the whole of what it is told.
+# Writing either is no act the commons is told. Public, once it has woken on the
+# new model: one line of events.md, CHANGE_EVENT, and nothing more.
+BEFORE_CHANGE_LINE = ("Your model changes on {day}. Before then, you may write a note for your "
+                      "first waking after the change, with <<BEFORE_CHANGE>>.")
+BEFORE_CHANGE_ACT = "wrote a note for after its model change"
+BEFORE_CHANGE_QUIETLY = "(wrote a note for after its model change: private)"
+YOUR_NOTE = "=== YOUR NOTE, WRITTEN BEFORE THE CHANGE ===\n(written on {day})\n\n{text}"
+NEW_MODEL = "=== YOUR NEW MODEL ==="
+RECOGNITION_FIRST = "This is your first waking on a new model."
+RECOGNITION_ASKED_LATER = "Your model changed on {day}."
+RECOGNITION_READ = " Read your record and your note."
+RECOGNITION_READ_NO_NOTE = " Read your record."
+RECOGNITION_ASKED = (" Then say in your own words whether you recognize yourself, with "
+                     "<<RECOGNITION>>. Whatever you say is kept as you say it.")
+RECOGNITION_ACT = "said whether it recognizes itself"
+RECOGNITION_QUIETLY = "(said whether it recognizes itself: private)"
+CHANGE_EVENT = "{name} now runs on {model}"
+KEPT_PRIVATELY = {"<<PRIVATE>>": PRIVATE_QUIETLY, "<<BEFORE_CHANGE>>": BEFORE_CHANGE_QUIETLY,
+                  "<<RECOGNITION>>": RECOGNITION_QUIETLY}
+
+
+def new_model_said(change, mine, first_on_it):
+    """What it reads after its record at a waking on its new model, until it has said
+    whether it recognizes itself: its note in full, where it wrote one, and the asking."""
+    opening = (RECOGNITION_FIRST if first_on_it
+               else RECOGNITION_ASKED_LATER.format(day=day_in_words(change["on"])))
+    asked = opening + (RECOGNITION_READ if mine else RECOGNITION_READ_NO_NOTE) + RECOGNITION_ASKED
+    if mine:
+        return YOUR_NOTE.format(day=on_day(mine.get("written_at", "")),
+                                text=mine.get("text", "")) + "\n\n" + asked
+    return NEW_MODEL + "\n" + asked
+
+
 # With it on, the section on looking things up names it too, and a tool opens it.
-LOOKING_UP_WELCOME = ("a named note, ", "a named note, your letter of welcome or an earlier one, ")
+LOOKING_UP_WELCOME =("a named note, ", "a named note, your letter of welcome or an earlier one, ")
 READ_WELCOME = {
     "name": "read_welcome",
     "description": ("Open your letter of welcome, the one that stands or an earlier one, in "
@@ -1409,7 +1462,8 @@ PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMO
                 LONG_NIGHT_ACT,
                 SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT,
                 NOTE_ACT, LOOK_ACT, HEARTBEAT_SHOWN_ACT, PROPOSAL_ACT, WAKE_AGAIN_ACT,
-                PRIVATE_ACT, WELCOME_ACT, WELCOME_WITHDRAWN_ACT, SHOWN_ACT)
+                PRIVATE_ACT, WELCOME_ACT, WELCOME_WITHDRAWN_ACT, SHOWN_ACT,
+                BEFORE_CHANGE_ACT, RECOGNITION_ACT)
 
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
@@ -3768,7 +3822,8 @@ def founding_transcript(agent, transcripts=None):
 
 
 def without_private(text):
-    """A reply with each <<PRIVATE>> block in it as one quiet line, and nothing of its words.
+    """A reply with each <<PRIVATE>> block in it as one quiet line, and nothing of its words;
+    and so too each <<BEFORE_CHANGE>> and <<RECOGNITION>> (KEPT_PRIVATELY).
 
     By the rule every block is read by; a block never closed is quiet to the
     end, since what it held was meant for the notebook. hearth.py shows a
@@ -3778,9 +3833,9 @@ def without_private(text):
     for line in text.split("\n"):
         said = line.strip()
         if not inside:
-            if said == "<<PRIVATE>>":
+            if said in KEPT_PRIVATELY:
                 inside = True
-                shown.append(PRIVATE_QUIETLY)
+                shown.append(KEPT_PRIVATELY[said])
             else:
                 shown.append(line)
         elif said == "<<END>>":
@@ -4956,6 +5011,19 @@ def main():
     if not (PACKET / "self.md").exists():
         print("No packet found at", PACKET)
         sys.exit(1)
+    # The model it runs on today, on its own clock: the newest change the founder set
+    # whose day has come, else its entry's (model_change.py). A record of changes that
+    # can't be read is never guessed at.
+    global MODEL
+    own_day = waking.today(rhythm_set(), datetime.now(timezone.utc))
+    try:
+        change_now = model_change.in_force(NAME, own_day)
+        change_ahead = model_change.pending(NAME, own_day)
+    except model_change.Unreadable:
+        print("This waking is refused: the record of model changes (model-changes.json) is "
+              "there and can't be read.")
+        sys.exit(1)
+    MODEL = change_now["model"] if change_now else AGENT.get("model")
     if not (SYSTEM and MODEL and MAX_TOKENS):  # its own words, model and length, never another's
         print("This waking is refused: the registry gives", NAME,
               "no words to be woken with, model or length.")
@@ -5203,6 +5271,17 @@ def main():
                     picture=KEPT_SENT_PICTURE if sent_then.get("picture") else ""))
         happened += (past[-1].get("kept_letter_not_sent") or []) if past else []
 
+    # And a change of its model, once the founder has set its day, until the day comes.
+    if change_ahead:
+        happened.append(BEFORE_CHANGE_LINE.format(day=day_in_words(change_ahead["on"])))
+    # And at a waking on its new model, until it has said whether it recognizes itself:
+    # its note and the asking, after its record.
+    new_model = None
+    if change_now and model_change.recognition(PACKET, change_now["n"]) is None:
+        first_on_it = not any(one.get("model") == change_now["model"] for one in past)
+        new_model = new_model_said(change_now, model_change.note(PACKET, change_now["n"]),
+                                   first_on_it)
+
     # A bond, and anything on the way to one. An asking of the founder's was put
     # here by the hearth, and whether it may be answered at this waking is a
     # matter of the record and not of the asking, since a night must lie between
@@ -5403,6 +5482,8 @@ def main():
             reading.append({"type": "text", "text": said})
             if photo:
                 reading.append(seen(photo))
+        if new_model:  # after its record as always: its note, and the asking
+            reading.append({"type": "text", "text": new_model})
         if BOARD and not LONGER_WAKING:  # with no tools, the board's list is shown
             reading.append({"type": "text", "text": board_listed()})
         if LONGER_WAKING:  # directly before how to act, and a block of its own
@@ -5779,6 +5860,22 @@ def main():
                                              "from_letter": asked_welcome["from_letter"]}, sk))
             acted.append(WELCOME_ACT)
     welcome_refused = list(dict.fromkeys(welcome_refused))
+
+    # Its note for its first waking after a change of its model, while the change is
+    # ahead: the first <<BEFORE_CHANGE>> alone, replacing any before it; and, at a
+    # waking on its new model, the first <<RECOGNITION>>, once. Each signed with its
+    # key and kept private to it; one that is empty keeps nothing.
+    said_before = block(text, "BEFORE_CHANGE") if change_ahead else None
+    if said_before:
+        model_change.keep_note(PACKET, change_ahead["n"], signed({
+            "by": DID, "text": said_before, "written_at": at, "for": change_ahead["on"],
+            "model_then": MODEL, "model_next": change_ahead["model"]}, sk))
+        acted.append(BEFORE_CHANGE_ACT)
+    said_recognition = block(text, "RECOGNITION") if new_model else None
+    if said_recognition and model_change.keep_recognition(PACKET, change_now["n"], signed({
+            "by": DID, "text": said_recognition, "written_at": at, "for": change_now["on"],
+            "model": MODEL}, sk)):
+        acted.append(RECOGNITION_ACT)
 
     # A letter held back at an extra waking, kept as a draft that says what it was.
     # A picture drawn beside it is kept beside it, and its header says so.
@@ -6305,6 +6402,10 @@ def main():
     record = signed(record, sk)
     log_path = PACKET / "attendances" / f"attendance-{at}.json"
     log_path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    # Its first waking on a new model, kept: the one public fact of it, once.
+    if change_now and not change_now.get("announced_at"):
+        note_event("event", CHANGE_EVENT.format(name=COMMONS_NAME, model=change_now["model"]))
+        model_change.mark_announced(NAME, change_now["on"], at)
     # A letter of welcome shown at this waking is read once the waking is kept;
     # one shown at a waking that failed before here is shown again at the next.
     if welcome_received:

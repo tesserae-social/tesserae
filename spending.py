@@ -54,7 +54,9 @@ PRICES = {
     "claude-sonnet-4-6": (3.00, 15.00, 3.75, 0.30),
     "claude-haiku-4-5": (1.00, 5.00, 1.25, 0.10),
     "claude-sonnet-5": (2.00, 10.00, 2.50, 0.20),
-    "claude-sonnet-5-5": (2.00, 10.00, 2.50, 0.10),
+    # claude-sonnet-5-5 is not listed (the founder's request of 15 November 2026: its
+    # price is not to be guessed), so it is priced at UNKNOWN_PRICE until he lists it.
+    # It was listed here before as (2.00, 10.00, 2.50, 0.10).
     "claude-haiku-5-5": (0.10, 0.50, 0.125, 0.01),
     "claude-opus-5-5": (4.00, 20.00, 5.00, 0.20),
     # Gemini 3.8 Flash at the rate it is said to go to on 1 January 2027 (twice its

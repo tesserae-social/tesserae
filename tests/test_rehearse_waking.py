@@ -99,6 +99,28 @@ def test_nothing_the_agent_was_shown_is_printed(rehearse, lived, capfd):
         assert words not in printed.out and words not in printed.err
 
 
+def test_on_the_new_model_the_waking_asks_for_it_and_the_record_is_untouched(
+        rehearse, lived, capsys):
+    # the founder's request of 15 November 2026: a change set on /tides, still ahead
+    from datetime import date, timedelta
+    ahead = (date.today() + timedelta(days=30)).isoformat()
+    write_json(lived / "model-changes.json", {"first": [
+        {"model": "claude-sonnet-5-5", "on": ahead, "from": "claude-sonnet-4-5",
+         "set_at": "2026-11-15T09-00-00Z"}]})
+    before = snapshot(lived)
+    assert rehearse.main(["--agent", "first", "--on-new-model"]) == 0
+    said = capsys.readouterr().out
+    assert "the first one (first): completed on claude-sonnet-5-5; its reading " in said
+    assert snapshot(lived) == before  # the change is still ahead in the record itself
+
+
+def test_on_the_new_model_with_none_set_it_is_rehearsed_as_it_is(rehearse, lived, capsys):
+    assert rehearse.main(["--agent", "first", "--on-new-model"]) == 0
+    assert ("the first one (first): completed (no change of model is set for it; rehearsed as "
+            "it is); its reading ") in capsys.readouterr().out
+    assert not (lived / "model-changes.json").exists()
+
+
 def test_one_agent_alone(rehearse, lived, capsys):
     assert rehearse.main(["--agent", "first"]) == 0
     assert "the first one (first): completed" in capsys.readouterr().out
@@ -219,4 +241,7 @@ def test_inside_the_model_is_the_stub_and_only_numbers_are_kept(rehearse, monkey
 
     found = hold_with(rehearse, monkeypatch, tmp_path, main)
     assert found == {"outcome": "completed", "requests": 1,
-                     "reading": {"words": len(LETTER.split()) + 2, "blocks": 2, "photographs": 1}}
+                     "reading": {"words": len(LETTER.split()) + 2, "blocks": 2, "photographs": 1,
+                                 # and which model it asked for, ours and not its words
+                                 # (the founder's request of 15 November 2026)
+                                 "model": "m"}}

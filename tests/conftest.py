@@ -779,6 +779,16 @@ def coral_not_yet(module, monkeypatch):
     monkeypatch.setattr(module.hues, "FIRST_MAY_RETURN", False)
 
 
+def board_weekly_not_yet(module, monkeypatch):
+    """Shut the weekly question's topics to the first one again, for one test, as they were
+    until 15 November 2026 (later): the board's words as they were, and the place and
+    conversation alone to read and post in (attend.BOARD_BEFORE_WEEKLY). Given hearth, it
+    is done to the attend.py the hearth holds the tide through."""
+    module = getattr(module, "the_waking", module)
+    for name, value in module.BOARD_BEFORE_WEEKLY.items():
+        monkeypatch.setattr(module, name, value)
+
+
 def hue_choice_not_yet(module, monkeypatch):
     """A later agent's reading as it was before it chose its own colour (13 November
     2026): no line of its colour under WHAT HAS HAPPENED, and no <<HUE>> explained.

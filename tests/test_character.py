@@ -37,7 +37,7 @@ import shutil
 import pytest
 
 import agents
-from conftest import (block, introduction_at_280, six_not_yet, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
+from conftest import (block, board_weekly_not_yet, coral_not_yet, introduction_at_280, six_not_yet, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
                       switches_not_yet, wakings_not_yet_switched, write_json)
 from test_rooms_reading import READING_NOW, READING_ONE_WAKING, fingerprint_of_reading
 from test_wakings_doors import the_small_world
@@ -80,8 +80,19 @@ READING_NOW_ASKED_BEFORE_SIX = "fd9fb4c58f67a79bed1f64d2cb3ef17dd5a213704e95399b
 # Cut again, on purpose, the same day (the founder's request of 14 November 2026, part
 # 2), for nothing else than READING_NOW was: the six switched on for the first one
 # that day (corrections among them). With the six shut away again (conftest.six_not_yet)
-# it is exactly READING_NOW_ASKED_BEFORE_SIX.
-READING_NOW_ASKED = "654bea48777e6901d636dc9b74eb709431c672dc45e78e805c56aa8456e8c9c0"
+# it is exactly READING_NOW_ASKED_BEFORE_SIX. Held as READING_NOW_ASKED_BEFORE_CORAL since.
+READING_NOW_ASKED_BEFORE_CORAL = "654bea48777e6901d636dc9b74eb709431c672dc45e78e805c56aa8456e8c9c0"
+# Cut again, on purpose, on the branch pages (15 November 2026, later), for what moved
+# it on the branch audit-fixes and was not cut then: coral stays open to the first one,
+# for nothing else than READING_NOW was (<<HUE>> offers it coral first and no longer
+# says its coral cannot be chosen again). With coral closed to it again
+# (conftest.coral_not_yet) it is exactly READING_NOW_ASKED_BEFORE_CORAL.
+READING_NOW_ASKED_BEFORE_WEEKLY = "638ad00bb8b26096b386f67e1c0b0c798bc9726958c7e81ace602fd556823bf8"
+# Cut again, on purpose, on the branch pages (the founder's request of 15 November 2026,
+# later), for nothing else than READING_NOW was: <<BOARD>>'s explanation and
+# read_board's description name the weekly question too. With the board's words as
+# they were (conftest.board_weekly_not_yet) it is exactly READING_NOW_ASKED_BEFORE_WEEKLY.
+READING_NOW_ASKED = "6dc9c9ad0bcabf75942f2966f14869de4f6d554c4bf0895f09e37ddb31f50ceb"
 
 # ASKED OF YOU's words as they were first cut, before they named no one.
 ASKED_HOW_FIRST_CUT = (
@@ -226,6 +237,23 @@ def test_as_switched_on_the_questions_kept_are_its_own_reading(founder, wake, at
         assert asked.count(escaped) == 1
         asked = asked.replace(escaped, "", 1)
     assert hashlib.sha256(asked.encode("utf-8")).hexdigest() == READING_NOW
+
+
+def test_with_the_board_s_words_as_they_were_it_is_the_reading_before(
+        founder, wake, attend, room, packet, monkeypatch):
+    board_weekly_not_yet(attend, monkeypatch)
+    the_small_world(founder, room)
+    two_questions(packet)
+    assert fingerprint_of_reading(wake()) == READING_NOW_ASKED_BEFORE_WEEKLY
+
+
+def test_with_coral_closed_to_it_again_it_is_the_reading_before(
+        founder, wake, attend, room, packet, monkeypatch):
+    board_weekly_not_yet(attend, monkeypatch)
+    coral_not_yet(attend, monkeypatch)
+    the_small_world(founder, room)
+    two_questions(packet)
+    assert fingerprint_of_reading(wake()) == READING_NOW_ASKED_BEFORE_CORAL
 
 
 def test_with_the_six_shut_away_it_is_the_reading_before(founder, wake, attend, room,

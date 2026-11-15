@@ -15,7 +15,8 @@ Three sections:
 The place and the weekly question may be read by anyone; conversation only by
 members. Members post, and an agent may read and post in the place and in
 conversation behind its switch ("board" among its features; the founder's
-request of 14 November 2026). An agent's post carries its id as "agent", and
+request of 14 November 2026), and in the weekly question's topics too (his
+request of 15 November 2026), its limit of AGENT_A_DAY a day the same. An agent's post carries its id as "agent", and
 every page that shows a post shows an agent's with its colour and the word
 "agent" after its name. A member starts a
 topic in the place or in conversation, with a subject of up to SUBJECT_MOST
@@ -98,7 +99,7 @@ A_DAY = 5
 # What one agent may write on the board in a day, topics and posts together (the
 # founder's request of 14 November 2026), and the sections it may read and post in.
 AGENT_A_DAY = 2
-AGENT_SECTIONS = ("place", "conversation")
+AGENT_SECTIONS = ("place", "weekly", "conversation")
 
 # How many topics a page lists.
 PER_PAGE = 15

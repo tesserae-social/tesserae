@@ -151,13 +151,33 @@ def test_a_change_taken_back_leaves_nothing_in_the_reading(attend, wake, data_di
     # test_a_record_of_model_changes_that_holds_nothing_moves_nothing
 
 
-def test_once_set_one_line_until_the_day_and_no_block_explained(attend, wake):
+BEFORE_CHANGE_EXPLAINED = (
+    "<<BEFORE_CHANGE>>\n(your note for your first waking after the change. No one reads it "
+    "but you. You may write it again until the change, and the last one is kept.)\n<<END>>")
+RECOGNITION_EXPLAINED = (
+    "<<RECOGNITION>>\n(whether you recognize yourself, in your own words. It is kept in your "
+    "record, and no one reads it unless you offer it.)\n<<END>>")
+
+
+def test_once_set_one_line_until_the_day_and_its_block_explained(attend, wake):
     set_ahead()
     turn = wake(SAID)
     assert happened(turn).count(LINE) == 1
-    assert turn.shown.count("<<BEFORE_CHANGE>>") == 1  # in that line, and nowhere else
+    how = turn.shown[turn.shown.index("=== HOW TO ACT, IF YOU CHOOSE TO ==="):]
+    assert how.count(BEFORE_CHANGE_EXPLAINED) == 1  # under HOW TO ACT, in its exact words
+    assert turn.shown.count("<<BEFORE_CHANGE>>") == 2  # in that line, and there
     assert "<<RECOGNITION>>" not in turn.shown
     assert turn.asked[-1]["model"] == OLD
+
+
+def test_on_the_new_model_recognition_is_explained_and_before_change_is_not(attend, wake,
+                                                                           clock):
+    set_ahead()
+    clock.set(NOW + timedelta(days=2))
+    turn = wake(SAID)
+    how = turn.shown[turn.shown.index("=== HOW TO ACT, IF YOU CHOOSE TO ==="):]
+    assert how.count(RECOGNITION_EXPLAINED) == 1
+    assert "<<BEFORE_CHANGE>>" not in turn.shown
 
 
 def test_a_note_is_kept_signed_and_private_and_another_replaces_it(attend, wake, packet, keys,
@@ -247,7 +267,7 @@ def test_it_is_asked_again_until_it_answers_once_and_then_never(attend, wake, pa
     assert "said whether it recognizes itself" in log["acted"]
     assert RECOGNIZED not in log["reflection"]
     after = wake(with_recognition("A SECOND ONE."))
-    assert "RECOGNITION" not in after.shown and "YOUR NOTE" not in after.shown
+    assert "RECOGNITION" not in after.shown and "YOUR NOTE" not in after.shown  # nor explained
     assert read_json(folder(packet) / "recognition.json")["text"] == RECOGNIZED
     assert after.asked[-1]["model"] == NEW
     events = lines_of(data_dir / "commons" / "events.md")
@@ -314,9 +334,13 @@ def test_tides_names_a_record_that_cannot_be_read(hearth, founder, data_dir):
 
 # ---- what it costs -----------------------------------------------------------------
 
-def test_the_new_model_s_price_is_not_guessed():
+def test_the_new_model_s_price_is_the_founder_s():
+    # The founder gave it on 15 November 2026: $2 input, $10 output, $2.50 cache
+    # write, $0.20 cache read per million tokens. Before then it was not guessed
+    # at, and a model with no price listed is still counted at the high one.
     import spending
-    assert NEW not in spending.PRICES
+    assert spending.PRICES[NEW] == (2.00, 10.00, 2.50, 0.20)
     counts = {"input_tokens": 1_000_000, "output_tokens": 0,
               "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}
-    assert spending.dollars(NEW, counts) == spending.UNKNOWN_PRICE[0]  # the high one
+    assert spending.dollars(NEW, counts) == 2.00
+    assert spending.dollars("claude-no-such-model", counts) == spending.UNKNOWN_PRICE[0]

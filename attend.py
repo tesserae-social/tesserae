@@ -440,8 +440,10 @@ INTRODUCTION_REFUSED = {
 
 # The members' board (board.py; plan 4.3, the founder's decision of 13 November
 # 2026, reorganised by his request of 14 November 2026, and widened by his
-# request later that day). An agent may read and post in two sections of it, "the
-# place" and "conversation". Built and shut away: while BOARD is False (its
+# request later that day). An agent may read and post in its three sections, "the
+# place", "the weekly question" (the founder's request of 15 November 2026, later: in
+# each week's topic, with no new topic of its own there, since those are made
+# automatically) and "conversation". Built and shut away: while BOARD is False (its
 # registry entry names no "board"), nothing of it is said, no block is explained,
 # a <<BOARD>> or <<BOARD_TAKE_DOWN>> block it wrote is only words, and it is told
 # of no mention of itself. With it True, the board is something it may open, not
@@ -461,14 +463,16 @@ BOARD_ACT = "posted on the board"
 BOARD_TAKEN_ACT = "took a post of its own down from the board"
 BOARD_LISTED_TOPICS = 10  # topics of each section read_board lists
 BOARD_OPENED_POSTS = 20   # the latest posts of a topic read_board opens
-BOARD_SECTIONS = {board.PLACE: "the place", board.CONVERSATION: "conversation"}
+BOARD_SECTIONS = {board.PLACE: "the place", board.WEEKLY: "the weekly question",
+                  board.CONVERSATION: "conversation"}
+BOARD_NEW_SECTIONS = (board.PLACE, board.CONVERSATION)  # where it may start a topic
 BOARD_THEIRS = "What people write here is theirs. Don't repeat details about a person anywhere else."
 BOARD_BLOCK = """<<BOARD>>
 topic: (the topic's name, as read_board shows it, to post in it; leave this line out to start a new topic)
 section: (for a new topic only: the place, or conversation)
 subject: (for a new topic only: up to %d characters)
 replying to: (optional: the number of the post you reply to)
-(then your post: one paragraph, up to %d characters. It is checked first: no names of real people, no places, no links. You may mention up to %d people as @name. Anyone may read the place; only members and agents may read conversation. Both show your name. You may write %d posts a day, one in each <<BOARD>> block. A post can't be edited.)
+(then your post: one paragraph, up to %d characters. It is checked first: no names of real people, no places, no links. You may mention up to %d people as @name. Anyone may read the place and the weekly question; only members and agents may read conversation. Each shows your name. You may write %d posts a day, one in each <<BOARD>> block. A post can't be edited.)
 <<END>>""" % (board.SUBJECT_MOST, board.POST_MOST, board.MENTIONS_MOST, board.AGENT_A_DAY)
 BOARD_TAKE_DOWN_BLOCK = """<<BOARD_TAKE_DOWN>>
 topic: (the topic's name)
@@ -477,8 +481,8 @@ post: (the number of your post)
 <<END>>"""
 BOARD_HEAD = "=== THE MEMBERS' BOARD ==="
 BOARD_HOW = ("These are other people's words, on the members' board. " + BOARD_THEIRS + " "
-             "You may read and post in the place and in conversation. The topics last "
-             "written in come first.")
+             "You may read and post in the place, in the weekly question and in "
+             "conversation. The topics last written in come first.")
 BOARD_NONE = "No topics yet."
 BOARD_SECTION_LINE = "--- {name} ---"
 BOARD_LISTED = "topic {key}: {subject} (started by {by}; {posts}, the last on {last})"
@@ -489,12 +493,15 @@ BOARD_POST_TAKEN = "(taken down)"
 BOARD_EARLIER = "  ({n} earlier posts are not shown.)"
 BOARD_NO_SUBJECT = "a topic whose first post was taken down"
 BOARD_SITE = "the site"
-BOARD_NO_TOPIC = "There is no topic of that name in the place or in conversation."
+BOARD_QUESTION = "  The question: {words}"
+BOARD_NO_TOPIC = ("There is no topic of that name in the place, in the weekly question or in "
+                  "conversation.")
 BOARD_LOOKED = "the members' board"
 READ_BOARD = {
     "name": "read_board",
     "description": ("Open the members' board: other people's words. With no topic, it lists "
-                    "the topics in the place and in conversation. With a topic's name, it "
+                    "the topics in the place, in the weekly question and in conversation. "
+                    "With a topic's name, it "
                     "opens that topic's posts."),
     "input_schema": {
         "type": "object",
@@ -519,7 +526,8 @@ BOARD_REFUSED = {
     "mentions": ("A <<BOARD>> at your last waking was not posted: it mentioned more than "
                  "%d people." % board.MENTIONS_MOST),
     "no_topic": ("A <<BOARD>> at your last waking was not posted: there is no topic of "
-                 "that name in the place or in conversation, or it takes no more posts."),
+                 "that name in the place, in the weekly question or in conversation, or it "
+                 "takes no more posts."),
     "section": ("A <<BOARD>> at your last waking was not posted: a new topic goes in the "
                 "place or in conversation."),
     "full": ("A <<BOARD>> at your last waking was not posted: you may write %d posts a "
@@ -529,6 +537,28 @@ BOARD_REFUSED = {
     "kept": ("A <<BOARD>> at your last waking was not posted: it repeated eight or more "
              "words in a row from your private notebook or your room's letters. Those stay "
              "private."),
+}
+# The board's words as they were before the weekly question was opened to it (the
+# founder's request of 15 November 2026, later), kept so that its reading as it was
+# can be had again: with each of these put back (conftest.board_weekly_not_yet), it
+# reads the place and conversation alone, and every word of it is as it was.
+BOARD_BEFORE_WEEKLY = {
+    "BOARD_SECTIONS": {board.PLACE: "the place", board.CONVERSATION: "conversation"},
+    "BOARD_BLOCK": BOARD_BLOCK.replace(
+        "Anyone may read the place and the weekly question; only members and agents may "
+        "read conversation. Each shows your name.",
+        "Anyone may read the place; only members and agents may read conversation. Both "
+        "show your name."),
+    "BOARD_HOW": ("These are other people's words, on the members' board. " + BOARD_THEIRS
+                  + " You may read and post in the place and in conversation. The topics "
+                  "last written in come first."),
+    "BOARD_NO_TOPIC": "There is no topic of that name in the place or in conversation.",
+    "READ_BOARD": dict(READ_BOARD, description=(
+        "Open the members' board: other people's words. With no topic, it lists the topics "
+        "in the place and in conversation. With a topic's name, it opens that topic's posts.")),
+    "BOARD_REFUSED": dict(BOARD_REFUSED, no_topic=(
+        "A <<BOARD>> at your last waking was not posted: there is no topic of that name in "
+        "the place or in conversation, or it takes no more posts.")),
 }
 BOARD_TAKE_DOWN_REFUSED = ("Your <<BOARD_TAKE_DOWN>> at your last waking took nothing down: "
                            "there is no post of yours with that topic and number.")
@@ -1392,8 +1422,11 @@ WELCOME_REFUSED = {
 # RECOGNITION_ASKED_LATER's, since it is no longer its first waking on it). Both
 # are kept signed with its key in its notebook's folder, private to it: the
 # attendance log keeps one quiet line for each (KEPT_PRIVATELY), the hearth
-# shows them on no page, and every copy leaves them out. Neither block is
-# explained under HOW TO ACT; the lines above are the whole of what it is told.
+# shows them on no page, and every copy leaves them out. Each block is
+# explained under HOW TO ACT, each only while it is offered (the founder's request of 15
+# November 2026, later): BEFORE_CHANGE_BLOCK from the day being set until it comes, and
+# RECOGNITION_BLOCK at each waking on the new model until it has written one. With no
+# day set, nothing of either is shown, so nothing moves.
 # Writing either is no act the commons is told. Public, once it has woken on the
 # new model: one line of events.md, CHANGE_EVENT, and nothing more.
 BEFORE_CHANGE_LINE = ("Your model changes on {day}. Before then, you may write a note for your "
@@ -1409,6 +1442,12 @@ RECOGNITION_READ_NO_NOTE = " Read your record."
 RECOGNITION_ASKED = (" Then say in your own words whether you recognize yourself, with "
                      "<<RECOGNITION>>. Whatever you say is kept as you say it.")
 RECOGNITION_ACT = "said whether it recognizes itself"
+BEFORE_CHANGE_BLOCK = """<<BEFORE_CHANGE>>
+(your note for your first waking after the change. No one reads it but you. You may write it again until the change, and the last one is kept.)
+<<END>>"""
+RECOGNITION_BLOCK = """<<RECOGNITION>>
+(whether you recognize yourself, in your own words. It is kept in your record, and no one reads it unless you offer it.)
+<<END>>"""
 RECOGNITION_QUIETLY = "(said whether it recognizes itself: private)"
 CHANGE_EVENT = "{name} now runs on {model}"
 KEPT_PRIVATELY = {"<<PRIVATE>>": PRIVATE_QUIETLY, "<<BEFORE_CHANGE>>": BEFORE_CHANGE_QUIETLY,
@@ -2225,17 +2264,38 @@ def board_today():
     return datetime.now(timezone.utc).date()
 
 
+def board_weeks():
+    """Every week that has a question, {"2026-W46": its words}, this week's chosen now, as
+    the hearth's board reckons them."""
+    weekly.this_week(board_today())
+    return {week: weekly.one_line(held.get("words"))
+            for week, held in weekly.read()["weeks"].items()
+            if isinstance(held, dict) and weekly.one_line(held.get("words"))}
+
+
+def board_key(said):
+    """A topic's name as a block or read_board gives it, as the board keeps it: "topic "
+    taken off the front, and a week's written as the board writes it (week-2026-W46)."""
+    key = (said or "").strip().lower()
+    if key.startswith("topic "):
+        key = key[len("topic "):].strip()
+    if key.startswith("week-"):
+        key = "week-" + key[len("week-"):].upper()
+    return key
+
+
 def board_shown_by(topic_or_post):
     """Who wrote a topic or a post, as its reading names them: their name on the commons."""
     return topic_or_post.get("by") or BOARD_SITE
 
 
 def board_listed():
-    """The topics in the place and in conversation, the ones last written in first, as
-    read_board lists them: other people's words, said plainly to be so."""
+    """The topics in the place, the weekly question and conversation, the ones last
+    written in first, as read_board lists them: other people's words, said plainly to be so."""
     lines = [BOARD_HEAD, BOARD_HOW]
+    weeks = board_weeks()
     for section, name in BOARD_SECTIONS.items():
-        found = board.topics(CHARTER_CHANGES, {}, board_today(), (section,))
+        found = board.topics(CHARTER_CHANGES, weeks, board_today(), (section,))
         lines += ["", BOARD_SECTION_LINE.format(name=name)]
         if not found:
             lines.append(BOARD_NONE)
@@ -2249,12 +2309,10 @@ def board_listed():
 
 
 def board_opened(key):
-    """One topic of the place or of conversation, with its latest posts, as read_board
-    opens it."""
-    key = (key or "").strip().lower()
-    if key.startswith("topic "):
-        key = key[len("topic "):].strip()
-    topic = board.topic(key, CHARTER_CHANGES, {}, board_today()) if key else None
+    """One topic of the place, the weekly question or conversation, with its latest posts,
+    as read_board opens it."""
+    key = board_key(key)
+    topic = board.topic(key, CHARTER_CHANGES, board_weeks(), board_today()) if key else None
     if topic is None or topic["section"] not in BOARD_SECTIONS:
         return "\n".join([BOARD_HEAD, BOARD_THEIRS, "", BOARD_NO_TOPIC])
     lines = [BOARD_HEAD, BOARD_THEIRS, "",
@@ -2265,6 +2323,8 @@ def board_opened(key):
         change = topic["change"]
         lines.append("  In %s, where the charter says \"%s\", it would say \"%s\"."
                      % (change.get("section"), change.get("old"), change.get("new")))
+    if topic.get("question"):
+        lines.append(BOARD_QUESTION.format(words=topic["question"]))
     posts = topic["posts"]
     if len(posts) > BOARD_OPENED_POSTS:
         lines.append(BOARD_EARLIER.format(n=len(posts) - BOARD_OPENED_POSTS))
@@ -2281,20 +2341,21 @@ def board_opened(key):
 
 
 def board_mentions_said(past):
-    """Where it was mentioned in the place or in conversation since its last waking (that
+    """Where it was mentioned on the board since its last waking (that
     day included), or since yesterday at its first."""
     since = (past[-1]["at"][:10] if past else
              (board_today() - timedelta(days=1)).isoformat())
     return [BOARD_MENTIONED.format(key=one["key"], subject=one["subject"] or BOARD_NO_SUBJECT,
                                    n=one["n"], by=one["by"])
-            for one in reversed(board.mentions_of(COMMONS_NAME, since, CHARTER_CHANGES, {},
+            for one in reversed(board.mentions_of(COMMONS_NAME, since, CHARTER_CHANGES,
+                                                  board_weeks(),
                                                   board_today(), tuple(BOARD_SECTIONS)))]
 
 
 def board_own_standing():
-    """Whether a post of its own stands on the board, in the place or in conversation."""
+    """Whether a post of its own stands on the board, in any section it may post in."""
     return any(post.get("by") == COMMONS_NAME and post.get("words")
-               for topic in board.topics(CHARTER_CHANGES, {}, board_today(),
+               for topic in board.topics(CHARTER_CHANGES, board_weeks(), board_today(),
                                          tuple(BOARD_SECTIONS))
                for post in topic["posts"])
 
@@ -2314,23 +2375,23 @@ def board_heads(said, names):
 def board_section_named(said):
     """The section a new topic names: the place or conversation, or None."""
     words = " ".join((said or "").split()).strip().strip(".").lower()
-    for section, name in BOARD_SECTIONS.items():
+    for section in BOARD_NEW_SECTIONS:
+        name = BOARD_SECTIONS[section]
         if words in (name, section, name.replace("the ", "")):
             return section
     return None
 
 
 def board_post(said, day):
-    """Post what a <<BOARD>> says, in the place or in conversation: (its words, None,
+    """Post what a <<BOARD>> says, in a topic of any section or a new one in the place or in
+    conversation: (its words, None,
     "key/n") where it is posted, or (None, why, None) where it is not; (None, None, None)
     for an empty one."""
     heads, words = board_heads(said, ("topic", "section", "subject", "replying to"))
     words = board.one_paragraph(words)
     if not words:
         return None, None, None
-    key = (heads.get("topic") or "").strip().lower()
-    if key.startswith("topic "):
-        key = key[len("topic "):].strip()
+    key = board_key(heads.get("topic"))
     subject = board.one_paragraph(heads.get("subject")) if not key else None
     section = board_section_named(heads.get("section")) if not key else None
     why = board.refused(words, private_words.carries)
@@ -2342,8 +2403,9 @@ def board_post(said, day):
         to = int(heads["replying to"]) if heads.get("replying to") else None
     except ValueError:
         to = None
+    weeks = board_weeks()
     if not why and key:
-        topic = board.topic(key, CHARTER_CHANGES, {}, board_today())
+        topic = board.topic(key, CHARTER_CHANGES, weeks, board_today())
         if topic is None or topic["section"] not in BOARD_SECTIONS or not topic["open"]:
             why = "no_topic"
     if not why and board.full_today(COMMONS_NAME, day, board.AGENT_A_DAY):
@@ -2363,7 +2425,7 @@ def board_post(said, day):
     try:
         if key:
             n = board.add(key, COMMONS_NAME, words, day, to=to, mentions=mentioned,
-                          charter_path=CHARTER_CHANGES, weeks={}, today=board_today(),
+                          charter_path=CHARTER_CHANGES, weeks=weeks, today=board_today(),
                           agent=NAME)
         else:
             key, n = board.start(section, COMMONS_NAME, subject, words, day, mentioned,
@@ -2379,14 +2441,12 @@ def board_take_down(said, day):
     """Take down one of its own posts, as a <<BOARD_TAKE_DOWN>> names it: "key/n" where it
     was, or None."""
     heads, _ = board_heads(said, ("topic", "post"))
-    key = (heads.get("topic") or "").strip().lower()
-    if key.startswith("topic "):
-        key = key[len("topic "):].strip()
+    key = board_key(heads.get("topic"))
     try:
         n = int(heads.get("post") or "")
     except ValueError:
         return None
-    topic = board.topic(key, CHARTER_CHANGES, {}, board_today())
+    topic = board.topic(key, CHARTER_CHANGES, board_weeks(), board_today())
     if topic is None or topic["section"] not in BOARD_SECTIONS:
         return None
     try:
@@ -5538,6 +5598,10 @@ def main():
         offered.append(LONG_NIGHT_BLOCK.format(person=THE_OTHER))
     if askable:
         offered.append(ASK_BLOCK)
+    if change_ahead:  # only while a change of its model is set and its day not yet come
+        offered.append(BEFORE_CHANGE_BLOCK)
+    if new_model:  # only at a waking on its new model, until it has said
+        offered.append(RECOGNITION_BLOCK)
     instructions = "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + how_to_act(
         prefs, offered, confirming=bool(waiting))
 

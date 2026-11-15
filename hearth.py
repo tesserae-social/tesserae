@@ -4184,6 +4184,13 @@ INVITE_LOST = ("If it's lost, withdraw it and make another. A withdrawn invitati
                "use up your month.")
 INVITE_FROM = "You may invite someone from {day}."
 INVITATION_NOT_OPEN = "This invitation is no longer open."
+# Withdrawing an emailed invitation to send another, said beside each open one
+# that was emailed (the founder's request of 15 November 2026, later: e1). Twice
+# in 30 days it costs nothing; from the third, it counts against the month.
+INVITE_RESENDS_LEFT = ("To fix a typo, you may withdraw an emailed invitation and send "
+                       "another twice in 30 days. You have {left} left.")
+INVITE_RESENDS_USED = ("You've withdrawn two emailed invitations in the last 30 days. If you "
+                       "withdraw this one, it counts against your month.")
 
 # An invitation may instead be sent by email, from hello@tesserae.social (the
 # founder's request of 14 November 2026): its note is checked for good spirit
@@ -4270,8 +4277,14 @@ def inviting_shown(name):
             everyone.append({"id": one["id"], "by": commons_name_of(one.get("by")),
                              "made": long_day(made) if made else "",
                              "until": long_day(invitations.open_until(one))})
+    resend_said = None
+    if any(one["to"] for one in mine if one["state"] == invitations.OPEN) and not (
+            keeper and invitations.today() < invitations.FOUNDING_PERIOD_ENDS):
+        left = invitations.resends_left(name)
+        resend_said = (INVITE_RESENDS_LEFT.format(left=left)
+                       if left else INVITE_RESENDS_USED)
     return {"may": may, "from": long_day(from_day) if from_day else None,
-            "mine": mine, "keeper": keeper, "open": everyone,
+            "mine": mine, "resend_said": resend_said, "keeper": keeper, "open": everyone,
             "longest": invitations.NOTE_LONGEST, "email_said": INVITE_EMAIL_SAID,
             "as_seen": commons_name_of(name), "name_longest": invitations.FROM_NAME_LONGEST}
 
@@ -8115,7 +8128,7 @@ BOARD_SECTION_HOW = {
 }
 BOARD_WHO_READS = {
     board.PLACE: "Anyone may read the place. Members and agents may post.",
-    board.WEEKLY: "Anyone may read the weekly question. Only members may post.",
+    board.WEEKLY: "Anyone may read the weekly question. Members and agents may post.",
     board.CONVERSATION: ("Only members and agents may read conversation, and only members "
                          "and agents may post."),
 }

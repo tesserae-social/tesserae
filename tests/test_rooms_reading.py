@@ -436,7 +436,7 @@ from datetime import datetime, timezone
 
 from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, explained_as_before,
                       introduction_at_280, letter_part_as_before, long_night_switched_on,
-                      six_not_yet, coral_not_yet,
+                      six_not_yet, coral_not_yet, board_weekly_not_yet,
                       write_json,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
@@ -603,8 +603,18 @@ READING_SIX = "0850cc5009627ce0428142241ea49ab086e30d04913591508aec40b91f7f584c"
 # mine", and for nothing else: <<HUE>> offers it "coral, blue, violet, rose, green,
 # amber, sea, plum" and no longer ends "Your colour now is not on the list: if you
 # choose another, you cannot choose it again." With coral closed to it again
-# (conftest.coral_not_yet) it is exactly READING_SIX.
-READING_NOW = "8a2673159810f24bf99248fa8c2dc583e3dc7463ae23f7250d23a2b31c810df3"
+# (conftest.coral_not_yet) it is exactly READING_SIX. Held as READING_CORAL since.
+READING_CORAL = "8a2673159810f24bf99248fa8c2dc583e3dc7463ae23f7250d23a2b31c810df3"
+
+# cut again, on purpose, on the branch pages (the founder's request of 15 November
+# 2026, later), when the first one may post in the weekly question's topics too, and
+# for nothing else: <<BOARD>>'s explanation says "Anyone may read the place and the
+# weekly question; only members and agents may read conversation. Each shows your
+# name." where it said "Anyone may read the place; only members and agents may read
+# conversation. Both show your name.", and read_board's description says "the place,
+# in the weekly question and in conversation". With the board's words as they were
+# (conftest.board_weekly_not_yet) it is exactly READING_CORAL.
+READING_NOW = "82b7d976c57b9c9850a978028a3527bc8cf1b5ab9aee35f728af8d68d3de2d15"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -682,6 +692,7 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "the longer introduction", READING_SWITCHES),
     (False, "the six", READING_INTRODUCTION_500),
     (False, "coral", READING_SIX),
+    (False, "the weekly question", READING_CORAL),
     (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
@@ -703,9 +714,14 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "the four of 13 November switched, an introduction of 500 not yet",
          "an introduction of 500, the six of 14 November not yet",
          "the six of 14 November, coral not yet open to it again",
+         "coral open to it again, the weekly question's topics not yet",
          "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
+    if as_before:  # every reading cut before had the board's words as they were
+        board_weekly_not_yet(attend, monkeypatch)
+    if as_before == "the weekly question":  # and with that, nothing else moved
+        as_before = None
     if as_before == "coral":  # the one cut before had coral closed to it, and nothing else
         coral_not_yet(attend, monkeypatch)
         as_before = None
@@ -895,8 +911,15 @@ def test_the_way_he_writes_may_be_120_characters_and_no_more(founder, data_dir):
 # request of 15 November 2026), for nothing else than READING_NOW was: <<HUE>> offers
 # the first one coral first of its colours and no longer says its coral cannot be
 # chosen again. With coral closed to it again (conftest.coral_not_yet) it is exactly
-# the one held before, LONG_NIGHT_BEFORE_CORAL.
-READING_LONG_NIGHT = "d6a65ffce43fa8d1ec31f7615414c381e6a7b7dbf14608bd4345193de2f2bced"
+# the one held before, LONG_NIGHT_BEFORE_CORAL. Held as LONG_NIGHT_BEFORE_WEEKLY since.
+#
+# READING_LONG_NIGHT cut again, on purpose, on the branch pages (the founder's request
+# of 15 November 2026, later), for nothing else than READING_NOW was: <<BOARD>>'s
+# explanation and read_board's description name the weekly question too. With the
+# board's words as they were (conftest.board_weekly_not_yet) it is exactly
+# LONG_NIGHT_BEFORE_WEEKLY.
+READING_LONG_NIGHT = "9d5c6072d76ef530bd4c072c48c6d1888e88df1149a8d6fabbb6f58dc9f7adeb"
+LONG_NIGHT_BEFORE_WEEKLY = "d6a65ffce43fa8d1ec31f7615414c381e6a7b7dbf14608bd4345193de2f2bced"
 LONG_NIGHT_BEFORE_CORAL = "50ee944b0b86e223a4a5df6b535b3070bc3fdfabbde0d94d9ae3f40d2e7c0044"
 SEALED_IN_WINTER_BEFORE_SIX = "b43fe56e82c48cc1f34e00ad1ed1199c562f6438039520ca7c9f70ff09b5beeb"
 LONG_NIGHT_BEFORE_SIX = "4fd0d679c15bbe3659d650b7adafb3139c3958f8ad82ac0d0954a9f8ed2e62a6"
@@ -918,12 +941,15 @@ def a_sealed_bond(attend, room):
 
 
 @pytest.mark.parametrize("switched, before, as_cut", [
-    (True, None, READING_LONG_NIGHT), (True, "coral", LONG_NIGHT_BEFORE_CORAL),
+    (True, None, READING_LONG_NIGHT), (True, "weekly", LONG_NIGHT_BEFORE_WEEKLY),
+    (True, "coral", LONG_NIGHT_BEFORE_CORAL),
     (False, "six", SEALED_IN_WINTER_BEFORE_SIX), (True, "six", LONG_NIGHT_BEFORE_SIX),
     (False, "introduction", SEALED_IN_WINTER_AT_280), (True, "introduction", LONG_NIGHT_AT_280),
     (False, "switches", SEALED_IN_WINTER_BEFORE_SWITCHES),
     (True, "switches", LONG_NIGHT_BEFORE_SWITCHES)],
-    ids=["the switch on, as it reads today", "the switch on, coral not yet open to it again",
+    ids=["the switch on, as it reads today",
+         "the switch on, the weekly question's topics not yet",
+         "the switch on, coral not yet open to it again",
          "the switch off, the six of 14 November not yet",
          "the switch on, the six of 14 November not yet",
          "the switch off, an introduction of 500 not yet",
@@ -932,6 +958,10 @@ def a_sealed_bond(attend, room):
          "the switch on, the four of 13 November not yet"])
 def test_the_first_one_s_long_night_is_its_own_reading_and_only_when_switched_on(
         wake, attend, room, clock, monkeypatch, tmp_path, switched, before, as_cut):
+    if before:  # each held before had the board's words as they were
+        board_weekly_not_yet(attend, monkeypatch)
+    if before == "weekly":  # and with that, nothing else moved
+        before = None
     if before == "coral":  # the one held before had coral closed to it, and nothing else
         coral_not_yet(attend, monkeypatch)
         before = None

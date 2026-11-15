@@ -1117,3 +1117,85 @@ def test_the_preview_s_parts_are_as_sent(hearth):
                                 [("#D85A30", None)])
     assert "Come &amp; see.<br>\nTwo lines." in said
     assert said.count('bgcolor="#D85A30"') == 1
+
+
+# ---- withdrawing an emailed one to fix a typo (e1) ---------------------------------
+# The founder's request of 15 November 2026, later: a member may withdraw an emailed
+# invitation and send another twice in 30 days; from the third, a withdrawn emailed
+# invitation counts against the month, and /account says so where it applies.
+
+RESENDS_LEFT = ("To fix a typo, you may withdraw an emailed invitation and send another "
+                "twice in 30 days. You have {left} left.")
+RESENDS_USED = ("You've withdrawn two emailed invitations in the last 30 days. If you "
+                "withdraw this one, it counts against your month.")
+
+
+def emailed_and_withdrawn(hearth, by=MEMBER, withdrawn_by=None):
+    one, _ = hearth.invitations.prepare(by, "a note", email="birch@example.org")
+    hearth.invitations.keep(one)
+    hearth.invitations.withdraw(one["id"], withdrawn_by or by,
+                                keeper=bool(withdrawn_by and withdrawn_by != by))
+    return one
+
+
+def test_two_withdrawn_emailed_ones_are_free_and_the_third_counts(hearth, clock, monkeypatch,
+                                                                  data_dir):
+    from datetime import date
+    clock.pin(hearth.invitations, monkeypatch)
+    arrived = "2026-09-01T15:00:00Z"
+    clock.set(datetime(2026, 11, 5, 15, tzinfo=timezone.utc))
+    emailed_and_withdrawn(hearth)
+    emailed_and_withdrawn(hearth)
+    assert rule(hearth, MEMBER, "member", arrived, date(2026, 11, 5)) == (True, None)
+    assert hearth.invitations.resends_left(MEMBER) == 0
+    emailed_and_withdrawn(hearth)
+    assert rule(hearth, MEMBER, "member", arrived, date(2026, 11, 5)) == (False, date(2026, 12, 5))
+    kept = [one for one in files(data_dir) if one["by"] == MEMBER]
+    assert all(one["emailed"] and one["email"] is None for one in kept)  # the address is gone
+
+
+def test_the_two_are_counted_in_a_rolling_thirty_days(hearth, clock, monkeypatch):
+    from datetime import date
+    clock.pin(hearth.invitations, monkeypatch)
+    arrived = "2026-09-01T15:00:00Z"
+    clock.set(datetime(2026, 11, 5, 15, tzinfo=timezone.utc))
+    emailed_and_withdrawn(hearth)
+    emailed_and_withdrawn(hearth)
+    clock.set(datetime(2026, 12, 5, 15, tzinfo=timezone.utc))  # thirty days on
+    assert hearth.invitations.resends_left(MEMBER) == 2
+    emailed_and_withdrawn(hearth)
+    assert rule(hearth, MEMBER, "member", arrived, date(2026, 12, 5)) == (True, None)
+    assert hearth.invitations.resends_left(MEMBER) == 1
+
+
+def test_a_link_withdrawn_or_one_the_keeper_withdrew_never_counts(hearth, clock, monkeypatch):
+    from datetime import date
+    clock.pin(hearth.invitations, monkeypatch)
+    arrived = "2026-09-01T15:00:00Z"
+    clock.set(datetime(2026, 11, 5, 15, tzinfo=timezone.utc))
+    for _ in range(3):
+        one, _ = hearth.invitations.make(MEMBER, "a note")
+        hearth.invitations.withdraw(one["id"], MEMBER)
+    for _ in range(3):
+        emailed_and_withdrawn(hearth, withdrawn_by=FOUNDER_NAME)
+    assert rule(hearth, MEMBER, "member", arrived, date(2026, 11, 5)) == (True, None)
+    assert hearth.invitations.resends_left(MEMBER) == 2
+
+
+def test_the_account_says_so_beside_an_open_emailed_one(hearth, member, outbox, reader):
+    invite_by_email(member)
+    said = plain(page(member.get("/account")))
+    assert RESENDS_LEFT.format(left=2) in said
+    emailed_and_withdrawn(hearth)
+    assert RESENDS_LEFT.format(left=1) in plain(page(member.get("/account")))
+    emailed_and_withdrawn(hearth)
+    said = plain(page(member.get("/account")))
+    assert RESENDS_USED in said and "You have" not in said
+
+
+def test_nothing_is_said_beside_a_link_or_for_the_keeper(hearth, member, keeper, outbox, reader):
+    made_link(member)
+    assert "withdraw an emailed" not in plain(page(member.get("/account")))
+    invite_by_email(keeper)
+    said = plain(page(keeper.get("/account")))
+    assert "emailed invitation" not in said

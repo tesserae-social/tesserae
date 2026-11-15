@@ -52,6 +52,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p>Made on {{ one.made }}: open until {{ one.until }}.{% if one.to %} Sent to {{ one.to }}.{% endif %}
       <button type="submit" class="small">Withdraw</button></p>
+    {% if one.to and inviting.resend_said %}<p class="muted">{{ inviting.resend_said }}</p>{% endif %}
   </form>
   {% else %}
   <p>Made on {{ one.made }}: {{ one.state }}.</p>

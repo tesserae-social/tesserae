@@ -4114,6 +4114,13 @@ INVITE_NO_ROOM = ("No more emails can be sent today, so no invitation was made. 
 INVITE_NOT_SENT = ("The email couldn't be sent, so no invitation was made. Try again later, or "
                    "leave the address empty to get a link to send yourself.")
 INVITE_SPIRIT = "That note wasn't taken; no invitation was made."
+INVITE_SPIRIT_NAMED = "That name or note wasn't taken; no invitation was made."
+INVITE_NAME_SPIRIT = "That name wasn't taken; no invitation was made."
+# The name an invitation is from may be changed, but never so that it passes for
+# someone else's (the founder's request of 14 November 2026, later). One line is
+# said for every refusal, so that it hints at nothing.
+INVITE_NAME_REFUSED = "That name can't be used. Choose another."
+FROM_NAME_RESERVED = re.compile(r"\bthe\s+founder\b|\btesserae\b", re.I)
 SIGNED_IN_ALREADY = "You're signed in already; this invitation is for someone new."
 
 JOIN_SAID = "Choose how you'll be known here, an email address, and a password."
@@ -4178,7 +4185,33 @@ def inviting_shown(name):
                              "until": long_day(invitations.open_until(one))})
     return {"may": may, "from": long_day(from_day) if from_day else None,
             "mine": mine, "keeper": keeper, "open": everyone,
-            "longest": invitations.NOTE_LONGEST, "email_said": INVITE_EMAIL_SAID}
+            "longest": invitations.NOTE_LONGEST, "email_said": INVITE_EMAIL_SAID,
+            "as_seen": commons_name_of(name), "name_longest": invitations.FROM_NAME_LONGEST}
+
+
+def same_name(one, other):
+    return " ".join(str(one).lower().split()) == " ".join(str(other).lower().split())
+
+
+def invite_name_refused(name, typed):
+    """Why the name an invitation is from may not be used, or None. The inviter's own
+    commons name is always theirs; any other may carry no link and no protected word,
+    and may not be the founder's, Tesserae's, or any member's or agent's."""
+    try:
+        from_name = invitations.from_name_kept(typed)
+    except invitations.InvitationError as reason:
+        return str(reason), None
+    if same_name(from_name, commons_name_of(name)):
+        return None, from_name
+    taken = set(members.list_members())  # every pseudonym, the inviter's own as well
+    for agent in agents.registry():
+        taken.update([agent.get("id", ""), agent.get("commons_name", ""),
+                      *agent.get("formerly", [])])
+    if (LINKISH.search(from_name) or private_words.carries(from_name)
+            or FROM_NAME_RESERVED.search(from_name)
+            or any(same_name(from_name, other) for other in taken if other)):
+        return INVITE_NAME_REFUSED, None
+    return None, from_name
 
 
 def forget_invited_addresses():
@@ -4195,26 +4228,48 @@ def account_invite():
     name = session.get("member")
     note = request.form.get("note", "")
     typed = request.form.get("address", "").strip()
+    # a form without the field (an older page) is from the inviter's commons name
+    typed_name = request.form.get("from_name", commons_name_of(name))
+    kept = {"invite_draft": note, "invite_from": typed_name}
+    why, from_name = invite_name_refused(name, typed_name)
+    if why:
+        return account_page(invite_error=why, invite_address=typed, **kept)
     if typed:
-        return invite_by_email(name, note, typed)
+        return invite_by_email(name, note, typed, from_name, typed_name)
+    try:
+        invitations.note_kept(note)
+    except invitations.InvitationError as reason:
+        return account_page(invite_error=str(reason), **kept)
+    if not same_name(from_name, commons_name_of(name)):  # a name changed is screened
+        record = member_record(name) or {}
+        may, _ = invitations.may_invite(name, record.get("role"), record.get("arrived_at"))
+        if not may:
+            return account_page()
+        turn = screen_turn()
+        if turn:
+            return account_page(invite_error=screen_turn_said(turn), **kept)
+        if not in_good_spirit(from_name):
+            return account_page(invite_error=INVITE_NAME_SPIRIT, **kept)
     with invitations.INVITING:
         record = member_record(name) or {}
         may, _ = invitations.may_invite(name, record.get("role"), record.get("arrived_at"))
         if not may:
             return account_page()
         try:
-            _, token = invitations.make(name, note)
+            _, token = invitations.make(name, note, from_name=from_name)
         except invitations.InvitationError as reason:
-            return account_page(invite_error=str(reason), invite_draft=note)
+            return account_page(invite_error=str(reason), **kept)
     # shown this once, on this page, and kept nowhere but as its hash
     return account_page(invite_made=mail.link("/invitation/" + token))
 
 
-def invite_by_email(name, note, typed):
-    """Make an invitation and send it, by its one email, to the address typed; or make
-    nothing, and say why. The link is never shown: it goes only to the address."""
+def invite_by_email(name, note, typed, from_name, typed_name):
+    """Make an invitation and send it, by its one email, to the address typed, from the
+    name chosen; or make nothing, and say why. The link is never shown: it goes only to
+    the address."""
     def refused(why):
-        return account_page(invite_error=why, invite_draft=note, invite_address=typed)
+        return account_page(invite_error=why, invite_draft=note, invite_address=typed,
+                            invite_from=typed_name)
 
     try:
         invitations.note_kept(note)
@@ -4230,15 +4285,16 @@ def invite_by_email(name, note, typed):
     turn = screen_turn()
     if turn:
         return refused(screen_turn_said(turn))
-    if not in_good_spirit(note):
-        return refused(INVITE_SPIRIT)
+    named = not same_name(from_name, commons_name_of(name))
+    if not in_good_spirit(from_name + "\n\n" + note):  # one try for the name and the note
+        return refused(INVITE_SPIRIT_NAMED if named else INVITE_SPIRIT)
     with invitations.INVITING:
         record = member_record(name) or {}
         may, _ = invitations.may_invite(name, record.get("role"), record.get("arrived_at"))
         if not may:  # one made a moment ago, in another tab
             return account_page()
-        one, token = invitations.prepare(name, note, email=address)
-        outcome = mail.send_invitation(address, commons_name_of(name), one["note"], token,
+        one, token = invitations.prepare(name, note, email=address, from_name=from_name)
+        outcome = mail.send_invitation(address, from_name, one["note"], token,
                                        long_day(invitations.open_until(one)))
         if outcome != mail.SENT:
             return refused(INVITE_NO_ROOM if outcome == mail.DAY_FULL else INVITE_NOT_SENT)
@@ -4268,7 +4324,8 @@ def invitation(token):
         INVITATION_PAGE, token=token,
         ais=said_counted(len(agents.registry()), "AI", "AIs"),
         people=said_counted(len(members.list_members()), "person", "people"),
-        inviter=commons_name_of(one.get("by")), note=one.get("note", ""),
+        inviter=one.get("from_name") or commons_name_of(one.get("by")),
+        note=one.get("note", ""),
         until=long_day(invitations.open_until(one)),
         signed_in=bool(session.get("member")), signed_in_said=SIGNED_IN_ALREADY)
 

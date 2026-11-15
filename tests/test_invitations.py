@@ -908,3 +908,120 @@ def test_the_address_is_on_no_page_but_its_own_join_and_in_no_reading(
     assert INVITED_KEPT not in repr(turn.asked) and INVITED_HIDDEN not in repr(turn.asked)
     copied = [name for _, name in hearth.export_files()]
     assert not any(name.startswith("invitations/") for name in copied)
+
+
+# ---- the name an invitation is from (the founder's request of 14 November 2026, later) ---
+
+CHOSEN = "Birch from the river"
+
+
+def invite_from(client, from_name, note=NOTE, address=""):
+    return post(client, "/account/invite",
+                data={"note": note, "address": address, "from_name": from_name})
+
+
+def test_the_form_offers_the_name_filled_in_with_their_commons_name(member, keeper):
+    said = page(member.get("/account"))
+    assert """<label for="from_name">Your name, as they'll see it</label>""" in said
+    assert re.search(r'<input type="text" id="from_name" name="from_name" maxlength="40"\s+'
+                     r'required value="birch">', said)
+    assert 'value="the founder"' in page(keeper.get("/account"))
+
+
+def test_an_emailed_one_is_from_the_name_chosen_in_one_screened_try(
+        hearth, member, reader, outbox, data_dir):
+    invite_from(member, "  Birch   from the river ", address=INVITED)
+    [sent] = outbox.sent
+    assert sent["subject"] == CHOSEN + " invited you to Tesserae"
+    assert sent["text"].startswith(CHOSEN + " has invited you to Tesserae,")
+    assert "\n\nFrom %s:\n" % CHOSEN in sent["text"]
+    [asked] = reader.asked  # one try, for the name and the note together
+    assert CHOSEN in repr(asked["messages"]) and "I think you" in repr(asked["messages"])
+    [kept] = files(data_dir)
+    assert kept["from_name"] == CHOSEN and kept["by"] == MEMBER
+    shown = plain(page(hearth.app.test_client().get("/invitation/" + emailed_link(sent))))
+    assert "From %s:" % CHOSEN in shown and "From birch:" not in shown
+
+
+def test_a_link_one_is_from_the_name_chosen_screened_once(hearth, member, reader, data_dir):
+    link = LINK.search(page(invite_from(member, CHOSEN))).group(1)
+    assert len(reader.asked) == 1 and CHOSEN in repr(reader.asked[0]["messages"])
+    assert files(data_dir)[0]["from_name"] == CHOSEN
+    assert "From %s:" % CHOSEN in plain(page(hearth.app.test_client().get("/invitation/" + link)))
+
+
+def test_their_own_commons_name_needs_no_screen_by_link(member, reader, data_dir):
+    assert LINK.search(page(invite_from(member, " Birch ")))
+    assert reader.asked == []
+
+
+def test_a_name_not_in_good_spirit_makes_nothing(member, reader, outbox, data_dir):
+    reader.says = "NO"
+    said = plain(page(invite_from(member, CHOSEN)))
+    assert "That name wasn't taken; no invitation was made." in said
+    said = plain(page(invite_from(member, CHOSEN, address=INVITED)))
+    assert "That name or note wasn't taken; no invitation was made." in said
+    assert outbox.sent == [] and files(data_dir) == []
+
+
+def test_no_one_passes_as_someone_else(hearth, keeper, member, reader, outbox, data_dir,
+                                       monkeypatch):
+    monkeypatch.setattr(hearth.private_words, "listed", lambda path=None: [("oakhill", None)])
+    arrive(hearth, OTHER, OTHER_PASSWORD, datetime(2026, 9, 1, tzinfo=timezone.utc))
+    refused = "That name can't be used. Choose another."
+    for typed, said in (("", "Write the name they'll see it is from."),
+                        ("x" * 41, "A name can be at most 40 characters, on one line."),
+                        ("birch\nthe founder", "A name can be at most 40 characters, on one line."),
+                        ("birch at example.org", refused),
+                        ("see http://x", refused),
+                        ("jo oakhill", refused),
+                        ("The Founder", refused),
+                        ("a friend of the founder", refused),
+                        ("Tesserae", refused),
+                        ("tesserae team", refused),
+                        ("Cedar", refused),
+                        (FOUNDER_NAME, refused),
+                        ("the first one", refused),
+                        ("first", refused)):
+        for address in ("", INVITED):
+            answer = html.unescape(page(invite_from(member, typed, address=address)))
+            assert said in answer, (typed, answer)
+            assert NOTE.split("\n")[0] in answer  # what was typed is kept
+    assert reader.asked == [] and outbox.sent == [] and files(data_dir) == []
+    # the keeper may be "the founder", and no one may be the keeper's sign-in name
+    assert LINK.search(page(invite_from(keeper, "the founder")))
+    assert "That name can't be used." in html.unescape(page(invite_from(keeper, FOUNDER_NAME)))
+
+
+def test_the_name_is_forgotten_with_the_address_and_who_invited_whom_is_kept(
+        hearth, member, keeper, reader, outbox, data_dir, pinned):
+    invite_from(member, CHOSEN, address=INVITED)
+    [one] = files(data_dir)
+    assert "Made by birch on" in plain(page(keeper.get("/account")))  # by commons name
+    assert CHOSEN not in page(keeper.get("/account"))
+    withdraw(member, one["id"])
+    [one] = files(data_dir)
+    assert one["from_name"] is None and one["email"] is None and one["by"] == MEMBER
+    # and once used, and once expired
+    pinned.set(datetime(2026, 11, 20, 17, tzinfo=timezone.utc))
+    link = LINK.search(page(invite_from(member, CHOSEN))).group(1)
+    join(hearth.app.test_client(), link)
+    used = [held for held in files(data_dir) if held["used_by"]][0]
+    assert used["from_name"] is None and used["by"] == MEMBER
+    pinned.set(datetime(2026, 12, 25, 17, tzinfo=timezone.utc))
+    invite_from(keeper, "a friend", address=INVITED)
+    pinned.set(datetime(2027, 1, 15, 17, tzinfo=timezone.utc))
+    hearth.back_up(datetime(2027, 1, 15, 17, tzinfo=timezone.utc))
+    assert all(held["from_name"] is None and held["email"] is None for held in files(data_dir))
+
+
+def test_the_name_is_on_no_page_but_its_own_and_in_no_reading(
+        hearth, keeper, member, reader, outbox, visitor, wake, room):
+    invite_from(member, "Quillwort Unseen", address=INVITED)
+    plain_routes = [rule.rule for rule in hearth.app.url_map.iter_rules()
+                    if "GET" in rule.methods and not rule.arguments]
+    for client in (keeper, member, visitor):
+        for address in plain_routes:
+            assert "Quillwort Unseen" not in html.unescape(page(client.get(address))), address
+    turn = wake("")
+    assert "Quillwort Unseen" not in repr(turn.asked)

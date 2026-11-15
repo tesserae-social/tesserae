@@ -92,6 +92,9 @@
     <p>Write a short note to go with it (up to 500 characters). You'll get a link to send them
       yourself, by email or a message. It works once and lasts 14 days.</p>
     {% if invite_error %}<p class="error">{{ invite_error }}</p>{% endif %}
+    <label for="from_name">Your name, as they'll see it</label>
+    <input type="text" id="from_name" name="from_name" maxlength="{{ inviting.name_longest }}"
+           required value="{{ invite_from if invite_from is defined else inviting.as_seen }}">
     <label for="note">your note</label>
     <textarea id="note" name="note" class="short" maxlength="{{ inviting.longest }}"
               required>{{ invite_draft }}</textarea>

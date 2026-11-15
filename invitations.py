@@ -11,7 +11,8 @@ own vouch: no one else approves it. Each one is one small record:
          "note": their note, "made_at": UTC stamp, "open_until": YYYY-MM-DD,
          "withdrawn_at": UTC stamp or null, "withdrawn_by": pseudonym or null,
          "used_at": UTC stamp or null, "used_by": pseudonym or null,
-         "email": the invited address, or null (absent in older records)}
+         "email": the invited address, or null (absent in older records),
+         "from_name": the name its invited person sees it is from, or null}
 
 The token itself is kept nowhere: the link is shown once, to its maker, when it
 is made. "by" and "used_by" are the keeper's private record of who invited
@@ -23,6 +24,11 @@ Its address is a personal detail: kept on the invitation only while it is open,
 and taken off it when it is used, withdrawn or expired (forget_closed_addresses,
 which the hearth calls whenever invitations are read and before each backup).
 Its inviter is shown it partly hidden (hidden); no page, copy or reading has it.
+
+Its inviter also chooses the name it is from, as the invited person sees it
+(their commons name unless they change it; the founder's request of 14 November
+2026, later). It is kept, and taken off, with the address, and shown only in its
+email and on its own page; "by" stays the keeper's private record, by pseudonym.
 
 An invitation is open through the whole of the Eastern day it is open until,
 and expired from the next; nothing sweeps them, and it is worked out each time
@@ -74,6 +80,10 @@ FOUNDING_PERIOD_ENDS = date(2027, 9, 4)  # the first day under the ordinary rule
 NOTE_LONGEST = 500
 NOTE_NEEDED = "Write a note to go with it."
 NOTE_TOO_LONG = "A note can be at most 500 characters."
+
+FROM_NAME_LONGEST = 40
+FROM_NAME_NEEDED = "Write the name they'll see it is from."
+FROM_NAME_TOO_LONG = "A name can be at most 40 characters, on one line."
 
 ID = re.compile(r"[0-9a-f]{16}")
 TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")  # what secrets.token_urlsafe(32) gives
@@ -253,6 +263,21 @@ def hidden(address):
     return (local[:1] or "•") + "•••@" + domain
 
 
+def from_name_kept(text):
+    """The name an invitation is from, as it is kept: trimmed, its spaces made single.
+    InvitationError if there is none, it runs over a line, or it is too long."""
+    if not isinstance(text, str):
+        raise InvitationError(FROM_NAME_NEEDED)
+    if "\n" in text or "\r" in text:
+        raise InvitationError(FROM_NAME_TOO_LONG)
+    name = " ".join(text.split())
+    if not name:
+        raise InvitationError(FROM_NAME_NEEDED)
+    if len(name) > FROM_NAME_LONGEST:
+        raise InvitationError(FROM_NAME_TOO_LONG)
+    return name
+
+
 def note_kept(text):
     """A note as it is kept: as written, its line breaks made plain. InvitationError if
     there is none, or it is too long."""
@@ -269,18 +294,18 @@ def note_kept(text):
 # ---------------------------------------------------------------- writing
 
 
-def make(by, note, now=None):
+def make(by, note, now=None, from_name=None):
     """Make an invitation, and give back (its record, its link's token). The token is
     kept only as its hash; the caller shows it once and forgets it.
 
     Whether the maker may invite is the caller's to ask, inside INVITING.
     """
-    record, token = prepare(by, note, now=now)
+    record, token = prepare(by, note, now=now, from_name=from_name)
     keep(record)
     return record, token
 
 
-def prepare(by, note, email=None, now=None):
+def prepare(by, note, email=None, now=None, from_name=None):
     """An invitation as make makes it, with the address it is to be sent to, if any, but
     not yet kept: (its record, its link's token). keep(record) keeps it. An invitation
     sent by email is kept only once its email has gone, so that one that could not go
@@ -296,7 +321,7 @@ def prepare(by, note, email=None, now=None):
               "note": note, "made_at": _stamp(now),
               "open_until": (today(now) + LASTS).isoformat(),
               "withdrawn_at": None, "withdrawn_by": None, "used_at": None, "used_by": None,
-              "email": email}
+              "email": email, "from_name": from_name}
     return record, token
 
 
@@ -312,7 +337,8 @@ def withdraw(invitation_id, who, keeper=False, now=None):
     one = load(invitation_id)
     if not one or not is_open(one, now) or not (keeper or one.get("by") == who):
         return None
-    one = dict(one, withdrawn_at=_stamp(_now(now)), withdrawn_by=who, email=None)
+    one = dict(one, withdrawn_at=_stamp(_now(now)), withdrawn_by=who, email=None,
+               from_name=None)
     _write(_path(one["id"]), one)
     return one
 
@@ -322,17 +348,18 @@ def mark_used(invitation_id, used_by, now=None):
     one = load(invitation_id)
     if not is_open(one, now):
         return None
-    one = dict(one, used_at=_stamp(_now(now)), used_by=used_by, email=None)
+    one = dict(one, used_at=_stamp(_now(now)), used_by=used_by, email=None,
+               from_name=None)
     _write(_path(one["id"]), one)
     return one
 
 
 def forget_closed_addresses(now=None):
-    """Take the address off every invitation that is no longer open: used, withdrawn or
-    expired. Gives back how many were taken off. Call it inside INVITING."""
+    """Take the address, and the name it is from, off every invitation that is no longer
+    open: used, withdrawn or expired. Gives back how many were taken off. Call it inside INVITING."""
     forgotten = 0
     for one in every():
-        if one.get("email") and not is_open(one, now):
-            _write(_path(one["id"]), dict(one, email=None))
+        if (one.get("email") or one.get("from_name")) and not is_open(one, now):
+            _write(_path(one["id"]), dict(one, email=None, from_name=None))
             forgotten += 1
     return forgotten

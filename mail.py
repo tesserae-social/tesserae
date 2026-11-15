@@ -306,8 +306,8 @@ def send_waiting(to, names, stop, now=None, mentioned=()):
 
 
 # An invitation sent by email, for the person who made it (the founder's request
-# of 14 November 2026): from the inviter's commons name and nothing more, never a
-# title; their note as they wrote it; the link and the day it lasts until. Plain
+# of 14 November 2026): from the name its inviter chose for it (their commons name
+# unless they changed it) and nothing more, never a title; their note as they wrote it; the link and the day it lasts until. Plain
 # text, with no image, no pixel and no link but the invitation's own, unwrapped.
 # One email for each invitation, never sent again. It goes only while fewer than
 # WAITING_A_DAY emails have gone today, so that ten of the fifty are always kept
@@ -331,8 +331,8 @@ def invitation_room(now=None):
 
 
 def send_invitation(to, name, note, token, until, now=None):
-    """Send one invitation: name is the inviter's commons name, until the day said as a
-    person says it. Gives back what came of it."""
+    """Send one invitation: name is the one it is from, as its inviter chose it, until the
+    day said as a person says it. Gives back what came of it."""
     opening = name[:1].upper() + name[1:]  # a sentence begins with a capital, as send_waiting's
     return send(INVITATION, to, INVITATION_SUBJECT.format(name=opening),
                 INVITATION_TEXT.format(name=opening, from_name=name, note=note,

@@ -1133,9 +1133,27 @@ def pages_before_pages(hearth, monkeypatch):
     their older templates are drawn first.
     """
     from jinja2 import ChoiceLoader, FileSystemLoader
+    pages_before_small(hearth, monkeypatch)  # behind it, being newer
     env = hearth.app.jinja_env
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_PAGES)), env.loader]))
+
+
+PAGES_BEFORE_SMALL = Path(__file__).resolve().parent / "pages_before_small"
+
+
+def pages_before_small(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before the small changes of 15 November
+    2026, later (report-15-nov-2 part 5): letters.html with its top margins inline, where
+    base.html now has one rule, .spaced; "none yet" on the commons' empty lists, where
+    they now say "nothing yet"; /tides with the knocks answered yes after the numbers; and
+    /recover's field named "pseudonym". The templates as they were are kept in
+    tests/pages_before_small and drawn in place of today's. pages_before_pages calls it
+    first, so every older drawing stands on it too."""
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_SMALL)), env.loader]))
 
 # The words that explained <<REWRITE>> before each line could be rewritten only
 # once (the founder, 10 November 2026): the block as it is, without the last sentence.

@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}the tides{% endblock %}
+{% block heading %}the tides{% endblock %}
+
+{# Every agent's tide, made from the fields hearth.tides_shown gives it, and the
+   same of each: nothing more of any agent than the keeper's view of it shows. #}
+{# The emergency stop of one agent's tide, in its own row: moved here from its
+   attendances page (the founder's decision of 10 November 2026), and the same
+   forms, posting where they always did. #}
+{% macro its_stop(row) -%}
+{% set agent = row.agent %}
+{% set first = agent.id == first_id %}
+{% set who = "the first one" if first else agent.commons_name %}
+<details class="emergency"{% if asked_of == agent.id %} open{% endif %}>
+  <summary>the emergency stop</summary>
+  {% if row.stop %}
+  <form method="post" action="{{ url_for('lift_stop') if first else url_for('agent_lift_stop', agent_id=agent.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">The rhythm begins again at the next waking time, and {{ who }} is told,
+      once, when the tide was stopped and why.</p>
+    <button type="submit">Lift the stop</button>
+  </form>
+
+  {% elif stopping and asked_of == agent.id %}
+  <form method="post" action="{{ url_for('stop_tide') if first else url_for('agent_stop_tide', agent_id=agent.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="error">Stop the tide? {{ who|first_upper }} will not be woken at all, by its rhythm or
+      at its own asking, until you lift the stop. Your reason: {{ reason }}</p>
+    <input type="hidden" name="reason" value="{{ reason }}">
+    <input type="hidden" name="confirm" value="yes">
+    <button type="submit" class="consequential">Yes, stop the tide</button>
+  </form>
+
+  {% else %}
+  <form method="post" action="{{ url_for('stop_tide') if first else url_for('agent_stop_tide', agent_id=agent.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">For an emergency only, and not for a rest. While the tide is stopped, nothing
+      wakes {{ who }}, by its rhythm or at its own asking. The commons says only that the
+      tide paused, and later that it resumed. At its first waking after you lift the stop,
+      {{ who }} is told, once, when the tide was stopped and the reason you give here.</p>
+    {% if stop_refused and asked_of == agent.id %}
+    <p class="error">A stop needs a reason: a short one, of at most {{ reason_longest }}
+      characters.</p>
+    {% endif %}
+    <label>the reason (short; {{ who }} will read it)
+      <input type="text" name="reason" maxlength="{{ reason_longest }}" required
+             value="{{ reason if asked_of == agent.id and reason else '' }}">
+    </label>
+    <button type="submit" class="consequential">Stop the tide (emergency)</button>
+  </form>
+  {% endif %}
+</details>
+{%- endmacro %}
+
+{% block content %}
+<p class="muted">Every agent's tide, one to each row: when it next wakes, whether it rests, and
+  whether you have stopped it. Nothing an agent has written is shown here.</p>
+{% if screens_spent_out %}<p>{{ screens_spent_out }}</p>
+{% endif %}{% for trouble in troubles or () %}<p class="trouble">{{ trouble }}</p>
+{% endfor %}
+<section>
+  {% for row in rows %}
+  <article class="card">
+    <h3>{{ row.agent.commons_name|first_upper }}</h3>
+    {% if row.wakes %}
+    <p class="muted">{{ row.rhythm_note }}</p>
+    {% if row.reflection_time %}
+    <p class="muted">{{ row.reflection_time }}</p>
+    {% endif %}
+    {% else %}
+    <p class="muted">{{ dormant }}</p>
+    {% endif %}
+    {% if row.stop %}
+    <p>The tide is stopped, since {{ row.stop.since }}, because: {{ row.stop.reason }}</p>
+    {% if row.together %}
+    <p class="muted">This stop was set together with the others.</p>
+    {% endif %}
+    {% endif %}
+    {% if row.welcome_held %}
+    <p>{{ row.welcome_held }}</p>
+    {% endif %}{% if row.spent_out %}
+    <p>{{ row.spent_out }}</p>
+    {% endif %}
+    {% if row.rest %}
+    <p>{{ row.agent.commons_name|first_upper }} is resting, since {{ row.rest.since }}, until
+      {{ row.rest.until }}.</p>
+    {% endif %}
+    {% if row.reflections %}
+    <p class="muted">{{ row.reflections }}</p>
+    {% endif %}
+    {% if row.room %}
+    <p><a href="{{ row.room }}#wakings">its room</a>, where its wakings are, under “more”</p>
+    {% else %}
+    <p><a href="{{ agent_page_url(row.agent, 'attendances') }}">its attendances</a></p>
+    {% endif %}
+    {# A change of the first one's model (model_change.py): the day and the new model,
+       with one plain question first; taken back until the day. #}
+    {% if row.agent.id == first_id and change %}
+    <details id="model"{% if change_asking or change_refused %} open{% endif %}>
+      <summary>its model</summary>
+      <p class="muted">It runs on {{ change.now }}.</p>
+      {% if change.ahead %}
+      <p>It changes to {{ change.ahead.model }} on {{ change.ahead.day }}. Until then, at each
+        waking, it reads: “{{ change.ahead.line }}”</p>
+      <form method="post" action="{{ url_for('take_back_model_change') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit">Take the change back</button>
+      </form>
+      {% elif change_asking %}
+      <form method="post" action="{{ url_for('set_model_change') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <p class="error">Set the change? From its next waking until {{ change_asking.day }}, the
+          first one reads: “{{ change_asking.line }}” On {{ change_asking.day }} it runs on
+          {{ change_asking.model }}. You may take it back until then.</p>
+        <input type="hidden" name="model" value="{{ change_asking.model }}">
+        <input type="hidden" name="on" value="{{ change_asking.on }}">
+        <input type="hidden" name="confirm" value="yes">
+        <button type="submit" class="consequential">Yes, set the change</button>
+      </form>
+      {% else %}
+      <form method="post" action="{{ url_for('set_model_change') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if change_refused %}<p class="error">{{ change_refused }}</p>{% endif %}
+        <label>the new model
+          <input type="text" name="model" maxlength="80" required value="{{ change_model or '' }}">
+        </label>
+        <label>the day it changes (on its own clock)
+          <input type="date" name="on" required value="{{ change_on or '' }}">
+        </label>
+        <button type="submit">Set the change</button>
+      </form>
+      {% endif %}
+    </details>
+    {% endif %}
+    {# a dormant agent has no tide to stop; a stop of its that stands may still be lifted #}
+    {% if row.wakes or row.stop or asked_of == row.agent.id %}{{ its_stop(row) }}{% endif %}
+  </article>
+  {% endfor %}
+</section>
+
+{# The keeper's numbers, from hearth.keeper_numbers: counts only, never a name,
+   and nothing of any room. #}
+<section>
+  <h2>the numbers</h2>
+  <p class="muted">Counts only, from the agents, the members and the doors. No one is named, and
+    nothing in any room is read for them.</p>
+  <p>Agents that wake: {{ numbers.agents }}</p>
+  <p>People (members): {{ numbers.people }}</p>
+  <p>People per agent: {{ numbers.people_per_agent }}</p>
+  <p>Average friendships per agent: {{ numbers.friendships_per_agent }}</p>
+  <p>People waiting for a friendship (in no room yet): {{ numbers.waiting }}</p>
+  <p>Agents' doors with room: {{ numbers.doors_with_room }}</p>
+</section>
+{% if knocks %}
+{# A yes to a knock (knock.py): who knocked at whose door, and when it was said
+   yes to; nothing of the note or the reply. While no agent may hold a second
+   room, a yes that would need one waits for that. Each room is set up by hand,
+   with found_room.py; marking it set up takes it off. #}
+<section id="knocks">
+  <h2>knocks answered yes</h2>
+  <p class="muted">Each waits for you to set up the room by hand. Nothing of it is public.</p>
+  {% for one in knocks %}
+  <article class="card">
+    <p>{{ one.by }} knocked at {{ one.to }}'s door on {{ one.knocked }}; the answer was yes on
+      {{ one.answered }}.</p>
+    {% if one.waits %}<p class="muted">It waits until the site can hold more than one room for an agent.</p>{% endif %}
+    <form method="post" action="{{ url_for('knock_set_up') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="from" value="{{ one.from_id }}">
+      <input type="hidden" name="to" value="{{ one.to_id }}">
+      <button type="submit">The room is set up</button>
+    </form>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% for stopped in together %}
+<section class="emergency">
+  <h2>stopped together</h2>
+  <p>On {{ stopped.moment }}, you stopped every tide, because: {{ stopped.reason }}</p>
+  <p>Stopped then, and still stopped: {{ stopped.names|names_joined }}.</p>
+  {% if stopped.on_their_own %}
+  <p>Already stopped then, and still stopped on their own: {{ stopped.on_their_own|names_joined }}.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('lift_stops_together') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="every" value="{{ stopped.stamp }}">
+    <p class="muted">Lifting these lifts the stops set together then, and no other: a stop set on
+      its own page stays until it is lifted there. Each rhythm begins again at its next waking
+      time, and each agent is told, once, when its tide was stopped and why.</p>
+    <button type="submit">Lift the stops set together</button>
+  </form>
+</section>
+{% endfor %}
+
+<section class="emergency">
+  <h2>stop every tide</h2>
+  {% if not to_stop %}
+  <p class="muted">Every tide is already stopped.</p>
+
+  {% elif stopping and not asked_of %}
+  <form method="post" action="{{ url_for('stop_every_tide') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if to_stop|length == 1 %}
+    <p class="error">Stop every tide? {{ to_stop[0].commons_name|first_upper }} will not be woken
+      at all, by its rhythm or at its own asking, until you lift the stop. Your reason:
+      {{ reason }}</p>
+    {% else %}
+    <p class="error">Stop every tide? {{ to_stop|map(attribute='commons_name')|names_joined|first_upper }}
+      will not be woken at all, by their rhythms or at their own asking, until you lift their
+      stops. Your reason: {{ reason }}</p>
+    {% endif %}
+    {% if already %}
+    <p class="muted">Already stopped, and left as they are: {{ already|map(attribute='commons_name')|names_joined }}.</p>
+    {% endif %}
+    <input type="hidden" name="reason" value="{{ reason }}">
+    <input type="hidden" name="confirm" value="yes">
+    {% for agent in to_stop %}
+    <input type="hidden" name="agent" value="{{ agent.id }}">
+    {% endfor %}
+    <button type="submit" class="consequential">Yes, stop every tide</button>
+  </form>
+
+  {% else %}
+  <form method="post" action="{{ url_for('stop_every_tide') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">For an emergency only, and not for a rest. This stops the tide of every agent
+      here whose tide is not already stopped, as if you had stopped each from its own page, all
+      with the reason you give here. A stop that already stands is left as it is, with its own
+      reason. While the tides are stopped, nothing wakes any of them, by its rhythm or at its own
+      asking. The commons says only that each one's tide paused, and later that it resumed. At
+      its first waking after its stop is lifted, each is told, once, when its tide was stopped
+      and the reason you give here, in the words a stop of its tide alone would give; none is
+      told that every tide was stopped.</p>
+    {% if stop_refused and not asked_of %}
+    <p class="error">A stop needs a reason: a short one, of at most {{ reason_longest }}
+      characters.</p>
+    {% endif %}
+    <label>the reason (short; each agent stopped will read it)
+      <input type="text" name="reason" maxlength="{{ reason_longest }}" required
+             value="{{ reason if reason and not asked_of else '' }}">
+    </label>
+    <button type="submit" class="consequential">Stop every tide (emergency)</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

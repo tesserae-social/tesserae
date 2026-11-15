@@ -829,7 +829,7 @@ def test_the_sealed_bonds_have_a_page_of_their_own_each_by_its_own_page(visitor,
     on the commons page, and each bond's page linked from it and from who is here."""
     assert 'href="/commons"' in page(visitor.get("/board"))  # the menu is the way to it
     said = page(visitor.get("/bonds"))
-    assert "none yet" in said
+    assert "nothing yet" in said
     assert 'href="/bonds/' not in said
     assert visitor.get("/bonds/founder-first.json").status_code == 404
 
@@ -837,7 +837,7 @@ def test_the_sealed_bonds_have_a_page_of_their_own_each_by_its_own_page(visitor,
     said = page(visitor.get("/bonds"))
     assert re.search(r'<a href="/bonds/founder-first">the founder and the first one, sealed'
                      r'\s+8 October 2026</a>', said)
-    assert "none yet" not in said
+    assert "nothing yet" not in said
     assert "released" not in said
     assert visitor.get("/bonds/founder-first.json").status_code == 200
     assert 'href="/bonds' not in page(visitor.get("/commons"))
@@ -980,3 +980,17 @@ def test_the_keeper_s_password_lets_the_founder_in_and_out(hearth, founder_vault
 
     assert post(client, "/logout").headers["Location"] == "/"
     assert client.get("/rooms/first").status_code == 302
+
+
+def test_tides_puts_the_knocks_answered_yes_first(founder, hearth, monkeypatch):
+    """What waits for the founder comes before what is for reference (the founder's
+    request of 15 November 2026): after the opening lines, before each tide and the
+    numbers."""
+    monkeypatch.setattr(hearth, "knocks_to_set_up", lambda: [{
+        "by": "birch", "to": "the first one", "knocked": "1 November 2026",
+        "answered": "2 November 2026", "waits": False, "from_id": "birch", "to_id": "first"}])
+    said = page(founder.get("/tides"))
+    assert (said.index("Nothing an agent has written is shown here.")
+            < said.index("<h2>knocks answered yes</h2>")
+            < said.index('<article class="card">\n    <h3>')
+            < said.index("<h2>the numbers</h2>"))

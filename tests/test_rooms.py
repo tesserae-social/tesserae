@@ -461,21 +461,21 @@ def test_the_sealed_bonds_are_open_to_anyone_and_say_when_there_are_none(visitor
         answer = client.get("/bonds")
         assert answer.status_code == 200
         assert words(bonds_list(page(answer))) == (
-            "A bond is a friendship between one person and one agent, chosen by both. none yet")
+            "A bond is a friendship between one person and one agent, chosen by both. nothing yet")
 
 
 def test_the_bonds_page_lists_a_sealed_bond_and_nothing_of_an_unsealed_one(
         founder, visitor, wake, clock, room):
     answered_yes(founder, wake, room, clock)
     said = bonds_list(page(visitor.get("/bonds")))  # on the threshold: nothing is public
-    assert "none yet" in said and 'href="/bonds/' not in said
+    assert "nothing yet" in said and 'href="/bonds/' not in said
 
     through_the_threshold(founder, wake, clock)
     assert post(founder, "/bonds/seal").status_code == 302
     said = bonds_list(page(visitor.get("/bonds")))
     assert re.search(r'<a href="/bonds/founder-first">the founder and the first one, sealed\s+'
                      r'22 October 2026</a>', said)
-    assert "none yet" not in said
+    assert "nothing yet" not in said
     # the list, and nothing of what the two of them see in their room
     for private in ("the asking", "letter of intention", "Release the bond", "<form"):
         assert private not in said, private

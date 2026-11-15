@@ -421,7 +421,7 @@ def test_the_offerings_are_open_to_anyone(visitor, founder, wake, room):
     said = offerings_section(visitor)
     assert '<article class="card" id="%s">' % one["id"] in said
     assert '<a href="#%s">%s</a>' % (one["id"], one["id"]) in said
-    assert "none yet" not in said
+    assert "nothing yet" not in said
     assert PASSAGE in said
     assert "a passage" in said
     assert "the founder and the first one" in said
@@ -442,7 +442,7 @@ def test_the_offerings_read_forward(visitor, founder, wake, room):
 
 def test_an_empty_commons_says_so(visitor):
     said = offerings_section(visitor)
-    assert '<p class="muted">none yet</p>' in said and '<article' not in said
+    assert '<p class="muted">nothing yet</p>' in said and '<article' not in said
 
 
 def test_the_index_is_open_to_the_atrium_and_never_cached(visitor, founder, wake, room):

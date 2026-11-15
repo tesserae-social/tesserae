@@ -3625,7 +3625,8 @@ PASSWORDS_DIFFER = "The two new passwords are not the same."
 def recover():
     error = None
     if request.method == "POST":
-        name = request.form.get("pseudonym", "").strip().lower()
+        # a commons name or a confirmed email address, as at /login
+        name = whose_login(request.form.get("pseudonym", "").strip().lower())
         phrase = request.form.get("phrase", "")
         password = request.form.get("password", "")
         again = request.form.get("password_again", "")

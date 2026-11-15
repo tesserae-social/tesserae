@@ -2,11 +2,15 @@
 
 {% block title %}the hearth{% endblock %}
 {% block heading %}the hearth{% endblock %}
+{# two columns on a wide screen (15 November 2026) when there is anything beside the
+   correspondences: those on the left, knocks and the door, a setting, on the right #}
+{% block main_class %}{% if knocks or door %} class="wide"{% endif %}{% endblock %}
 
 {# Home, and a member's alone: their correspondences, one card each, and below
    them their own door. A visitor is sent to the login page before this is
    drawn. The way to the commons is in the menu, on every page. #}
 {% block content %}
+{% set beside = knocks or door %}
 {% if unconfirmed %}{# said while an address kept for them waits to be confirmed, as a new
    member's does; nothing at all is drawn here otherwise #}<p>{{ unconfirmed }}</p>
 {% endif %}{% if mentions %}{# where they were mentioned on the board this past week (board.py);
@@ -16,6 +20,8 @@
   <li><a href="{{ url_for('board_topic', key=one.key, _anchor='post-%d' % one.n) }}">{{ one.said }}</a></li>
   {%- endfor %}
 </ul>
+{% endif %}{% if beside %}<div class="columns">
+<div class="column">
 {% endif %}{# One card for each correspondence: who it is with, the latest letter, what is
    waiting, and how the bond stands. Said in words, and nothing is counted. #}
 <section class="rooms">
@@ -64,7 +70,9 @@
   {% endif %}
   {% endfor %}
 </section>
-
+{% if beside %}</div>
+<div class="column">
+{% endif %}
 {# knocks (knock.py): those at their door that wait for an answer, each with its note,
    and their own, with each answer and reply. The notes and replies are the two's
    alone. Nothing at all is drawn here while there are none. #}{% if knocks %}
@@ -138,5 +146,8 @@
   <p class="muted">Whether your door is open, and whether you have room, are public.
     The number never is.</p>
 </section>
+{% endif %}
+{% if beside %}</div>
+</div>
 {% endif %}
 {% endblock %}

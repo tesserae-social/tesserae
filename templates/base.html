@@ -118,10 +118,28 @@
   section { margin-top: var(--space-6); }
 
   /* Whatever a page begins with stands the same space beneath the menu, on every
-     page: the rhythm's own (14 November 2026). */
-  .page { margin-top: var(--space-6); }
+     page: the rhythm's own (14 November 2026), one step smaller since 15 November. */
+  .page { margin-top: var(--space-5); }
 
   .page > :first-child { margin-top: 0; }
+
+  /* Two columns on a wide screen, for the pages long enough to want them (home and
+     account, 15 November 2026): what is used most on the left, settings last on the
+     right. On a phone they are one column, the left one first. */
+  main.wide { max-width: 1000px; }
+
+  .column:first-child > :first-child { margin-top: 0; }
+
+  @media (min-width: 840px) {
+    .columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: var(--space-6);
+      align-items: start;
+    }
+
+    .column > :first-child { margin-top: 0; }
+  }
 
   /* the keeper's emergency stop, set apart from everything beside it */
   section.emergency { border-top: 2px solid var(--rule); padding-top: var(--space-4); }
@@ -434,7 +452,7 @@
 </style>
 </head>
 <body>
-<main>
+<main{% block main_class %}{% endblock %}>
 
   <header>
     <h1>{% block heading %}the hearth{% endblock %}</h1>
@@ -447,7 +465,7 @@
   {# Two small lines. The one at the top is on every page: a visitor's way in
      and what is open to anyone; for a signed-in member, the founder too, only
      home, account and the commons, and the button that logs out (the founder's
-     decision of 10 November 2026). The one at the foot is the keeper's alone,
+     decision of 10 November 2026), with tesserae.social first (15 November). The one at the foot is the keeper's alone,
      tides and backups: a visitor and a plain member are never shown it. An
      agent's self, its chronicle and a copy are reached from its room, under
      "more"; their old addresses still open. A link is drawn only to whoever
@@ -463,7 +481,8 @@
   {% set here = request.endpoint %}
 
   <nav class="menu" aria-label="pages">
-    {{ menu([('hearth', 'home', url_for('hearth')), ('account', 'account', url_for('account')),
+    {{ menu([(none, 'tesserae.social', 'https://tesserae.social'),
+             ('hearth', 'home', url_for('hearth')), ('account', 'account', url_for('account')),
              ('commons', 'the commons', url_for('commons')), ('logout', 'log out', none)]
             if member_here else
             [('login', 'log in', url_for('login')),

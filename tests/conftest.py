@@ -1106,6 +1106,27 @@ def pages_before_saturday(hearth, monkeypatch):
     bench_linked_as_before(hearth, monkeypatch)
 
 
+
+PAGES_BEFORE_PAGES = Path(__file__).resolve().parent / "pages_before_pages"
+
+
+def pages_before_pages(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before the branch pages (15 November 2026).
+
+    Until then the members' menu read home · account · the commons · log out, with no
+    tesserae.social; a page began --space-6 below the menu, where it begins --space-5;
+    and the home page and /account were one column, /account with the password first
+    and the email next. base.html, hearth.html and account.html as they were are kept
+    in tests/pages_before_pages and drawn in place of today's, so that a world held to
+    a fingerprint from before then gives that fingerprint again. Called before any
+    older one (pages_before_saturday, pages_before_fewer), it stands behind them, and
+    their older templates are drawn first.
+    """
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_PAGES)), env.loader]))
+
 # The words that explained <<REWRITE>> before each line could be rewritten only
 # once (the founder, 10 November 2026): the block as it is, without the last sentence.
 REWRITE_ONCE = " Each line can be rewritten once.)"

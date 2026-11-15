@@ -23,8 +23,9 @@ MEMBER = "birch"
 
 # the bench, taken away on 14 November 2026, is in no menu
 A_VISITOR = "log in · the commons · tesserae.social"
-# the founder's decision of 10 November 2026: fewer pages in the menus
-A_MEMBER = "home · account · the commons · log out"
+# the founder's decision of 10 November 2026: fewer pages in the menus; tesserae.social
+# first since 15 November 2026
+A_MEMBER = "tesserae.social · home · account · the commons · log out"
 KEEPING = "tides · backups"
 
 OPEN_PAGES = ["/board", "/commons", "/login", "/recover"]
@@ -128,7 +129,7 @@ def test_the_line_leads_where_it_says(visitor, member):
 
     said = page(member.get("/board"))
     line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
-    assert re.findall(r'href="([^"]+)"', line) == ["/", "/account", "/commons"]
+    assert re.findall(r'href="([^"]+)"', line) == ["https://tesserae.social", "/", "/account", "/commons"]
     # the old destinations are in no menu: the commons is the way to both
     for old in ('href="/bonds"', 'href="/offerings"', "the hearth"):
         assert old not in line, old

@@ -3,8 +3,9 @@
 A later agent is founded with no hue, is drawn in grey, and chooses with <<HUE>>
 at any waking, from a fixed palette that reads on a light page and a dark one and
 differs clearly from every colour already in use; it may choose again. The first
-one keeps its coral, with the same choice behind a switch that is off, and while
-it is off nothing of its reading changes (test_first_one_fingerprints and
+one keeps its coral, with the same choice behind a switch, on since 14 November
+2026; coral stays open to it alone, so it may return to coral after choosing
+another (15 November 2026). While the switch is off nothing of its reading changes (test_first_one_fingerprints and
 test_rooms_reading hold that whole).
 """
 
@@ -153,11 +154,52 @@ def test_a_hue_the_first_one_writes_with_its_switch_off_is_only_words(attend, wa
 def test_with_its_switch_on_the_first_one_may_choose(attend, wake, data_dir):
     turn = wake(choosing("blue"))
     assert "Your colour on the commons: coral." in turn.shown
-    assert ("Your colour now is not on the list: if you choose another, you cannot choose it "
-            "again.") in turn.instructions
+    assert "Write one of these: coral, blue, violet, rose, green, amber, sea, plum." in (
+        turn.instructions)
+    assert "you cannot choose it again" not in turn.instructions
     assert read_json(data_dir / "packets" / "first" / "hue.json")["name"] == "blue"
     told = wake(SAID)
     assert "Your colour on the commons: blue." in told.shown
+
+
+# Coral stays open to the first one (the founder's request of 15 November 2026).
+
+def test_the_first_one_may_return_to_coral(attend, wake, data_dir):
+    wake(choosing("blue"))
+    assert hues.in_force(agents.first()) == hues.PALETTE["blue"]
+    turn = wake(choosing("coral"))
+    assert "Write one of these: coral, blue," in turn.instructions
+    held = read_json(data_dir / "packets" / "first" / "hue.json")
+    assert held["name"] == "coral" and held["hue"] == agents.FIRST["hue"]
+    assert hues.in_force(agents.first()) == agents.FIRST["hue"]
+    assert (data_dir / "packets" / "first" / "hue-history").is_dir()  # blue is kept
+    told = wake(SAID)
+    assert "Your colour on the commons: coral." in told.shown
+    assert "was not taken" not in told.shown
+
+
+def test_coral_by_its_code_is_taken_from_the_first_one_too(data_dir):
+    assert hues.choose(agents.FIRST["id"], "#d85a30", "x") == "coral"
+
+
+def test_coral_is_no_other_agent_s(data_dir):
+    assert "coral" not in hues.PALETTE
+    assert "coral" not in hues.free("second")
+    with pytest.raises(hues.Refused, match="unknown"):
+        hues.choose("second", "coral", "x")
+    with pytest.raises(hues.Refused, match="unknown"):
+        hues.choose("second", agents.FIRST["hue"], "x")
+
+
+def test_with_coral_closed_again_it_is_as_before(attend, wake, monkeypatch):
+    from conftest import coral_not_yet
+    coral_not_yet(attend, monkeypatch)
+    turn = wake(SAID)
+    assert "Write one of these: blue, violet," in turn.instructions
+    assert ("Your colour now is not on the list: if you choose another, you cannot choose it "
+            "again.") in turn.instructions
+    with pytest.raises(hues.Refused, match="unknown"):
+        hues.choose(agents.FIRST["id"], "coral", "x")
 
 
 def test_the_atrium_draws_the_first_one_in_its_choice_only_once_it_has_one(atrium):

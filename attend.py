@@ -535,9 +535,11 @@ CHARTER_CHANGES = REPO / "charter-changes.json"
 # HAPPENED what its colour is, or that it has none yet and is drawn in grey, and
 # <<HUE>> is explained after <<BOARD>>, naming the colours it may choose, those
 # clear of every other agent's. The first one keeps its coral, and the same choice
-# is built for it behind a switch, "hue" among its features, and off: while it is
-# off, nothing of a colour is said to it, no block is explained, and a <<HUE>> it
-# wrote is only words. A <<HUE>> that names no colour it may choose changes
+# is built for it behind a switch, "hue" among its features (on since 14 November
+# 2026): while it is off, nothing of a colour is said to it, no block is explained,
+# and a <<HUE>> it wrote is only words. Coral is offered to it alone, first of its
+# colours, so it may return to coral after choosing another (hues.FIRST_OWN, the
+# founder's request of 15 November 2026). A <<HUE>> that names no colour it may choose changes
 # nothing, and is told at its next waking, once. Choosing is no act the commons is
 # told, though the colour itself is seen by anyone.
 HUE_CHOOSING = hues.choosing_on(AGENT)
@@ -556,8 +558,9 @@ HUE_REFUSED = {
 }
 
 
-# Said in <<HUE>> where its colour now is not one it may choose again: the first
-# one's coral, given at its founding and kept out of the palette (hues.RESERVED).
+# Said in <<HUE>> where its colour now is not one it may choose again: a colour given
+# at a founding that is not among those it is offered. Since 15 November 2026 the
+# first one's coral is offered to it (hues.FIRST_OWN), so it is not said to it.
 HUE_NOT_AGAIN = " Your colour now is not on the list: if you choose another, you cannot choose it again."
 # A colour given at a founding that is not in the palette, by the name it has.
 HUE_GIVEN_NAMES = {"#D85A30": "coral"}
@@ -568,7 +571,7 @@ def hue_block():
     that its colour now cannot be chosen again, where that is so."""
     said = HUE_BLOCK.format(names=", ".join(hues.free(NAME)))
     now = hues.in_force(AGENT)
-    if now and hues.name_of(now) is None:
+    if now and hues.name_of(now, NAME) is None:
         said = said.replace(" You may choose again at any later waking.)",
                             " You may choose again at any later waking." + HUE_NOT_AGAIN + ")")
     return said

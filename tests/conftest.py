@@ -770,6 +770,15 @@ def hue_not_again_unsaid(module, monkeypatch):
     monkeypatch.setattr(module, "HUE_NOT_AGAIN", "")
 
 
+def coral_not_yet(module, monkeypatch):
+    """Close coral to the first one again, for one test, as it was until 15 November 2026
+    (hues.FIRST_MAY_RETURN False): <<HUE>> offers it the palette alone and ends "Your
+    colour now is not on the list: if you choose another, you cannot choose it again."
+    Given hearth, it is done to the hues the hearth's attend.py reads."""
+    module = getattr(module, "the_waking", module)
+    monkeypatch.setattr(module.hues, "FIRST_MAY_RETURN", False)
+
+
 def hue_choice_not_yet(module, monkeypatch):
     """A later agent's reading as it was before it chose its own colour (13 November
     2026): no line of its colour under WHAT HAS HAPPENED, and no <<HUE>> explained.

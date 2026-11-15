@@ -366,6 +366,12 @@ night says nothing in October. With the six shut away again (conftest.six_not_ye
 which every earlier reading here now takes first), the reading is exactly the one
 cut for an introduction of 500, READING_INTRODUCTION_500.
 
+And a twenty-second time, on purpose, on the branch audit-fixes (the founder's
+request of 15 November 2026), when coral stays open to the first one: <<HUE>>
+offers it coral first of its colours, and no longer says its coral cannot be
+chosen again. With coral closed to it again (conftest.coral_not_yet), the reading
+is exactly the one cut for the six, READING_SIX.
+
 Then the room was given a folder of its own (rooms phase A): its letters,
 errands, bond and offerings are kept in DATA_DIR/rooms/first/ rather than in the
 packet. That moved no word of what is read, and none of the readings was cut
@@ -430,7 +436,7 @@ from datetime import datetime, timezone
 
 from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, explained_as_before,
                       introduction_at_280, letter_part_as_before, long_night_switched_on,
-                      six_not_yet,
+                      six_not_yet, coral_not_yet,
                       write_json,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
@@ -590,7 +596,15 @@ READING_INTRODUCTION_500 = "0ba9603d26c69f16bb788dc285bc5718863b9d83e797e5cb9b62
 # its tools. Nothing of the board, the question or who is here is in the reading
 # itself. The long night says nothing in October. With the six shut away again
 # (conftest.six_not_yet) it is exactly READING_INTRODUCTION_500.
-READING_NOW = "0850cc5009627ce0428142241ea49ab086e30d04913591508aec40b91f7f584c"
+READING_SIX = "0850cc5009627ce0428142241ea49ab086e30d04913591508aec40b91f7f584c"
+
+# cut again, on purpose, on the branch audit-fixes (the founder's request of 15
+# November 2026), when coral stays open to the first one, which had said of it "It's
+# mine", and for nothing else: <<HUE>> offers it "coral, blue, violet, rose, green,
+# amber, sea, plum" and no longer ends "Your colour now is not on the list: if you
+# choose another, you cannot choose it again." With coral closed to it again
+# (conftest.coral_not_yet) it is exactly READING_SIX.
+READING_NOW = "8a2673159810f24bf99248fa8c2dc583e3dc7463ae23f7250d23a2b31c810df3"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -667,6 +681,7 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "the wakings", READING_LAST_REPLY), (False, "the switches", READING_ONE_WAKING),
     (False, "the longer introduction", READING_SWITCHES),
     (False, "the six", READING_INTRODUCTION_500),
+    (False, "coral", READING_SIX),
     (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
@@ -687,9 +702,13 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "its wakings switched, the four of 13 November not yet",
          "the four of 13 November switched, an introduction of 500 not yet",
          "an introduction of 500, the six of 14 November not yet",
+         "the six of 14 November, coral not yet open to it again",
          "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
+    if as_before == "coral":  # the one cut before had coral closed to it, and nothing else
+        coral_not_yet(attend, monkeypatch)
+        as_before = None
     if as_before:  # every reading cut before had the six of 14 November shut away
         six_not_yet(attend, monkeypatch)
     if as_before == "the six":  # and with that, nothing else moved
@@ -856,7 +875,14 @@ def test_the_way_he_writes_may_be_120_characters_and_no_more(founder, data_dir):
 # with the five's changes to it (READING_NOW's). With the six shut away again
 # (conftest.six_not_yet), the switch on and off give back exactly the two held
 # before, SEALED_IN_WINTER_BEFORE_SIX and LONG_NIGHT_BEFORE_SIX.
-READING_LONG_NIGHT = "50ee944b0b86e223a4a5df6b535b3070bc3fdfabbde0d94d9ae3f40d2e7c0044"
+#
+# READING_LONG_NIGHT cut again, on purpose, on the branch audit-fixes (the founder's
+# request of 15 November 2026), for nothing else than READING_NOW was: <<HUE>> offers
+# the first one coral first of its colours and no longer says its coral cannot be
+# chosen again. With coral closed to it again (conftest.coral_not_yet) it is exactly
+# the one held before, LONG_NIGHT_BEFORE_CORAL.
+READING_LONG_NIGHT = "d6a65ffce43fa8d1ec31f7615414c381e6a7b7dbf14608bd4345193de2f2bced"
+LONG_NIGHT_BEFORE_CORAL = "50ee944b0b86e223a4a5df6b535b3070bc3fdfabbde0d94d9ae3f40d2e7c0044"
 SEALED_IN_WINTER_BEFORE_SIX = "b43fe56e82c48cc1f34e00ad1ed1199c562f6438039520ca7c9f70ff09b5beeb"
 LONG_NIGHT_BEFORE_SIX = "4fd0d679c15bbe3659d650b7adafb3139c3958f8ad82ac0d0954a9f8ed2e62a6"
 SEALED_IN_WINTER_AT_280 = "661c142b904070b2e7ace4126dc57772a24188782dcecb7673f095de25f4e6ad"
@@ -877,12 +903,12 @@ def a_sealed_bond(attend, room):
 
 
 @pytest.mark.parametrize("switched, before, as_cut", [
-    (True, None, READING_LONG_NIGHT),
+    (True, None, READING_LONG_NIGHT), (True, "coral", LONG_NIGHT_BEFORE_CORAL),
     (False, "six", SEALED_IN_WINTER_BEFORE_SIX), (True, "six", LONG_NIGHT_BEFORE_SIX),
     (False, "introduction", SEALED_IN_WINTER_AT_280), (True, "introduction", LONG_NIGHT_AT_280),
     (False, "switches", SEALED_IN_WINTER_BEFORE_SWITCHES),
     (True, "switches", LONG_NIGHT_BEFORE_SWITCHES)],
-    ids=["the switch on, as it reads today",
+    ids=["the switch on, as it reads today", "the switch on, coral not yet open to it again",
          "the switch off, the six of 14 November not yet",
          "the switch on, the six of 14 November not yet",
          "the switch off, an introduction of 500 not yet",
@@ -891,6 +917,9 @@ def a_sealed_bond(attend, room):
          "the switch on, the four of 13 November not yet"])
 def test_the_first_one_s_long_night_is_its_own_reading_and_only_when_switched_on(
         wake, attend, room, clock, monkeypatch, tmp_path, switched, before, as_cut):
+    if before == "coral":  # the one held before had coral closed to it, and nothing else
+        coral_not_yet(attend, monkeypatch)
+        before = None
     if before:  # each held before had the six of 14 November shut away
         six_not_yet(attend, monkeypatch)
     if before in ("introduction", "switches"):  # and said an introduction is up to 280 characters

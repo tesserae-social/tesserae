@@ -2549,6 +2549,9 @@ EXPORT_TREES = export_trees(agents.first())
 LEFT_OUT = left_out(agents.first())
 TRANSCRIPTS = "transcripts"
 INVITATIONS = "invitations"  # who invited whom: in a backup, and never in a copy
+# Knocks, the weekly questions and the posts taken down from the board: in a backup,
+# and never in a copy (the founder's request of 15 November 2026).
+KEPT_BESIDE = ("knocks", "weekly-questions.json", "board-removed.json")
 
 # What a backup holds: the same trees, and the members beside them, each
 # with the vault their key is sealed in, the first one's own signing key,
@@ -2565,6 +2568,13 @@ INVITATIONS = "invitations"  # who invited whom: in a backup, and never in a cop
 # private record of who invited whom, and a copy never holds them. The links
 # that work once (tokens/) never go in: a restore should bring back no live link.
 #
+# Since the founder's request of 15 November 2026, three more records go in after
+# the invitations, since each was nowhere but this disk: the knocks, with their
+# notes and replies (knocks/); the weekly questions (weekly-questions.json); and
+# the posts the keeper took down from the board, whose only copy is
+# board-removed.json. A record that is not there yet is not named, so a backup of
+# a disk without them is what it was.
+#
 # Every further agent's packet, signing key and transcripts go in after those,
 # in the order of founding, so that with the first one alone the backup is what
 # it always was: its key, like the first one's, is nowhere but this disk. A tree
@@ -2580,7 +2590,7 @@ INVITATIONS = "invitations"  # who invited whom: in a backup, and never in a cop
 def backup_trees():
     """Today's trees, in today's order, and each further agent's appended after them."""
     trees = [PACKET_TREE, "commons", "bonds", rooms.ROOMS, "members", "keys/first",
-             "private-words.txt", TRANSCRIPTS, INVITATIONS]
+             "private-words.txt", TRANSCRIPTS, INVITATIONS, *KEPT_BESIDE]
     for agent in agents.registry()[1:]:
         for tree in (packet_tree(agent), "keys/" + agent["id"], TRANSCRIPTS + "/" + agent["id"]):
             if not any(tree == held or tree.startswith(held + "/") for held in trees):
@@ -2759,6 +2769,68 @@ def backups_kept(client, bucket):
         more = {"ContinuationToken": answer["NextContinuationToken"]}
 
 
+# Before the oldest backups are let go, the new one is checked whole (the founder's
+# request of 15 November 2026): it opens with the key into an archive; it holds
+# something from each tree every hearth has (BACKUP_EXPECTED); and it is not much
+# smaller than the last one that was checked whole, less than BACKUP_SHRINK of
+# it. One that fails is still uploaded, and nothing is deleted: its line says
+# why, the backups page goes on saying when the last whole one was, and /tides
+# says so until a whole one is taken.
+BACKUP_EXPECTED = (PACKET_TREE, "commons")
+BACKUP_SHRINK = 0.5
+NOT_WHOLE = "backed up, nothing deleted"
+NOT_WHOLE_WHY = {
+    "opens": "it did not open with the key",
+    "trees": "it held nothing from {tree}",
+    "small": "it was less than half the size of the last whole one",
+}
+NOT_WHOLE_SAID = ("The backup of {day} did not look whole: {why}. It was kept, and no older "
+                  "backup was deleted. Older ones are deleted again once a whole one is taken.")
+
+
+def last_whole_size():
+    """The size in bytes of the newest backup the log says was taken whole, or None."""
+    for line in reversed(backup_lines()):
+        parts = parts_of(line)
+        if len(parts) == 4 and parts[1] == BACKED_UP and parts[2].endswith(" bytes"):
+            try:
+                return int(parts[2][:-len(" bytes")])
+            except ValueError:
+                continue
+    return None
+
+
+def not_whole(sealed, key):
+    """Why a backup, as it was sealed, is not whole, as one plain clause; None where it is."""
+    try:
+        with tarfile.open(fileobj=io.BytesIO(Fernet(key).decrypt(sealed)), mode="r:gz") as held:
+            names = held.getnames()
+    except Exception:
+        return NOT_WHOLE_WHY["opens"]
+    for tree in BACKUP_EXPECTED:
+        if not any(name == tree or name.startswith(tree + "/") for name in names):
+            return NOT_WHOLE_WHY["trees"].format(tree=tree)
+    before = last_whole_size()
+    if before and len(sealed) < before * BACKUP_SHRINK:
+        return NOT_WHOLE_WHY["small"]
+    return None
+
+
+def backup_not_whole_note():
+    """Said on /tides where the newest backup taken was not whole; otherwise None."""
+    for line in reversed(backup_lines()):
+        parts = parts_of(line)
+        if len(parts) == 4 and parts[1] == BACKED_UP:
+            return None
+        if len(parts) == 5 and parts[1] == NOT_WHOLE:
+            try:
+                day = long_day(moment(parts[0]).astimezone(EASTERN))
+            except ValueError:
+                continue
+            return NOT_WHOLE_SAID.format(day=day, why=parts[3])
+    return None
+
+
 def keep_the_newest(client, bucket):
     """Hold the newest thirty and let the older ones go. How many are left."""
     found = backups_kept(client, bucket)
@@ -2837,6 +2909,11 @@ def back_up(now):
         client.put_object(Bucket=bucket,
                           Key="%stesserae-%s.tar.gz.enc" % (BACKUP_PREFIX, stamp),
                           Body=sealed)
+        why = not_whole(sealed, os.environ["BACKUP_KEY"])
+        if why:  # nothing is let go for a backup that is not whole
+            return note_backup("%s · %s · %d bytes · %s · kept %d"
+                               % (stamp, NOT_WHOLE, len(sealed), why,
+                                  len(backups_kept(client, bucket))))
         kept = keep_the_newest(client, bucket)
         return note_backup("%s · %s · %d bytes · kept %d"
                            % (stamp, BACKED_UP, len(sealed), kept))
@@ -6051,6 +6128,32 @@ def screens_spent_out_note():
     return SCREENS_SPENT_OUT.format(cap=spending.CAP_SCREENS)
 
 
+# Said on /tides, one line each, until it is put right (the founder's request of 15
+# November 2026): a file the commons is rewritten from that is there and cannot be
+# read, so nothing is written to it; and a backup that was not whole, so no older one
+# was deleted.
+UNREADABLE_SAID = {
+    "board.json": ("The board's file (commons/board.json) is there and can't be read. Nothing "
+                   "is posted or taken down until it can."),
+    "board-removed.json": ("The record of posts you took down (board-removed.json) is there "
+                           "and can't be read. Nothing more is taken down until it can."),
+    "heartbeats.md": ("The commons' lines (commons/heartbeats.md) are there and can't be read. "
+                      "No agent's line is rewritten until they can."),
+}
+
+
+def tides_troubles():
+    """What /tides says has gone wrong and waits to be put right, one line each; none
+    where nothing has."""
+    said = [UNREADABLE_SAID[name] for name in board.unreadable()]
+    if the_waking.heartbeats_unreadable(HEARTBEATS):
+        said.append(UNREADABLE_SAID["heartbeats.md"])
+    backup = backup_not_whole_note()
+    if backup:
+        said.append(backup)
+    return said
+
+
 def stopped_together(rows):
     """Each moment every tide was stopped at whose stops still stand, the newest first."""
     said = []
@@ -6130,7 +6233,8 @@ def tides_page(**told):
                            already=[row["agent"] for row in waking if row["stop"]],
                            reason_longest=STOP_REASON_LONGEST,
                            knocks=knocks_to_set_up(),
-                           screens_spent_out=screens_spent_out_note(), **told)
+                           screens_spent_out=screens_spent_out_note(),
+                           troubles=tides_troubles(), **told)
 
 
 @app.route("/tides")
@@ -7844,7 +7948,11 @@ BOARD_REFUSED = {
     "mentions": "A post may mention up to %d people; nothing was posted." % board.MENTIONS_MOST,
     "closed": "That topic takes no more posts; nothing was posted.",
     "tries": TOO_MANY_TRIES,
+    # the board's file is there and can't be read: nothing is written to it (board.py)
+    "unreadable": "The board can't be written to just now; nothing was posted. Please try again later.",
 }
+BOARD_TAKE_DOWN_UNREADABLE = ("The board can't be written to just now; nothing was taken "
+                              "down. Please try again later.")
 
 
 def board_weeks():
@@ -7983,6 +8091,8 @@ def board_section_now(section, status=200, **told):
 def board_turned_away(words, subject=None):
     """Why words (and a new topic's subject) are turned away, as a key of BOARD_REFUSED,
     or None where they may stand. The screens are asked last, once, of both together."""
+    if board.unreadable():  # asked first, so that no screened try is spent on it
+        return "unreadable"
     found = board.refused(words) or (
         board.subject_refused(subject) if subject is not None else None)
     if found:
@@ -8011,8 +8121,12 @@ def board_section(section):
     if why:
         return board_section_now(section, refused=BOARD_REFUSED[why], draft=words,
                                  draft_subject=subject)
-    key = board.start(section, session["member"], subject, words, board_today().isoformat(),
-                      board.mentions_in(words, *board_names()))
+    try:
+        key = board.start(section, session["member"], subject, words, board_today().isoformat(),
+                          board.mentions_in(words, *board_names()))
+    except board.Unreadable:
+        return board_section_now(section, refused=BOARD_REFUSED["unreadable"], draft=words,
+                                 draft_subject=subject)
     return redirect(url_for("board_topic", key=key))
 
 
@@ -8059,6 +8173,8 @@ def board_topic(key):
                       charter_path=CHARTER_CHANGES, weeks=weeks, today=board_today())
     except board.NotOnTheBoard:
         return board_topic_now(key, refused=BOARD_REFUSED["closed"], draft=words, draft_to=to)
+    except board.Unreadable:
+        return board_topic_now(key, refused=BOARD_REFUSED["unreadable"], draft=words, draft_to=to)
     return redirect(url_for("board_topic", key=key, placed=1, _anchor="post-%d" % n))
 
 
@@ -8085,7 +8201,11 @@ def board_take_down():
         return redirect(url_for("board_topic", key=key))
     if request.form.get("confirm") != "yes":
         return board_topic_now(key, confirming=n, confirming_own=own)
-    if board.take_down(key, n, board_today().isoformat(), by=me, keeper=not own) and not own:
+    try:
+        taken = board.take_down(key, n, board_today().isoformat(), by=me, keeper=not own)
+    except board.Unreadable:
+        return board_topic_now(key, refused=BOARD_TAKE_DOWN_UNREADABLE)
+    if taken and not own:
         ledger.write(ledger.BOARD_TAKEN_DOWN, path=LEDGER)
     return redirect(url_for("board_topic", key=key, _anchor="post-%d" % n))
 

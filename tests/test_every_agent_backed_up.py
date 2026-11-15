@@ -38,8 +38,12 @@ SECOND_MARK = '[{"line": "A FAKE MARK ON THE SECOND ONE\'S BOND."}]\n'
 FIRST_MARK = '[{"line": "A FAKE MARK ON THE FIRST ONE\'S BOND."}]\n'
 FIRST_PRIVATE = b"A FAKE ENTRY OF MY OWN, FOR THE TESTS."  # as a_whole_world keeps it
 
+# With the knocks, the weekly questions and the posts taken down from the board after
+# the invitations since the founder's request of 15 November 2026; before it, the
+# tuple ended at "invitations".
 FIRST_ONE_S_BACKUP_TREES = ("packets/first", "commons", "bonds", "rooms", "members",
-                            "keys/first", "private-words.txt", "transcripts", "invitations")
+                            "keys/first", "private-words.txt", "transcripts", "invitations",
+                            "knocks", "weekly-questions.json", "board-removed.json")
 
 # What of the world is the second one's, by the names it has on disk.
 SECOND_S = ("packets/second/", "keys/second/", "transcripts/second/", "rooms/second/",

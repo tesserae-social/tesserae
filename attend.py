@@ -172,6 +172,10 @@ import public_screen
 import kept_words
 import good_spirit
 
+# heartbeats.md, where a line of its is rewritten, is written beside itself and put in
+# place whole (safe_write.py), and is never rewritten while it cannot be read.
+import safe_write
+
 # Asked and answered, and corrections (12 November 2026): what the site has
 # asked it and how it answered, and its corrections beneath its own public
 # lines. Each is kept through its one module, which the hearth reads too.
@@ -516,6 +520,8 @@ BOARD_REFUSED = {
                 "place or in conversation."),
     "full": ("A <<BOARD>> at your last waking was not posted: you may write %d posts a "
              "day." % board.AGENT_A_DAY),
+    "unreadable": ("A <<BOARD>> at your last waking was not posted: the board could not be "
+                   "read just then. You may write it again."),
     "kept": ("A <<BOARD>> at your last waking was not posted: it repeated eight or more "
              "words in a row from your private notebook or your room's letters. Those stay "
              "private."),
@@ -1599,6 +1605,8 @@ REWRITE_REFUSED = {
               "the line after the first."),
     "once": ("Your <<REWRITE>> at your last waking changed nothing: your line of {day} in the "
              "commons was rewritten already, and a line can be rewritten only once."),
+    "unreadable": ("Your <<REWRITE>> at your last waking changed nothing: the commons' lines "
+                   "could not be read just then. You may ask again."),
 }
 COMMONS_LINES_LOOKED = "commons lines"
 NO_COMMONS_LINES = "You have no lines in the commons yet."
@@ -1662,6 +1670,8 @@ CORRECTION_HELD = {
                         "beneath it."),
 }
 CORRECTION_REFUSED = {
+    "unreadable": ("Your <<CORRECTION>> at your last waking changed nothing: the commons' lines "
+                   "could not be read just then. You may ask again."),
     "none": ("Your <<CORRECTION>> at your last waking changed nothing: no line of yours in the "
              "commons is from \"{said}\"."),
     "several": ("Your <<CORRECTION>> at your last waking changed nothing: more than one of your "
@@ -2303,6 +2313,8 @@ def board_post(said, day):
                                  agent=NAME), 1
     except (board.NotOnTheBoard, ValueError):
         return None, "no_topic", None
+    except board.Unreadable:  # nothing is written to a board that can't be read
+        return None, "unreadable", None
     return words, None, "%s/%s" % (key, n)
 
 
@@ -2320,7 +2332,11 @@ def board_take_down(said, day):
     topic = board.topic(key, CHARTER_CHANGES, {}, board_today())
     if topic is None or topic["section"] not in BOARD_SECTIONS:
         return None
-    return "%s/%s" % (key, n) if board.take_down(key, n, day, by=COMMONS_NAME) else None
+    try:
+        taken = board.take_down(key, n, day, by=COMMONS_NAME)
+    except board.Unreadable:  # nothing is written to a board that can't be read
+        taken = False
+    return "%s/%s" % (key, n) if taken else None
 
 
 # ---- knocks -----------------------------------------------------------------
@@ -3012,10 +3028,32 @@ def stepped_back_since(since):
             if one.get("by") == PERSON and one.get("at", "") > (since or "")]
 
 
-def heartbeat_lines():
-    """The lines of commons/heartbeats.md, as written; none where there is no file yet."""
+def heartbeat_lines(strict=False):
+    """The lines of commons/heartbeats.md, as written; none where there is no file yet.
+    Where it is there and cannot be read: none, to be read only, or, strict, OSError, so
+    that nothing is ever written back from it."""
     path = COMMONS / "heartbeats.md"
-    return path.read_text(encoding="utf-8").splitlines(keepends=True) if path.exists() else []
+    if not path.exists():
+        return []
+    try:
+        return path.read_text(encoding="utf-8").splitlines(keepends=True)
+    except (OSError, UnicodeDecodeError):
+        if strict:
+            raise OSError("heartbeats.md cannot be read")
+        return []
+
+
+def heartbeats_unreadable(path=None):
+    """Whether commons/heartbeats.md is there and cannot be read (the hearth asks it for
+    /tides, naming its own path)."""
+    path = Path(path) if path else COMMONS / "heartbeats.md"
+    if not path.exists():
+        return False
+    try:
+        path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return True
+    return False
 
 
 def own_commons_line(line):
@@ -6151,6 +6189,13 @@ def main():
     # what it has been asked, each checked as a new line is; nothing is written
     # until its record is kept
     corrected, corrections_refused = corrections_asked(text, heartbeat_lines())
+    if heartbeats_unreadable():  # no line is found in a file that can't be read, and
+        # none is rewritten: each block is told so, and may be asked again
+        rewrites_refused = [REWRITE_REFUSED["unreadable"]] * (len(rewrites)
+                                                              + len(rewrites_refused))
+        corrections_refused = [CORRECTION_REFUSED["unreadable"]] * (len(corrected)
+                                                                    + len(corrections_refused))
+        rewrites, corrected = [], []
     asked_done, asked_refused, asked_changed = asked_carried(
         text, asked_list, datetime.now(here()).date().isoformat())
 
@@ -6274,11 +6319,16 @@ def main():
     # facts, or its line for the commons where that was shown, and keeps no
     # protected word.
     if any(not one.get("held") for one in rewrites):
-        # a past line of its own rewritten in place, marked; the rest as they were
-        lines = heartbeat_lines()
-        (COMMONS / "heartbeats.md").write_text(
-            "".join(rewritten_lines(lines, rewrites, datetime.now(here()).date())),
-            encoding="utf-8")
+        # a past line of its own rewritten in place, marked; the rest as they were;
+        # written whole or not at all, and never from a file that can't be read
+        try:
+            lines = heartbeat_lines(strict=True)
+        except OSError:
+            lines = None
+        if lines is not None:
+            safe_write.write_text(
+                COMMONS / "heartbeats.md",
+                "".join(rewritten_lines(lines, rewrites, datetime.now(here()).date())))
     with (COMMONS / "heartbeats.md").open("a", encoding="utf-8") as f:
         f.write(private_words.protect(f"- {at} · {COMMONS_NAME} · {shown_line}\n"))
     # each correction that passed, beneath the line it corrects; and each question

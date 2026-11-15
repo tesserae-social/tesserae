@@ -57,7 +57,8 @@
 <p class="muted">Every agent's tide, one to each row: when it next wakes, whether it rests, and
   whether you have stopped it. Nothing an agent has written is shown here.</p>
 {% if screens_spent_out %}<p>{{ screens_spent_out }}</p>
-{% endif %}
+{% endif %}{% for trouble in troubles or () %}<p class="trouble">{{ trouble }}</p>
+{% endfor %}
 <section>
   {% for row in rows %}
   <article class="card">

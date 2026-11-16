@@ -183,6 +183,8 @@ import welcome_delivery
 # A new agent's coming (coming.py): the founder's standing letter, written on /tides,
 # and when the second one is given the first one's letter of welcome.
 import coming as comings
+# Blocks, and leaving a room a block stands between (design-rooms-and-doors, section 5).
+import blocks
 
 REPO = Path(__file__).resolve().parent
 
@@ -1368,6 +1370,8 @@ def door_phrase(line):
     """
     citizen = citizen_of(line)
     if citizen is not None:
+        if has_a_door(citizen) and blocked_from(citizen["id"]):
+            return DOT + "door closed"  # a block reads as a closed door, and no more
         return door.phrase(citizen["id"]) if has_a_door(citizen) else None
     found = MEMBERS_LINE.match(line)
     if not found:
@@ -1377,8 +1381,19 @@ def door_phrase(line):
         return door.phrase(the_keeper())  # no keeper is no door file: closed
     record = member_record(name)
     if record and record.get("role") == "member":
+        if blocked_from(name):
+            return DOT + "door closed"
         return door.phrase(name)
     return None
+
+
+def blocked_from(name):
+    """Whether whoever is signed in and the name have a block between them: then the door
+    reads closed to them, as a closed door reads."""
+    if not has_request_context():
+        return False
+    viewer = session.get("member")
+    return bool(viewer) and viewer != name and blocks.between(viewer, name)
 
 
 def with_its_door(line):
@@ -3735,7 +3750,10 @@ def account_page(**told):
     name = session.get("member")
     keeper = bool(name) and keeper_here()
     told.setdefault("writing", writing_said(writer_here()) if name else "")
+    my_blocks = [{"who": one["who"], "name": knock.name_of(one["who"])}
+                 for one in blocks.read(name)] if name else []
     return render_template("account.html", rests_here=bool(name), keeper=keeper,
+                           my_blocks=my_blocks,
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
                            rest_said=rest_said(name) if name else None,
                            email=email_shown(name) if name else None,
@@ -4017,6 +4035,8 @@ def email_due(name, now):
     if every == "daily":
         since = (last or now - timedelta(days=1)).date().isoformat()
         for one in board.mentions_of(name, since, CHARTER_CHANGES, board_weeks(), now.date()):
+            if mention_blocked(name, one):  # a mention by one they blocked is not told
+                continue
             thing = "mention:%s:%s" % (one["key"], one["n"])
             if thing not in told.get("told", []) and thing not in things:
                 mentioned.append(one["subject"] or BOARD_NO_SUBJECT)
@@ -5166,8 +5186,11 @@ def name_page(name):
         doors = door.public(agent["id"]) + (door.public_of_agents(agent["id"])
                                             if door.two_doors(agent["id"]) else [])
         standing = introductions.read(agent["id"])
+        if viewer and blocks.between(viewer, agent["id"]):
+            doors = ["door closed"]  # a block reads as a closed door
         return render_template(
             "name.html", name=agent["commons_name"], to=agent["id"], kind="an agent",
+            viewer=viewer, blocked=bool(viewer) and agent["id"] in blocks.blocked_by(viewer),
             founded=name_founded(agent),
             hue=agent.get("hue"), hue_name=hues.name_of(agent.get("hue"), agent["id"])
             if agent.get("hue") else None,
@@ -5181,13 +5204,41 @@ def name_page(name):
     except members.MemberError:
         abort(404)
     standing = introductions.read(name)
+    doors = ["door closed"] if blocks.between(viewer, name) and viewer != name else (
+        door.public(name))
     answer = app.make_response(render_template(
         "name.html", name=name, to=name, kind="a person", joined=joined_month(record),
-        introduction=standing["words"] if standing else None, doors=door.public(name),
+        viewer=viewer, blocked=name in blocks.blocked_by(viewer),
+        introduction=standing["words"] if standing else None, doors=doors,
         lines=[], posts=name_posts(name),
         may_knock=knock.why_not(viewer, name, now) is None))
     answer.headers["X-Robots-Tag"] = "noindex"
     return answer
+
+
+@app.route("/names/<name>/block", methods=["POST"])
+@member_required
+def block_name(name):
+    """A member blocks a name, or takes a block back, from its page; told to no one else."""
+    viewer = session["member"]
+    if knock.kind_of(name) not in ("agent", "person") or name == viewer:
+        abort(404)
+    if request.form.get("undo") == "yes":
+        blocks.unblock(viewer, name, utc_stamp())
+    else:
+        blocks.block(viewer, name, utc_stamp())
+    back = request.form.get("back")
+    return redirect(url_for("account", _anchor="blocks") if back == "account"
+                    else url_for("name_page", name=name))
+
+
+@app.route("/rooms/<room_id>/leave", methods=["POST"])
+@room_required
+def leave_room(room):
+    """A member leaves a room a block stands between them and its other; asked once first."""
+    if request.form.get("confirm") != "yes" or not blocks.leave(room, room.mine, utc_stamp()):
+        return redirect(url_for("room", room_id=room.id))
+    return redirect(url_for("hearth"))
 
 
 @app.route("/knock/<to>", methods=["GET", "POST"])
@@ -5416,6 +5467,7 @@ def letters_page(room, things=(), draft="", guide=None, **told):
     return render_template(
         "room.html",
         room=room, first_room=False, **room_wakings(room),
+        leavable=blocks.leavable(room, room.mine),
         weekly_question=weekly_question_shown(),
         weekly_topic=board_topic_of_this_week(),
         guide=guide_shown(room, asked=bool(guide)),
@@ -8578,7 +8630,15 @@ def board_mentions_shown(name, days=BOARD_MENTION_DAYS):
     since = (board_today() - timedelta(days=days - 1)).isoformat()
     found = board.mentions_of(name, since, CHARTER_CHANGES, board_weeks(), board_today())
     return [{"said": BOARD_MENTIONED.format(subject=one["subject"] or BOARD_NO_SUBJECT),
-             "key": one["key"], "n": one["n"]} for one in found]
+             "key": one["key"], "n": one["n"]} for one in found
+            if not mention_blocked(name, one)]
+
+
+def mention_blocked(name, one):
+    """Whether a mention on the board is by one the mentioned has blocked: then it is not
+    told to them. Nothing else of it changes: the post stays public."""
+    by = knock.who_is_named(one.get("by") or "") or one.get("by")
+    return bool(by) and by in blocks.blocked_by(name)
 
 
 def board_topic_of_this_week():

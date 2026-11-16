@@ -330,7 +330,7 @@ def places(room_id):
     """
     if registered_agent(room_id) is None and held_room(room_id) is None:
         return None
-    if not founded(room_id):
+    if not founded(room_id) or left(room_id):  # a room left is no room, a first one too
         return None
     home = DATA / ROOMS / room_id
     letters = home / "letters"

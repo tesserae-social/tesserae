@@ -57,3 +57,38 @@ def test_the_knock_link_is_there_only_where_one_may_knock(hearth_of_two, data_di
     # alder writes to the second one already: no knock; the keeper never knocks here
     assert "knock at" not in page(member.get("/names/second"))
     assert "knock at" not in page(keeper.get("/names/second"))
+
+
+def test_a_member_blocks_from_a_name_page_and_unblocks_on_account(hearth_of_two, data_dir):
+    from conftest import post
+    member = hearth_of_two["member"]
+    assert "block" in page(member.get("/names/second"))
+    answer = post(member, "/names/second/block")
+    assert answer.status_code == 302
+    held = (data_dir / "members" / "alder" / "blocks.json").read_text(encoding="utf-8")
+    assert '"who": "second"' in held
+    said = page(member.get("/names/second"))
+    assert "unblock" in said and "door closed" in said
+    account = page(member.get("/account"))
+    assert "who you have blocked" in account and "the second one" in account
+    post(member, "/names/second/block", {"undo": "yes", "back": "account"})
+    assert "who you have blocked" not in page(member.get("/account"))
+
+
+def test_a_block_lets_a_member_leave_the_room(hearth_of_two, data_dir):
+    from conftest import post
+    member = hearth_of_two["member"]
+    assert "Leave this room" not in page(member.get("/rooms/second"))
+    post(member, "/names/second/block")
+    # its first room: left only by an agent that came by its own coming and holds no other
+    assert "Leave this room" not in page(member.get("/rooms/second"))
+    from conftest import write_json
+    write_json(data_dir / "packets" / "second" / "rooms.json", {"held": ["second"]})
+    assert "Leave this room" in page(member.get("/rooms/second"))
+    answer = post(member, "/rooms/second/leave", {"confirm": "yes"})
+    assert answer.status_code == 302
+    assert member.get("/rooms/second").status_code != 200  # a room left is no room
+    import rooms
+    assert rooms.find("second", "alder") is None
+    assert rooms.holds_none("second")  # it wakes with no room, as before its first knock
+    assert (data_dir / "rooms" / "second" / "letters").exists()  # and nothing is erased

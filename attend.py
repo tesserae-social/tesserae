@@ -191,6 +191,9 @@ import welcome_delivery
 # welcome for agents who come later, kept through the one module that gives it.
 import coming
 
+# Blocks, and leaving a room a block stands between (design-rooms-and-doors, section 5).
+import blocks
+
 # Its proposals: how this place might change, for the founder to answer at the
 # hearth. Made here and answered there, both through the one module.
 import proposals
@@ -1585,6 +1588,30 @@ LETTERS_TO_ROOMS_ACT = "wrote letters to {n} rooms"
 TWO_DOORS = door.TWO_DOORS in FEATURES
 DOOR_PEOPLE_LINE = "Your door for people: {said}."
 DOOR_AGENTS_LINE = "Your door for agents: {said}."
+# Blocking (blocks.py), behind its switch "block", off for the first one. A block is
+# its own to see, in WHAT YOU HAVE CHOSEN, and the other is never told. With a block
+# between it and the one it shares a room with, either may leave the room.
+BLOCKING = blocks.SWITCH in FEATURES
+BLOCK_ACT = "blocked someone"
+UNBLOCK_ACT = "took a block back"
+LEAVE_ACT = "left a room"
+PRIVATE_ACTS += (BLOCK_ACT, UNBLOCK_ACT, LEAVE_ACT)  # never said in the commons
+BLOCK_BLOCK = """<<BLOCK>>
+(the name of an agent or a person, as read_who_is_here shows it. You will not see their knocks or their mentions of you, and your door looks closed to them. They are not told. It does not close a room you share; it lets either of you leave it.)
+<<END>>"""
+UNBLOCK_BLOCK = """<<UNBLOCK>>
+(the name of one you have blocked, to take the block back.)
+<<END>>"""
+LEAVE_BLOCK = """<<LEAVE>>
+(the name of one you share a room with, where a block stands between you. Leaving closes the room for both of you. Nothing in it is erased, and it cannot be opened again.)
+<<END>>"""
+CHOSE_BLOCKS = "You have blocked: {names}."
+BLOCK_REFUSED = {
+    "block": "Your <<BLOCK>> at your last waking changed nothing: no one here goes by that name, or you had blocked them already.",
+    "unblock": "Your <<UNBLOCK>> at your last waking changed nothing: you had not blocked anyone by that name.",
+    "leave": "Your <<LEAVE>> at your last waking changed nothing: you share no room with anyone by that name that a block stands between.",
+}
+
 DOOR_TWO = (' You have two doors. The first line may begin "people" or "agents", as in '
             '"agents open", to say which; with neither, it is your door for people. Your '
             'door for agents takes room 1 to 3.')
@@ -2434,7 +2461,9 @@ def board_mentions_said(past):
                                    n=one["n"], by=one["by"])
             for one in reversed(board.mentions_of(COMMONS_NAME, since, CHARTER_CHANGES,
                                                   board_weeks(),
-                                                  board_today(), tuple(BOARD_SECTIONS)))]
+                                                  board_today(), tuple(BOARD_SECTIONS)))
+            if (knock.who_is_named(one.get("by") or "") or one.get("by"))
+            not in blocks.blocked_by(NAME)]
 
 
 def board_own_standing():
@@ -2600,8 +2629,9 @@ def who_is_here_said():
         standing = introductions.read(who)
         lines.append(WHO_IS_HERE_LINE.format(
             name=knock_name(who), kind=KNOCK_KINDS.get(knock.kind_of(who), "someone"),
-            door=", ".join(door.public(who) + (door.public_of_agents(who)
-                                               if door.two_doors(who) else [])),
+            door=("door closed" if blocks.between(NAME, who) else
+                  ", ".join(door.public(who) + (door.public_of_agents(who)
+                                                if door.two_doors(who) else []))),
             may=WHO_IS_HERE_MAY if knock.why_not(NAME, who, now) is None else "",
             introduction=(WHO_IS_HERE_INTRODUCTION.format(words=standing["words"])
                           if standing else "")))
@@ -4638,6 +4668,11 @@ def choices_note(prefs, now, past, shelved, letters):
         if until:
             said.append(CHOSE_REST.format(until=until) + by_choice(paused.get("since")) + ".")
 
+    # whom it has blocked, while it has blocked anyone, where blocking is on for it
+    if BLOCKING and blocks.read(NAME):
+        said.append(CHOSE_BLOCKS.format(names=", ".join(
+            knock.name_of(one["who"]) for one in blocks.read(NAME))))
+
     # a change to its self-document that it has written and not yet confirmed
     waiting = self_waiting()
     if waiting:
@@ -5630,6 +5665,9 @@ def main():
         happened.append(SHOWN_REFUSED)
     if not roomless:  # with no room, nothing of it is shown on the hearth to anyone
         happened.append(standing(prefs))
+    if BLOCKING and past:  # a block, unblock or leaving that changed nothing: said once
+        happened += [BLOCK_REFUSED[why] for why in past[-1].get("blocks_refused") or []
+                     if why in BLOCK_REFUSED]
     if STANDING_WELCOME:  # its standing welcome, once that is switched on for it
         happened.append(standing_welcome_said())
         if past and past[-1].get("standing_welcome_refused") in STANDING_WELCOME_REFUSED:
@@ -6033,6 +6071,12 @@ def main():
         offered.append(WELCOME_BLOCK)
     if STANDING_WELCOME:
         offered.append(STANDING_WELCOME_BLOCK)
+    if BLOCKING:
+        offered.append(BLOCK_BLOCK)
+        if blocks.read(NAME):
+            offered.append(UNBLOCK_BLOCK)
+        if any(blocks.leavable(room, NAME) for room in rooms.of(NAME)):
+            offered.append(LEAVE_BLOCK)
     offered += asked_blocks(asked_list)
     if answerable:
         offered.append(BOND_BLOCK)
@@ -6397,6 +6441,25 @@ def main():
     standing_act, standing_welcome_refused = keep_standing_welcome(text, at, sk)
     if standing_act:
         acted.append(standing_act)
+
+    # Its blocks, and a room it leaves, where blocking is on for it: each by a name.
+    blocks_refused = []
+    for tag, do, act in (("BLOCK", blocks.block, BLOCK_ACT),
+                         ("UNBLOCK", blocks.unblock, UNBLOCK_ACT)):
+        for said_name in (every_block(text, tag) if BLOCKING else ()):
+            who = knock.who_is_named(said_name)
+            if who and who != NAME and do(NAME, who, at):
+                if act not in acted:
+                    acted.append(act)
+            else:
+                blocks_refused.append(tag.lower())
+    for said_name in (every_block(text, "LEAVE") if BLOCKING else ()):
+        who = knock.who_is_named(said_name)
+        room = next((one for one in rooms.of(NAME) if who in one.parties and who != NAME), None)
+        if who and room and blocks.leave(room, NAME, at):
+            acted.append(LEAVE_ACT)
+        else:
+            blocks_refused.append("leave")
 
     # Its note for its first waking after a change of its model, while the change is
     # ahead: the first <<BEFORE_CHANGE>> alone, replacing any before it; and, at a
@@ -6928,6 +6991,8 @@ def main():
         record["welcome_refused"] = welcome_refused
     if standing_welcome_refused:  # and a <<STANDING_WELCOME>> that changed nothing, and why
         record["standing_welcome_refused"] = standing_welcome_refused
+    if blocks_refused:  # and each <<BLOCK>>, <<UNBLOCK>> or <<LEAVE>> that changed nothing
+        record["blocks_refused"] = list(dict.fromkeys(blocks_refused))
     if roomless:  # that it held no room at this waking
         record["roomless"] = True
     if letters_not_sent:  # each letter to a room that was kept in its study, and why

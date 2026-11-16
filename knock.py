@@ -244,6 +244,9 @@ def why_not(by, to, now):
         return "who"
     if by == to:
         return "self"
+    import blocks  # a block, either way, is a closed door, and says no more than one
+    if blocks.between(by, to):
+        return "door"
     kinds = (kind_of(by), kind_of(to))
     if kinds == ("person", "person"):
         return "people"

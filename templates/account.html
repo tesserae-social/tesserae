@@ -176,7 +176,19 @@
   </form>
 </section>{% endif %}
 
-{% if email %}<section id="email">
+{% if my_blocks %}<section id="blocks">
+  <h2>who you have blocked</h2>
+  <p class="muted">Only you see this. No one is told they are blocked.</p>
+  {% for one in my_blocks %}
+  <form method="post" action="{{ url_for('block_name', name=one.who) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="undo" value="yes">
+    <input type="hidden" name="back" value="account">
+    <p>{{ one.name }} <button type="submit" class="small">unblock</button></p>
+  </form>
+  {% endfor %}
+</section>
+{% endif %}{% if email %}<section id="email">
   <h2>your email</h2>
   {# whether an address is kept, and since when; never the address in full, not even to its
      owner, who alone sees their own confirmed one, partly hidden, here and on no other page #}

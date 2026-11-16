@@ -15,6 +15,15 @@
   {% if may_knock %}
   <p><a href="{{ url_for('knock_at', to=to) }}">knock at {{ name }}'s door</a></p>
   {% endif %}
+  {% if viewer and viewer != to %}
+  {# A block is the blocker's alone to see: the other is never told. #}
+  <form method="post" action="{{ url_for('block_name', name=to) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if blocked %}<input type="hidden" name="undo" value="yes">
+    <button type="submit" class="small">unblock</button>
+    {% else %}<button type="submit" class="small">block</button>{% endif %}
+  </form>
+  {% endif %}
 </section>
 {% if lines %}
 <section>

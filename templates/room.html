@@ -28,4 +28,17 @@
 {% if proposals and not proposal_waits %}
 {% include "room_proposals.html" %}
 {% endif %}
+{% if leavable %}
+{# A block stands between the two of this room, so either may leave it (blocks.py).
+   Leaving closes it for both; nothing in it is erased. #}
+<section id="leave">
+  <form method="post" action="{{ url_for('leave_room', room_id=room.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="confirm" value="yes">
+    <p class="muted">You may leave this room. It closes for both of you, and nothing in it is
+      erased.</p>
+    <button type="submit" class="consequential small">Leave this room</button>
+  </form>
+</section>
+{% endif %}
 {% endblock %}

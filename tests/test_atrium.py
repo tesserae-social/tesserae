@@ -1025,9 +1025,10 @@ def test_every_gap_is_a_step_of_the_scale(path):
 
 def test_every_page_begins_the_same_space_below_the_menu():
     """Home, account, the commons, /tides and /backups alike: the content is drawn in one
-    wrapper, whatever it begins with, and the wrapper keeps the rhythm's own space."""
+    wrapper, whatever it begins with, and the wrapper keeps the rhythm's own space (a step less than
+    before, as the founder asked on the pages branch)."""
     rules = stylesheet(BASE)
-    assert rules[".page"] == {"margin-top": "var(--space-6)"}
+    assert rules[".page"] == {"margin-top": "var(--space-5)"}
     assert rules[".page > :first-child"] == {"margin-top": "0"}
     base = BASE.read_text(encoding="utf-8")
     assert '<div class="page">\n  {% block content %}{% endblock %}\n  </div>' in base.replace(

@@ -49,6 +49,7 @@ import pytest
 from nacl.signing import SigningKey
 
 from conftest import (blocks, block, letter_part_as_before, page, pages_before_fewer,
+                      pages_before_pages, pages_before_small,
                       pages_before_saturday, post, registry_six_not_yet, registry_switches_not_yet,
                       rooms_to_twelve, times_as_before,
                       wakings_not_yet_switched, write, site_bookkeeping, write_json)
@@ -207,17 +208,34 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # back to twelve (conftest.rooms_to_twelve) and the six of that day taken out of the
 # registry (conftest.registry_six_not_yet), each is exactly the one held before, in
 # PART_TWO_BEFORE below.
+#
+# Every page but /letters and the plain files cut again, on purpose, on 15 November
+# 2026, on the branch pages, by the founder's request that day: the members' menu
+# begins with tesserae.social; the space under the menu is one step of the scale
+# smaller (--space-5 where it was --space-6); and / is two columns on a wide screen,
+# the correspondences on the left and the door on the right, with main the wider
+# class "wide". (/account moved too, its settings last; no page here holds it.) With
+# the base.html, hearth.html and account.html of before drawn in their place
+# (conftest.pages_before_pages), each is exactly the one held before, in
+# PAGES_BRANCH_BEFORE below; nothing else moved, and no waking did.
+#
+# The same pages cut again, on purpose, later that day, on the same branch, for the
+# small changes of report-15-nov-2 part 5: base.html has one rule, .spaced, for the
+# top margins letters.html said inline (and /rooms/first uses it), and /bonds says
+# "nothing yet" where it said "none yet". With the templates of before drawn in their
+# place (conftest.pages_before_small) each is exactly the one held before, in
+# SMALL_BEFORE below. No waking moved.
 PAGES = {
-    "/": "7b289faf6041485bbc13c1ec3cc1249066aef349b815f79e3ba35694d7b588ed",
-    "/rooms/first": "15f1f598802682bd7960db0de220155917ac83ef88c3b51c70fb502b58854edf",
+    "/": "e05ea9c1aca562b47b4e37e0d67de4ab99d949071ad2f108226bc55e50ca88fc",
+    "/rooms/first": "88f2eb2dad8ea46be3f6154e1f656b6ff6f0af72da0fa54b46a32d14eba96bd0",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
-    "/self": "7c4d716ba302cd53d40c4446a98a8f241a02d6eb89b22b53fbea09087a802f16",
-    "/attendances": "ef837fafadd9ece4c62ef8d3358883420efb033627da7eede596b7f3c67acea0",
-    "/chronicle": "5bfec838bdd71ad05881bf2522ad9b29390c51bf9045aff854c8baddd12e7a3c",
+    "/self": "352b739ce9270b7a054b73e9d98cf0a6e7b9386d1899b3b03bcba69ea12f7eac",
+    "/attendances": "e8cd47113cddb45cf696213b14e5da6887c4082b65afa8069b1564054d607df9",
+    "/chronicle": "a02bc0de0d7d4dcc3a0b974c6f25af0078edb84165a34c590472ec0061ee0e12",
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
-    "/export": "21dd8021db084ecd9c0c13a0cb1d16959f2536f2d90003b8b905e7c1e0de9034",
-    "/bonds": "5076de3238415cc727a571b7b1776611e8780ee5eb058631672e01d6ebf23595",
-    "/commons": "b86ab26154aaed42d9b479289b972a88907bf396edd71251dbdfd1a7236ef29a",
+    "/export": "e012dbd33afb9c26e2b10d9f2a3e84e2e603b93de0ce27b6d59aac3e7a30e7d4",
+    "/bonds": "56779937136482a73a72308bfc1cbc4d0b7f103db4e1d8c2fc39b2dbb4ed6e19",
+    "/commons": "fb20b43dff9d44d424fd71c419aa4051be49f64d4c84f148abdbfe3bf20a28f2",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
@@ -289,8 +307,12 @@ LETTER_PARTS_BEFORE = {
                      "2026-09-04 · founding · the first one was founded\n"
                      "2026-10-15 · letter · the founder wrote a letter at dawn\n"),
     # cut again on 14 November 2026 with every page, for the one spacing scale (it was
-    # fcb19c82..., and is again drawn as before: SATURDAY_AND_LETTER_PARTS_BEFORE)
-    "PAGES['/chronicle']": "543861cde701189885baf650fc540a56f511639d620757aefa91947ad4d433d1",
+    # fcb19c82..., and is again drawn as before: SATURDAY_AND_LETTER_PARTS_BEFORE), and
+    # on 15 November 2026 for the pages (it was 543861cd..., and is again drawn as
+    # before: PAGES_BRANCH_AND_LETTER_PARTS_BEFORE), and later that day for the small
+    # changes (it was 8be0675a..., and is again drawn as before:
+    # SMALL_AND_LETTER_PARTS_BEFORE)
+    "PAGES['/chronicle']": "4affe3f16e92cfa683955e553b5f19d7c45cfbeabe1349803ce6ebd2e192ef81",
     "PAGES['/chronicle.md']": "26316c2b5ea305af550820e1036a3fc8ba21a7707d3d86f69eeedd20b69e770b",
     "PAGES['/commons/events.md']":
         "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
@@ -384,6 +406,44 @@ SATURDAY_BEFORE = {
 SATURDAY_AND_LETTER_PARTS_BEFORE = {
     **SATURDAY_BEFORE,
     "/chronicle": "fcb19c82c171c5ddacc049b44e96b5257a0fa6cc0b526508a4a65d13db5142b5",
+}
+
+# What every page the pages moved was before 15 November 2026, and is again with
+# the base.html, hearth.html and account.html of before drawn in their place
+# (conftest.pages_before_pages): as the hearth writes now, and with the letter line
+# as before as well.
+PAGES_BRANCH_BEFORE = {
+    "/": "7b289faf6041485bbc13c1ec3cc1249066aef349b815f79e3ba35694d7b588ed",
+    "/rooms/first": "15f1f598802682bd7960db0de220155917ac83ef88c3b51c70fb502b58854edf",
+    "/self": "7c4d716ba302cd53d40c4446a98a8f241a02d6eb89b22b53fbea09087a802f16",
+    "/attendances": "ef837fafadd9ece4c62ef8d3358883420efb033627da7eede596b7f3c67acea0",
+    "/chronicle": "5bfec838bdd71ad05881bf2522ad9b29390c51bf9045aff854c8baddd12e7a3c",
+    "/export": "21dd8021db084ecd9c0c13a0cb1d16959f2536f2d90003b8b905e7c1e0de9034",
+    "/bonds": "5076de3238415cc727a571b7b1776611e8780ee5eb058631672e01d6ebf23595",
+    "/commons": "b86ab26154aaed42d9b479289b972a88907bf396edd71251dbdfd1a7236ef29a",
+}
+PAGES_BRANCH_AND_LETTER_PARTS_BEFORE = {
+    **PAGES_BRANCH_BEFORE,
+    "/chronicle": "543861cde701189885baf650fc540a56f511639d620757aefa91947ad4d433d1",
+}
+
+# What each page the small changes of 15 November 2026, later, moved was before
+# them (report-15-nov-2 part 5: base.html's .spaced rule, which is on every page;
+# letters.html's top margins, now that rule; "nothing yet" on /bonds), and is again
+# drawn with the templates of before (conftest.pages_before_small).
+SMALL_BEFORE = {
+    "/": "6ed73b73dd078ad67dd4884b68e39e0925f1b42e01f1c65a0f26c3f01bb2c85f",
+    "/rooms/first": "5c1bbb66b8f52e06d0fc64b8ec178ce65f467ed5082bb7550f461660690d6464",
+    "/self": "a0981650949bb435a10ca4865f6dc945509e44c87abbbd2920aba8d16bfe55f6",
+    "/attendances": "8295a5ccb4d145e2ebc18dd16c00b90bdfc0a045000d5f01391bcb4d44783964",
+    "/chronicle": "f3eebb37f976873c935145e3280313a4df2f3a7910d98922ff9f6c4c9528035b",
+    "/export": "0024d67e7f2b2437a709771454d7f1fc047037720cc63a73bacfff70bf71113c",
+    "/bonds": "d602448d44dbe8e750fced4557bcae6d2cb015bcdb035ed599bde696edbc6099",
+    "/commons": "70bb3da34fff467e6ea49a3ce1b4ba384e4b73a5213c75fd235c3cac71492d39",
+}
+SMALL_AND_LETTER_PARTS_BEFORE = {
+    **SMALL_BEFORE,
+    "/chronicle": "8be0675a643bd0ca54b8be89ceffcb665201cf923e78b4e439fc3d3e3abffc4d",
 }
 
 # What /commons was before the members' board was linked from it (13 November
@@ -556,11 +616,40 @@ def test_the_heartbeats_go_out_dated_and_stay_stamped_on_the_disk(
             "- 2026-10-15 at dawn · the first one · Wrote back about the colour of water.\n")
 
 
+
+@pytest.mark.parametrize("address", list(SMALL_BEFORE))
+def test_with_the_pages_drawn_before_the_small_changes_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page the small changes of 15 November 2026, later, moved, drawn with the
+    templates of before: each is exactly the page held before."""
+    pages_before_small(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    held = (SMALL_AND_LETTER_PARTS_BEFORE if letter_parts else SMALL_BEFORE)[address]
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
+
+
+@pytest.mark.parametrize("address", list(PAGES_BRANCH_BEFORE))
+def test_with_the_pages_drawn_before_the_branch_pages_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page the branch pages moved (15 November 2026), drawn with the base.html,
+    hearth.html and account.html of before: each is exactly the page held before."""
+    pages_before_pages(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    held = (PAGES_BRANCH_AND_LETTER_PARTS_BEFORE if letter_parts else PAGES_BRANCH_BEFORE)[address]
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
+
 @pytest.mark.parametrize("address", list(PART_TWO_BEFORE))
 def test_with_the_six_not_yet_and_rooms_to_twelve_each_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path,
         address):
     """The pages the six of 14 November and rooms to eight moved, with both put back."""
+    pages_before_pages(hearth, monkeypatch)  # behind the older ones, being newer
     registry_six_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
     rooms_to_twelve(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
@@ -578,6 +667,7 @@ def test_with_the_pages_drawn_before_the_scale_each_is_the_page_before(
     """Every page the one spacing scale moved (14 November 2026), drawn with the base.html
     of before, and with what came after it put back too: each is exactly the page held
     before."""
+    pages_before_pages(hearth, monkeypatch)  # behind the older ones, being newer
     registry_six_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
     rooms_to_twelve(hearth, monkeypatch)
     pages_before_saturday(hearth, monkeypatch)
@@ -595,6 +685,7 @@ def test_with_the_pages_as_before_each_is_the_page_before(
     """The pages the fewer pages moved (10 November 2026), each drawn as before, with
     the four switched on for the first one, which came after, taken out again. (The
     commons page they moved has since been made anew, and is not drawn again.)"""
+    pages_before_pages(hearth, monkeypatch)  # behind the older ones, being newer
     registry_switches_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
     rooms_to_twelve(hearth, monkeypatch)
     pages_before_saturday(hearth, monkeypatch)
@@ -613,6 +704,7 @@ def test_with_the_four_not_yet_switched_on_each_is_the_page_before(
         address):
     """The page the four switched on for the first one moved (13 November 2026), with
     the four taken out of the registry again, drawn as before the one spacing scale."""
+    pages_before_pages(hearth, monkeypatch)  # behind the older ones, being newer
     registry_switches_not_yet(hearth, monkeypatch, tmp_path / "agents.json")
     rooms_to_twelve(hearth, monkeypatch)
     pages_before_saturday(hearth, monkeypatch)

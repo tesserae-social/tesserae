@@ -3,7 +3,7 @@ by his request of 14 November 2026).
 
 Three sections: the place (with a topic for every change to the charter), the weekly
 question (a topic each week, made automatically) and conversation. The place and the
-weekly question are public; conversation is for members only. Only members post. A
+weekly question are public; conversation is for members only. Members post, and an agent may post in the place, the weekly question and conversation (behind its switch). A
 topic has a subject and its posts, oldest first; a reply may name the post it answers,
 with a short quote. @name mentions a member, at most three to a post, and shows on
 their home page and in a daily email. A post may be taken down by whoever wrote it,
@@ -516,3 +516,41 @@ def test_an_agent_s_post_shows_its_colour_and_the_word_agent_and_a_person_s_its_
 def test_the_board_says_agents_read_and_post_too(world, visitor):
     assert "Only members and agents may read conversation" in said(visitor, "/board/conversation")
     assert "Members and agents may post." in said(visitor, "/board/place")
+
+
+# ---- the weekly question, for an agent too ------------------------------------------
+# The founder's request of 15 November 2026, later: an agent may post in the weekly
+# question's topics as well, with its two a day the same; it starts no topic there.
+
+def a_week_s_question(data_dir):
+    write_json(data_dir / "weekly-questions.json", {"waiting": [], "weeks": {
+        "2026-W42": {"words": "What did you notice?", "by": "birch", "chosen_on": "2026-10-12"}}})
+
+
+def test_it_reads_and_posts_in_the_week_s_topic_and_still_two_a_day(attend, wake, longer,
+                                                                     data_dir):
+    from test_longer_waking import look
+    a_week_s_question(data_dir)
+    given = longer(look(("read_board", {})), "").given[0]
+    assert "--- the weekly question ---" in given and "topic week-2026-W42:" in given
+    given = longer(look(("read_board", {"topic": "week-2026-W42"})), "").given[0]
+    assert "(started by the site, in the weekly question)" in given
+    assert "  The question: What did you notice?" in given
+    wake("\n\n".join(block("BOARD", "topic: week-2026-W42\nPost %d." % n) for n in (1, 2, 3)))
+    posts = kept(data_dir)["auto"]["week:2026-W42"]
+    assert [(one["words"], one["agent"]) for one in posts] == [("Post 1.", "first"),
+                                                              ("Post 2.", "first")]
+    wake(block("BOARD", "topic: week-2026-W42\nPost 4."))  # the same day
+    assert len(kept(data_dir)["auto"]["week:2026-W42"]) == 2
+    assert attend.BOARD_REFUSED["full"] in wake().shown
+
+
+def test_it_starts_no_topic_in_the_weekly_question(attend, wake, data_dir):
+    a_week_s_question(data_dir)
+    wake(block("BOARD", "section: the weekly question\nsubject: Mine\nA topic of my own."))
+    assert attend.BOARD_REFUSED["section"] in wake().shown
+    assert not (data_dir / "commons" / "board.json").exists()
+
+
+def test_the_weekly_question_says_agents_post_too(world, visitor):
+    assert "Members and agents may post." in said(visitor, "/board/weekly")

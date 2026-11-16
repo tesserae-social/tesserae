@@ -565,6 +565,8 @@ def load(name):
     sys.modules.pop("knock", None)  # it keeps each knock under DATA_DIR
     sys.modules.pop("board", None)  # it keeps the board under DATA_DIR
     sys.modules.pop("weekly", None)  # it keeps the weekly questions under DATA_DIR
+    sys.modules.pop("coming", None)  # it keeps the founder's letter and the welcomes under DATA_DIR
+    sys.modules.pop("found_room", None)  # it makes a room through rooms, under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 
@@ -768,6 +770,25 @@ def hue_not_again_unsaid(module, monkeypatch):
     """Take out, for one test, the sentence <<HUE>> has said since 14 November 2026 where an
     agent's colour now is not one it may choose again (attend.HUE_NOT_AGAIN)."""
     monkeypatch.setattr(module, "HUE_NOT_AGAIN", "")
+
+
+def coral_not_yet(module, monkeypatch):
+    """Close coral to the first one again, for one test, as it was until 15 November 2026
+    (hues.FIRST_MAY_RETURN False): <<HUE>> offers it the palette alone and ends "Your
+    colour now is not on the list: if you choose another, you cannot choose it again."
+    Given hearth, it is done to the hues the hearth's attend.py reads."""
+    module = getattr(module, "the_waking", module)
+    monkeypatch.setattr(module.hues, "FIRST_MAY_RETURN", False)
+
+
+def board_weekly_not_yet(module, monkeypatch):
+    """Shut the weekly question's topics to the first one again, for one test, as they were
+    until 15 November 2026 (later): the board's words as they were, and the place and
+    conversation alone to read and post in (attend.BOARD_BEFORE_WEEKLY). Given hearth, it
+    is done to the attend.py the hearth holds the tide through."""
+    module = getattr(module, "the_waking", module)
+    for name, value in module.BOARD_BEFORE_WEEKLY.items():
+        monkeypatch.setattr(module, name, value)
 
 
 def hue_choice_not_yet(module, monkeypatch):
@@ -1096,6 +1117,45 @@ def pages_before_saturday(hearth, monkeypatch):
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_SATURDAY)), env.loader]))
     bench_linked_as_before(hearth, monkeypatch)
 
+
+
+PAGES_BEFORE_PAGES = Path(__file__).resolve().parent / "pages_before_pages"
+
+
+def pages_before_pages(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before the branch pages (15 November 2026).
+
+    Until then the members' menu read home · account · the commons · log out, with no
+    tesserae.social; a page began --space-6 below the menu, where it begins --space-5;
+    and the home page and /account were one column, /account with the password first
+    and the email next. base.html, hearth.html and account.html as they were are kept
+    in tests/pages_before_pages and drawn in place of today's, so that a world held to
+    a fingerprint from before then gives that fingerprint again. Called before any
+    older one (pages_before_saturday, pages_before_fewer), it stands behind them, and
+    their older templates are drawn first.
+    """
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    pages_before_small(hearth, monkeypatch)  # behind it, being newer
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_PAGES)), env.loader]))
+
+
+PAGES_BEFORE_SMALL = Path(__file__).resolve().parent / "pages_before_small"
+
+
+def pages_before_small(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before the small changes of 15 November
+    2026, later (report-15-nov-2 part 5): letters.html with its top margins inline, where
+    base.html now has one rule, .spaced; "none yet" on the commons' empty lists, where
+    they now say "nothing yet"; /tides with the knocks answered yes after the numbers; and
+    /recover's field named "pseudonym". The templates as they were are kept in
+    tests/pages_before_small and drawn in place of today's. pages_before_pages calls it
+    first, so every older drawing stands on it too."""
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_SMALL)), env.loader]))
 
 # The words that explained <<REWRITE>> before each line could be rewritten only
 # once (the founder, 10 November 2026): the block as it is, without the last sentence.

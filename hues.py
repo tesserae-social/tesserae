@@ -17,10 +17,13 @@ grey an agent has before it chooses (RESERVED). tests/test_hues.py holds the
 palette to all of that.
 
 The first one keeps its colour, the coral it has always had (agents.FIRST). The
-same choice is built for it behind a switch, "hue" among its features, and off:
-while it is off, nothing of a colour is said to it, no block is explained, a
-<<HUE>> it wrote is only words, and its colour is the registry's whatever is on
-the disk.
+same choice is built for it behind a switch, "hue" among its features (on since
+14 November 2026): while it is off, nothing of a colour is said to it, no block is
+explained, a <<HUE>> it wrote is only words, and its colour is the registry's
+whatever is on the disk. Coral stays open to the first one alone (FIRST_OWN, the
+founder's request of 15 November 2026, after it said of coral "It's mine"): it may
+return to coral after choosing another colour. Coral is still no other agent's to
+choose, and stays out of the palette.
 
 What an agent chose is kept in its own packet, hue.json, with every earlier
 choice in hue-history/; nothing of it is private, since the colour is shown to
@@ -57,6 +60,12 @@ PALETTE = {
 RESERVED = {"the first one's coral": "#D85A30", "a sealed bond": "#1D9E75",
             "an event": "#B4B2A9", "a letter at night": "#97805A",
             "a letter in the evening": "#C4AE88", "no colour yet": "#5F5E5A"}
+
+# The first one's own colour, open to it alone, offered before the palette: it may
+# return to coral after choosing another (the founder's request of 15 November
+# 2026). With FIRST_MAY_RETURN False, coral is offered to no one, as before.
+FIRST_OWN = {"coral": "#D85A30"}
+FIRST_MAY_RETURN = True
 
 MIN_APART = 25.0  # the least distance in CIELAB (delta E, 1976) between two colours in use
 CONTRAST_MOST = 3.0  # the least contrast every colour has against a light page and a dark one
@@ -115,6 +124,14 @@ def choosing_on(agent):
     return agent["id"] != agents.FIRST["id"] or FEATURE in agent.get("features", [])
 
 
+def offered(agent_id):
+    """Every colour this agent may ever choose, by name, in the order offered: the
+    first one's coral before the palette, for it alone; the palette for everyone."""
+    if agent_id == agents.FIRST["id"] and FIRST_MAY_RETURN:
+        return {**FIRST_OWN, **PALETTE}
+    return dict(PALETTE)
+
+
 def chosen(agent_id):
     """What an agent last chose, {"name", "hue", "at"}, or None where it has chosen nothing
     that can be read."""
@@ -122,7 +139,7 @@ def chosen(agent_id):
         held = json.loads((packet(agent_id) / "hue.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if not isinstance(held, dict) or PALETTE.get(held.get("name")) != held.get("hue"):
+    if not isinstance(held, dict) or offered(agent_id).get(held.get("name")) != held.get("hue"):
         return None
     return held
 
@@ -150,16 +167,17 @@ def others_colours(agent_id):
 
 
 def free(agent_id):
-    """The palette's colours this agent may choose now, by name, in order: those clear of
-    every other agent's colour. Its own colour now stays among them."""
+    """The colours this agent may choose now, by name, in order: those it is offered that
+    are clear of every other agent's colour. Its own colour now stays among them."""
     taken = others_colours(agent_id)
-    return [name for name, colour in PALETTE.items()
+    return [name for name, colour in offered(agent_id).items()
             if all(apart(colour, other) >= MIN_APART for other in taken)]
 
 
-def name_of(colour):
-    """A palette colour's name, or None."""
-    return next((name for name, said in PALETTE.items() if said.lower() == (colour or "").lower()),
+def name_of(colour, agent_id=None):
+    """A palette colour's name, or None; given an agent, any colour it is offered."""
+    among = PALETTE if agent_id is None else offered(agent_id)
+    return next((name for name, said in among.items() if said.lower() == (colour or "").lower()),
                 None)
 
 
@@ -167,7 +185,8 @@ def choose(agent_id, said, at):
     """Take an agent's <<HUE>>: one colour's name (or its #RRGGBB). Gives back its name, or
     raises Refused("unknown") or Refused("taken"). What it had before goes to hue-history/."""
     words = " ".join((said or "").split()).strip().strip(".").lower()
-    name = words if words in PALETTE else name_of(words)
+    among = offered(agent_id)
+    name = words if words in among else name_of(words, agent_id)
     if name is None:
         raise Refused("unknown")
     if name not in free(agent_id):
@@ -179,6 +198,6 @@ def choose(agent_id, said, at):
         history = here / "hue-history"
         history.mkdir(parents=True, exist_ok=True)
         (history / f"hue-before-{at}.json").write_bytes(kept.read_bytes())
-    kept.write_text(json.dumps({"name": name, "hue": PALETTE[name], "at": at}, indent=2) + "\n",
+    kept.write_text(json.dumps({"name": name, "hue": among[name], "at": at}, indent=2) + "\n",
                     encoding="utf-8")
     return name

@@ -160,3 +160,22 @@ def test_a_refusal_or_silence_from_resend_is_said_without_the_address(
     monkeypatch.setattr(mail, "urlopen", opener)
     outcome = outbox.real_transport(message())
     assert outcome == said and TO not in outcome
+
+
+def test_an_html_part_goes_to_resend_beside_the_plain_one(env, outbox, monkeypatch):
+    asked = []
+
+    def opener(request, timeout):
+        asked.append(request)
+        return Answer(200)
+
+    monkeypatch.setenv("RESEND_API_KEY", "re_not_a_real_key")
+    monkeypatch.setattr(mail, "post_to_resend", outbox.real_post)
+    monkeypatch.setattr(mail, "urlopen", opener)
+    monkeypatch.setattr(mail, "TRANSPORT", outbox.real_transport)
+    assert mail.send("kind", TO, "A subject", "Some words.", html_part="<p>Some words.</p>") \
+        == mail.SENT
+    [request] = asked
+    assert json.loads(request.data) == {
+        "from": "Tesserae <hello@tesserae.social>", "to": [TO], "subject": "A subject",
+        "text": "Some words.\n\n" + FOOTER + "\n", "html": "<p>Some words.</p>"}

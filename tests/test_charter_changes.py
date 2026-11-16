@@ -80,9 +80,9 @@ def test_an_outcome_is_said_when_written(hearth, tmp_path, monkeypatch):
     assert shown["ends"] == "15 January 2026"
 
 
-def test_with_none_it_says_none_yet(hearth, visitor, tmp_path, monkeypatch):
+def test_with_none_it_says_nothing_yet(hearth, visitor, tmp_path, monkeypatch):
     monkeypatch.setattr(hearth, "CHARTER_CHANGES", tmp_path / "not-there.json")
-    assert "none yet" in page(visitor.get("/commons/charter-changes"))
+    assert "nothing yet" in page(visitor.get("/commons/charter-changes"))
 
 
 def test_the_commons_links_to_it(visitor):

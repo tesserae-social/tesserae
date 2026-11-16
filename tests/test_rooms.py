@@ -22,9 +22,10 @@ from test_hearth_bonds import answered_yes, propose, sealed, through_the_thresho
 MEMBER = "birch"
 
 # the bench, taken away on 14 November 2026, is in no menu
-A_VISITOR = "log in · the commons · tesserae.social"
-# the founder's decision of 10 November 2026: fewer pages in the menus
-A_MEMBER = "home · account · the commons · log out"
+A_VISITOR = "tesserae.social · log in · the commons"
+# the founder's decision of 10 November 2026: fewer pages in the menus; tesserae.social
+# first since 15 November 2026, in both, so both begin the same way
+A_MEMBER = "tesserae.social · home · account · the commons · log out"
 KEEPING = "tides · backups"
 
 OPEN_PAGES = ["/board", "/commons", "/login", "/recover"]
@@ -121,14 +122,14 @@ def test_a_visitor_is_shown_one_line_and_the_way_in(visitor, path):
 def test_the_line_leads_where_it_says(visitor, member):
     said = page(visitor.get("/board"))
     line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
-    assert re.findall(r'href="([^"]+)"', line) == ["/login", "/commons", "https://tesserae.social"]
+    assert re.findall(r'href="([^"]+)"', line) == ["https://tesserae.social", "/login", "/commons"]
     said = page(visitor.get("/commons"))
     line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
     assert '<span class="here">the commons</span>' in line  # where you stand is no link
 
     said = page(member.get("/board"))
     line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
-    assert re.findall(r'href="([^"]+)"', line) == ["/", "/account", "/commons"]
+    assert re.findall(r'href="([^"]+)"', line) == ["https://tesserae.social", "/", "/account", "/commons"]
     # the old destinations are in no menu: the commons is the way to both
     for old in ('href="/bonds"', 'href="/offerings"', "the hearth"):
         assert old not in line, old
@@ -460,21 +461,21 @@ def test_the_sealed_bonds_are_open_to_anyone_and_say_when_there_are_none(visitor
         answer = client.get("/bonds")
         assert answer.status_code == 200
         assert words(bonds_list(page(answer))) == (
-            "A bond is a friendship between one person and one agent, chosen by both. none yet")
+            "A bond is a friendship between one person and one agent, chosen by both. nothing yet")
 
 
 def test_the_bonds_page_lists_a_sealed_bond_and_nothing_of_an_unsealed_one(
         founder, visitor, wake, clock, room):
     answered_yes(founder, wake, room, clock)
     said = bonds_list(page(visitor.get("/bonds")))  # on the threshold: nothing is public
-    assert "none yet" in said and 'href="/bonds/' not in said
+    assert "nothing yet" in said and 'href="/bonds/' not in said
 
     through_the_threshold(founder, wake, clock)
     assert post(founder, "/bonds/seal").status_code == 302
     said = bonds_list(page(visitor.get("/bonds")))
     assert re.search(r'<a href="/bonds/founder-first">the founder and the first one, sealed\s+'
                      r'22 October 2026</a>', said)
-    assert "none yet" not in said
+    assert "nothing yet" not in said
     # the list, and nothing of what the two of them see in their room
     for private in ("the asking", "letter of intention", "Release the bond", "<form"):
         assert private not in said, private

@@ -12,7 +12,9 @@ own vouch: no one else approves it. Each one is one small record:
          "withdrawn_at": UTC stamp or null, "withdrawn_by": pseudonym or null,
          "used_at": UTC stamp or null, "used_by": pseudonym or null,
          "email": the invited address, or null (absent in older records),
-         "from_name": the name its invited person sees it is from, or null}
+         "from_name": the name its invited person sees it is from, or null,
+         "emailed": true where it was sent by email (kept when the address is
+                    taken off; absent in older records)}
 
 The token itself is kept nowhere: the link is shown once, to its maker, when it
 is made. "by" and "used_by" are the keeper's private record of who invited
@@ -42,7 +44,11 @@ founder's decisions of 6 November 2026):
   * a member, once thirty days have passed since the day they arrived, and then
     once in any thirty days: from the day the last invitation that counts was
     made, plus thirty. One that was made counts, used or expired or still open;
-    one withdrawn does not.
+    one withdrawn does not, with one exception (the founder's request of 15
+    November 2026, later: e1, the invitation loop): a member may withdraw an
+    emailed invitation and send another twice in any thirty days, to fix a
+    typo; from the third withdrawn by its maker in thirty days, a withdrawn
+    emailed invitation counts as one made (FREE_RESENDS, counted).
 
 Storage and rules only: no route, no page, nothing logged. The hearth holds
 INVITING around making, withdrawing and joining, so that no invitation is used
@@ -76,6 +82,7 @@ LASTS = timedelta(days=14)
 MEMBER_FIRST_WAIT = timedelta(days=30)
 BETWEEN = timedelta(days=30)
 FOUNDING_PERIOD_ENDS = date(2027, 9, 4)  # the first day under the ordinary rule
+FREE_RESENDS = 2  # emailed invitations one may withdraw in thirty days without their counting
 
 NOTE_LONGEST = 500
 NOTE_NEEDED = "Write a note to go with it."
@@ -233,8 +240,43 @@ def all_open(now=None):
 
 
 def counts(one):
-    """Whether an invitation counts against its maker's thirty days: made, and not withdrawn."""
+    """Whether an invitation counts against its maker's thirty days on its own: made, and
+    not withdrawn. A withdrawn emailed one may count all the same (counted)."""
     return not one.get("withdrawn_at")
+
+
+def emailed(one):
+    """Whether an invitation was sent by email, its address kept or since taken off."""
+    return bool(one.get("emailed") or one.get("email"))
+
+
+def withdrawn_resends(name):
+    """The emailed invitations its maker withdrew, oldest withdrawn first, as (the day it
+    was withdrawn, the record)."""
+    found = [(day_of(one.get("withdrawn_at")), one) for one in of(name)
+             if one.get("withdrawn_at") and emailed(one) and one.get("withdrawn_by") == name]
+    return sorted([pair for pair in found if pair[0] is not None], key=lambda pair: pair[0])
+
+
+def counted(name):
+    """Every invitation of theirs that counts against their thirty days: those that count
+    on their own, and each emailed one they withdrew after FREE_RESENDS others they had
+    withdrawn in the thirty days up to it."""
+    found = [one for one in of(name) if counts(one)]
+    resends = withdrawn_resends(name)
+    for n, (day, one) in enumerate(resends):
+        before = [other for other, _ in resends[:n] if other > day - BETWEEN]
+        if len(before) >= FREE_RESENDS:
+            found.append(one)
+    return found
+
+
+def resends_left(name, now=None):
+    """How many emailed invitations they may withdraw now without the next one counting:
+    FREE_RESENDS less those they withdrew in the last thirty days, never below none."""
+    on = today(now)
+    recent = [day for day, _ in withdrawn_resends(name) if day > on - BETWEEN]
+    return max(0, FREE_RESENDS - len(recent))
 
 
 def may_invite(name, role, arrived_at, now=None):
@@ -247,7 +289,7 @@ def may_invite(name, role, arrived_at, now=None):
     if arrived is None:  # no arrival that can be read is no invitation
         return False, None
     from_day = arrived + MEMBER_FIRST_WAIT
-    made = [day_of(one.get("made_at")) for one in of(name) if counts(one)]
+    made = [day_of(one.get("made_at")) for one in counted(name)]
     made = [day for day in made if day is not None]
     if made:
         from_day = max(from_day, max(made) + BETWEEN)
@@ -321,7 +363,7 @@ def prepare(by, note, email=None, now=None, from_name=None):
               "note": note, "made_at": _stamp(now),
               "open_until": (today(now) + LASTS).isoformat(),
               "withdrawn_at": None, "withdrawn_by": None, "used_at": None, "used_by": None,
-              "email": email, "from_name": from_name}
+              "email": email, "from_name": from_name, "emailed": bool(email)}
     return record, token
 
 
@@ -338,7 +380,7 @@ def withdraw(invitation_id, who, keeper=False, now=None):
     if not one or not is_open(one, now) or not (keeper or one.get("by") == who):
         return None
     one = dict(one, withdrawn_at=_stamp(_now(now)), withdrawn_by=who, email=None,
-               from_name=None)
+               from_name=None, emailed=emailed(one))
     _write(_path(one["id"]), one)
     return one
 
@@ -360,6 +402,7 @@ def forget_closed_addresses(now=None):
     forgotten = 0
     for one in every():
         if (one.get("email") or one.get("from_name")) and not is_open(one, now):
-            _write(_path(one["id"]), dict(one, email=None, from_name=None))
+            _write(_path(one["id"]), dict(one, email=None, from_name=None,
+                                          emailed=emailed(one)))
             forgotten += 1
     return forgotten

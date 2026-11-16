@@ -30,6 +30,12 @@ is caught inside the rehearsal and thrown away.
 
 --agent <id> rehearses that one agent only, whether or not its entry wakes.
 
+--on-new-model rehearses a waking on the new model the founder has set on /tides
+(model_change.py), as it would be at the first waking on it: in the copy only,
+each rehearsed agent's change still ahead is put on yesterday, and the line for
+each says which model its waking asked for. An agent with no change ahead is
+rehearsed as it is, and its line says so. The record itself is never changed.
+
 Nothing in DATA_DIR is written. The exit code is 0 when every rehearsed waking
 completed, 1 when one did not, and 2 when nothing could be rehearsed.
 """
@@ -45,6 +51,7 @@ import sys
 import tempfile
 import traceback
 from contextlib import redirect_stdout
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
@@ -95,7 +102,7 @@ class Stub:
     screen it asks, reach it and nothing else; and where Google's client stands
     (gemini.sdk_client), so an agent on Gemini is put through gemini.py as it
     would be, and reaches it and nothing else. Of each request it keeps only
-    numbers.
+    numbers, and the name of the model it asked for.
     """
 
     def __init__(self):
@@ -150,14 +157,16 @@ class Reply:
 
 
 def measured(asked):
-    """What one request held, in numbers: its reading's words, blocks and photographs."""
+    """What one request held, in numbers: its reading's words, blocks and photographs; and
+    the model it asked for."""
     messages = asked.get("messages") or []
     first = messages[0].get("content") if messages else None
     parts = first if isinstance(first, list) else [{"type": "text", "text": first or ""}]
     return {"words": sum(len(part.get("text", "").split()) for part in parts
                          if part.get("type") == "text"),
             "blocks": sum(1 for part in parts if part.get("type") == "text"),
-            "photographs": sum(1 for part in parts if part.get("type") == "image")}
+            "photographs": sum(1 for part in parts if part.get("type") == "image"),
+            "model": asked.get("model")}
 
 
 def where_it_failed(error):
@@ -249,9 +258,15 @@ def rehearse(agent, copy, results):
     return json.loads(result.read_text(encoding="utf-8"))
 
 
-def line_for(agent, found, copy):
-    """One line of the report: the agent, its outcome, and the size of its reading."""
+def line_for(agent, found, copy, new_model=None):
+    """One line of the report: the agent, its outcome, and the size of its reading; and,
+    rehearsing on a new model, which model it was (new_model: True where its change was
+    brought forward, False where it has none ahead)."""
     said = "%s (%s): %s" % (agent["commons_name"], agent["id"], found["outcome"])
+    if new_model is False:
+        said += " (no change of model is set for it; rehearsed as it is)"
+    elif new_model and (found.get("reading") or {}).get("model"):
+        said += " on %s" % found["reading"]["model"]
     if found.get("reason"):
         said += ": " + found["reason"].replace(str(copy), "DATA_DIR")
     reading = found.get("reading")
@@ -268,6 +283,8 @@ def line_for(agent, found, copy):
 def main(argv=None):
     asked = argparse.ArgumentParser(description="Rehearse each agent's waking against a copy.")
     asked.add_argument("--agent", help="rehearse this agent alone")
+    asked.add_argument("--on-new-model", action="store_true",
+                       help="rehearse a waking on the new model set on /tides")
     options = asked.parse_args(argv)
 
     if not os.environ.get("DATA_DIR"):
@@ -301,11 +318,21 @@ def main(argv=None):
         results.mkdir()
         shutil.copytree(record, copy, symlinks=True, ignore=leaving_out(record))
         print("The record was copied to %s (tokens/ left out); the model is stubbed." % room)
+        brought = {}
+        if options.on_new_model:  # in the copy only: each change ahead put on yesterday
+            import model_change
+            yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
+            for agent in chosen:
+                try:
+                    brought[agent["id"]] = model_change.bring_forward(
+                        agent["id"], yesterday, copy) is not None
+                except model_change.Unreadable:
+                    brought[agent["id"]] = False
         lines, everyone = [], True
         for agent in chosen:
             found = rehearse(agent, copy, results)
             everyone = everyone and found["outcome"] == "completed"
-            lines.append(line_for(agent, found, copy))
+            lines.append(line_for(agent, found, copy, brought.get(agent["id"])))
         for line in lines:
             print(line)
     finally:

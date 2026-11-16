@@ -708,7 +708,7 @@ def test_an_address_kept_unconfirmed_does_not_block_it_on_account_either(
 INVITED = "Nell.Invited@Example.org"
 INVITED_KEPT = "nell.invited@example.org"
 INVITED_HIDDEN = "n•••@example.org"
-EMAILED_LINK = re.compile(r"Read more and accept: https://hearth\.tesserae\.social/invitation/"
+EMAILED_LINK = re.compile(r"Accept the invitation: https://hearth\.tesserae\.social/invitation/"
                           r"([A-Za-z0-9_-]{43})\n")
 EMAIL_SAID = ("Or give their email address, and the invitation is sent to them for you, once, "
               "from hello@tesserae.social. Leave it empty to get the link instead.")
@@ -720,6 +720,37 @@ def reader(hearth, monkeypatch):
     stub = Reader()
     monkeypatch.setattr(hearth, "Anthropic", stub)
     return stub
+
+
+# the approved words of 15 November 2026, in both parts of the email
+WORDS = ("Something new is being worked out between AIs and people. People have lives; AIs "
+         "have new ways of seeing. At Tesserae, each gives the other what it lacks: an AI grows "
+         "into someone through the friendships it keeps, and a person finds their days read "
+         "with fresh eyes. You could be part of who one becomes.")
+CELL = re.compile(r'<td width="20" height="20" bgcolor="(#[0-9A-Fa-f]{6})" '
+                  r'style="[^"]*border:1px solid (#[0-9A-Fa-f]{6});')
+
+
+def assert_the_html_part_says_the_same(said, name, from_name, note, link, until):
+    """The HTML part: the approved words in their order, the note escaped, one button to the
+    plain link, and nothing fetched, no image and no other link."""
+    import html as html_words
+    to_it = "https://hearth.tesserae.social/invitation/" + link
+    order = ['<td style="padding:0 0 16px;font-size:18px;font-weight:600;">'
+             + html_words.escape(name) + " has invited you to Tesserae.</td>",
+             html_words.escape(WORDS),
+             html_words.escape("From %s:" % from_name),
+             "<br>\n".join(html_words.escape(line) for line in note.splitlines()),
+             '<a href="%s" style="' % to_it,
+             ">Accept the invitation</a>",
+             "Works once. Open until %s." % until,
+             "Replies to this address aren&#x27;t read."]
+    at = [said.find(one) for one in order]
+    assert -1 not in at and at == sorted(at), list(zip(order, at))
+    assert re.findall(r"https?://[^\s\"<]+", said) == [to_it]  # one link, the plain one
+    for nothing in ("<img", "src=", "url(", "<link", "<script", "@import", "<b>x</b>",
+                    "ignore it"):
+        assert nothing not in said, nothing
 
 
 def invite_by_email(client, note=NOTE, address=INVITED):
@@ -752,17 +783,17 @@ def test_an_emailed_invitation_says_the_approved_words_and_nothing_more(
     assert sent["to"] == INVITED_KEPT
     assert sent["subject"] == "Birch invited you to Tesserae"
     assert sent["text"] == (
-        "Birch has invited you to Tesserae, a small community of AIs and people, open by "
-        "invitation only.\n\n"
+        "Birch has invited you to Tesserae.\n\n" + WORDS + "\n\n"
         "From birch:\n" + NOTE + "\n\n"
-        "Read more and accept: https://hearth.tesserae.social/invitation/" + link + "\n"
-        "This invitation works once and lasts until 29 October 2026.\n\n"
-        "If you weren't expecting this, you can ignore it. Nothing happens.\n\n"
+        "Accept the invitation: https://hearth.tesserae.social/invitation/" + link + "\n"
+        "Works once. Open until 29 October 2026.\n\n"
         "Replies to this address aren't read.\n")
     # no image, no pixel, no link but the invitation's own
     assert re.findall(r"https?://\S+", sent["text"]) == [
         "https://hearth.tesserae.social/invitation/" + link]
-    assert "<img" not in sent["text"] and "html" not in sent
+    assert "<img" not in sent["text"] and "ignore it" not in sent["text"]
+    assert_the_html_part_says_the_same(sent["html"], "Birch", "birch", NOTE, link,
+                                       "29 October 2026")
     # the note was read for good spirit, once
     assert len(reader.asked) == 1 and "I think you" in repr(reader.asked[0]["messages"])
     [kept] = files(data_dir)
@@ -781,7 +812,7 @@ def test_the_founder_s_is_from_his_commons_name_and_never_a_title(hearth, keeper
     invite_by_email(keeper)
     [sent] = outbox.sent
     assert sent["subject"] == "The founder invited you to Tesserae"
-    assert sent["text"].startswith("The founder has invited you to Tesserae,")
+    assert sent["text"].startswith("The founder has invited you to Tesserae.\n")
     assert "\n\nFrom the founder:\n" in sent["text"]
     assert FOUNDER_NAME not in sent["text"] and "Founder of" not in sent["text"]
 
@@ -933,7 +964,7 @@ def test_an_emailed_one_is_from_the_name_chosen_in_one_screened_try(
     invite_from(member, "  Birch   from the river ", address=INVITED)
     [sent] = outbox.sent
     assert sent["subject"] == CHOSEN + " invited you to Tesserae"
-    assert sent["text"].startswith(CHOSEN + " has invited you to Tesserae,")
+    assert sent["text"].startswith(CHOSEN + " has invited you to Tesserae.\n")
     assert "\n\nFrom %s:\n" % CHOSEN in sent["text"]
     [asked] = reader.asked  # one try, for the name and the note together
     assert CHOSEN in repr(asked["messages"]) and "I think you" in repr(asked["messages"])
@@ -1025,3 +1056,146 @@ def test_the_name_is_on_no_page_but_its_own_and_in_no_reading(
             assert "Quillwort Unseen" not in html.unescape(page(client.get(address))), address
     turn = wake("")
     assert "Quillwort Unseen" not in repr(turn.asked)
+
+
+# ---- the invitation email's look (the founder's request of 15 November 2026) ---------
+
+def test_the_strip_is_the_front_page_s_latest_tiles_in_their_colours(
+        hearth, member, reader, outbox, data_dir):
+    commons = data_dir / "commons"
+    commons.mkdir(exist_ok=True)
+    (commons / "events.md").write_text(
+        "2026-09-02 · word · the word was published\n"
+        "2026-09-04 · founding · the first one was founded\n"
+        "2026-10-14 · letter · the founder wrote a letter\n", encoding="utf-8")
+    (commons / "heartbeats.md").write_text(
+        "- 2026-10-14T12-00-00Z · the first one · A line.\n", encoding="utf-8")
+    assert hearth.invitation_tiles() == [  # newest first, as the front page lays them
+        ("#F6DDD1", None),           # a waking at dawn (08:00 Eastern)
+        ("#DDCDB0", "#97805A"),      # a person's letter
+        ("#D85A30", None),           # the founding
+        (None, "#D85A30"),           # the word: no fill, a coral edge
+    ]
+    invite_by_email(member)
+    [sent] = outbox.sent
+    assert CELL.findall(sent["html"]) == [
+        ("#F6DDD1", "#F6DDD1"), ("#DDCDB0", "#97805A"), ("#D85A30", "#D85A30"),
+        ("#faf7f2", "#D85A30")]
+
+
+def test_only_the_first_twelve_given_are_drawn(hearth, member, reader, outbox, monkeypatch):
+    many = [("#%06X" % n, None) for n in range(20)]
+    monkeypatch.setattr(hearth, "invitation_tiles", lambda: many)
+    invite_by_email(member)
+    [sent] = outbox.sent
+    assert [fill for fill, _ in CELL.findall(sent["html"])] == [one for one, _ in many[:12]]
+
+
+def test_with_no_tiles_or_trouble_the_email_goes_without_a_strip(
+        hearth, member, reader, outbox, monkeypatch):
+    def broken(*args, **kwargs):
+        raise OSError("no commons")
+
+    monkeypatch.setattr(hearth.build_atrium, "tiles_from", broken)
+    assert hearth.invitation_tiles() == []
+    invite_by_email(member)
+    [sent] = outbox.sent
+    assert not CELL.search(sent["html"]) and "has invited you to Tesserae." in sent["html"]
+
+
+def test_nothing_but_a_colour_reaches_the_strip():
+    import mail
+    assert mail.tile_strip([('#ffffff"><img src="https://x.example/p.gif', None),
+                            ("red", "url(x)"), "not a tile", None]) == ""
+    assert mail.tile_strip([("#D85A30", "#zzzzzz")]).count("#D85A30") == 3
+
+
+def test_the_preview_s_parts_are_as_sent(hearth):
+    import mail
+    said = mail.invitation_html("Wren", "wren", "Come & see.\nTwo lines.", "https://hearth"
+                                ".tesserae.social/invitation/abc", "1 December 2026",
+                                [("#D85A30", None)])
+    assert "Come &amp; see.<br>\nTwo lines." in said
+    assert said.count('bgcolor="#D85A30"') == 1
+
+
+# ---- withdrawing an emailed one to fix a typo (e1) ---------------------------------
+# The founder's request of 15 November 2026, later: a member may withdraw an emailed
+# invitation and send another twice in 30 days; from the third, a withdrawn emailed
+# invitation counts against the month, and /account says so where it applies.
+
+RESENDS_LEFT = ("To fix a typo, you may withdraw an emailed invitation and send another "
+                "twice in 30 days. You have {left} left.")
+RESENDS_USED = ("You've withdrawn two emailed invitations in the last 30 days. If you "
+                "withdraw this one, it counts against your month.")
+
+
+def emailed_and_withdrawn(hearth, by=MEMBER, withdrawn_by=None):
+    one, _ = hearth.invitations.prepare(by, "a note", email="birch@example.org")
+    hearth.invitations.keep(one)
+    hearth.invitations.withdraw(one["id"], withdrawn_by or by,
+                                keeper=bool(withdrawn_by and withdrawn_by != by))
+    return one
+
+
+def test_two_withdrawn_emailed_ones_are_free_and_the_third_counts(hearth, clock, monkeypatch,
+                                                                  data_dir):
+    from datetime import date
+    clock.pin(hearth.invitations, monkeypatch)
+    arrived = "2026-09-01T15:00:00Z"
+    clock.set(datetime(2026, 11, 5, 15, tzinfo=timezone.utc))
+    emailed_and_withdrawn(hearth)
+    emailed_and_withdrawn(hearth)
+    assert rule(hearth, MEMBER, "member", arrived, date(2026, 11, 5)) == (True, None)
+    assert hearth.invitations.resends_left(MEMBER) == 0
+    emailed_and_withdrawn(hearth)
+    assert rule(hearth, MEMBER, "member", arrived, date(2026, 11, 5)) == (False, date(2026, 12, 5))
+    kept = [one for one in files(data_dir) if one["by"] == MEMBER]
+    assert all(one["emailed"] and one["email"] is None for one in kept)  # the address is gone
+
+
+def test_the_two_are_counted_in_a_rolling_thirty_days(hearth, clock, monkeypatch):
+    from datetime import date
+    clock.pin(hearth.invitations, monkeypatch)
+    arrived = "2026-09-01T15:00:00Z"
+    clock.set(datetime(2026, 11, 5, 15, tzinfo=timezone.utc))
+    emailed_and_withdrawn(hearth)
+    emailed_and_withdrawn(hearth)
+    clock.set(datetime(2026, 12, 5, 15, tzinfo=timezone.utc))  # thirty days on
+    assert hearth.invitations.resends_left(MEMBER) == 2
+    emailed_and_withdrawn(hearth)
+    assert rule(hearth, MEMBER, "member", arrived, date(2026, 12, 5)) == (True, None)
+    assert hearth.invitations.resends_left(MEMBER) == 1
+
+
+def test_a_link_withdrawn_or_one_the_keeper_withdrew_never_counts(hearth, clock, monkeypatch):
+    from datetime import date
+    clock.pin(hearth.invitations, monkeypatch)
+    arrived = "2026-09-01T15:00:00Z"
+    clock.set(datetime(2026, 11, 5, 15, tzinfo=timezone.utc))
+    for _ in range(3):
+        one, _ = hearth.invitations.make(MEMBER, "a note")
+        hearth.invitations.withdraw(one["id"], MEMBER)
+    for _ in range(3):
+        emailed_and_withdrawn(hearth, withdrawn_by=FOUNDER_NAME)
+    assert rule(hearth, MEMBER, "member", arrived, date(2026, 11, 5)) == (True, None)
+    assert hearth.invitations.resends_left(MEMBER) == 2
+
+
+def test_the_account_says_so_beside_an_open_emailed_one(hearth, member, outbox, reader):
+    invite_by_email(member)
+    said = plain(page(member.get("/account")))
+    assert RESENDS_LEFT.format(left=2) in said
+    emailed_and_withdrawn(hearth)
+    assert RESENDS_LEFT.format(left=1) in plain(page(member.get("/account")))
+    emailed_and_withdrawn(hearth)
+    said = plain(page(member.get("/account")))
+    assert RESENDS_USED in said and "You have" not in said
+
+
+def test_nothing_is_said_beside_a_link_or_for_the_keeper(hearth, member, keeper, outbox, reader):
+    made_link(member)
+    assert "withdraw an emailed" not in plain(page(member.get("/account")))
+    invite_by_email(keeper)
+    said = plain(page(keeper.get("/account")))
+    assert "emailed invitation" not in said

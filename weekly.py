@@ -34,6 +34,8 @@ import re
 import threading
 from pathlib import Path
 
+import safe_write
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept: the same reckoning the other modules make.
@@ -86,6 +88,20 @@ def refused(words, carries=None):
     return None
 
 
+class Unreadable(ValueError):
+    """weekly-questions.json is there and can't be read: nothing is written over it."""
+
+
+def unreadable():
+    """Whether weekly-questions.json is there and can't be read as it is kept."""
+    if not KEPT.exists():
+        return False
+    try:
+        return not isinstance(json.loads(KEPT.read_text(encoding="utf-8")), dict)
+    except (OSError, ValueError):
+        return True
+
+
 def read():
     try:
         held = json.loads(KEPT.read_text(encoding="utf-8"))
@@ -100,8 +116,11 @@ def read():
 
 
 def kept(held):
-    KEPT.parent.mkdir(parents=True, exist_ok=True)
-    KEPT.write_text(json.dumps(held, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    """Write it whole or not at all (safe_write), and never over one that can't be read,
+    which read() shows as empty (the founder's request of 15 November 2026)."""
+    if unreadable():
+        raise Unreadable(str(KEPT))
+    safe_write.write_text(KEPT, json.dumps(held, indent=2, ensure_ascii=False) + "\n")
 
 
 def waiting_by(by):

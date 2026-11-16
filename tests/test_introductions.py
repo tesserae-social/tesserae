@@ -88,6 +88,8 @@ def make_world(env, clock, monkeypatch, data_dir, member_vaults, door_open=True)
     clock.pin(hearth, monkeypatch)
     hearth.app.config["TESTING"] = True
     monkeypatch.setattr(hearth, "in_good_spirit", lambda line: True)
+    import good_spirit  # an agent's knock notes and replies are read for good spirit too
+    monkeypatch.setattr(good_spirit, "ask", lambda line: True)
     for name in (ALDER, HAZEL):
         hearth.members.create_member(name, json.loads(json.dumps(member_vaults[name])),
                                      "member", [])

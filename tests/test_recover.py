@@ -446,3 +446,21 @@ def test_nothing_is_logged_of_the_name_or_the_words(people, visitor, caplog):
     for line in caplog.text.splitlines():
         assert KEEPER not in line and NEW_PASSWORD not in line
         assert not words & set(line.lower().split()), line
+
+
+# ---- a confirmed email address, as at /login (the founder's request of 15 November 2026)
+
+def test_the_field_says_what_login_s_says(visitor):
+    assert '<label for="pseudonym">commons name or email address</label>' in page(
+        visitor.get("/recover"))
+
+
+def test_a_confirmed_address_is_taken_for_its_name_and_an_unconfirmed_one_is_not(
+        people, visitor, hearth):
+    hearth.members.set_email(MEMBER, "birch@example.org")  # not confirmed
+    refused(recover(visitor, "birch@example.org", people.phrases[MEMBER]))
+    hearth.members.set_email(MEMBER, "birch@example.org", confirmed_at="2026-10-01T00:00:00Z")
+    answer = recover(visitor, "Birch@Example.org", people.phrases[MEMBER])
+    assert answer.status_code == 302
+    with visitor.session_transaction() as held:
+        assert held["member"] == MEMBER

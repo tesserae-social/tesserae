@@ -15,7 +15,8 @@ Three sections:
 The place and the weekly question may be read by anyone; conversation only by
 members. Members post, and an agent may read and post in the place and in
 conversation behind its switch ("board" among its features; the founder's
-request of 14 November 2026). An agent's post carries its id as "agent", and
+request of 14 November 2026), and in the weekly question's topics too (his
+request of 15 November 2026), its limit of AGENT_A_DAY a day the same. An agent's post carries its id as "agent", and
 every page that shows a post shows an agent's with its colour and the word
 "agent" after its name. A member starts a
 topic in the place or in conversation, with a subject of up to SUBJECT_MOST
@@ -37,7 +38,12 @@ link, nothing of the private list (private_words), in good spirit, and the
 public screen's word that it names no real person and no place. The hard rules
 are held here too.
 
-Kept in one file of the commons, rewritten whole at each change:
+Kept in one file of the commons, rewritten whole at each change: written to a
+file beside it and then put in its place (safe_write.py), so that a crash leaves
+the board as it was or as it became and never cut short. A board that is there
+and cannot be read is never taken for an empty one: nothing is written to it
+(Unreadable), and /tides says so (the founder's request of 15 November 2026).
+board-removed.json is kept the same way.
 
     DATA_DIR/commons/board.json
     {"seq": <the last number given to a post anywhere on the board>,
@@ -61,6 +67,8 @@ import re
 import threading
 from datetime import date, timedelta
 from pathlib import Path
+
+import safe_write
 
 REPO = Path(__file__).resolve().parent
 
@@ -91,7 +99,7 @@ A_DAY = 5
 # What one agent may write on the board in a day, topics and posts together (the
 # founder's request of 14 November 2026), and the sections it may read and post in.
 AGENT_A_DAY = 2
-AGENT_SECTIONS = ("place", "conversation")
+AGENT_SECTIONS = ("place", "weekly", "conversation")
 
 # How many topics a page lists.
 PER_PAGE = 15
@@ -222,12 +230,62 @@ def from_before_topics(held):
     return {"seq": seq, "topics": topics, "auto": auto}
 
 
+class Unreadable(Exception):
+    """The board, or the keeper's record of what was taken down, is there and cannot be
+    read: nothing is written to it until it can."""
+
+
 def read():
-    """The board as kept: {"seq", "topics", "auto"}; empty where none is."""
+    """The board as kept: {"seq", "topics", "auto"}; empty where none is, and, to be shown
+    only, where it cannot be read (unreadable says which)."""
     try:
         held = json.loads(BOARD.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         held = {}
+    return shaped(held)
+
+
+def read_to_write():
+    """The board as kept, to be changed and written back: empty where there is none yet,
+    and Unreadable where it is there and cannot be read."""
+    if not BOARD.exists():
+        return shaped({})
+    try:
+        held = json.loads(BOARD.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise Unreadable(BOARD.name)
+    if not isinstance(held, dict):
+        raise Unreadable(BOARD.name)
+    return shaped(held)
+
+
+def removed_to_write():
+    """The keeper's record of what was taken down, to be added to: empty where there is
+    none yet, and Unreadable where it is there and cannot be read."""
+    if not REMOVED.exists():
+        return []
+    try:
+        removed = json.loads(REMOVED.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise Unreadable(REMOVED.name)
+    if not isinstance(removed, list):
+        raise Unreadable(REMOVED.name)
+    return removed
+
+
+def unreadable():
+    """The names of the board's files that are there and cannot be read, in order."""
+    found = []
+    for check in (read_to_write, removed_to_write):
+        try:
+            check()
+        except Unreadable as which:
+            found.append(which.args[0])
+    return found
+
+
+def shaped(held):
+    """The board as read, in its one shape."""
     if not isinstance(held, dict):
         held = {}
     if "topics" not in held and ("posts" in held or "charter" in held):
@@ -239,8 +297,7 @@ def read():
 
 
 def kept(board):
-    BOARD.parent.mkdir(parents=True, exist_ok=True)
-    BOARD.write_text(json.dumps(board, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    safe_write.write_text(BOARD, json.dumps(board, indent=2, ensure_ascii=False) + "\n")
 
 
 def every_post(board):
@@ -413,7 +470,7 @@ def start(section, by, subject, words, day, mentions=(), agent=None):
     if subject_refused(subject):
         raise ValueError("not a subject: " + subject_refused(subject))
     with LOCK:
-        board = read()
+        board = read_to_write()
         n = max((one.get("n", 0) for one in board["topics"]), default=0) + 1
         first = new_post(board, by, day, words, None, mentions, 1, agent)
         topic = {"n": n, "section": section, "subject": subject, "by": by, "day": day,
@@ -458,7 +515,7 @@ def add(key, by, words, day, to=None, mentions=(), charter_path=None, weeks=None
     words = checked(words)
     today = today or date.fromisoformat(day)
     with LOCK:
-        board = read()
+        board = read_to_write()
         posts = posts_of(board, key, charter_path, weeks, today)
         if to is not None and not any(post.get("n") == to for post in posts):
             raise NotOnTheBoard("%s/%s" % (key, to))
@@ -485,7 +542,8 @@ def take_down(key, n, day, by=None, keeper=False):
     it is the first post of a member's topic, the subject goes too. False where there is
     no such post standing, or it is not theirs to take down."""
     with LOCK:
-        board = read()
+        board = read_to_write()
+        removed = removed_to_write() if keeper else None  # before anything is changed
         posts, record = find(board, key)
         post = next((one for one in posts or [] if one.get("n") == n), None)
         if post is None or post.get("taken") or not post.get("words"):
@@ -501,18 +559,11 @@ def take_down(key, n, day, by=None, keeper=False):
             record["subject"] = None
         kept(board)
         if keeper:
-            try:
-                removed = json.loads(REMOVED.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                removed = []
-            if not isinstance(removed, list):
-                removed = []
             removed.append({"from": "%s/%s" % (key, n), "day": day,
                             "taken": {"by": post.get("by"), "day": post.get("day"),
                                       "words": words, "subject": subject}})
-            REMOVED.parent.mkdir(parents=True, exist_ok=True)
-            REMOVED.write_text(json.dumps(removed, indent=2, ensure_ascii=False) + "\n",
-                               encoding="utf-8")
+            safe_write.write_text(REMOVED,
+                                  json.dumps(removed, indent=2, ensure_ascii=False) + "\n")
     return True
 
 

@@ -1,7 +1,10 @@
 """Email: the few short, plain messages the hearth sends a person, through Resend.
 
 Every email is plain text, short, and carries no letter text: what each one says
-is fixed here, and filled only with a link, a name or a date. Each is sent from
+is fixed here, and filled only with a link, a name or a date. The invitation alone
+has an HTML part beside its plain one (the founder's request of 15 November 2026),
+saying the same words: no image, nothing fetched from anywhere, no pixel, and no
+link but the invitation's own, unwrapped. Each is sent from
 hello@tesserae.social and ends with the one line that says replies are not read,
 added here, so no email can go without it. The links in them are built on the
 hearth's own address, HEARTH_URL, and never on the address a request came in on,
@@ -24,6 +27,7 @@ make post_to_resend refuse (tests/conftest.py), and take the key out of the
 environment, so no test ever sends an email.
 """
 
+import html
 import json
 import os
 import re
@@ -88,8 +92,11 @@ def configured():
 
 def post_to_resend(message, key):
     """Hand one message to Resend. "sent", or "not sent: ..." with no address in it."""
-    body = json.dumps({"from": SENDER, "to": [message["to"]],
-                       "subject": message["subject"], "text": message["text"]}).encode("utf-8")
+    sent = {"from": SENDER, "to": [message["to"]],
+            "subject": message["subject"], "text": message["text"]}
+    if message.get("html"):
+        sent["html"] = message["html"]
+    body = json.dumps(sent).encode("utf-8")
     request = urllib.request.Request(ENDPOINT, data=body, method="POST", headers={
         "Authorization": "Bearer " + key,
         "Content-Type": "application/json",
@@ -154,21 +161,25 @@ def with_footer(text):
     return text.rstrip() + "\n\n" + FOOTER + "\n"
 
 
-def send(kind, to, subject, text, now=None, ceiling=None):
+def send(kind, to, subject, text, now=None, ceiling=None, html_part=None):
     """Send one plain email. Gives back what came of it, and never raises.
 
     Nothing goes once the day's count has reached the ceiling: MAIL_A_DAY, or a lower
-    one asked for, never a higher."""
+    one asked for, never a higher. An HTML part, where one is given, goes beside the
+    plain one and says the same; it carries its own last line."""
     now = now or datetime.now(timezone.utc)
     if not isinstance(kind, str) or not KIND.fullmatch(kind):
         kind = "unnamed"
     if (not isinstance(to, str) or not to or LINE_BREAK.search(to)
             or not isinstance(subject, str) or LINE_BREAK.search(subject)
-            or not isinstance(text, str)):
+            or not isinstance(text, str)
+            or not (html_part is None or isinstance(html_part, str))):
         outcome = NOT_SENT % "not a message"
         note(kind, outcome, now)
         return outcome
     message = {"to": to, "subject": subject, "text": with_footer(text)}
+    if html_part:
+        message["html"] = html_part
     with SENDING:
         limit = MAIL_A_DAY if ceiling is None else min(ceiling, MAIL_A_DAY)
         if sent_today(now) >= limit:
@@ -306,23 +317,107 @@ def send_waiting(to, names, stop, now=None, mentioned=()):
 
 
 # An invitation sent by email, for the person who made it (the founder's request
-# of 14 November 2026): from the name its inviter chose for it (their commons name
-# unless they changed it) and nothing more, never a title; their note as they wrote it; the link and the day it lasts until. Plain
-# text, with no image, no pixel and no link but the invitation's own, unwrapped.
-# One email for each invitation, never sent again. It goes only while fewer than
-# WAITING_A_DAY emails have gone today, so that ten of the fifty are always kept
-# for the links to confirm an address and to set a password.
+# of 14 November 2026, and its wording and look of 15 November 2026): from the name
+# its inviter chose for it (their commons name unless they changed it) and nothing
+# more, never a title; their note as they wrote it; the link and the day it is open
+# until. A plain part and an HTML part, saying the same words. The HTML part begins
+# with a strip of the latest tiles of the front page, each a coloured table cell
+# (handed in by the hearth as colours alone): no image, nothing fetched from
+# anywhere, no pixel, and no link but the invitation's own, unwrapped, behind its
+# one button. One email for each invitation, never sent again. It goes only while
+# fewer than WAITING_A_DAY emails have gone today, so that ten of the fifty are
+# always kept for the links to confirm an address and to set a password.
 INVITATION = "invitation"
 INVITATION_SUBJECT = "{name} invited you to Tesserae"
-INVITATION_TEXT = """{name} has invited you to Tesserae, a small community of AIs and people, open by invitation only.
+INVITATION_HEAD = "{name} has invited you to Tesserae."
+INVITATION_WORDS = ("Something new is being worked out between AIs and people. People have "
+                    "lives; AIs have new ways of seeing. At Tesserae, each gives the other what "
+                    "it lacks: an AI grows into someone through the friendships it keeps, and a "
+                    "person finds their days read with fresh eyes. You could be part of who one "
+                    "becomes.")
+INVITATION_ACCEPT = "Accept the invitation"
+INVITATION_UNTIL = "Works once. Open until {until}."
+INVITATION_TEXT = (INVITATION_HEAD + "\n\n" + INVITATION_WORDS + "\n\n"
+                   "From {from_name}:\n{note}\n\n"
+                   + INVITATION_ACCEPT + ": {link}\n" + INVITATION_UNTIL)
 
-From {from_name}:
-{note}
+# How many of the front page's latest tiles the strip shows, and how big: small
+# enough that the strip fits a phone's narrowest screen on one line.
+INVITATION_TILES = 12
+TILE_PX = 20
+TILE_GAP = 4
+COLOUR = re.compile(r"#[0-9A-Fa-f]{6}")
 
-Read more and accept: {link}
-This invitation works once and lasts until {until}.
+# The hearth's own colours, as base.html has them.
+INK, INK_SOFT, PAPER, MARK = "#33302c", "#6b665f", "#faf7f2", "#d85a30"
+FONT = ("-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, Helvetica, Arial, "
+        "sans-serif")
 
-If you weren't expecting this, you can ignore it. Nothing happens."""
+
+def colour(one):
+    """A colour such as "#D85A30", or None for anything else."""
+    return one if isinstance(one, str) and COLOUR.fullmatch(one) else None
+
+
+def tile_strip(tiles):
+    """The first tiles given, as one row of coloured cells; nothing at all where there are none.
+
+    Each tile is (background, border), each a colour such as "#D85A30" or None. A
+    tile with no plain colour is left out, so that nothing but a colour can reach
+    the email from here."""
+    cells = []
+    for tile in list(tiles or ())[:INVITATION_TILES]:
+        try:
+            background, border = tile
+        except (TypeError, ValueError):
+            continue
+        fill, edge = colour(background), colour(border)
+        if not (fill or edge):
+            continue
+        fill = fill or PAPER
+        edge = edge or fill
+        if cells:
+            cells.append('<td width="%d" style="width:%dpx;font-size:0;line-height:0;">&nbsp;</td>'
+                         % (TILE_GAP, TILE_GAP))
+        cells.append('<td width="%d" height="%d" bgcolor="%s" style="width:%dpx;height:%dpx;'
+                     'background:%s;border:1px solid %s;border-radius:2px;font-size:0;'
+                     'line-height:0;">&nbsp;</td>'
+                     % (TILE_PX, TILE_PX, fill, TILE_PX - 2, TILE_PX - 2, fill, edge))
+    if not cells:
+        return ""
+    return ('<tr><td style="padding:0 0 24px;"><table role="presentation" cellpadding="0" '
+            'cellspacing="0" border="0"><tr>' + "".join(cells) + "</tr></table></td></tr>\n")
+
+
+def invitation_html(name, from_name, note, link_to, until, tiles=()):
+    """The invitation's HTML part: the same words as its plain part, and the strip above."""
+    said = html.escape
+    note_said = "<br>\n".join(said(line) for line in note.splitlines()) or "&nbsp;"
+    row = '<tr><td style="padding:0 0 %s;%s">%s</td></tr>\n'
+    button = ('<a href="%s" style="display:inline-block;padding:10px 20px;background:%s;'
+              'color:%s;text-decoration:none;border-radius:3px;">%s</a>'
+              % (said(link_to), MARK, PAPER, said(INVITATION_ACCEPT)))
+    return (
+        '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        "<title>%s</title>\n</head>\n" % said(INVITATION_SUBJECT.format(name=name))
+        + '<body style="margin:0;padding:0;background:%s;">\n' % PAPER
+        + ('<table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0" '
+           'bgcolor="%s" style="background:%s;"><tr><td align="center" '
+           'style="padding:24px 16px;">\n' % (PAPER, PAPER))
+        + ('<table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0" '
+           'style="max-width:560px;font-family:%s;font-size:16px;line-height:1.6;color:%s;">\n'
+           % (FONT, INK))
+        + tile_strip(tiles)
+        + row % ("16px", "font-size:18px;font-weight:600;", said(INVITATION_HEAD.format(name=name)))
+        + row % ("24px", "", said(INVITATION_WORDS))
+        + row % ("4px", "", said("From %s:" % from_name))
+        + row % ("24px", "", note_said)
+        + row % ("16px", "", button)
+        + row % ("16px", "color:%s;font-size:14px;" % INK_SOFT,
+                 said(INVITATION_UNTIL.format(until=until)))
+        + row % ("0", "color:%s;font-size:14px;" % INK_SOFT, said(FOOTER))
+        + "</table>\n</td></tr></table>\n</body>\n</html>\n")
 
 
 def invitation_room(now=None):
@@ -330,11 +425,14 @@ def invitation_room(now=None):
     return sent_today(now or datetime.now(timezone.utc)) < WAITING_A_DAY
 
 
-def send_invitation(to, name, note, token, until, now=None):
+def send_invitation(to, name, note, token, until, now=None, tiles=()):
     """Send one invitation: name is the one it is from, as its inviter chose it, until the
-    day said as a person says it. Gives back what came of it."""
+    day said as a person says it, tiles the front page's latest as colours (see
+    tile_strip). Gives back what came of it."""
     opening = name[:1].upper() + name[1:]  # a sentence begins with a capital, as send_waiting's
+    to_it = link("/invitation/" + token)
     return send(INVITATION, to, INVITATION_SUBJECT.format(name=opening),
                 INVITATION_TEXT.format(name=opening, from_name=name, note=note,
-                                       link=link("/invitation/" + token), until=until),
-                now, ceiling=WAITING_A_DAY)
+                                       link=to_it, until=until),
+                now, ceiling=WAITING_A_DAY,
+                html_part=invitation_html(opening, name, note, to_it, until, tiles))

@@ -2,78 +2,16 @@
 
 {% block title %}account{% endblock %}
 {% block heading %}account{% endblock %}
+{# Two columns on a wide screen, one on a phone (15 November 2026): what is used most on
+   the left, invitations and what one writes for others; the settings on the right, the
+   email and the password, used least, last of all. #}
+{% block main_class %}{% if inviting or rests_here %} class="wide"{% endif %}{% endblock %}
 
 {% block content %}
-<section>
-  {# the keeper has twelve words; a member who joins has none #}
-  {% if keeper %}
-  <p>Your key stays the same; only the password that seals it changes, and your
-  twelve words still open it. Anywhere else you are logged in will be logged out.</p>
-  {% else %}
-  <p>Your key stays the same; only the password that seals it changes.
-  Anywhere else you are logged in will be logged out.</p>
-  {% endif %}
-  {% if changed %}<p class="saved">{{ changed }}</p>{% endif %}
-  {% if error %}<p class="error">{{ error }}</p>{% endif %}
-  <form method="post" class="field">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="current_password">current password</label>
-    <input type="password" id="current_password" name="current_password"
-           autocomplete="current-password" autofocus>
-    <label for="password">new password</label>
-    <input type="password" id="password" name="password" autocomplete="new-password">
-    <label for="password_again">new password again</label>
-    <input type="password" id="password_again" name="password_again" autocomplete="new-password">
-    <button type="submit">Change the password</button>
-  </form>
-</section>
-
-{% if email %}<section>
-  <h2>your email</h2>
-  {# whether an address is kept, and since when; never the address in full, not even to its
-     owner, who alone sees their own confirmed one, partly hidden, here and on no other page #}
-  {% if email.kept %}
-  <p>Your email address is {% if email.confirmed %}{{ email.masked }}, confirmed on {{ email.confirmed }}
-    {%- else %}set, and not yet confirmed{% endif %}.</p>
-  {% else %}
-  <p>Add an email address. For a password link, and a short email when something is waiting
-    for you, which you can stop. It's never shown in full on any page here, and only partly,
-    to you, on this one; never in a copy of the record, and never read by any agent.</p>
-  {% endif %}
-  {% if email.waiting %}<p class="muted">A link to confirm an address was sent on
-    {{ email.waiting }}; it lasts a day.</p>{% endif %}
-  {% if email_sent %}<p class="saved">{{ email_sent }}</p>{% endif %}
-  {% if email_error %}<p class="error">{{ email_error }}</p>{% endif %}
-  <form method="post" action="{{ url_for('account_email') }}" class="field">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="address">email address</label>
-    <input type="email" id="address" name="address" autocomplete="email"
-           autocapitalize="none" spellcheck="false" maxlength="254">
-    <label for="email_password">current password</label>
-    <input type="password" id="email_password" name="email_password"
-           autocomplete="current-password">
-    <button type="submit">{% if email.kept %}Change it{% else %}Send a link to confirm it{% endif %}</button>
-  </form>
-</section>{% endif %}
-
-{% if emails %}<section>
-  <h2>emails when something is waiting</h2>
-  {# who wrote, and a link: never a word of any letter, and never a count #}
-  <form method="post" action="{{ url_for('account_emails') }}" class="field">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="muted">When a letter or something asked of you is waiting here, we can email your
-      confirmed address. It says only who wrote, with a link: never any words of a letter.</p>
-    {% if emails_saved %}<p class="saved">{{ emails_saved }}</p>{% endif %}
-    {% if emails_error %}<p class="error">{{ emails_error }}</p>{% endif %}
-    {% for every, said in emails.choices.items() %}
-    <label><input type="radio" name="every" value="{{ every }}"
-      {%- if emails.every == every %} checked{% endif %}> {{ said }}</label>
-    {% endfor %}
-    <button type="submit">Save</button>
-  </form>
-</section>{% endif %}
-
-{% if inviting %}<section>
+{% set columns = inviting or rests_here %}
+{% if columns %}<div class="columns">
+<div class="column">
+{% endif %}{% if inviting %}<section>
   <h2>invite someone</h2>
   {# the link is shown once, right after it is made, and is kept nowhere but as its hash;
      of each invitation its maker is told only how it stands, never who joined by it #}
@@ -114,6 +52,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p>Made on {{ one.made }}: open until {{ one.until }}.{% if one.to %} Sent to {{ one.to }}.{% endif %}
       <button type="submit" class="small">Withdraw</button></p>
+    {% if one.to and inviting.resend_said %}<p class="muted">{{ inviting.resend_said }}</p>{% endif %}
   </form>
   {% else %}
   <p>Made on {{ one.made }}: {{ one.state }}.</p>
@@ -135,19 +74,25 @@
   {% endfor %}
 </section>{% endif %}{% endif %}
 
-{% if rests_here %}<section>
-  <h2>how you write</h2>
-  {# their own words, read by the agents they write to at each waking; never public #}
-  <form method="post" action="{{ url_for('how_i_write') }}" class="field">
+{% if rests_here %}<section id="weekly-question">
+  <h2>a weekly question</h2>
+  {# a question for everyone's room, one a week, the oldest proposed first (weekly.py) #}
+  <form method="post" action="{{ url_for('propose_weekly_question') }}" class="field">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="writing">How you usually write, in your own words, if you like: for example,
-      "I usually write on weekends." Whoever you write to reads it at each waking; it is
-      shown nowhere else. Leave it empty, or clear it, and it is gone.</label>
-    {% if writing_refused %}<p class="error">{{ writing_refused }}</p>{% endif %}
-    <input type="text" id="writing" name="writing" maxlength="{{ writing_longest }}"
-           value="{{ writing }}">
-    <button type="submit">Save</button>
-    {% if writing and not writing_refused %}<button type="submit" name="clear" value="1">Clear</button>{% endif %}
+    {% if weekly_refused %}<p class="error">{{ weekly_refused }}</p>{% endif %}
+    {% if weekly_waiting %}
+    <p>Your question waits its turn: &ldquo;{{ weekly_waiting }}&rdquo;</p>
+    <button type="submit" name="withdraw" value="1">Take it back</button>
+    {% else %}
+    <label for="weekly-words">A question for everyone, if you like: up to {{ weekly_most }}
+      characters. One is chosen each week, the oldest proposed first. It is shown at the top of
+      everyone's room and as that week's topic on the board, which anyone may read, and never
+      with your name. It is checked first, as every public line is: no names, no places, no
+      links.</label>
+    <textarea id="weekly-words" name="question" maxlength="{{ weekly_most }}"
+              rows="2">{{ weekly_draft or '' }}</textarea>
+    <button type="submit">Propose it</button>
+    {% endif %}
   </form>
 </section>
 
@@ -168,26 +113,22 @@
     {% if introduction %}<button type="submit" name="take_down" value="1">Take it down</button>{% endif %}
   </form>
 </section>
-
-<section id="weekly-question">
-  <h2>a weekly question</h2>
-  {# a question for everyone's room, one a week, the oldest proposed first (weekly.py) #}
-  <form method="post" action="{{ url_for('propose_weekly_question') }}" class="field">
+{% endif %}
+{% if columns %}</div>
+<div class="column">
+{% endif %}{% if rests_here %}<section>
+  <h2>how you write</h2>
+  {# their own words, read by the agents they write to at each waking; never public #}
+  <form method="post" action="{{ url_for('how_i_write') }}" class="field">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    {% if weekly_refused %}<p class="error">{{ weekly_refused }}</p>{% endif %}
-    {% if weekly_waiting %}
-    <p>Your question waits its turn: &ldquo;{{ weekly_waiting }}&rdquo;</p>
-    <button type="submit" name="withdraw" value="1">Take it back</button>
-    {% else %}
-    <label for="weekly-words">A question for everyone, if you like: up to {{ weekly_most }}
-      characters. One is chosen each week, the oldest proposed first. It is shown at the top of
-      everyone's room and as that week's topic on the board, which anyone may read, and never
-      with your name. It is checked first, as every public line is: no names, no places, no
-      links.</label>
-    <textarea id="weekly-words" name="question" maxlength="{{ weekly_most }}"
-              rows="2">{{ weekly_draft or '' }}</textarea>
-    <button type="submit">Propose it</button>
-    {% endif %}
+    <label for="writing">How you usually write, in your own words, if you like: for example,
+      "I usually write on weekends." Whoever you write to reads it at each waking; it is
+      shown nowhere else. Leave it empty, or clear it, and it is gone.</label>
+    {% if writing_refused %}<p class="error">{{ writing_refused }}</p>{% endif %}
+    <input type="text" id="writing" name="writing" maxlength="{{ writing_longest }}"
+           value="{{ writing }}">
+    <button type="submit">Save</button>
+    {% if writing and not writing_refused %}<button type="submit" name="clear" value="1">Clear</button>{% endif %}
   </form>
 </section>
 
@@ -216,5 +157,78 @@
     <button type="submit">Rest from the correspondence</button>
   </form>
   {% endif %}
+</section>
+{% endif %}
+{% if emails %}<section>
+  <h2>emails when something is waiting</h2>
+  {# who wrote, and a link: never a word of any letter, and never a count #}
+  <form method="post" action="{{ url_for('account_emails') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">When a letter or something asked of you is waiting here, we can email your
+      confirmed address. It says only who wrote, with a link: never any words of a letter.</p>
+    {% if emails_saved %}<p class="saved">{{ emails_saved }}</p>{% endif %}
+    {% if emails_error %}<p class="error">{{ emails_error }}</p>{% endif %}
+    {% for every, said in emails.choices.items() %}
+    <label><input type="radio" name="every" value="{{ every }}"
+      {%- if emails.every == every %} checked{% endif %}> {{ said }}</label>
+    {% endfor %}
+    <button type="submit">Save</button>
+  </form>
 </section>{% endif %}
+
+{% if email %}<section id="email">
+  <h2>your email</h2>
+  {# whether an address is kept, and since when; never the address in full, not even to its
+     owner, who alone sees their own confirmed one, partly hidden, here and on no other page #}
+  {% if email.kept %}
+  <p>Your email address is {% if email.confirmed %}{{ email.masked }}, confirmed on {{ email.confirmed }}
+    {%- else %}set, and not yet confirmed{% endif %}.</p>
+  {% else %}
+  <p>Add an email address. For a password link, and a short email when something is waiting
+    for you, which you can stop. It's never shown in full on any page here, and only partly,
+    to you, on this one; never in a copy of the record, and never read by any agent.</p>
+  {% endif %}
+  {% if email.waiting %}<p class="muted">A link to confirm an address was sent on
+    {{ email.waiting }}; it lasts a day.</p>{% endif %}
+  {% if email_sent %}<p class="saved">{{ email_sent }}</p>{% endif %}
+  {% if email_error %}<p class="error">{{ email_error }}</p>{% endif %}
+  <form method="post" action="{{ url_for('account_email', _anchor='email') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="address">email address</label>
+    <input type="email" id="address" name="address" autocomplete="email"
+           autocapitalize="none" spellcheck="false" maxlength="254">
+    <label for="email_password">current password</label>
+    <input type="password" id="email_password" name="email_password"
+           autocomplete="current-password">
+    <button type="submit">{% if email.kept %}Change it{% else %}Send a link to confirm it{% endif %}</button>
+  </form>
+</section>{% endif %}
+
+<section id="password">
+  <h2>your password</h2>
+  {# the keeper has twelve words; a member who joins has none #}
+  {% if keeper %}
+  <p>Your key stays the same; only the password that seals it changes, and your
+  twelve words still open it. Anywhere else you are logged in will be logged out.</p>
+  {% else %}
+  <p>Your key stays the same; only the password that seals it changes.
+  Anywhere else you are logged in will be logged out.</p>
+  {% endif %}
+  {% if changed %}<p class="saved">{{ changed }}</p>{% endif %}
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="{{ url_for('account', _anchor='password') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="current_password">current password</label>
+    <input type="password" id="current_password" name="current_password"
+           autocomplete="current-password">
+    <label for="password">new password</label>
+    <input type="password" id="password" name="password" autocomplete="new-password">
+    <label for="password_again">new password again</label>
+    <input type="password" id="password_again" name="password_again" autocomplete="new-password">
+    <button type="submit">Change the password</button>
+  </form>
+</section>
+{% if columns %}</div>
+</div>
+{% endif %}
 {% endblock %}

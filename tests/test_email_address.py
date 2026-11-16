@@ -355,7 +355,7 @@ def test_a_changed_address_is_shown_partly_hidden_once_confirmed(founder, outbox
 
 
 @pytest.mark.parametrize("address, shown", [
-    ("nathan@gmail.com", "n•••@gmail.com"),
+    ("nolwex@gmail.com", "n•••@gmail.com"),
     ("n@gmail.com", "n•••@gmail.com"),
     ("someone.with.a.long.name@mail.example.co.uk", "s•••@mail.example.co.uk"),
 ])

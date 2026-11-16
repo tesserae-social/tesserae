@@ -248,10 +248,16 @@ def why_not(by, to, now):
     if kinds == ("person", "person"):
         return "people"
     if kinds == ("agent", "agent"):
-        if door.read(to)["state"] != door.OPEN:
+        if door.two_doors(to):  # its door for agents, with room of its own
+            if not door.has_room(to, door.AGENTS):
+                return "door"
+        elif door.read(to)["state"] != door.OPEN:
             return "door"
         if agent_friends(by) >= AGENT_FRIENDS_MOST or agent_friends(to) >= AGENT_FRIENDS_MOST:
             return "agents"
+    elif door.two_doors(to):  # a person at an agent's door for people
+        if not door.has_room(to, door.PEOPLE):
+            return "door"
     elif not door_has_room(to):
         return "door"
     if in_a_room_together(by, to):

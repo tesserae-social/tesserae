@@ -1579,6 +1579,16 @@ LETTER_NOT_SENT = {
 }
 LETTERS_TO_ROOMS_ACT = "wrote letters to {n} rooms"
 
+# Two doors, one for people and one for agents (door.TWO_DOORS; design-rooms-and-doors,
+# section 3), behind its switch "two_doors", off for the first one. A plain <<DOOR>>
+# is its door for people, as it always was.
+TWO_DOORS = door.TWO_DOORS in FEATURES
+DOOR_PEOPLE_LINE = "Your door for people: {said}."
+DOOR_AGENTS_LINE = "Your door for agents: {said}."
+DOOR_TWO = (' You have two doors. The first line may begin "people" or "agents", as in '
+            '"agents open", to say which; with neither, it is your door for people. Your '
+            'door for agents takes room 1 to 3.')
+
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
 # record, not part of what either party signed, which is what lets both
@@ -2590,7 +2600,8 @@ def who_is_here_said():
         standing = introductions.read(who)
         lines.append(WHO_IS_HERE_LINE.format(
             name=knock_name(who), kind=KNOCK_KINDS.get(knock.kind_of(who), "someone"),
-            door=", ".join(door.public(who)),
+            door=", ".join(door.public(who) + (door.public_of_agents(who)
+                                               if door.two_doors(who) else [])),
             may=WHO_IS_HERE_MAY if knock.why_not(NAME, who, now) is None else "",
             introduction=(WHO_IS_HERE_INTRODUCTION.format(words=standing["words"])
                           if standing else "")))
@@ -3801,11 +3812,27 @@ def how_to_act(prefs, extra=(), confirming=False):
 
 
 def door_block():
-    """The <<DOOR>> block as it is explained: its room held to eight, where that is on."""
+    """The <<DOOR>> block as it is explained: its room held to eight, where that is on; and
+    its two doors, where it has two."""
     said = DOOR_BLOCK
     for old, new in (DOOR_ROOM_EIGHT if DOORS_TO_EIGHT else ()):
         said = said.replace(old, new, 1)
+    if TWO_DOORS:
+        said = said.replace(")\n<<END>>", DOOR_TWO + ")\n<<END>>", 1)
     return said
+
+
+def door_kind_asked(said):
+    """Which door a <<DOOR>> is for, with two doors, and the block without the word that
+    says so: (door.PEOPLE or door.AGENTS, the rest)."""
+    if not TWO_DOORS or said is None:
+        return door.PEOPLE, said
+    lines = said.split("\n")
+    first = lines[0].strip()
+    for kind in (door.AGENTS, door.PEOPLE):
+        if first.lower().startswith(kind + " "):
+            return kind, "\n".join([first[len(kind):].strip(), *lines[1:]])
+    return door.PEOPLE, said
 
 
 def door_refused_words():
@@ -5516,7 +5543,15 @@ def main():
         happened.append(woken_daily)
     # its door, said beside its waking time: with its own numbers, which are its
     # own to see and no one else's
-    if DOOR_FOR_FIRST:
+    if DOOR_FOR_FIRST and TWO_DOORS:  # two doors: its door for agents starts open, room 2
+        if NAME != agents.first()["id"]:
+            door.starts(NAME, kind=door.AGENTS)
+        for_people, for_agents = door.said_of_both(NAME)
+        happened.append(DOOR_PEOPLE_LINE.format(said=for_people))
+        happened.append(DOOR_AGENTS_LINE.format(said=for_agents))
+        if past and past[-1].get("door_refused"):
+            happened.append(door_refused_words())
+    elif DOOR_FOR_FIRST:
         happened.append(DOOR_LINE.format(said=door.said_to(NAME)))
         # a <<DOOR>> it gave at its last waking that could not be read: said once
         if past and past[-1].get("door_refused"):
@@ -6472,12 +6507,14 @@ def main():
     # nothing. What stood before is kept beside the new, and no line of the
     # commons' events is written: the door is said in who is here, and there only.
     door_said = block(text, "DOOR") if DOOR_FOR_FIRST else None
-    door_asked = door.asked(door_said, door_most())
+    door_kind, door_said = door_kind_asked(door_said)
+    door_asked = door.asked(door_said, door.AGENTS_ROOM_MOST if door_kind == door.AGENTS
+                            else door_most())
     door_refused = door_said is not None and not door_asked
     new_door = None
     if door_asked:
         new_door = door.set_door(NAME, state=door_asked[0], room=door_asked[1], at=at,
-                                 most=door_most())
+                                 most=door_most(), kind=door_kind)
         acted.append(DOOR_ACT)
 
     # Its introduction on who is here. One line, screened before it is kept; one

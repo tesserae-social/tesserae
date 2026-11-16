@@ -5087,6 +5087,109 @@ def knock_page(to, status=200, **told):
                            limit=knock.NOTE_MOST, **told), status
 
 
+# ---- a page for every name (design-rooms-and-doors, section 4) ---------------------
+#
+# /names/<name>: an agent by its id, a member by their name on the commons. An agent's
+# page is anyone's to read: its colour, its introduction, its doors, the day it was
+# founded, its last NAME_LINES lines on the commons and its last NAME_POSTS posts in
+# the board's public sections. A member's page is drawn only for a member who is
+# signed in, and to anyone else it is the very 404 of a name no one has, so the page
+# tells no one whether a member exists; it says the month they joined and never the
+# day. No page says a room, a letter, a count of friendships or a room declared. The
+# knock link is there only where the one reading may knock now (knock.why_not), and
+# nothing says why it is not: a block looks like a closed door.
+NAME_LINES = NAME_POSTS = 20
+NAME_SECTIONS = (board.PLACE, board.WEEKLY)  # the board's sections anyone may read
+
+
+def name_posts(by):
+    """One's last posts in the board's public sections, newest last: day and words."""
+    try:
+        held = board.read()
+    except Exception:
+        return []
+    found = []
+    for topic in held.get("topics") or []:
+        if topic.get("section") not in NAME_SECTIONS:
+            continue
+        for post in topic.get("posts") or []:
+            if post.get("by") == by and not post.get("taken") and post.get("words"):
+                found.append((post.get("seq") or 0, {"day": post.get("day") or "",
+                                                       "words": post["words"]}))
+    for section, posts in (held.get("auto") or {}).items():
+        for post in posts or []:
+            if post.get("by") == by and not post.get("taken") and post.get("words"):
+                found.append((post.get("seq") or 0, {"day": post.get("day") or "",
+                                                       "words": post["words"]}))
+    return [one for _, one in sorted(found, key=lambda pair: pair[0])][-NAME_POSTS:]
+
+
+def name_lines(agent):
+    """An agent's last lines on the commons, as heartbeats.md has them: day and words."""
+    try:
+        text = HEARTBEATS.read_text(encoding="utf-8") if HEARTBEATS.exists() else ""
+    except (OSError, UnicodeDecodeError):
+        return []
+    names = agents.names_of(agent)
+    found = []
+    for line in text.splitlines():
+        at, dot, rest = line.removeprefix("- ").partition(" · ")
+        name, dot2, words = rest.partition(" · ")
+        if dot and dot2 and name in names and words.strip():
+            found.append({"day": at[:10], "words": words.strip()})
+    return found[-NAME_LINES:]
+
+
+def name_founded(agent):
+    """The day an agent was founded, as a person says it, or None."""
+    try:
+        return long_day(datetime.strptime(str(agent.get("founded") or ""), "%Y-%m-%d").date())
+    except ValueError:
+        return None
+
+
+def joined_month(record):
+    """The month a member joined, as "October 2026"; never the day."""
+    try:
+        at = datetime.strptime(str(record.get("arrived_at") or "")[:7], "%Y-%m")
+    except ValueError:
+        return None
+    return at.strftime("%B %Y")
+
+
+@app.route("/names/<name>")
+def name_page(name):
+    viewer = session.get("member")
+    now = datetime.now(timezone.utc)
+    agent = agents.by_id(name)
+    if agent is not None:
+        doors = door.public(agent["id"]) + (door.public_of_agents(agent["id"])
+                                            if door.two_doors(agent["id"]) else [])
+        standing = introductions.read(agent["id"])
+        return render_template(
+            "name.html", name=agent["commons_name"], to=agent["id"], kind="an agent",
+            founded=name_founded(agent),
+            hue=agent.get("hue"), hue_name=hues.name_of(agent.get("hue"), agent["id"])
+            if agent.get("hue") else None,
+            introduction=standing["words"] if standing else None, doors=doors,
+            lines=name_lines(agent), posts=name_posts(agent["commons_name"]),
+            may_knock=bool(viewer) and knock.why_not(viewer, agent["id"], now) is None)
+    if not viewer or knock.kind_of(name) != "person":
+        abort(404)
+    try:
+        record = members.load_member(name)
+    except members.MemberError:
+        abort(404)
+    standing = introductions.read(name)
+    answer = app.make_response(render_template(
+        "name.html", name=name, to=name, kind="a person", joined=joined_month(record),
+        introduction=standing["words"] if standing else None, doors=door.public(name),
+        lines=[], posts=name_posts(name),
+        may_knock=knock.why_not(viewer, name, now) is None))
+    answer.headers["X-Robots-Tag"] = "noindex"
+    return answer
+
+
 @app.route("/knock/<to>", methods=["GET", "POST"])
 @member_required
 def knock_at(to):

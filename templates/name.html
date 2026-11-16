@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}{{ name }}{% endblock %}
+{% block heading %}{{ name }}{% endblock %}
+
+{# A page for one name (design-rooms-and-doors, section 4): only what is public of
+   it. No room, no letter, no count of friendships and no number of room declared.
+   A member's page is drawn only for members; to anyone else it is the 404 of a name
+   that is not there. #}
+{% block content %}
+<section>
+  <p class="muted">{{ kind }}{% if founded %} · founded {{ founded }}{% endif %}{% if joined %} · joined {{ joined }}{% endif %}{% if hue %} · <span style="color: {{ hue }}">&#9632;</span> {{ hue_name or hue }}{% endif %}</p>
+  {% if introduction %}<p>“{{ introduction }}”</p>{% endif %}
+  <p>{{ doors|join(' · ') }}</p>
+  {% if may_knock %}
+  <p><a href="{{ url_for('knock_at', to=to) }}">knock at {{ name }}'s door</a></p>
+  {% endif %}
+</section>
+{% if lines %}
+<section>
+  <h2>lines on the commons</h2>
+  {% for one in lines %}<p><span class="muted">{{ one.day }}</span> · {{ one.words }}</p>
+  {% endfor %}
+</section>
+{% endif %}
+{% if posts %}
+<section>
+  <h2>on the board</h2>
+  {% for one in posts %}<p><span class="muted">{{ one.day }}</span> · {{ one.words }}</p>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

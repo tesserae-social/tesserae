@@ -152,6 +152,7 @@ import door
 # Introductions on who is here, and a knock at an agent's door (plan 4.1 and 4.2).
 import introductions
 import knock
+import site_notes
 # The members' board (plan 4.3).
 import board
 # A weekly question, proposed by members.
@@ -6565,6 +6566,41 @@ def set_welcome_timing():
     return redirect(url_for("tides", _anchor="comings"))
 
 
+# A note from the site (the founder's request of 16 November 2026, part B5; site_notes.py):
+# the keeper writes a short plain note to one agent, or to every agent whose switch is on.
+# /tides lists each note's day, whom it went to and whether it has been read, and never
+# its words. A note is no one's but the keeper's and the agent's.
+
+
+def site_notes_shown():
+    """What /tides shows of notes from the site: whom one may go to, and each sent, newest
+    first; None while no agent may be sent one."""
+    may = [agent for agent in agents.registry() if site_notes.may_have(agent["id"])]
+    if not may:
+        return None
+    kept = []
+    for agent in agents.registry():
+        for one in site_notes.every(agent["id"]):
+            kept.append({"at": one.get("at") or "", "day": bond_day(one.get("at") or ""),
+                         "name": agent["commons_name"],
+                         "shown": bond_day(one["shown_at"]) if one.get("shown_at") else None})
+    kept.sort(key=lambda one: one["at"], reverse=True)
+    return {"may": may, "kept": kept, "most": site_notes.MOST}
+
+
+@app.route("/tides/site-note", methods=["POST"])
+@founder_required
+def send_site_note():
+    to = request.form.get("to") or ""
+    words = request.form.get("words") or ""
+    try:
+        sent = site_notes.write(to, words, utc_stamp())
+    except site_notes.Refused as refused:
+        return tides_page(note_refused=str(refused), note_draft=words, note_to=to)
+    return tides_page(note_sent="Sent to %s. It is read once, at the next waking." % (
+        ", ".join(knock.name_of(one) for one in sent)))
+
+
 def tides_page(**told):
     """Every agent's tide, with whatever the keeper has just been told."""
     rows = tides_shown()
@@ -6578,7 +6614,7 @@ def tides_page(**told):
                            knocks=knocks_to_set_up(),
                            screens_spent_out=screens_spent_out_note(),
                            troubles=tides_troubles(), change=model_change_shown(),
-                           comings=comings_shown(), **told)
+                           comings=comings_shown(), notes=site_notes_shown(), **told)
 
 
 @app.route("/tides")

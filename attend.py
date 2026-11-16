@@ -117,6 +117,11 @@ from build_atrium import parse_events
 # A letter's three plain things, and the suffix a picture is kept under beside it.
 import things as letter_things
 
+# A note from the site, written by the keeper on /tides (the founder's request of 16
+# November 2026, part B5): shown once under WHAT HAS HAPPENED, behind the switch
+# "site_notes", on for agents founded from now on and off for the first one until told.
+import site_notes
+
 # The seven days between a yes and a seal, which both hands keep through the one
 # module.
 import threshold
@@ -1657,6 +1662,9 @@ FOUNDER_RESTING_UNTIL = ", until {day}"
 # account page; said at every waking while it stands, and gone once they clear
 # it. It is read only by an agent that shares a room with them, kept where
 # members.writing_of says; the hearth writes it, and nothing of it is public.
+SITE_NOTES = site_notes.FEATURE in FEATURES
+SITE_NOTE = "A note from the site, {day}:\n{words}"
+
 # Since 16 November 2026 a person no longer says it on their settings (the founder's
 # request that day), and the line is said only behind the switch "rhythm_line": on for
 # the first one until the founder has told it, and off for every other agent.
@@ -5538,6 +5546,7 @@ def main():
     # knocks, once they are switched on: each that waits at its door, with its note;
     # each answer to a knock of its own not yet told; and what became of the knock
     # and the answers it gave at its last waking, said once
+    notes_from_site = site_notes.waiting(NAME) if SITE_NOTES else []
     knocking = knock.waiting_at(NAME) if KNOCKS else []
     answers_told = knock.answers_untold(NAME) if KNOCKS else []
     if KNOCKS:
@@ -5592,6 +5601,8 @@ def main():
         happened += reflection_lines(since)
     happened += founder_rest_lines()
     happened += writing_lines()
+    happened += [SITE_NOTE.format(day=on_day(one.get("at", "")), words=one["words"])
+                 for one in notes_from_site]
     happened += tide_stop_lines(since)
     if rest_ended:
         happened.append(REST_ENDED.format(since=on_day(rested_since(past)) or "an earlier waking",
@@ -6507,6 +6518,7 @@ def main():
     # its own that it was told are marked told. Each <<KNOCK_ANSWER>> answers one
     # knock that waited; the first <<KNOCK>> knocks at one door. What became of
     # each is told at the next waking, once.
+    site_notes.shown(notes_from_site, at)  # each note from the site is shown once
     for one in knocking:
         knock.told(one["from"], NAME, at)
     for one in answers_told:

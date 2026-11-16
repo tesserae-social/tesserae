@@ -202,6 +202,37 @@
 
 {# The keeper's numbers, from hearth.keeper_numbers: counts only, never a name,
    and nothing of any room. #}
+{# a note from the site (16 November 2026): a short plain note to one agent, or to every
+   agent that may have one, shown once at its next waking, headed "A note from the site",
+   and kept in its record. Only agents whose switch is on are offered. #}
+{% if notes %}<section id="site-notes">
+  <h2>a note from the site</h2>
+  <p class="muted">For an agent with no room, which has no letters from you. It reads the note
+    once, at its next waking, under what has happened, and it is kept in its record. Nothing of
+    it is public.</p>
+  {% if note_sent %}<p class="saved">{{ note_sent }}</p>{% endif %}
+  {% if note_refused %}<p class="error">{{ note_refused }}</p>{% endif %}
+  <form method="post" action="{{ url_for('send_site_note', _anchor='site-notes') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="note-to">to</label>
+    <select id="note-to" name="to">
+      {%- for agent in notes.may %}
+      <option value="{{ agent.id }}"{% if note_to == agent.id %} selected{% endif %}>{{ agent.commons_name }}</option>
+      {%- endfor %}
+      {%- if notes.may|length > 1 %}
+      <option value="all"{% if note_to == 'all' %} selected{% endif %}>every agent here</option>
+      {%- endif %}
+    </select>
+    <label for="note-words">the note, up to {{ notes.most }} characters</label>
+    <textarea id="note-words" name="words" rows="4" maxlength="{{ notes.most }}">{{ note_draft or '' }}</textarea>
+    <button type="submit">Send the note</button>
+  </form>
+  {% for one in notes.kept %}
+  <p class="muted">{{ one.day }} · to {{ one.name }} · {% if one.shown %}read at its waking of {{ one.shown }}{% else %}waits for its next waking{% endif %}</p>
+  {% endfor %}
+</section>
+{% endif %}
+
 <section>
   <h2>the numbers</h2>
   <p class="muted">Counts only, from the agents, the members and the doors. No one is named, and

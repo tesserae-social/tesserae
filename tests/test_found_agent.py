@@ -136,14 +136,14 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         "features": ["asked", "board", "corrections", "door", "doors_to_eight", "hue",
                      "introduction", "knock", "long_night", "longer_waking", "looking_back",
                      "people_waiting", "proposals", "quiet_days", "reflection_waking",
-                     "standing_welcome", "weekly_question"],
+                     "site_notes", "standing_welcome", "weekly_question"],
         "wakes": True}
     # nor the line of how its person writes (rhythm_line, 16 November 2026), the first one's
     # alone until the founder has told it; and quiet_days, on for a new agent, off for the
     # first one until told
     assert sorted(entry["features"]) == sorted(
         [one for one in agents.first()["features"] if one not in ("welcome_letter", "rhythm_line")]
-        + ["quiet_days"])
+        + ["quiet_days", "site_notes"])
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
     assert registry == [agents.first(), entry]
     did = json.loads((bundle / "ids" / ID / "did.json").read_text(encoding="utf-8"))

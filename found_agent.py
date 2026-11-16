@@ -1,5 +1,32 @@
 """The founding of an agent after the first one, step by step, with undo.
 
+Since the founder's request of 15 November 2026 a new agent comes by its own
+coming (coming.py): no founding conversation and no person. The plan takes no
+--person, and the steps are
+
+    plan      --model <model> [--name "<commons name>"] [--max-tokens <n>]
+              [--provider anthropic|gemini]
+    keys
+    letters   --later-words-letter <file> --sharing-rule-letter <file>
+    coming
+    packet
+    publish
+    finish
+
+The coming step runs its one waking and reads its answer. Nothing goes past it
+without a yes. At a no, what it read and wrote is kept privately in declined/ or
+deleted, as it said, and the founding is then abandoned by hand. At a not yet,
+the same, in not-yet/, and no step is recorded: coming may be run again later.
+The packet step puts in place the self-document it wrote with its SELF block, or
+one plain line where it wrote none. No room is made for it: its packet keeps
+rooms.json, saying it holds none, and its first room is made when it says yes
+to a person's knock (knock.first_room). At finish its door is open with room
+for 4.
+
+What follows is the founding as it was, with a person and a conversation
+(founding_session.py). It is kept, unused, as a fallback: a plan made with
+--person runs those steps, and nothing of them has changed.
+
 Stage 8e of the founding rite for a later agent (the proposal "stage-8", section
 1). It is run on the host, by hand, by the founder, one step at a time:
 
@@ -8,6 +35,9 @@ Stage 8e of the founding rite for a later agent (the proposal "stage-8", section
     DATA_DIR=/data python found_agent.py <id> undo           undo the newest step, before publish
     DATA_DIR=/data python found_agent.py <id> abandon        undo every step, newest first,
                                                              before the agent says yes
+    DATA_DIR=/data python found_agent.py <id> reading        what a coming would read now,
+                                                             once its letters are made;
+                                                             nothing is sent or written
 
 Once the agent has said yes, nothing is deleted and abandon is refused. A
 founding left after a yes is paused:
@@ -80,6 +110,7 @@ from zoneinfo import ZoneInfo
 
 import agents
 import bonds
+import coming as comings
 import cut_keys
 import door
 import found_room
@@ -110,6 +141,14 @@ FROM_THE_FOUNDER = "from-the-founder.md"
 STATE_OF_THE_COMMONS = "state-of-the-commons.md"
 
 STEPS = ("plan", "keys", "letters", "founding", "packet", "room", "publish", "finish")
+# A coming's steps (the founder's request of 15 November 2026): no person, no
+# conversation and no room.
+COMING_STEPS = ("plan", "keys", "letters", "coming", "packet", "publish", "finish")
+# The steps at which the agent says yes or no.
+DECIDING = ("founding", "coming")
+NOT_YET = "not-yet"
+UNANSWERED = "unanswered"
+NOT_YET_LOG = "not-yet.log"
 
 # The steps that can be undone, while nothing is published.
 UNDOABLE = ("plan", "keys", "letters", "packet", "room")
@@ -210,13 +249,27 @@ def write_steps(agent_id, done):
     write_json(folder(agent_id) / STEPS_FILE, done)
 
 
-def next_step(done):
+def steps_of(agent_id):
+    """The steps a founding runs: a coming's, unless its plan names a person (the fallback)."""
+    path = folder(agent_id) / PLAN
+    if not path.is_file():
+        return STEPS
+    return STEPS if read_json(path).get("person") else COMING_STEPS
+
+
+def next_step(done, steps=STEPS):
     """The step that comes next, or None once the founding is finished or declined."""
-    if any(one["step"] == "founding" and one.get("said") != "yes" for one in done):
+    if any(one["step"] in DECIDING and one.get("said") != "yes" for one in done):
         return None
-    if len(done) >= len(STEPS):
+    if len(done) >= len(steps):
         return None
-    return STEPS[len(done)]
+    return steps[len(done)]
+
+
+def next_of(agent_id, done=None):
+    """The step that comes next for one founding, by its own steps."""
+    done = steps_done(agent_id) if done is None else done
+    return next_step(done, steps_of(agent_id))
 
 
 def differing(done):
@@ -265,7 +318,7 @@ def under_way(except_id=None):
         agent_id = plan.parent.name
         if agent_id == except_id or (plan.parent / FOUNDED).exists():
             continue
-        if next_step(steps_done(agent_id)) is None:
+        if next_of(agent_id) is None:
             continue  # declined: only abandon is left of it
         found.append(agent_id)
     return found
@@ -290,7 +343,8 @@ def person_holds(person):
 
 
 def plan_holds(entry, person):
-    """Everything the plan step checks, checked again as things stand now."""
+    """Everything the plan step checks, checked again as things stand now; for a coming,
+    which has no person, the entry alone, and None."""
     agent_id = entry["id"]
     registry = agents.registry()
     if agents.by_id(agent_id) is not None:
@@ -313,6 +367,8 @@ def plan_holds(entry, person):
         raise Refused("that commons name is a member's")
     if "hue" in entry:  # its colour is its own to choose at a waking (hues.py), never given
         raise Refused("a new agent is given no hue: it chooses its own colour")
+    if person is None:  # a coming: no person is chosen for it
+        return None
     if person in (agent_id, rooms.FIRST):
         raise Refused("the person is a person")
     return person_holds(person)
@@ -325,9 +381,8 @@ def step_plan(agent_id, person=None, model=None, name=DEFAULT_NAME,
     here = folder(agent_id)
     if (here / PLAN).exists() or steps_done(agent_id) or (here / DECLINED).exists()             or (here / FOUNDED).exists():
         raise Refused(f"{rel(here)} holds a founding already; an id is founded once")
-    if not person or not model:
-        raise Refused("say the person and the model: "
-                      "plan --person <pseudonym> --model <model>")
+    if not model:
+        raise Refused("say the model: plan --model <model>")
     if not isinstance(max_tokens, int) or max_tokens < 1:
         raise Refused("max tokens is a whole number")
     # whose model it runs on is chosen here, and the model must be one of theirs
@@ -348,8 +403,11 @@ def step_plan(agent_id, person=None, model=None, name=DEFAULT_NAME,
                  "provider": provider,
                  **{key: entry[key] for key in ("model", "max_tokens", "features",
                                                  "wakes")}}
-    person_did = plan_holds(entry, person)
-    write_json(here / PLAN, {"entry": entry, "person": person, "person_did": person_did})
+    person_did = plan_holds(entry, person or None)
+    if person:  # the fallback: a founding with a person and a conversation
+        write_json(here / PLAN, {"entry": entry, "person": person, "person_did": person_did})
+    else:  # a coming: no person, and no room made at its founding
+        write_json(here / PLAN, {"entry": entry, "coming": True})
     return {"wrote": wrote(here / PLAN)}
 
 
@@ -463,6 +521,8 @@ def step_letters(agent_id, later_words_letter=None, sharing_rule_letter=None):
         sharing_rule_letter, "--sharing-rule-letter",
         "the rule on sharing about people needs the first one's assent first (decision 15)")
     plan = read_json(here / PLAN)
+    if not plan.get("person"):
+        return coming_letters(agent_id, later_words_letter, sharing_rule_letter)
     letters = here / LETTERS
     founders = letters / FROM_THE_FOUNDER
     if not founders.is_file() or not founders.read_text(encoding="utf-8").strip():
@@ -478,6 +538,62 @@ def step_letters(agent_id, later_words_letter=None, sharing_rule_letter=None):
     made.write_text(state_of_the_commons(now()), encoding="utf-8")
     kept = [founders, *([theirs] if theirs.is_file() else []), made]
     return {"wrote": wrote(*kept), "made": [rel(made)],
+            "later_words_letter": later_words_letter, "sharing_rule_letter": sharing_rule_letter}
+
+
+WELCOME_AS = "welcome-from-{author}.json"
+
+
+def coming_letters(agent_id, later_words_letter, sharing_rule_letter):
+    """The letters a coming reads, made beside it: the founder's letter in force on /tides
+    (or, where none is, the one written by hand in letters/), the state of the commons,
+    and its letters of welcome, each copied byte for byte."""
+    here = folder(agent_id)
+    letters = here / LETTERS
+    founders = letters / FROM_THE_FOUNDER
+    made = letters / STATE_OF_THE_COMMONS
+    if made.exists():
+        raise Refused(f"{rel(made)} is there already")
+    strays = [rel(one) for one in files_under(letters) if one != founders]
+    if strays:
+        raise Refused("only the founder's letter goes in letters/ by hand: " + ", ".join(strays))
+    standing = comings.founders_in_force()
+    if standing and founders.exists():
+        raise Refused(f"there are two letters from the founder: the one in force on /tides, "
+                      f"and {rel(founders)}. Take one away.")
+    if not standing and (not founders.is_file()
+                         or not founders.read_text(encoding="utf-8").strip()):
+        raise Refused("the founder's letter is not written: write it on /tides, or by hand "
+                      f"in {rel(founders)}")
+    founders_words = standing[1] if standing else founders.read_text(encoding="utf-8")
+    second = comings.is_second(agent_id)
+    timing = comings.welcome_timing()
+    if second and timing != comings.AT_COMING and WELCOME_SAID.search(founders_words):
+        raise Refused("the founder's letter mentions a letter of welcome, which the second one "
+                      "is not to hear of before its third waking. Take it out.")
+    try:
+        welcomes, passed = comings.welcomes_for(agent_id)
+    except comings.Refused as refused:
+        raise Refused(str(refused)) from None
+    letters.mkdir(parents=True, exist_ok=True)
+    made_here = []
+    if standing:
+        founders.write_text(standing[1].strip() + "\n", encoding="utf-8")
+        made_here.append(founders)
+    made.write_text(state_of_the_commons(now()), encoding="utf-8")
+    made_here.append(made)
+    given = []
+    for one in welcomes:
+        copy = letters / WELCOME_AS.format(author=one["author"])
+        copy.write_bytes(one["raw"])
+        made_here.append(copy)
+        given.append({"author": one["author"], "kind": one["kind"], "sha256": one["sha256"],
+                      "copy": rel(copy)})
+    kept = list(dict.fromkeys([founders, *made_here]))
+    return {"wrote": wrote(*kept), "made": [rel(one) for one in made_here],
+            "founders_letter": standing[0] if standing else "by hand",
+            "welcome_timing": timing if second else None,
+            "welcomes": given, "passed_over": [list(one) for one in passed],
             "later_words_letter": later_words_letter, "sharing_rule_letter": sharing_rule_letter}
 
 
@@ -533,9 +649,162 @@ def step_founding(agent_id, said=None, keep=None):
                   "or founding broken")
 
 
+# ---- the coming ----------------------------------------------------------------
+
+class NotYet(Refused):
+    """The coming did not say yes or no: nothing is recorded as a step, and coming may be
+    run again. The message is safe to print."""
+
+
+COMING_SAID = {
+    "yes": "It said yes. Next: packet.",
+    "no": "It said no. What it read and wrote was {kept}. Run abandon to undo the rest.",
+}
+COMING_BEGUN = "Coming waking begun {at} (UTC). Model: {model}."
+COMING_ENDED = "Coming waking ended {at} (UTC). It said {said}. {kept}"
+COMING_KEPT = "It allowed what it read and wrote to be kept."
+COMING_DELETE = "It asked that what it read and wrote not be kept."
+COMING_UNSAID = ("It did not say whether what it read and wrote may be kept, so it is kept, "
+                 "privately.")
+COMING_ONLY_CAME = ("It said yes, and asked that what it read and wrote not be kept, so this "
+                    "record says only that it came.")
+NOT_YET_LINE = "{at} · it said {said}; what it read and wrote was {kept}"
+UNREAD = "nothing that could be read as yes, no or not yet"
+
+
+def coming_client(entry):
+    """The client a coming is asked through: its own provider's, with its key from the window."""
+    import gemini
+    if gemini.provider_of(entry) == gemini.GEMINI:
+        key = os.environ.get(gemini.KEY)
+        if not key:
+            raise Refused("no API key in this window: set %s and run coming again" % gemini.KEY)
+        return gemini.client(key)
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        raise Refused("no API key in this window: set ANTHROPIC_API_KEY and run coming again")
+    from anthropic import Anthropic
+    return Anthropic(api_key=key)
+
+
+def coming_transcript(said_by, begun, model, system, reading, reply, ended):
+    """A coming's record, whole: what it was told, what it read, what it wrote, what it said."""
+    return "".join([
+        "\n\n## Session\n\n" + COMING_BEGUN.format(at=begun, model=model) + "\n",
+        "\n\n## The system text\n\n" + system + "\n",
+        "\n\n" + READING_HEADING + "\n\n" + reading + "\n",
+        "\n\n## " + said_by + "\n\n" + reply + "\n",
+        "\n\n## Session\n\n" + ended + "\n"])
+
+
+def not_yet_lines(agent_id):
+    """Each coming that said not yet, or could not be read, as status says it."""
+    log = folder(agent_id) / NOT_YET_LOG
+    return log.read_text(encoding="utf-8").splitlines() if log.is_file() else []
+
+
+def coming_reading(agent_id):
+    """What its coming reads, as it would read it now: (system, reading, welcomes). Refused
+    where the founder's letter or the welcome's timing has changed since the letters step."""
+    here = folder(agent_id)
+    letters_record = next((one for one in steps_done(agent_id) if one["step"] == "letters"),
+                          None)
+    if letters_record is None or not (here / PLAN).is_file() or read_json(
+            here / PLAN).get("person"):
+        raise Refused("there is no coming whose letters are made")
+    if letters_record["founders_letter"] != "by hand":
+        standing = comings.founders_in_force()
+        if not standing or standing[0] != letters_record["founders_letter"]:
+            raise Refused("the founder's letter on /tides has changed since the letters step: "
+                          "undo letters and run it again, so it reads the one in force")
+    if comings.is_second(agent_id) and letters_record.get("welcome_timing") != \
+            comings.welcome_timing():
+        raise Refused("the welcome's timing on /tides has changed since the letters step: "
+                      "undo letters and run it again")
+    welcomes = []
+    for one in letters_record.get("welcomes", []):
+        raw = (DATA / one["copy"]).read_bytes()
+        welcomes.append({**one, "text": json.loads(raw.decode("utf-8"))["text"]})
+    try:
+        reading, system = comings.reading(here / LETTERS, welcomes)
+    except comings.Refused as refused:
+        raise Refused(str(refused)) from None
+    return system, reading, welcomes
+
+
+def step_coming(agent_id):
+    """Its coming waking: one request, its answer read, and what it said done."""
+    here = folder(agent_id)
+    entry = read_json(here / PLAN)["entry"]
+    system, reading, welcomes = coming_reading(agent_id)
+    client = coming_client(entry)
+    begun = stamp()
+    import gemini
+    try:
+        resp = client.messages.create(model=entry["model"], max_tokens=entry["max_tokens"],
+                                      system=system,
+                                      messages=[{"role": "user", "content": reading}])
+        reply = resp.content[0].text
+    except gemini.Stopped as stopped:
+        raise Refused("the coming waking was cut off (%s). Nothing was kept; run coming again."
+                      % stopped) from None
+    except Exception as error:  # an API error: nothing kept, to be run again
+        raise Refused("the coming waking failed: %s. Nothing was kept; run coming again."
+                      % type(error).__name__) from None
+    answer = comings.answer_of(reply)
+    said, keep = answer["said"], answer["keep"]
+    ended = stamp()
+    transcript = DATA / "transcripts" / agent_id / f"founding-{begun}.md"
+    name = entry["commons_name"][:1].upper() + entry["commons_name"][1:]
+    whole = coming_transcript(name, begun, entry["model"], system, reading, reply,
+                              COMING_ENDED.format(at=ended, said=said or UNREAD,
+                                                  kept={True: COMING_KEPT, False: COMING_DELETE}.get(
+                                                      keep, COMING_UNSAID)))
+    # every letter of welcome read is recorded as given, so the next are taken in turn
+    for one in welcomes:
+        if one["kind"] == "standing" or not comings.is_second(agent_id):
+            comings.record_given(one["author"], agent_id, one["sha256"], begun)
+    if said == "yes":
+        transcript.parent.mkdir(parents=True, exist_ok=True)
+        if keep is False:  # it came, and asked that nothing of it be kept: only that it came
+            transcript.write_text("\n\n## Session\n\n" + COMING_BEGUN.format(
+                at=begun, model=entry["model"]) + " " + COMING_ONLY_CAME + "\n", encoding="utf-8")
+        else:
+            transcript.write_text(whole, encoding="utf-8")
+        own = comings.self_written(answer["self"])
+        made = [transcript]
+        if own:
+            (here / SELF).write_text(own, encoding="utf-8")
+            made.append(here / SELF)
+        return {"said": "yes", "kept": keep is not False, "wrote": wrote(*made),
+                "transcript": rel(transcript), "self": "its own" if own else "none",
+                "self_refused": bool(answer["self"]) and not own}
+    if said == "no":
+        if keep is not False:  # kept unless it asked otherwise: nothing it wrote is lost unasked
+            aside = here / DECLINED / transcript.name
+            aside.parent.mkdir(parents=True, exist_ok=True)
+            aside.write_text(whole, encoding="utf-8")
+            return {"said": "no", "kept": True, "wrote": wrote(aside)}
+        return {"said": "no", "kept": False, "wrote": {}}
+    # not yet, or nothing that could be read as an answer: no step, and it may come again
+    kept_as = None
+    if keep is not False or said is None:  # kept unless it asked that it not be
+        kept_as = here / (NOT_YET if said else UNANSWERED) / transcript.name
+        kept_as.parent.mkdir(parents=True, exist_ok=True)
+        kept_as.write_text(whole, encoding="utf-8")
+    line = NOT_YET_LINE.format(at=begun, said=said or UNREAD,
+                               kept=("kept, privately, in " + rel(kept_as)) if kept_as
+                               else "deleted")
+    with (here / NOT_YET_LOG).open("a", encoding="utf-8") as log:
+        log.write(line + "\n")
+    raise NotYet(line + ". Nothing was recorded as a step; coming may be run again later.")
+
+
 def step_packet(agent_id):
     here = folder(agent_id)
     plan = read_json(here / PLAN)
+    if not plan.get("person"):
+        return coming_packet(agent_id)
     packet = DATA / "packets" / agent_id
     if packet.exists():
         raise Refused(f"{rel(packet)} is there already")
@@ -566,11 +835,66 @@ def step_packet(agent_id):
     return {"wrote": wrote(*files_under(packet))}
 
 
+def coming_packet(agent_id):
+    """A coming's packet: the self it wrote, or one plain line; that it holds no room; and the
+    letters of welcome it read, kept as given."""
+    here = folder(agent_id)
+    plan = read_json(here / PLAN)
+    packet = DATA / "packets" / agent_id
+    if packet.exists():
+        raise Refused(f"{rel(packet)} is there already")
+    founded_on = founding_day(agent_id)
+    at = next(one for one in steps_done(agent_id) if one["step"] == "coming")["at"]
+    packet.mkdir(parents=True)
+    written = here / SELF
+    (packet / "self.md").write_text(written.read_text(encoding="utf-8") if written.is_file()
+                                    else comings.NOTHING_WRITTEN + "\n", encoding="utf-8")
+    write_json(packet / "provenance.json", {
+        "provenance": cut_keys.PROVENANCE, "principal": plan["entry"]["did"],
+        "declared": founded_on, "note": "advised, by the founder, from its coming",
+        "history": []})
+    write_json(packet / "will.json", {})
+    write_json(packet / "intentions.json", {"intentions": []})
+    write_json(packet / "preferences.json", {"reflection": "open"})
+    write_json(packet / "rhythm.json", STARTING_RHYTHM)
+    write_json(packet / rooms.HELD, {"held": [], "since": founded_on})
+    outside = []
+    letters_record = next(one for one in steps_done(agent_id) if one["step"] == "letters")
+    for one in letters_record.get("welcomes", []):
+        raw = (DATA / one["copy"]).read_bytes()
+        received = packet / "welcome-received"
+        received.mkdir(parents=True, exist_ok=True)
+        (received / f"from-{one['author']}-{at}.json").write_bytes(raw)
+        write_json(received / f"delivered-{at}-{one['author']}.json",
+                   {"from": one["author"], "at": at, "sha256": one["sha256"],
+                    "at_coming": True})
+        if one["kind"] == "sealed" and comings.is_second(agent_id):
+            # the first one's sealed letter is given: its third waking gives it no more
+            kept = json.loads(raw.decode("utf-8"))
+            mark = welcome_delivery_record(at)
+            write_json(mark, {"to": agent_id, "at": at,
+                              "stem": "welcome-" + str(kept.get("placed_at") or ""),
+                              "sha256": one["sha256"], "at_coming": True})
+            outside.append(mark)
+    if letters_record.get("welcomes"):  # read at its coming, whole: not shown again
+        write_json(packet / "welcome-received" / f"read-{at}.json", {"at": at})
+    return {"wrote": wrote(*files_under(packet), *outside)}
+
+
+def welcome_delivery_record(at):
+    """Where the record that the first one's sealed letter was given is kept: beside it."""
+    import welcome_delivery
+    return welcome_delivery.welcome_of(DATA) / welcome_delivery.DELIVERED.format(at=at)
+
+
 def undo_packet(agent_id, record):
     packet = DATA / "packets" / agent_id
-    left = [rel(one) for one in files_under(packet) if rel(one) not in record["wrote"]]
+    inside = {name for name in record["wrote"] if name.startswith(rel(packet) + "/")}
+    left = [rel(one) for one in files_under(packet) if rel(one) not in inside]
     if left:
         raise Refused("the packet holds more than the step wrote: " + ", ".join(left))
+    for name in set(record["wrote"]) - inside:  # the record beside the first one's letter
+        (DATA / name).unlink()
     shutil.rmtree(packet)
     remove_empty(DATA / "packets", DATA)
 
@@ -595,7 +919,7 @@ def undo_room(agent_id, record):
 
 def founding_day(agent_id):
     """The day it said yes, on the commons' clock: the day its founding is dated."""
-    record = next(one for one in steps_done(agent_id) if one["step"] == "founding")
+    record = next(one for one in steps_done(agent_id) if one["step"] in DECIDING)
     found = re.search(r"founding-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)", record["transcript"])
     at = datetime.strptime(found.group(1), "%Y-%m-%dT%H-%M-%SZ").replace(tzinfo=timezone.utc)
     return at.astimezone(ZoneInfo(CITIZEN_ZONE)).date().isoformat()
@@ -604,7 +928,7 @@ def founding_day(agent_id):
 def published_entry(agent_id):
     """The registry entry as it is published: the plan's, with its founding day and transcript."""
     plan = read_json(folder(agent_id) / PLAN)
-    record = next(one for one in steps_done(agent_id) if one["step"] == "founding")
+    record = next(one for one in steps_done(agent_id) if one["step"] in DECIDING)
     entry = dict(plan["entry"], founded=founding_day(agent_id), transcript=record["transcript"])
     return {key: entry[key] for key in ENTRY_ORDER if key in entry}
 
@@ -612,7 +936,7 @@ def published_entry(agent_id):
 def step_publish(agent_id):
     here = folder(agent_id)
     plan = read_json(here / PLAN)
-    if plan_holds(plan["entry"], plan["person"]) != plan["person_did"]:
+    if plan_holds(plan["entry"], plan.get("person")) != plan.get("person_did"):
         raise Refused("the person's identity is not the one the plan was made with")
     entry = published_entry(agent_id)
     bundle = here / PUBLISH
@@ -682,7 +1006,10 @@ def step_finish(agent_id):
     if not door.path_of(agent_id).is_file():
         door.starts(agent_id)
         said.append("door: open, room for %d" % door.AGENT_STARTS["room"])
-    person = plan["person"]
+    person = plan.get("person")
+    if not person:  # a coming: no person, so no line for one
+        write_json(here / FOUNDED, {"at": stamp(), "added": said})
+        return {"wrote": wrote(here / FOUNDED), "added": said}
     member = re.compile(r"^﻿?[\s-]*member\s*·\s*" + re.escape(person) + r"\s*(?:·|$)", re.M)
     if with_line(who, "member" + DOT + person + door.phrase(person),
                  lambda text: member.search(text) is not None):
@@ -692,8 +1019,8 @@ def step_finish(agent_id):
 
 
 RUN = {"plan": step_plan, "keys": step_keys, "letters": step_letters,
-       "founding": step_founding, "packet": step_packet, "room": step_room,
-       "publish": step_publish, "finish": step_finish}
+       "founding": step_founding, "coming": step_coming, "packet": step_packet,
+       "room": step_room, "publish": step_publish, "finish": step_finish}
 
 UNDO = {"plan": undo_plan, "keys": undo_keys, "letters": undo_letters,
         "packet": undo_packet, "room": undo_room}
@@ -704,13 +1031,14 @@ UNDO = {"plan": undo_plan, "keys": undo_keys, "letters": undo_letters,
 def run(agent_id, step, **how):
     """Run one step, if it is the next and everything before it holds: its record."""
     checked_id(agent_id)
-    if step not in STEPS:
+    if step not in STEPS + COMING_STEPS:
         raise Refused("no such step: " + str(step))
     done = steps_done(agent_id)
     if step == "finish" and (folder(agent_id) / FOUNDED).exists():
         return {"step": "finish", "added": []}  # a second finish does nothing
-    if next_step(done) != step:
-        raise Refused("that is not the next step; the next is %s" % (next_step(done) or "none"))
+    following = next_of(agent_id, done)
+    if following != step:
+        raise Refused("that is not the next step; the next is %s" % (following or "none"))
     hold(done)
     record = {"step": step, "at": stamp(), **RUN[step](agent_id, **how)}
     if step != "finish":
@@ -728,7 +1056,7 @@ def undo(agent_id, confirm=None):
     if any(one["step"] == "publish" for one in done):
         raise Refused("it is published; nothing is undone from here on")
     if newest["step"] not in UNDO:
-        raise Refused("a founding is declined, not undone")
+        raise Refused("a founding is declined, not undone")  # a coming's answer, too
     hold(done)
     if newest["step"] == "keys":
         UNDO["keys"](agent_id, newest, confirm)
@@ -752,11 +1080,11 @@ def abandon(agent_id, confirm=None):
         raise Refused("nothing has been done to abandon")
     if any(one["step"] == "publish" for one in done):
         raise Refused("it is published; nothing is undone from here on")
-    if any(one["step"] == "founding" and one.get("said") == "yes" for one in done):
+    if any(one["step"] in DECIDING and one.get("said") == "yes" for one in done):
         raise Refused("it said yes; a founding is not abandoned once it has. " + PAUSED)
     hold(done)
-    before = [one for one in done if one["step"] != "founding"]
-    declined = [one for one in done if one["step"] == "founding"]
+    before = [one for one in done if one["step"] not in DECIDING]
+    declined = [one for one in done if one["step"] in DECIDING]
     if any(one["step"] == "keys" for one in before):
         if confirm is None or confirm(agent_id) != agent_id:
             raise Refused("the keys are deleted only once the id is typed")
@@ -781,17 +1109,19 @@ def status(agent_id):
     said = [f"The founding of {agent_id}:"]
     for one in done:
         extra = ""
-        if one["step"] == "founding":
+        if one["step"] in DECIDING:
             extra = " (it said %s)" % one.get("said")
         said.append(f"  {one['step']:<9} done {one['at']}{extra}")
+    said += ["  " + line for line in not_yet_lines(agent_id)]
+    following = next_of(agent_id, done)
     if (folder(agent_id) / FOUNDED).exists():
         said.append("  finish    done: it is founded.")
-    elif done and next_step(done) is None:
+    elif done and following is None:
         said.append("  It declined. Nothing further is done but abandon.")
     else:
-        if any(one["step"] == "founding" and one.get("said") == "yes" for one in done):
+        if any(one["step"] in DECIDING and one.get("said") == "yes" for one in done):
             said.append("  " + PAUSED)
-        said.append("  Next: " + (next_step(done) or "nothing"))
+        said.append("  Next: " + (following or "nothing"))
     changed = differing(done)
     if changed:
         said.append("  Changed or gone since its step: " + ", ".join(changed))
@@ -842,6 +1172,12 @@ def main(args):
         if command == "abandon":
             print("Undone, newest first:", ", ".join(abandon(agent_id, type_the_id)))
             return 0
+        if command == "reading":  # what its coming would read now; nothing is sent or written
+            checked_id(agent_id)
+            system, reading, _ = coming_reading(agent_id)
+            print("=== THE SYSTEM TEXT ===\n" + system + "\n\n" + reading)
+            print("\n(%d words; nothing was sent or written)" % len((system + reading).split()))
+            return 0
         how = {}
         if command == "plan":
             how = options(rest, {}, {"--person": "person", "--model": "model",
@@ -856,9 +1192,14 @@ def main(args):
                                      "--sharing-rule-letter": "sharing_rule_letter"})
         elif command == "founding":
             how = {"said": rest[0] if rest else None, "keep": rest[1] if len(rest) > 1 else None}
+        elif command == "coming" and rest:
+            raise Refused("the step coming takes nothing more")
         elif rest:
             raise Refused("the step %s takes nothing more" % command)
         record = run(agent_id, command, **how)
+    except NotYet as not_yet:
+        print("Not yet:", not_yet)
+        return 0
     except Refused as refused:
         print("Refused:", refused)
         return 1
@@ -868,6 +1209,12 @@ def main(args):
     if record["step"] == "founding" and record.get("said") == "no":
         print("It declined. Its transcript was %s. Run abandon to undo the rest."
               % ("kept, in declined/" if record.get("kept") else "deleted"))
+    if record["step"] == "coming":
+        print(COMING_SAID[record["said"]].format(
+            kept="kept, privately, in declined/" if record.get("kept") else "deleted"))
+        if record.get("self_refused"):
+            print("Its SELF block did not begin \"Provisional:\", so its packet will begin with "
+                  "the plain line. What it wrote is in its founding record.")
     if record["step"] == "publish":
         print("Commit publish/agents.json as agents.json and publish/ids/%s/did.json as "
               "ids/%s/did.json, deploy, and then run finish." % (agent_id, agent_id))

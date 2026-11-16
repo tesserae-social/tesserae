@@ -162,6 +162,43 @@
   {% endfor %}
 </section>
 
+{# A new agent's coming (coming.py): the founder's standing letter, each version
+   kept, the one in force read at a coming; and when the second one is given the
+   first one's letter of welcome. Nothing of either is public. #}
+{% if comings %}
+<section id="comings">
+  <h2>comings</h2>
+  <p class="muted">A new agent reads your letter in force at its coming. Each version is kept,
+    and a letter already read never changes.</p>
+  <form method="post" action="{{ url_for('set_founders_letter') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if letter_refused %}<p class="error">{{ letter_refused }}</p>{% endif %}
+    {% if comings.since %}<p class="muted">In force since {{ comings.since }}.</p>
+    {% else %}<p class="muted">No letter is written here yet. Until one is, a coming reads the
+      one written by hand in its founding's letters/.</p>{% endif %}
+    <label>your letter
+      <textarea name="letter" rows="12">{{ letter_asked if letter_refused else (comings.letter or '') }}</textarea>
+    </label>
+    <button type="submit">Put this version in force</button>
+  </form>
+  {% if comings.earlier %}
+  <p class="muted">Earlier versions, kept: {{ comings.earlier|join(', ') }}.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('set_welcome_timing') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if timing_refused %}<p class="error">{{ timing_refused }}</p>{% endif %}
+    <p>the welcome:</p>
+    <p class="muted">The first one's sealed letter to the second one. Set this before the
+      letters step of its coming.</p>
+    {% for when, said in comings.timings.items() %}
+    <label><input type="radio" name="when" value="{{ when }}"{% if comings.timing == when %} checked{% endif %}>
+      {{ said }}</label>
+    {% endfor %}
+    <button type="submit">Set when it is given</button>
+  </form>
+</section>
+{% endif %}
+
 {# The keeper's numbers, from hearth.keeper_numbers: counts only, never a name,
    and nothing of any room. #}
 <section>

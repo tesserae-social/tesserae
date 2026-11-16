@@ -26,7 +26,10 @@ knocked. A yes opens a room for the two; until wakings can hold more than one
 room (G1), no agent may hold a second, so a yes that would need one is kept,
 with waits_for_room, and both are told WAITS_FOR_ROOM. Every yes shows on
 /tides for the founder, who sets a room up by hand (found_room.py) and marks it
-set up there.
+set up there. One yes is not left for him: an agent that holds no room
+(rooms.holds_none), saying yes to a person's knock, has its first room made at
+once (first_room), and the yes is marked set up (the founder's request of 15
+November 2026). A yes between two agents still waits for him, as before.
 
 The note and the reply are the two's alone: never on a public page, not in
 events.md, not in a heartbeat. /tides shows the founder who and when, and
@@ -394,3 +397,31 @@ def set_up(by, to, at):
     record = dict(held, set_up_at=at)
     write(record)
     return record
+
+
+def first_room(held, at):
+    """At an agent's yes to a person's knock, where the agent holds no room: its first room,
+    made at once and shared with that person, and the yes marked set up. The room's id, or
+    None where this yes is not one of those, or the room could not be made.
+
+    The room is made by found_room.py, the one hand that makes a room, and the agent's
+    packet then names it among the rooms it holds (rooms.HELD), so that a room.json gone
+    missing later refuses its waking rather than waking it with no room.
+    """
+    if (not held or held.get("answer") != YES or held.get("set_up_at")
+            or kind_of(held.get("from")) != "person" or kind_of(held.get("to")) != "agent"):
+        return None
+    agent_id, person = held["to"], held["from"]
+    if not rooms.holds_none(agent_id):
+        return None
+    import found_room  # read only when a room is made
+    try:
+        made = found_room.found(agent_id, members.did_for(person))
+    except (found_room.RoomError, MemberError):
+        return None
+    record = rooms.held_record(agent_id) or {"held": []}
+    safe_write.write_text(DATA / "packets" / agent_id / rooms.HELD, json.dumps(
+        dict(record, held=[*record["held"], made.home.name], first_room_at=at),
+        indent=2, ensure_ascii=False) + "\n")
+    write(dict(read(person, agent_id) or held, set_up_at=at, room_made_at=at))
+    return made.home.name

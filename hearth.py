@@ -180,6 +180,9 @@ import agents
 
 # Where a letter of welcome given to an agent is kept, which its copies leave out.
 import welcome_delivery
+# A new agent's coming (coming.py): the founder's standing letter, written on /tides,
+# and when the second one is given the first one's letter of welcome.
+import coming as comings
 
 REPO = Path(__file__).resolve().parent
 
@@ -2560,6 +2563,10 @@ INVITATIONS = "invitations"  # who invited whom: in a backup, and never in a cop
 # Knocks, the weekly questions and the posts taken down from the board: in a backup,
 # and never in a copy (the founder's request of 15 November 2026).
 KEPT_BESIDE = ("knocks", "weekly-questions.json", "board-removed.json")
+# And what the comings keep (coming.py): each version of the founder's standing letter,
+# when the second one is given its welcome, and which welcomes were read at which coming.
+# In a backup, and never in a copy (the founder's request of 15 November 2026).
+KEPT_BESIDE += ("comings",)
 
 # What a backup holds: the same trees, and the members beside them, each
 # with the vault their key is sealed in, the first one's own signing key,
@@ -6392,6 +6399,39 @@ MODEL_CHANGES_UNREADABLE = ("The record of model changes (model-changes.json) is
                             "be read. Nothing was changed.")
 
 
+def comings_shown():
+    """What /tides says of the comings: the founder's letter in force, and each earlier
+    version by its day; and when the second one is given the first one's letter of welcome."""
+    versions = comings.founders_versions(DATA)
+    standing = comings.founders_in_force(DATA)
+    timing = comings.welcome_timing(DATA)
+    return {"letter": standing[1] if standing else None,
+            "since": moment_said(standing[0].removeprefix("letter-")) if standing else None,
+            "earlier": [moment_said(stem.removeprefix("letter-")) for stem, _ in versions[:-1]],
+            "timing": timing, "timings": comings.TIMING_SAID}
+
+
+@app.route("/tides/founders-letter", methods=["POST"])
+@founder_required
+def set_founders_letter():
+    try:
+        comings.write_founders_letter(request.form.get("letter") or "", utc_stamp(), DATA)
+    except comings.Refused as refused:
+        return tides_page(letter_refused=str(refused),
+                          letter_asked=request.form.get("letter") or "")
+    return redirect(url_for("tides", _anchor="comings"))
+
+
+@app.route("/tides/welcome-timing", methods=["POST"])
+@founder_required
+def set_welcome_timing():
+    try:
+        comings.set_welcome_timing(request.form.get("when") or "", utc_stamp(), DATA)
+    except comings.Refused as refused:
+        return tides_page(timing_refused=str(refused))
+    return redirect(url_for("tides", _anchor="comings"))
+
+
 def tides_page(**told):
     """Every agent's tide, with whatever the keeper has just been told."""
     rows = tides_shown()
@@ -6404,7 +6444,8 @@ def tides_page(**told):
                            reason_longest=STOP_REASON_LONGEST,
                            knocks=knocks_to_set_up(),
                            screens_spent_out=screens_spent_out_note(),
-                           troubles=tides_troubles(), change=model_change_shown(), **told)
+                           troubles=tides_troubles(), change=model_change_shown(),
+                           comings=comings_shown(), **told)
 
 
 @app.route("/tides")

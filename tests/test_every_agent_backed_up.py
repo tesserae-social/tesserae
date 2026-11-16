@@ -40,10 +40,12 @@ FIRST_PRIVATE = b"A FAKE ENTRY OF MY OWN, FOR THE TESTS."  # as a_whole_world ke
 
 # With the knocks, the weekly questions and the posts taken down from the board after
 # the invitations since the founder's request of 15 November 2026; before it, the
-# tuple ended at "invitations".
+# tuple ended at "invitations". With what the comings keep last, since the founder's
+# request of 15 November 2026, later (coming.py); before it, it ended at
+# "board-removed.json".
 FIRST_ONE_S_BACKUP_TREES = ("packets/first", "commons", "bonds", "rooms", "members",
                             "keys/first", "private-words.txt", "transcripts", "invitations",
-                            "knocks", "weekly-questions.json", "board-removed.json")
+                            "knocks", "weekly-questions.json", "board-removed.json", "comings")
 
 # What of the world is the second one's, by the names it has on disk.
 SECOND_S = ("packets/second/", "keys/second/", "transcripts/second/", "rooms/second/",

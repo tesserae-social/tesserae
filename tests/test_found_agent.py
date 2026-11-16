@@ -297,7 +297,7 @@ def test_a_file_changed_since_its_step_is_named_and_nothing_is_done(found, data_
     (dict(person="hazel"), "no member"),
     (dict(name="the first one"), "commons_name"),
     (dict(name=PERSON), "member's"),
-    (dict(model=""), "say the person"),
+    (dict(model=""), "say the model"),
 ])
 def test_a_plan_that_will_not_do_is_refused(found, data_dir, how, refusal):
     with pytest.raises(found.Refused, match=refusal):

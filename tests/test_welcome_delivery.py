@@ -452,20 +452,31 @@ def as_shown(line):
     return line.replace("'", "&#39;")
 
 
-def test_a_hold_is_one_line_on_the_tides_while_it_stands(founder, data_dir):
-    assert "welcome" not in page(founder.get("/tides")).lower()
-    placed(data_dir)
-    assert "welcome" not in page(founder.get("/tides")).lower()  # standing, and not held
-    a_hold(data_dir, "screen")
+def tides_said(founder):
+    """/tides, without its comings section, where the founder sets when the second one is
+    given the welcome (coming.py; the founder's request of 15 November 2026): every other
+    word of the page is as it was."""
     said = page(founder.get("/tides"))
+    start = said.find('<section id="comings">')
+    if start < 0:
+        return said
+    return said[:start] + said[said.index("</section>", start) + len("</section>"):]
+
+
+def test_a_hold_is_one_line_on_the_tides_while_it_stands(founder, data_dir):
+    assert "welcome" not in tides_said(founder).lower()
+    placed(data_dir)
+    assert "welcome" not in tides_said(founder).lower()  # standing, and not held
+    a_hold(data_dir, "screen")
+    said = tides_said(founder)
     assert said.lower().count("welcome") == 1 and as_shown(SCREEN_LINE) in said
     a_hold(data_dir, "signature", "2026-11-10T09-00-00Z")  # the newest hold is the one said
-    said = page(founder.get("/tides"))
+    said = tides_said(founder)
     assert said.lower().count("welcome") == 1 and as_shown(SIGNATURE_LINE) in said
     write_json(data_dir / "packets" / "first" / "welcome" / "delivered-2026-11-11T09-00-00Z.json",
                {"to": "second", "at": "2026-11-11T09-00-00Z", "stem": "welcome-" + PLACED,
                 "sha256": "0" * 64})
-    assert "welcome" not in page(founder.get("/tides")).lower()  # given since: nothing held
+    assert "welcome" not in tides_said(founder).lower()  # given since: nothing held
 
 
 UNCHECKED_LINE = ("The first one's welcome could not be checked at the waking of "
@@ -483,16 +494,16 @@ def test_a_check_that_could_not_be_completed_is_one_line_on_the_tides(founder, d
     placed(data_dir)
     a_hold(data_dir, "screen")
     an_unchecked(data_dir, "unasked")  # after the hold: it is the one said
-    said = page(founder.get("/tides"))
+    said = tides_said(founder)
     assert said.lower().count("welcome") == 1 and as_shown(UNCHECKED_LINE) in said
     a_hold(data_dir, "signature", "2026-11-13T09-00-00Z")  # and a hold after it, that
-    said = page(founder.get("/tides"))
+    said = tides_said(founder)
     assert said.lower().count("welcome") == 1 and as_shown(SIGNATURE_LINE) in said
 
 
 def test_a_withdrawn_letter_s_hold_is_not_said(founder, data_dir):
     a_hold(data_dir, "screen")
-    assert "welcome" not in page(founder.get("/tides")).lower()
+    assert "welcome" not in tides_said(founder).lower()
 
 
 def test_the_held_line_is_the_one_welcome_delivery_says(data_dir, env):

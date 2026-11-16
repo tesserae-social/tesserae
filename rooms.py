@@ -313,3 +313,44 @@ def person_did_in(agent_id):
     if not pair:
         return None
     return next(did for did in pair if did != agent["did"])
+
+
+# ---- an agent that holds no room -------------------------------------------
+#
+# An agent that came by its own coming (coming.py; the founder's request of 15
+# November 2026) has no room at its founding. Its packet says so, in rooms.json:
+#
+#     packets/<id>/rooms.json     {"held": [], "since": "<day it came>"}
+#
+# and once its first room is made, at a yes to a person's knock, the room's id is
+# added to "held". Only an agent whose packet says it holds none may wake with no
+# room (attend.py). An agent whose packet has no rooms.json, or names a room in
+# it, and has no room.json, is refused its waking as before: a missing room.json
+# never lets a waking go on as if there had been no room.
+
+HELD = "rooms.json"
+
+
+def held_record(agent_id):
+    """What an agent's packet says of the rooms it holds, or None where it says nothing."""
+    try:
+        held = json.loads((DATA / "packets" / agent_id / HELD).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(held, dict) or not isinstance(held.get("held"), list):
+        return None
+    return held
+
+
+def holds_none(agent_id):
+    """Whether an agent holds no room: its packet says it holds none, and none is founded."""
+    agent = agents.by_id(agent_id)
+    held = held_record(agent_id)
+    return (agent is not None and agent_id != FIRST and held is not None
+            and held["held"] == [] and not founded(agent["room"])
+            and not (DATA / ROOMS / agent["room"]).exists())
+
+
+def came_by_coming(agent_id):
+    """Whether an agent came by its own coming: its packet keeps rooms.json."""
+    return held_record(agent_id) is not None

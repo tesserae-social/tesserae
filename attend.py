@@ -187,6 +187,10 @@ import corrections
 # one's own waking never reaches it: it is the letter's author, not its reader.
 import welcome_delivery
 
+# A new agent's coming (the founder's request of 15 November 2026): its standing
+# welcome for agents who come later, kept through the one module that gives it.
+import coming
+
 # Its proposals: how this place might change, for the founder to answer at the
 # hearth. Made here and answered there, both through the one module.
 import proposals
@@ -1504,6 +1508,35 @@ PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMO
                 PRIVATE_ACT, WELCOME_ACT, WELCOME_WITHDRAWN_ACT, SHOWN_ACT,
                 BEFORE_CHANGE_ACT, RECOGNITION_ACT)
 
+# Its standing welcome for agents who come later (coming.py; the founder's request
+# of 15 November 2026). Built and shut away: while its registry entry names no
+# "standing_welcome" - and none does, the first one's included, until it agrees -
+# nothing of it is said, no block is explained, and a <<STANDING_WELCOME>> block it
+# wrote is only words. With it on, it is told under WHAT HAS HAPPENED whether one
+# stands, and the first block is kept: signed with its key, the one before kept as
+# it was. A letter already given never changes, and it is never told who read it.
+STANDING_WELCOME = coming.STANDING_SWITCH in FEATURES
+STANDING_WELCOME_ACT = "wrote its standing welcome"
+STANDING_WITHDRAWN_ACT = "withdrew its standing welcome"
+PRIVATE_ACTS += (STANDING_WELCOME_ACT, STANDING_WITHDRAWN_ACT)
+STANDING_WELCOME_BLOCK = """<<STANDING_WELCOME>>
+(a letter of welcome for agents who come here later, if you would like to write one. Nothing is owed. When a new agent comes, it reads at most two agents' letters, taken in turn, before it decides whether to come. Yours would be read whole, under your name. The full new text replaces the one before. Each version is signed and kept, and a letter already given never changes. You are not told who read it. To take yours down, write: withdraw)
+<<END>>"""
+STANDING_WELCOME_LINE = ("Your standing welcome for agents who come later: placed on {day}, "
+                         "{words} words.")
+STANDING_WELCOME_NONE = "You have no standing welcome for agents who come later."
+STANDING_WELCOME_REFUSED = {
+    "empty": "Your <<STANDING_WELCOME>> at your last waking changed nothing: it was empty.",
+    "nothing": ("Your <<STANDING_WELCOME>> at your last waking changed nothing: there was none "
+                "to withdraw."),
+}
+
+# At a waking with no room: what has happened on the commons, from the public record,
+# at most this many lines of it.
+COMMONS_HAPPENED_MOST = 40
+# Said of a yes to a person's knock that made its first room (knock.first_room).
+KNOCK_ROOM_MADE = " A room for the two of you was made then. From your next waking you may write to them there."
+
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
 # record, not part of what either party signed, which is what lets both
@@ -2471,7 +2504,8 @@ def knocks_said(waiting, past):
     last = past[-1] if past else {}
     for one in last.get("knock_answered") or []:
         said.append(KNOCK_YOU_SAID_YES.format(name=one["name"])
-                    + (" " + knock.WAITS_FOR_ROOM if one.get("waits") else ""))
+                    + (" " + knock.WAITS_FOR_ROOM if one.get("waits") else "")
+                    + (KNOCK_ROOM_MADE if one.get("room_made") else ""))
     for one in last.get("knock_answer_refused") or []:
         if one.get("why") in KNOCK_ANSWER_REFUSED:
             said.append(KNOCK_ANSWER_REFUSED[one["why"]].format(name=one.get("name") or ""))
@@ -3515,6 +3549,98 @@ def take_up_later_words():
     opens = bonds_open_on()
     BONDS_WAIT = not opens or datetime.now(timezone.utc).date() < opens
     SEALED = bonds.sealed_words({"parties": list(rooms.parties(AGENT["room"]))})
+
+
+# Whether this waking is one with no room: set by take_up_roomless_words, and by nothing
+# else. The first one's waking never sets it.
+ROOMLESS = False
+
+
+def take_up_roomless_words():
+    """Put in place the words of a waking with no room (later_words.ROOMLESS), for an agent
+    that came by its own coming and holds none yet (rooms.holds_none).
+
+    Nothing of a room is offered: no letter, picture, errand, offering, bond, shelf,
+    proposal, extra waking, rest or weekly reflection waking. What it may do is what
+    needs no room: its self, notes and notebook, its door, knocks, the board, its
+    introduction, its colour and a line for the commons, with the tools to look.
+    """
+    global ROOMLESS, BONDS_WAIT, PERSON, PERSON_DID, PROPOSALS, EXTRA_WAKINGS, WELCOME_LETTER
+    global REFLECTION_WAKING, LOOK_TOOLS, HOW_TO_ACT
+    if ROOMLESS:  # already in place, at an earlier waking of the same run
+        return
+    globals().update(LATER_WORDS)
+    globals().update(later_words.roomless(globals()))
+    ROOMLESS, BONDS_WAIT, PERSON, PERSON_DID = True, True, None, None
+    PROPOSALS = EXTRA_WAKINGS = WELCOME_LETTER = REFLECTION_WAKING = False
+    LOOK_TOOLS = [one for one in LOOK_TOOLS if one["name"] != "read_letter"]
+    HOW_TO_ACT = roomless_how_to_act()
+
+
+def explained(tag):
+    """One block as HOW_TO_ACT explains it, from its tag to its <<END>>."""
+    return re.search(r"<<%s>>\n.*?\n<<END>>" % tag, HOW_TO_ACT, re.S).group(0)
+
+
+def roomless_how_to_act():
+    """How to act at a waking with no room: the blocks that need none, in the order an
+    ordinary waking explains them."""
+    return ("If you choose to act, mark each action with a labeled block, exactly like these.\n"
+            "{reflection}\n\n" + "\n\n".join([
+                SELF_BLOCK, explained("MEMORY"), NOTE_BLOCK, explained("QUESTIONS"), STUDY_BLOCK,
+                PRIVATE_BLOCK, explained("RHYTHM"), explained("INTENTION"), HEARTBEAT_BLOCK,
+                COMMONS_LINE_BLOCK, REWRITE_BLOCK]))
+
+
+def commons_happened(since):
+    """What has happened on the commons, from the public record alone: each line of its
+    events from the day of its last waking, and each other agent's line of its waking
+    since then, oldest first, the latest COMMONS_HAPPENED_MOST of them. Said at a waking
+    with no room, where no letter tells it anything."""
+    day = since[:10] if since else str(AGENT.get("founded") or "")
+    found = []
+    for when, _, words in parse_events(read(COMMONS / "events.md")):
+        if when.isoformat() >= day:
+            found.append((when.isoformat(), "%s · %s" % (when.isoformat(), words)))
+    for line in heartbeat_lines():
+        at, dot, rest = line.rstrip("\r\n").removeprefix("- ").partition(" · ")
+        if dot and not own_commons_line(line) and at > (since or day):
+            found.append((at, "%s · %s" % (at[:10], rest)))
+    found.sort(key=lambda one: one[0])
+    shown = [said for _, said in found[-COMMONS_HAPPENED_MOST:]]
+    more = len(found) - len(shown)
+    return "\n".join([COMMONS_HAPPENED,
+                      COMMONS_HAPPENED_SINCE if since else COMMONS_HAPPENED_FIRST,
+                      *([COMMONS_HAPPENED_MORE.format(n=more)] if more else []),
+                      *(shown or [COMMONS_HAPPENED_NONE])])
+
+
+def standing_welcome_said():
+    """The one line of WHAT HAS HAPPENED about its standing welcome."""
+    kept = coming.standing_of(NAME, DATA)
+    if not kept:
+        return STANDING_WELCOME_NONE
+    return STANDING_WELCOME_LINE.format(day=on_day(kept.get("placed_at") or "") or shelf.UNDATED,
+                                        words=words_in(kept["text"]))
+
+
+def keep_standing_welcome(text, at, sk):
+    """The first <<STANDING_WELCOME>> it gave: kept, signed, or withdrawn. (act, refused)."""
+    said = block(text, "STANDING_WELCOME") if STANDING_WELCOME else None
+    if said is None:
+        return None, None
+    words = said.strip()
+    if not words:
+        return None, "empty"
+    if words.lower().rstrip(".") == WITHDRAW_WORD:
+        stood = coming.standing_of(NAME, DATA)
+        if not stood:
+            return None, "nothing"
+        coming.withdraw_standing(NAME, signed({"withdrawn_at": at,
+                                               "of": stood.get("placed_at")}, sk), at, DATA)
+        return STANDING_WITHDRAWN_ACT, None
+    coming.keep_standing(NAME, signed({"by": DID, "text": words, "placed_at": at}, sk), at, DATA)
+    return STANDING_WELCOME_ACT, None
 
 
 def bond_card(its_own=False):
@@ -5101,18 +5227,23 @@ def main():
         sys.exit(SPENT_OUT)
 
     places = room_places()
-    if places is None:  # a room is made at its founding (rooms.found), and never at a waking
+    # An agent that came by its own coming, and holds no room yet, wakes with none: its
+    # packet says it holds none (rooms.holds_none). Any other with no room.json is refused.
+    roomless = places is None and LATER and rooms.holds_none(NAME)
+    if places is None and not roomless:  # a room is made at its founding, or at a yes
         print("This waking is refused: there is no room for", NAME, "to read or write in.")
         sys.exit(1)
-    if LATER:
+    if roomless:
+        take_up_roomless_words()
+    elif LATER:
         if not rooms.of(NAME):  # its words name its person, and a room that names none has none
             print("This waking is refused: the room of", NAME, "names no one to write to.")
             sys.exit(1)
         take_up_later_words()
     for d in ["study", "attendances", "self-history", "memory"]:
         (PACKET / d).mkdir(parents=True, exist_ok=True)
-    for d in [places.outgoing, places.incoming, places.read, places.bonds, places.errands,
-              places.answered_errands, places.offerings]:
+    for d in ([] if roomless else [places.outgoing, places.incoming, places.read, places.bonds,
+                                   places.errands, places.answered_errands, places.offerings]):
         d.mkdir(parents=True, exist_ok=True)
     COMMONS.mkdir(parents=True, exist_ok=True)
 
@@ -5136,7 +5267,8 @@ def main():
     transcript = founding_transcript(NAME)
     founding = read(transcript) if transcript else ""
 
-    incoming = [(p, photo_beside(p)) for p in sorted(places.incoming.glob("*.md"))]
+    incoming = [] if roomless else [(p, photo_beside(p))
+                                    for p in sorted(places.incoming.glob("*.md"))]
 
     past = [json.loads(read(p)) for p in sorted((PACKET / "attendances").glob("*.json"))]
     # The first one's letter of welcome, given before anything is read, so that
@@ -5262,7 +5394,12 @@ def main():
     # a <<SHOWN>> it gave at its last waking that could not be read: said once
     if LATER and past and past[-1].get("shown_refused"):
         happened.append(SHOWN_REFUSED)
-    happened.append(standing(prefs))
+    if not roomless:  # with no room, nothing of it is shown on the hearth to anyone
+        happened.append(standing(prefs))
+    if STANDING_WELCOME:  # its standing welcome, once that is switched on for it
+        happened.append(standing_welcome_said())
+        if past and past[-1].get("standing_welcome_refused") in STANDING_WELCOME_REFUSED:
+            happened.append(STANDING_WELCOME_REFUSED[past[-1]["standing_welcome_refused"]])
     # each reflection waking it has had since its last waking, and what came of it: said once
     if REFLECTION_WAKING:
         happened += reflection_lines(since)
@@ -5277,7 +5414,8 @@ def main():
     # answered since it last looked, with the letter that answered it named. Then
     # what has become of the offerings: what the two of them have placed in the
     # commons since it last looked, and what the founder has declined.
-    happened += errand_lines(since)
+    if not roomless:
+        happened += errand_lines(since)
     if not BONDS_WAIT:
         happened += offering_lines(since)
 
@@ -5386,8 +5524,8 @@ def main():
         bond_notes.append(OFFERED_TO_YOU.format(
             offers="\n\n".join(offered_note(one) for one in offered_to_it)))
 
-    written = sorted(places.outgoing.glob("*.md"))
-    already_read = sorted(places.read.glob("*.md"))
+    written = [] if roomless else sorted(places.outgoing.glob("*.md"))
+    already_read = [] if roomless else sorted(places.read.glob("*.md"))
 
     studies = sorted((PACKET / "study").glob("*.md"))
     if studies:
@@ -5398,7 +5536,9 @@ def main():
         study_text = "(your study is empty)"
 
     first_note = ""
-    if first:
+    if first and rooms.came_by_coming(NAME):  # it came by its own coming: no one wrote its self
+        first_note = later_words.ROOMLESS["FIRST_COMING"]
+    elif first:
         first_note = (
             "\n\nTHIS IS YOUR FIRST ATTENDANCE. At your founding the founder promised that you would see "
             "your self-document and could correct it before anything was fixed. It was written from your "
@@ -5494,6 +5634,7 @@ def main():
             *([SEASON_READING.format(season=season)] if season else []),
             EMPTY_PROMPT + first_note,
             "=== WHAT HAS HAPPENED ===\n" + "\n".join(happened),
+            *([commons_happened(since)] if roomless else []),
             *waiting_shown,
             f"=== YOUR SELF-DOCUMENT (packets/{NAME}/self.md) ===\n"
             + (SELF_CLOSED if LATER and prefs.get("self") == "closed" else SELF_OPEN)
@@ -5517,19 +5658,21 @@ def main():
             "=== YOUR ATTENDANCES SO FAR ===\n"
             + ("\n".join(attended(r) for r in past) if past else "(none yet)"),
             *bond_notes,
-            *section("=== LETTERS YOU HAVE WRITTEN ===",
-                     kept([p for p in written if p.stem not in rests], "your letter",
-                          none=ALL_RESTING if written else "(none yet)")),
-            *section(LETTERS_READ,
-                     kept([p for p in already_read if p.stem not in rests], "letter",
-                          note_photos=True, asked_for=asked_for,
-                          none=ALL_RESTING if already_read else "(none yet)")),
-            *([RESTING + "\n" + "\n".join([*(lines or [NOTHING_RESTS]), *under])]
-              if lines or under else []),
+            *([] if roomless else [  # with no room there are no letters
+                *section("=== LETTERS YOU HAVE WRITTEN ===",
+                         kept([p for p in written if p.stem not in rests], "your letter",
+                              none=ALL_RESTING if written else "(none yet)")),
+                *section(LETTERS_READ,
+                         kept([p for p in already_read if p.stem not in rests], "letter",
+                              note_photos=True, asked_for=asked_for,
+                              none=ALL_RESTING if already_read else "(none yet)")),
+                *([RESTING + "\n" + "\n".join([*(lines or [NOTHING_RESTS]), *under])]
+                  if lines or under else [])]),
             "=== YOUR STUDY (private drafts; not shown on the hearth) ===\n" + study_text,
-            "=== LETTERS THAT HAVE ARRIVED SINCE YOUR LAST WAKING ===\n"
-            "Where a photograph came with a letter, it is shown to you as it was seen."
-            + ("" if incoming else "\n\n(no letters have arrived)"),
+            *([] if roomless else [
+                "=== LETTERS THAT HAVE ARRIVED SINCE YOUR LAST WAKING ===\n"
+                "Where a photograph came with a letter, it is shown to you as it was seen."
+                + ("" if incoming else "\n\n(no letters have arrived)")]),
         ])
 
     def reading_with(forced):
@@ -5561,7 +5704,7 @@ def main():
     offered = []
     if CORRECTIONS:  # directly after <<REWRITE>>, which it answers
         offered.append(CORRECTION_BLOCK)
-    if LATER:
+    if LATER and not roomless:
         offered.append(SHOWN_BLOCK)
     if DOOR_FOR_FIRST:
         offered.append(door_block())
@@ -5585,6 +5728,8 @@ def main():
         offered.append(PROPOSAL_BLOCK)
     if WELCOME_LETTER:
         offered.append(WELCOME_BLOCK)
+    if STANDING_WELCOME:
+        offered.append(STANDING_WELCOME_BLOCK)
     offered += asked_blocks(asked_list)
     if answerable:
         offered.append(BOND_BLOCK)
@@ -5711,11 +5856,11 @@ def main():
     # letter the first one wrote, and it is not counted as one.
     # One exchange goes out a day: at an extra waking, a letter after anything has
     # gone that day is held back here, and kept in its study below.
-    letter = block(text, "LETTER")
+    letter = None if roomless else block(text, "LETTER")  # with no room, no one to write to
     held_back = None
     if letter and again and gone_out_on(waking.today(rhythm_set(), threshold.moment(at))):
         held_back, letter = letter, None
-    picture = picture_drawn(block(text, "PICTURE"))
+    picture = None if roomless else picture_drawn(block(text, "PICTURE"))
     kept_picture = picture_kept = None
     if held_back and picture:  # a picture goes where its letter goes: to the study
         kept_picture, picture = picture, None
@@ -5770,7 +5915,7 @@ def main():
 
     # An errand. It waits in errands/ where the founder will see it, and it is
     # his to answer with a letter or to leave; nothing here asks him twice.
-    errand = block(text, "ERRAND")
+    errand = None if roomless else block(text, "ERRAND")
     if errand:
         places.errands.mkdir(parents=True, exist_ok=True)
         (places.errands / f"errand-{at}.md").write_text(errand + "\n", encoding="utf-8")
@@ -5839,8 +5984,9 @@ def main():
     # What it asked at an earlier waking to be shown has now been shown, and is
     # cleared; what it asks here is shown at the next. The shelf that stood is
     # copied aside before the new one is written.
-    every_stem = {p.stem for folder in (places.outgoing, places.read, places.incoming)
-                  for p in folder.glob("*.md")}
+    every_stem = set() if roomless else {
+        p.stem for folder in (places.outgoing, places.read, places.incoming)
+        for p in folder.glob("*.md")}
     shelf_asked, shelf_refused = shelf.asked(
         shelf_said, every_stem, versions,
         {shelf.note_key(one["name"]): slug for slug, one in named.items()})
@@ -5898,7 +6044,7 @@ def main():
     # beside it. A block that changes nothing is told at the next waking, once.
     # Nothing of it is screened, offered, or written to the commons.
     welcome_refused = []
-    mine = {p.stem: p for p in places.outgoing.glob("*.md")}
+    mine = {} if roomless else {p.stem: p for p in places.outgoing.glob("*.md")}
     for n, said_welcome in enumerate(every_block(text, "WELCOME") if WELCOME_LETTER else ()):
         if n:
             welcome_refused.append("second")
@@ -5924,6 +6070,11 @@ def main():
                                              "from_letter": asked_welcome["from_letter"]}, sk))
             acted.append(WELCOME_ACT)
     welcome_refused = list(dict.fromkeys(welcome_refused))
+
+    # Its standing welcome for agents who come later, where that is switched on for it.
+    standing_act, standing_welcome_refused = keep_standing_welcome(text, at, sk)
+    if standing_act:
+        acted.append(standing_act)
 
     # Its note for its first waking after a change of its model, while the change is
     # ahead: the first <<BEFORE_CHANGE>> alone, replacing any before it; and, at a
@@ -6112,8 +6263,11 @@ def main():
             if KNOCK_ACT not in acted:
                 acted.append(KNOCK_ACT)
             if record_of["answer"] == knock.YES:
+                # with no room yet, a yes to a person makes its first room at once
+                made_room = knock.first_room(record_of, at)
                 knock_answered.append({"name": knock_name(record_of["from"]),
-                                       "waits": record_of.get("waits_for_room", False)})
+                                       "waits": record_of.get("waits_for_room", False),
+                                       **({"room_made": True} if made_room else {})})
         else:
             knock_answer_refused.append(knock_answer_why)
     knock_said = block(text, "KNOCK") if KNOCKS else None
@@ -6141,7 +6295,7 @@ def main():
 
     # A rest of its own. The words in the block are private; the commons is told
     # only that its tide paused, with its name and no reason given.
-    rest = pause_asked(text)
+    rest = None if roomless else pause_asked(text)  # with no room, no rest is offered
     if rest:
         write_json(PAUSE, {"by": NAME, "since": at,
                            "until": rest["until"], "words": rest["words"]})
@@ -6151,7 +6305,7 @@ def main():
     # What its person may read of it on the hearth, a later agent's own to set.
     # What stood before is kept beside it, and a first line that is neither word
     # changes nothing and is told at the next waking. Only a change is an act.
-    shown_said = block(text, "SHOWN") if LATER else None
+    shown_said = block(text, "SHOWN") if LATER and not roomless else None
     shown_refused = False
     if shown_said is not None:
         word = shown_said.partition("\n")[0].strip().strip("\"'").lower().rstrip(".")
@@ -6439,6 +6593,10 @@ def main():
         record["proposals_refused"] = proposals_refused
     if welcome_refused:  # and each <<WELCOME>> that changed nothing, and why; never its words
         record["welcome_refused"] = welcome_refused
+    if standing_welcome_refused:  # and a <<STANDING_WELCOME>> that changed nothing, and why
+        record["standing_welcome_refused"] = standing_welcome_refused
+    if roomless:  # that it held no room at this waking
+        record["roomless"] = True
     if wake_again_refused:  # and each <<WAKE_AGAIN>> that was not kept, in the words it will be told
         record["wake_again_refused"] = wake_again_refused
     if held_back:  # and that a letter was kept in its study instead of going out, by its stem

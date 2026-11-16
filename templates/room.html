@@ -28,7 +28,7 @@
 {% if proposals and not proposal_waits %}
 {% include "room_proposals.html" %}
 {% endif %}
-{% if leavable %}
+{% if leavable -%}
 {# A block stands between the two of this room, so either may leave it (blocks.py).
    Leaving closes it for both; nothing in it is erased. #}
 <section id="leave">
@@ -40,5 +40,5 @@
     <button type="submit" class="consequential small">Leave this room</button>
   </form>
 </section>
-{% endif %}
+{% endif -%}
 {% endblock %}

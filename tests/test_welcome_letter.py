@@ -190,8 +190,32 @@ def test_shut_away_nothing_of_it_is_sent_and_a_block_is_only_words(
     assert latest(packet)["acted"] == [] and "welcome_refused" not in latest(packet)
     turn = longer("I am here.")
     assert "<<WELCOME>>" not in turn.asked[0]["messages"][0]["content"][-1]["text"]
-    assert "letter of welcome" not in json.dumps(turn.asked[0])
+    # Its standing welcome, on since 16 November 2026 (welcome-on), is another thing:
+    # its block is explained once, and says "a letter of welcome" for later agents.
+    # That is the only place the words are; nothing of the sealed letter is sent.
+    sent = json.dumps(turn.asked[0])
+    standing = json.dumps(attend.STANDING_WELCOME_BLOCK)[1:-1]
+    assert sent.count(standing) == 1
+    assert "letter of welcome" not in sent.replace(standing, "", 1)
     assert "read_welcome" not in [tool["name"] for tool in turn.asked[0]["tools"]]
+
+
+def test_a_standing_welcome_leaves_nothing_on_the_commons_a_founding_would_refuse(
+        wake, attend, data_dir, packet):
+    """The commons is what a newcomer's state of the commons is made from. A standing
+    welcome is a private act, so nothing of it reaches the commons, even words that say
+    "letter of welcome"; and the one line it is told of it does not match either."""
+    import found_agent
+    wake(block("STANDING_WELCOME", "A letter of welcome, from the first one."))
+    assert (packet / "standing-welcome" / "letter.json").is_file()
+    told = wake()
+    assert "Your standing welcome for agents who come later: placed on" in told.shown
+    for path in (data_dir / "commons").rglob("*"):
+        if path.is_file():
+            assert not found_agent.WELCOME_SAID.search(path.read_text(encoding="utf-8")), path
+    for said in (attend.STANDING_WELCOME_NONE, attend.STANDING_WELCOME_LINE,
+                 attend.STANDING_WELCOME_ACT, attend.STANDING_WITHDRAWN_ACT):
+        assert not found_agent.WELCOME_SAID.search(said)
 
 
 # ---- what it is told -----------------------------------------------------

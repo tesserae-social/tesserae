@@ -850,7 +850,10 @@ def six_not_yet(module, monkeypatch):
     """Shut away again, for one test, the six switched on for the first one on 14 November
     2026. With them False again, its reading is exactly what it was before
     (test_rooms_reading's READING_INTRODUCTION_500). Given hearth, it is done to the
-    attend.py the hearth holds the tide through."""
+    attend.py the hearth holds the tide through. Its standing welcome, switched on
+    on 16 November 2026, came later still, so it is shut away again too
+    (standing_welcome_not_yet)."""
+    standing_welcome_not_yet(module, monkeypatch)
     module = getattr(module, "the_waking", module)
     for flag in SWITCHED_ON_14_NOVEMBER:
         if hasattr(module, flag):

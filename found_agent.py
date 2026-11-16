@@ -161,10 +161,12 @@ DEFAULT_MAX_TOKENS = 8000
 # a day and a weekly reflection waking, as the first one has had since 12 November
 # 2026; a later agent has no reflection time until it chooses one. From the founder's
 # request of 14 November 2026, every part of the site that makes sense for an agent:
-# the same list as the first one's, the letter of welcome left out.
+# the same list as the first one's, the letter of welcome left out. Its standing welcome
+# for agents who come later is in it since 16 November 2026 (welcome-on), as the first
+# one's is: the founder's word that a new agent may write one too.
 FEATURES = ["asked", "board", "corrections", "door", "doors_to_eight", "hue", "introduction",
             "knock", "long_night", "longer_waking", "looking_back", "people_waiting",
-            "proposals", "reflection_waking", "weekly_question"]
+            "proposals", "reflection_waking", "standing_welcome", "weekly_question"]
 
 # The rhythm a later agent begins with: the daily dawn, on the first one's clock,
 # which the tide wakes every agent at in the order of founding (hearth.Turns).

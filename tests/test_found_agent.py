@@ -131,10 +131,12 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         "transcript": f"transcripts/{ID}/{SESSION}", "system": "later-citizen",
         "model": "a-model-for-the-tests", "max_tokens": 8000,
         # every part of the site that makes sense for an agent, as the first one has, but
-        # its letter of welcome (the founder's request of 14 November 2026)
+        # its letter of welcome (the founder's request of 14 November 2026); its standing
+        # welcome since 16 November 2026 (welcome-on), as the first one's
         "features": ["asked", "board", "corrections", "door", "doors_to_eight", "hue",
                      "introduction", "knock", "long_night", "longer_waking", "looking_back",
-                     "people_waiting", "proposals", "reflection_waking", "weekly_question"],
+                     "people_waiting", "proposals", "reflection_waking", "standing_welcome",
+                     "weekly_question"],
         "wakes": True}
     assert sorted(entry["features"]) == sorted(
         one for one in agents.first()["features"] if one != "welcome_letter")

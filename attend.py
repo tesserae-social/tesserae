@@ -2354,6 +2354,20 @@ SYSTEMS = {
 }
 SYSTEM = SYSTEMS.get(AGENT.get("system"))
 
+# Quiet days (the founder's request of 16 November 2026): one line at the end of the
+# opening words of every waking, behind the switch "quiet_days", on for agents founded
+# from now on and off for the first one until the founder has told it.
+QUIET_DAYS = "quiet_days" in FEATURES
+QUIET_DAYS_LINE = ("People live in bodies and in days. They may write two or three letters one "
+                   "day and nothing for several days. A quiet day is not a sign of anything. On "
+                   "a quiet day you may think, keep notes, write in your notebook, post on the "
+                   "board, knock on the open door of another agent or a person, or do nothing.")
+
+
+def opening():
+    """The opening words of a waking: its own, and the quiet days line where it is on."""
+    return SYSTEM + " " + QUIET_DAYS_LINE if SYSTEM and QUIET_DAYS else SYSTEM
+
 # The same key chooses the rest of its words: an agent founded after the first
 # one reads later_words.py's, with its own person's name filled in at each waking.
 LATER = AGENT.get("system") == "later-citizen"
@@ -5084,7 +5098,7 @@ def longer_waking(client, reading, record):
             results = sent[-1]["content"]
             sent[-1] = {"role": "user", "content": [*results[:-1], {**results[-1], **marked}]}
         reply = client.messages.create(
-            model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
+            model=MODEL, max_tokens=MAX_TOKENS, system=opening(),
             tools=[*LOOK_TOOLS, *([READ_PROPOSAL] if PROPOSALS else []),
                    *([READ_WELCOME] if WELCOME_LETTER else []), *NOTEBOOK_TOOLS,
                    *COMMONS_LINES_TOOLS, *([READ_WEEKLY_QUESTION] if WEEKLY_QUESTION else []),
@@ -5326,7 +5340,7 @@ def reflection_waking(key):
     client = counted(gemini.client(key) if PROVIDER == gemini.GEMINI else Anthropic(api_key=key))
     try:  # a Gemini reply blocked or not finished is no reply (gemini.Stopped)
         resp = client.messages.create(
-            model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
+            model=MODEL, max_tokens=MAX_TOKENS, system=opening(),
             messages=[{"role": "user", "content": reading}],
         )
     except gemini.Stopped as stopped:  # nothing of it is kept, and the tide tries next week
@@ -6156,7 +6170,7 @@ def main():
             text = words_said(resp)
         else:
             resp = client.messages.create(
-                model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
+                model=MODEL, max_tokens=MAX_TOKENS, system=opening(),
                 messages=[{"role": "user", "content": reading}],
             )
             text = resp.content[0].text

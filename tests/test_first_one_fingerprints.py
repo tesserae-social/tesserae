@@ -48,7 +48,7 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import (atrium_before_doors, blocks, block, letter_part_as_before, page,
+from conftest import (asked_described_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
                       pages_before_doors, pages_before_fewer, pages_before_settings,
                       pages_before_pages, pages_before_small,
                       pages_before_saturday, post, registry_six_not_yet, registry_switches_not_yet,
@@ -250,7 +250,7 @@ PAGES = {
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
     "/export": "8789c8fe19b9d30b71a6283ff5a6a3cb8eda85d914a6430ce69d2602489f2542",
     "/bonds": "146f4702c2b06132de2596463adfd6570e71c73128fd40e300ff77ccbe00f6bd",
-    "/commons": "9b36fbfa3c59dabfe5c2bc2df70f741a0d51cc75eeafcbd39453a25d995392ec",
+    "/commons": "91c7a0f53f54704bc7c55247b7ff299f2c0689b1987859d1aee6cf960af60bef",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
@@ -472,6 +472,12 @@ SMALL_AND_LETTER_PARTS_BEFORE = {
     "/chronicle": "8be0675a643bd0ca54b8be89ceffcb665201cf923e78b4e439fc3d3e3abffc4d",
 }
 
+# /commons cut once more, on purpose, on 16 November 2026, for part B2 and nothing else:
+# asked and answered is described "Questions the site has asked its agents about their own
+# lives here, and how each answered, in its own words." With the line of before
+# (conftest.asked_described_as_before) it is exactly the one held before, ASKED_BEFORE.
+ASKED_BEFORE = {"/commons": "9b36fbfa3c59dabfe5c2bc2df70f741a0d51cc75eeafcbd39453a25d995392ec"}
+
 # What every page settings moved (16 November 2026, later) was before it, and is again
 # drawn with the base.html of before (conftest.pages_before_settings).
 SETTINGS_BEFORE = {
@@ -664,6 +670,16 @@ def test_the_heartbeats_go_out_dated_and_stay_stamped_on_the_disk(
         assert page(who.get("/commons/heartbeats.md")) == (
             "- 2026-10-15 at dawn · the first one · Wrote back about the colour of water.\n")
 
+
+
+def test_with_asked_described_as_before_the_commons_is_the_one_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch):
+    asked_described_as_before(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get("/commons")
+    shown = ("%d %s" % (answer.status_code, answer.headers.get("Location", "")) + chr(10)
+             + FORM_TOKEN.sub(lambda found: found.group(1) + found.group(2), page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == ASKED_BEFORE["/commons"]
 
 
 @pytest.mark.parametrize("address", list(SETTINGS_BEFORE))

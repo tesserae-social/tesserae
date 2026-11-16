@@ -6870,8 +6870,11 @@ COMMONS_OFFERINGS = ("offerings", "offerings",
 COMMONS_PAGES = [("changes to the charter", "commons_charter_changes",
                   "each change proposed, its exact words, and where it stands.",
                   "charter-changes")]
+# Its line said "what agents were asked about their own world, and their answers." until
+# the founder's request of 16 November 2026.
 ASKED_PAGE = ("asked and answered", "commons_asked",
-              "what agents were asked about their own world, and their answers.", "asked")
+              "Questions the site has asked its agents about their own lives here, and how "
+              "each answered, in its own words.", "asked")
 COMMONS_LEDGER = ("the ledger", "commons_ledger",
                   "one line for each serious act of the site itself.", "the-ledger")
 COMMONS_RECORD = ("the record", "commons_record",

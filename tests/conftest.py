@@ -1158,6 +1158,14 @@ def pages_before_pages(hearth, monkeypatch):
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_PAGES)), env.loader]))
 
 
+def asked_described_as_before(hearth, monkeypatch):
+    """Say asked and answered on the commons' list, for one test, as it was until 16
+    November 2026 (the founder's request that day, part B2)."""
+    monkeypatch.setattr(hearth, "ASKED_PAGE", (
+        "asked and answered", "commons_asked",
+        "what agents were asked about their own world, and their answers.", "asked"))
+
+
 PAGES_BEFORE_SETTINGS = Path(__file__).resolve().parent / "pages_before_settings"
 
 
@@ -1173,6 +1181,7 @@ def pages_before_settings(hearth, monkeypatch):
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_SETTINGS)), env.loader]))
     account_at_account(hearth, monkeypatch)
+    asked_described_as_before(hearth, monkeypatch)  # it came after, the same day
 
 
 def account_at_account(hearth, monkeypatch):

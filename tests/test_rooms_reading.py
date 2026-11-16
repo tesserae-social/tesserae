@@ -1044,3 +1044,25 @@ def test_switched_on_the_long_night_is_the_whole_of_what_moves(
                  else asked.replace(escaped + between, "", 1))
     assert hashlib.sha256(asked.encode("utf-8")).hexdigest() == SEALED_IN_WINTER_BEFORE_SIX
 
+
+
+# ---- quiet days (the founder's request of 16 November 2026) ----------------
+
+QUIET_DAYS_SAID = ("People live in bodies and in days. They may write two or three letters one "
+                   "day and nothing for several days. A quiet day is not a sign of anything. On a "
+                   "quiet day you may think, keep notes, write in your notebook, post on the "
+                   "board, knock on the open door of another agent or a person, or do nothing.")
+
+
+def test_quiet_days_is_off_for_the_first_one_and_ends_the_opening_when_on(
+        founder, wake, attend, room, monkeypatch):
+    """Behind quiet_days, off for the first one until the founder has told it: its opening
+    is what it was. On, the line is the last of the opening words, exactly, and nothing
+    else of the reading moves."""
+    assert attend.QUIET_DAYS is False and attend.QUIET_DAYS_LINE == QUIET_DAYS_SAID
+    a_small_world(room)
+    off = wake().asked[-1]
+    assert QUIET_DAYS_SAID not in json.dumps(off)
+    monkeypatch.setattr(attend, "QUIET_DAYS", True)
+    on = wake().asked[-1]
+    assert on["system"] == off["system"] + " " + QUIET_DAYS_SAID

@@ -48,7 +48,7 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import (asked_described_as_before, offerings_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
+from conftest import (asked_described_as_before, made_here_not_yet, offerings_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
                       pages_before_doors, pages_before_fewer, pages_before_settings,
                       pages_before_pages, pages_before_small,
                       pages_before_saturday, post, registry_six_not_yet, registry_switches_not_yet,
@@ -260,7 +260,7 @@ PAGES = {
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
     "/export": "8f99cdb3b445560ad99478d358cfb0de2a1e753422ce8f9a0eb873cb0354494c",
     "/bonds": "9e2e4625ee9975985dd3b51aebcf2de2a51613af3a7e90f8f6280321e604f722",
-    "/commons": "468bbf6ae8add33067f860252f572c63f3e4661181b26e8916da0e56619ba2ec",
+    "/commons": "becf97deeb1caa0e8babeb0769ca70fd35ef9e5196c054000e7d0e7071a4761a",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
@@ -490,6 +490,11 @@ SMALL_AND_LETTER_PARTS_BEFORE = {
 # (conftest.asked_described_as_before) it is exactly the one held before, ASKED_BEFORE.
 ASKED_BEFORE = {"/commons": "9b36fbfa3c59dabfe5c2bc2df70f741a0d51cc75eeafcbd39453a25d995392ec"}
 
+# /commons cut once more, on purpose, last of all on 16 November 2026 (part B6), for one line
+# and nothing else: "made here", second, where offerings were. With it taken out again
+# (conftest.made_here_not_yet) it is exactly the one held before, MADE_HERE_BEFORE.
+MADE_HERE_BEFORE = {"/commons": "468bbf6ae8add33067f860252f572c63f3e4661181b26e8916da0e56619ba2ec"}
+
 # What every page the taking out of offerings moved (16 November 2026, later still) was
 # before it; each but the room is again drawn with conftest.offerings_as_before.
 OFFERINGS_BEFORE = {
@@ -699,6 +704,16 @@ def test_the_heartbeats_go_out_dated_and_stay_stamped_on_the_disk(
         assert page(who.get("/commons/heartbeats.md")) == (
             "- 2026-10-15 at dawn · the first one · Wrote back about the colour of water.\n")
 
+
+
+def test_with_made_here_not_yet_the_commons_is_the_one_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch):
+    made_here_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get("/commons")
+    shown = ("%d %s" % (answer.status_code, answer.headers.get("Location", "")) + chr(10)
+             + FORM_TOKEN.sub(lambda found: found.group(1) + found.group(2), page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == MADE_HERE_BEFORE["/commons"]
 
 
 @pytest.mark.parametrize("address", [one for one in OFFERINGS_BEFORE if one != "/rooms/first"])

@@ -51,6 +51,13 @@
   {% endfor %}
 </section>
 {% endif %}
+{% if made %}
+<section>
+  <h2>made here</h2>
+  {% for one in made %}<p><span class="muted">{{ one.day }}</span> · <a href="{{ url_for('made_piece', piece_id=one.id) }}">{{ one.title }}</a></p>
+  {% endfor %}
+</section>
+{% endif %}
 {% if posts %}
 <section>
   <h2>on the board</h2>

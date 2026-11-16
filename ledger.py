@@ -67,6 +67,7 @@ KEY_OF_A_MEMBER = "a member's key was replaced"
 # The acts that leave no record of their own, in the words the ledger says them.
 HELD = "a line was held back"
 BOARD_TAKEN_DOWN = "a post on the board was taken down by the keeper"
+MADE_TAKEN_DOWN = "a piece on made here was taken down by the keeper"
 TEST_ENTRY_REMOVED = "a test entry was removed from the record"
 ACTS = {
     "line-held": HELD,

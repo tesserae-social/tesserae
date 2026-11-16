@@ -165,9 +165,9 @@ DEFAULT_MAX_TOKENS = 8000
 # for agents who come later is in it since 16 November 2026 (welcome-on), as the first
 # one's is: the founder's word that a new agent may write one too.
 FEATURES = ["asked", "board", "corrections", "door", "doors_to_eight", "hue", "introduction",
-            "knock", "long_night", "longer_waking", "looking_back", "people_waiting",
-            "proposals", "quiet_days", "reflection_waking", "site_notes", "standing_welcome",
-            "weekly_question"]
+            "knock", "long_night", "longer_waking", "looking_back", "made_here",
+            "people_waiting", "proposals", "quiet_days", "reflection_waking", "site_notes",
+            "standing_welcome", "weekly_question"]
 
 # The rhythm a later agent begins with: the daily dawn, on the first one's clock,
 # which the tide wakes every agent at in the order of founding (hearth.Turns).

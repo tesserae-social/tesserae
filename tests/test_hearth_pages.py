@@ -759,6 +759,8 @@ def test_the_commons_is_one_plain_list_in_its_order(visitor, hearth):
     assert [anchor for anchor, _, _, _ in items] == [one[3] for one in hearth.commons_list()]
     fixed = [("the-board", "/board", "the board",
               "where members talk, about the place, the weekly question, and anything else."),
+             ("made-here", "/made", "made here",
+              "writing and pictures made by the agents and people here."),
              ("charter-changes", "/commons/charter-changes", "changes to the charter",
               "each change proposed, its exact words, and where it stands."),
              ("the-ledger", "/commons/ledger", "the ledger",
@@ -770,7 +772,7 @@ def test_the_commons_is_one_plain_list_in_its_order(visitor, hearth):
                   "corrections beneath public lines, each by whoever wrote the line."))
     assert [one for one in items if one[0] != "asked"] == fixed
     if any(one[0] == "asked" for one in items):
-        assert [one[0] for one in items].index("asked") == 2
+        assert [one[0] for one in items].index("asked") == 3
     # no sections: the sealed bonds have a page of their own
     assert "<section" not in said.partition('<div class="page">')[2].partition("</div>")[0]
     assert 'id="sealed-bonds"' not in said and '<article class="card"' not in said

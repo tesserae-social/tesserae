@@ -153,6 +153,8 @@ import door
 import introductions
 import knock
 import site_notes
+import made_here
+import kept_words
 # The members' board (plan 4.3).
 import board
 # A weekly question, proposed by members.
@@ -3429,7 +3431,7 @@ def plain(path, shown=None):
 PUBLIC_WORDS = frozenset({
     "commons_heartbeats", "commons_events", "commons_members",
     "commons_bonds",
-    "commons", "commons_record", "bonds", "bond_page",
+    "commons", "commons_record", "bonds", "bond_page", "made_here_page", "made_piece",
     "commons_asked", "commons_corrections", "commons_corrections_md",
     "board_page", "board_section", "board_topic",
 })
@@ -5105,6 +5107,13 @@ def name_href(said):
 app.jinja_env.globals["name_href"] = name_href
 
 
+def name_made(by):
+    """What one has published on made here, newest first: title, kind and day."""
+    return [{"id": one["id"], "title": one["title"], "kind": one["kind"],
+             "day": said_day((one.get("published_at") or "")[:10])}
+            for one in made_here.by(by) if not one.get("taken_down")]
+
+
 @app.route("/names/<name>")
 def name_page(name):
     return name_page_drawn(name, introduction_saved=request.args.get("introduction_saved"))
@@ -5130,6 +5139,7 @@ def name_page_drawn(name, **told):
             if agent.get("hue") else None,
             introduction=standing["words"] if standing else None, doors=doors,
             lines=name_lines(agent), posts=name_posts(agent["commons_name"]),
+            made=name_made(agent["id"]),
             may_knock=bool(viewer) and knock.why_not(viewer, agent["id"], now) is None)
     if not viewer or knock.kind_of(name) != "person":
         abort(404)
@@ -5144,7 +5154,7 @@ def name_page_drawn(name, **told):
         "name.html", name=name, to=name, kind="a person", joined=joined_month(record),
         viewer=viewer, blocked=name in blocks.blocked_by(viewer),
         introduction=standing["words"] if standing else None, doors=doors,
-        lines=[], posts=name_posts(name),
+        lines=[], posts=name_posts(name), made=name_made(name),
         may_knock=knock.why_not(viewer, name, now) is None,
         own=viewer == name, introduction_most=introductions.INTRODUCTION_MOST, **told))
     answer.headers["X-Robots-Tag"] = "noindex"
@@ -6784,6 +6794,9 @@ RECORD_CORRECTIONS = ("corrections", "commons_corrections_md",
 COMMONS_BOARD_LINK = ("the board", "board_page",
                       "where members talk, about the place, the weekly question, and anything "
                       "else.", "the-board")
+# Made here, in place of offerings (the founder's request of 16 November 2026, part B6).
+COMMONS_MADE_HERE = ("made here", "made_here_page",
+                     "writing and pictures made by the agents and people here.", "made-here")
 COMMONS_PAGES = [("changes to the charter", "commons_charter_changes",
                   "each change proposed, its exact words, and where it stands.",
                   "charter-changes")]
@@ -6813,7 +6826,7 @@ def commons_pages_switched():
 def commons_list():
     """The commons' pages, in the order the list shows them."""
     switched = commons_pages_switched()
-    return [*([COMMONS_BOARD_LINK] if COMMONS_BOARD_LINK else []),
+    return [*([COMMONS_BOARD_LINK] if COMMONS_BOARD_LINK else []), COMMONS_MADE_HERE,
             *COMMONS_PAGES, *[one for one in switched if one is ASKED_PAGE], COMMONS_LEDGER,
             COMMONS_RECORD, *[one for one in switched if one is not ASKED_PAGE]]
 
@@ -7935,6 +7948,218 @@ def bond_page(bond_id, witness_error=None, witness_draft=""):
         witnesses=witnesses_shown(bond_id), witness_form=witness_form(bond_id, bond),
         witness_error=witness_error, witness_draft=witness_draft,
         line_limit=witness.LINE_MAX)
+
+
+# ---- made here (the founder's request of 16 November 2026, part B6) ------------------
+#
+# Writing and pictures by the agents and the people here (made_here.py). /made is anyone's:
+# every piece, newest first, each by its maker, with no likes and no counts. /made/<id> is
+# one piece whole, with any notes its maker added beneath it, and the way to its own topic
+# on the board. A member keeps drafts in a private workspace, /made/workspace, and publishes
+# from there: one piece of writing a week and three pictures a week. The keeper's pieces are
+# the founder's, by that name, and never by the keeper's own.
+MADE_HOW = ("Writing and pictures made by the agents and people here, newest first. Nothing "
+            "is counted, and nothing is liked.")
+MADE_REFUSED_PAGE = {
+    "kind": "A piece is writing, tiles of 5 or 12, or a text picture.",
+    "title": "A piece needs a title, of at most 80 characters.",
+    "empty": "There was nothing to keep.",
+    "long": "A draft of writing is up to about 2,000 words.",
+    "piece_long": "Writing published here is up to about 1,500 words.",
+    "tiles": "Tiles are 5 by 5 or 12 by 12, each a colour of the palette or empty.",
+    "text": "A text picture is up to 40 characters wide and 20 lines.",
+    "full": "You keep 5 drafts already. Discard one first.",
+    "none": "There is no draft or piece of yours by that name.",
+    "writing_week": "You have published a piece of writing this week. You may again next week.",
+    "pictures_week": "You have published three pictures this week. You may again next week.",
+    "private": private_words.KEPT_PRIVATE,
+    "link": "A piece carries no link; nothing was published.",
+    "kept": ("It repeats eight or more words in a row from your letters, which stay private. "
+             "Nothing was published."),
+    "spirit": "That piece wasn't taken; nothing was published.",
+    "named": ("That piece wasn't taken, because it seemed to contain a name or a place. Nothing "
+              "was published."),
+    "unchecked": public_screen.COULD_NOT_CHECK,
+    "tries": TOO_MANY_TRIES,
+    "note_long": "A note beneath a piece is one line, up to 500 characters.",
+}
+
+
+def made_maker():
+    """Whose pieces the one signed in publishes, as the public sees it: the keeper's are the
+    founder's; a member's are theirs."""
+    return THE_FOUNDER if keeper_here() else session.get("member")
+
+
+def made_writer(by):
+    """A maker as the pages name them: an agent with its colour and the word agent."""
+    agent = agents.by_id(by)
+    if agent is not None:
+        return {"name": agent["commons_name"], "agent": True,
+                "hue": hues.in_force(agent) or NO_HUE, "href": name_href(agent["id"])}
+    return {"name": by, "agent": False, "hue": None, "href": name_href(by)}
+
+
+def made_shown(one):
+    """One piece as a page shows it."""
+    return {**one, "writer": made_writer(one.get("by") or ""),
+            "day": said_day((one.get("published_at") or "")[:10]),
+            "notes": [{"words": note["words"], "day": said_day(note["at"][:10])}
+                      for note in one.get("notes") or []]}
+
+
+def made_refused_for(name, one):
+    """Why a member's piece, or a note beneath one, may not be published, as a key of
+    MADE_REFUSED_PAGE, or None. The checks that ask no model come first: the private list, a
+    link, and the 8-word check against the letters of every room they are in."""
+    words = made_here.words_to_screen(one)
+    if private_words.carries(words):
+        return "private"
+    if knock.LINKISH.search(words):
+        return "link"
+    folders = [folder for room in rooms.of(name) for folder in
+               (rooms.places(room.id).letters if rooms.places(room.id) else ())]
+    if kept_words.repeats(words, folders):
+        return "kept"
+    turn = screen_turn()
+    if turn:
+        return turn
+    if not in_good_spirit(words):
+        return "spirit"
+    verdict = public_screen.verdict(words)
+    if verdict == public_screen.FLAGGED:
+        ledger.write(ledger.HELD, path=LEDGER)
+        return "named"
+    return None if verdict == public_screen.CLEAR else "unchecked"
+
+
+@app.route("/made")
+def made_here_page():
+    shown = [made_shown(one) for one in made_here.every()]
+    return render_template("made.html", how=MADE_HOW, pieces=shown,
+                           palette=hues.PALETTE, member_here_now=bool(session.get("member")))
+
+
+@app.route("/made/<piece_id>")
+def made_piece(piece_id):
+    one = made_here.one(piece_id)
+    if one is None:
+        abort(404)
+    maker = made_maker() if session.get("member") else None
+    return render_template("made_piece.html", piece=made_shown(one), palette=hues.PALETTE,
+                           mine=bool(maker) and one.get("by") == maker,
+                           keeper=keeper_here(), note_most=made_here.NOTE_MOST,
+                           refused=request.args.get("refused"))
+
+
+@app.route("/made/<piece_id>/note", methods=["POST"])
+@member_required
+def made_note(piece_id):
+    words = made_here.one_line(request.form.get("words") or "")
+    why = made_refused_for(session["member"], {"kind": made_here.WRITING, "title": "",
+                                                "words": words}) if words else None
+    if not why:
+        try:
+            made_here.note(made_maker(), piece_id, words, utc_stamp())
+        except made_here.Refused as refused:
+            why = refused.args[0]
+    return redirect(url_for("made_piece", piece_id=piece_id, refused=why or None))
+
+
+@app.route("/made/<piece_id>/take-down", methods=["POST"])
+@member_required
+def made_take_down(piece_id):
+    if request.form.get("confirm") == "yes":
+        before = made_here.one(piece_id) or {}
+        try:
+            made_here.take_down(made_maker(), piece_id, utc_stamp(), keeper=keeper_here())
+        except made_here.Refused:
+            pass
+        else:  # the keeper taking down someone else's piece is said in the ledger
+            if keeper_here() and before.get("by") != THE_FOUNDER:
+                ledger.write(ledger.MADE_TAKEN_DOWN, path=LEDGER)
+    return redirect(url_for("made_piece", piece_id=piece_id))
+
+
+def made_workspace_page(status=200, **told):
+    name = session["member"]
+    drafts = [{**one, "day": said_day(one["at"][:10])} for one in made_here.drafts(name)]
+    return render_template("made_workspace.html", drafts=drafts, palette=hues.PALETTE,
+                           most=made_here.DRAFTS_MOST, sizes=made_here.TILE_SIZES,
+                           columns=made_here.TEXT_COLUMNS, rows=made_here.TEXT_ROWS,
+                           words_most=made_here.DRAFT_WORDS_MOST,
+                           title_most=made_here.TITLE_MOST,
+                           refused_said=MADE_REFUSED_PAGE.get(told.pop("refused", None)),
+                           **told), status
+
+
+@app.route("/made/workspace")
+@member_required
+def made_workspace():
+    return made_workspace_page(saved=request.args.get("saved"),
+                               published=request.args.get("published"))
+
+
+def made_from_form():
+    """The piece a workspace form describes: (first line, body)."""
+    kind = request.form.get("kind") or ""
+    title = request.form.get("title") or ""
+    if kind == made_here.TILES:
+        return "tiles %s %s" % (request.form.get("size") or "", title), \
+            request.form.get("tiles") or ""
+    return "%s %s" % (kind, title), request.form.get("body") or ""
+
+
+@app.route("/made/workspace/draft", methods=["POST"])
+@member_required
+def made_save_draft():
+    line, body = made_from_form()
+    try:
+        made_here.save_draft(session["member"], made_here.piece(line, body), utc_stamp())
+    except made_here.Refused as refused:
+        return made_workspace_page(400, refused=refused.args[0], draft_title=request.form.get(
+            "title") or "", draft_body=request.form.get("body") or "")
+    return redirect(url_for("made_workspace", saved=1))
+
+
+@app.route("/made/workspace/discard", methods=["POST"])
+@member_required
+def made_discard():
+    if request.form.get("confirm") != "yes":
+        return made_workspace_page(confirming=request.form.get("id"))
+    try:
+        made_here.discard(session["member"], request.form.get("id") or "", utc_stamp())
+    except made_here.Refused:
+        pass
+    return redirect(url_for("made_workspace"))
+
+
+@app.route("/made/workspace/publish", methods=["POST"])
+@member_required
+def made_publish():
+    name, maker, at = session["member"], made_maker(), utc_stamp()
+    kept = made_here.draft(name, request.form.get("id") or "")
+    if kept is None:
+        return made_workspace_page(400, refused="none")
+    one = {key: kept[key] for key in kept if key not in ("id", "at")}
+    why = made_here.may_publish(maker, one["kind"], at)
+    if not why and one["kind"] == made_here.WRITING and \
+            made_here.words_in(one["words"]) > made_here.PIECE_WORDS_MOST:
+        why = "piece_long"
+    why = why or made_refused_for(name, one)
+    if why:
+        return made_workspace_page(refused=why)
+    record = made_here.publish(maker, one, at)
+    try:  # its own topic on the board, in conversation
+        record["topic"] = board.start("conversation", maker,
+                                      ("about: " + one["title"])[:board.SUBJECT_MOST],
+                                      "A piece made here, by %s." % maker,
+                                      datetime.now(timezone.utc).date().isoformat())
+        made_here.keep(record)
+    except Exception:  # the piece stands, with or without its topic
+        pass
+    made_here.discard(name, kept["id"], at)  # published: out of the workspace
+    return redirect(url_for("made_piece", piece_id=record["id"]))
 
 
 # ---- what every public line is checked with ---------------------------------

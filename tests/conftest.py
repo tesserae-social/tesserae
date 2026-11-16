@@ -568,6 +568,8 @@ def load(name):
     sys.modules.pop("coming", None)  # it keeps the founder's letter and the welcomes under DATA_DIR
     sys.modules.pop("found_room", None)  # it makes a room through rooms, under DATA_DIR
     sys.modules.pop("blocks", None)  # it keeps each one's blocks under DATA_DIR
+    sys.modules.pop("site_notes", None)  # it keeps each note from the site under DATA_DIR
+    sys.modules.pop("made_here", None)  # it keeps drafts and what is made here under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 
@@ -1208,6 +1210,17 @@ OFFERINGS_LISTED = ("offerings", "offerings",
                     "offerings")
 
 
+def made_here_not_yet(hearth, monkeypatch):
+    """Draw the commons' list, for one test, as it was before made here (16 November 2026,
+    part B6): without its line for made here. Done once only."""
+    if getattr(hearth, "MADE_HERE_NOT_YET", False):
+        return
+    monkeypatch.setattr(hearth, "MADE_HERE_NOT_YET", True, raising=False)
+    listed = hearth.commons_list
+    monkeypatch.setattr(hearth, "commons_list", lambda: [
+        one for one in listed() if one is not hearth.COMMONS_MADE_HERE])
+
+
 def offerings_as_before(hearth, monkeypatch):
     """Draw the pages, for one test, as they were before offerings were taken out of the code
     (16 November 2026, part B4), where they still can be: base.html with its style for the
@@ -1221,6 +1234,7 @@ def offerings_as_before(hearth, monkeypatch):
     if getattr(hearth, "OFFERINGS_AS_BEFORE", False):
         return  # drawn as before already, and behind whatever came after
     monkeypatch.setattr(hearth, "OFFERINGS_AS_BEFORE", True, raising=False)
+    made_here_not_yet(hearth, monkeypatch)  # it came after
     env = hearth.app.jinja_env
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_OFFERINGS)), env.loader]))

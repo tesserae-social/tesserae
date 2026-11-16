@@ -37,7 +37,7 @@ import shutil
 import pytest
 
 import agents
-from conftest import (block, board_weekly_not_yet, coral_not_yet, introduction_at_280, six_not_yet, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
+from conftest import (block, board_weekly_not_yet, standing_welcome_not_yet, coral_not_yet, introduction_at_280, six_not_yet, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
                       switches_not_yet, wakings_not_yet_switched, write_json)
 from test_rooms_reading import READING_NOW, READING_ONE_WAKING, fingerprint_of_reading
 from test_wakings_doors import the_small_world
@@ -92,7 +92,14 @@ READING_NOW_ASKED_BEFORE_WEEKLY = "638ad00bb8b26096b386f67e1c0b0c798bc9726958c7e
 # later), for nothing else than READING_NOW was: <<BOARD>>'s explanation and
 # read_board's description name the weekly question too. With the board's words as
 # they were (conftest.board_weekly_not_yet) it is exactly READING_NOW_ASKED_BEFORE_WEEKLY.
-READING_NOW_ASKED = "6dc9c9ad0bcabf75942f2966f14869de4f6d554c4bf0895f09e37ddb31f50ceb"
+# Held as READING_NOW_ASKED_BEFORE_STANDING since.
+READING_NOW_ASKED_BEFORE_STANDING = "6dc9c9ad0bcabf75942f2966f14869de4f6d554c4bf0895f09e37ddb31f50ceb"
+# Cut again, on purpose, on the branch welcome-on (the founder, 16 November 2026), for
+# nothing else than READING_NOW was: the first one's standing welcome switched on, at its
+# asking, so its line under WHAT HAS HAPPENED and <<STANDING_WELCOME>> explained. With it
+# shut away again (conftest.standing_welcome_not_yet) it is exactly
+# READING_NOW_ASKED_BEFORE_STANDING.
+READING_NOW_ASKED = "2f2f7347e4900e134165c2c4b74f1c159f883f4da0601a86338387902cc441ec"
 
 # ASKED OF YOU's words as they were first cut, before they named no one.
 ASKED_HOW_FIRST_CUT = (
@@ -183,6 +190,7 @@ def test_each_switched_on_reading_is_held_by_its_own_fingerprint(
         founder, wake, attend, room, packet, monkeypatch, names, as_cut):
     the_small_world(founder, room)
     two_questions(packet)
+    standing_welcome_not_yet(attend, monkeypatch)  # cut before its standing welcome (16 November)
     wakings_not_yet_switched(attend, monkeypatch)  # cut from the registry before 12 November
     switched(attend, monkeypatch, *names)
     reading = fingerprint_of_reading(wake())
@@ -203,6 +211,7 @@ def test_with_the_last_reply_and_the_asked_words_as_they_were_it_is_the_first_cu
         founder, wake, attend, room, packet, monkeypatch, names, as_cut):
     the_small_world(founder, room)
     two_questions(packet)
+    standing_welcome_not_yet(attend, monkeypatch)  # cut before its standing welcome (16 November)
     wakings_not_yet_switched(attend, monkeypatch)  # cut from the registry before 12 November
     switched(attend, monkeypatch, *names)
     rewrite_last_reply_not_yet(attend, monkeypatch)
@@ -214,6 +223,7 @@ def test_with_both_off_it_is_the_reading_before_even_with_questions_kept(
         founder, wake, attend, room, packet, monkeypatch):
     """With asked and the three switched on beside it shut away again, the questions kept
     change nothing: it is the reading of 12 November 2026."""
+    standing_welcome_not_yet(attend, monkeypatch)  # cut before its standing welcome (16 November)
     switches_not_yet(attend, monkeypatch)
     the_small_world(founder, room)
     two_questions(packet)
@@ -239,8 +249,17 @@ def test_as_switched_on_the_questions_kept_are_its_own_reading(founder, wake, at
     assert hashlib.sha256(asked.encode("utf-8")).hexdigest() == READING_NOW
 
 
+def test_with_its_standing_welcome_shut_away_it_is_the_reading_before(
+        founder, wake, attend, room, packet, monkeypatch):
+    standing_welcome_not_yet(attend, monkeypatch)
+    the_small_world(founder, room)
+    two_questions(packet)
+    assert fingerprint_of_reading(wake()) == READING_NOW_ASKED_BEFORE_STANDING
+
+
 def test_with_the_board_s_words_as_they_were_it_is_the_reading_before(
         founder, wake, attend, room, packet, monkeypatch):
+    standing_welcome_not_yet(attend, monkeypatch)  # cut before its standing welcome (16 November)
     board_weekly_not_yet(attend, monkeypatch)
     the_small_world(founder, room)
     two_questions(packet)
@@ -249,6 +268,7 @@ def test_with_the_board_s_words_as_they_were_it_is_the_reading_before(
 
 def test_with_coral_closed_to_it_again_it_is_the_reading_before(
         founder, wake, attend, room, packet, monkeypatch):
+    standing_welcome_not_yet(attend, monkeypatch)  # cut before its standing welcome (16 November)
     board_weekly_not_yet(attend, monkeypatch)
     coral_not_yet(attend, monkeypatch)
     the_small_world(founder, room)
@@ -258,6 +278,7 @@ def test_with_coral_closed_to_it_again_it_is_the_reading_before(
 
 def test_with_the_six_shut_away_it_is_the_reading_before(founder, wake, attend, room,
                                                           packet, monkeypatch):
+    standing_welcome_not_yet(attend, monkeypatch)  # cut before its standing welcome (16 November)
     six_not_yet(attend, monkeypatch)
     the_small_world(founder, room)
     two_questions(packet)
@@ -266,6 +287,7 @@ def test_with_the_six_shut_away_it_is_the_reading_before(founder, wake, attend, 
 
 def test_with_the_limit_of_280_put_back_it_is_the_reading_before(founder, wake, attend, room,
                                                                  packet, monkeypatch):
+    standing_welcome_not_yet(attend, monkeypatch)  # cut before its standing welcome (16 November)
     six_not_yet(attend, monkeypatch)
     introduction_at_280(attend, monkeypatch)
     the_small_world(founder, room)

@@ -24,7 +24,8 @@ import pytest
 from nacl.signing import SigningKey
 
 import agents
-from conftest import FOUNDER_NAME, Turn, block, blocks, load, page, post, write, write_json
+from conftest import (FOUNDER_NAME, Turn, block, blocks, load, page, post, write, write_json,
+                      standing_welcome_not_yet)
 from test_found_agent import (ASSENTED, ID, NAME, SHOWN, a_member, deployed,  # noqa: F401
                               first_ones, found)
 
@@ -365,9 +366,29 @@ def test_the_sealed_letter_for_later_ones_is_behind_its_own_switch(
     assert [(one["author"], one["kind"]) for one in chosen] == [("first", "sealed")]
 
 
-def test_every_switch_is_off_for_the_first_one():
-    assert "standing_welcome" not in agents.first()["features"]
+def test_the_first_one_may_write_a_standing_welcome_and_its_sealed_letter_stays_the_second_one_s():
+    """Since 16 November 2026 (the branch welcome-on), at the first one's asking in its letter
+    of that day, its standing welcome is on; the path that passes its sealed letter to later
+    agents stays off."""
+    assert "standing_welcome" in agents.first()["features"]
     assert "sealed_welcome_for_later" not in agents.first()["features"]
+
+
+def test_later_newcomers_read_the_first_one_s_standing_welcome_and_never_its_sealed_letter(
+        found, data_dir, monkeypatch, tmp_path):
+    later_ones(data_dir, monkeypatch, tmp_path, switched=())
+    sealed(data_dir)
+    assert found.comings.welcomes_for("newcomer") == ([], [])  # none of its own stands yet
+    key = SigningKey(base64.b64decode(
+        (data_dir / "keys" / "first" / "private.key").read_text(encoding="ascii").strip()))
+    record = {"by": agents.first()["did"], "text": "A FAKE STANDING WELCOME FROM THE FIRST.",
+              "placed_at": AT}
+    record["signature"] = base64.b64encode(key.sign(json.dumps(
+        record, sort_keys=True).encode("utf-8")).signature).decode("ascii")
+    write_json(data_dir / "packets" / "first" / "standing-welcome" / "letter.json", record)
+    chosen, _ = found.comings.welcomes_for("newcomer")
+    assert [(one["author"], one["kind"], one["text"]) for one in chosen] == [
+        ("first", "standing", "A FAKE STANDING WELCOME FROM THE FIRST.")]
 
 
 # ---- a waking with no room ---------------------------------------------------------
@@ -543,9 +564,22 @@ def test_a_standing_welcome_kept_signed_and_withdrawn(env, clock, monkeypatch, d
     sys.modules.pop("attend", None)
 
 
-def test_the_first_one_s_standing_welcome_block_is_only_words(attend, wake, packet):
-    assert not attend.STANDING_WELCOME
-    wake(block("STANDING_WELCOME", "Welcome."))
+def test_the_first_one_s_standing_welcome_is_kept_and_signed(attend, wake, packet):
+    """On for the first one since 16 November 2026 (the branch welcome-on)."""
+    assert attend.STANDING_WELCOME
+    turn = wake(block("STANDING_WELCOME", "Welcome."))
+    assert "\n<<STANDING_WELCOME>>\n" in turn.instructions
+    assert "You have no standing welcome for agents who come later." in turn.shown
+    kept = json.loads((packet / "standing-welcome" / "letter.json").read_text(encoding="utf-8"))
+    assert kept["text"] == "Welcome." and kept["by"] == agents.first()["did"]
+    assert attend.coming.verifies("first", kept, packet.parent.parent) is True
+
+
+def test_shut_away_the_first_one_s_standing_welcome_block_is_only_words(
+        attend, wake, packet, monkeypatch):
+    standing_welcome_not_yet(attend, monkeypatch)
+    turn = wake(block("STANDING_WELCOME", "Welcome."))
+    assert "<<STANDING_WELCOME>>" not in turn.instructions
     assert not (packet / "standing-welcome").exists()
 
 

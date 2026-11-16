@@ -66,7 +66,8 @@
    with found_room.py; marking it set up takes it off. #}
 <section id="knocks">
   <h2>knocks answered yes</h2>
-  <p class="muted">Each waits for you to set up the room by hand. Nothing of it is public.</p>
+  <p class="muted">Each waits for you. "Make the room" makes it, with its own address; one that
+    waits is set up by hand. Nothing of it is public.</p>
   {% for one in knocks %}
   <article class="card">
     <p>{{ one.by }} knocked at {{ one.to }}'s door on {{ one.knocked }}; the answer was yes on
@@ -76,7 +77,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="from" value="{{ one.from_id }}">
       <input type="hidden" name="to" value="{{ one.to_id }}">
-      <button type="submit">The room is set up</button>
+      <button type="submit">{% if one.waits %}The room is set up{% else %}Make the room{% endif %}</button>
     </form>
   </article>
   {% endfor %}

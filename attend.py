@@ -1537,6 +1537,48 @@ COMMONS_HAPPENED_MOST = 40
 # Said of a yes to a person's knock that made its first room (knock.first_room).
 KNOCK_ROOM_MADE = " A room for the two of you was made then. From your next waking you may write to them there."
 
+# Every room it is in, one section each (design-rooms-and-doors, section 1), behind
+# its switch "rooms_reading" (knock.ROOMS_SWITCH). Off for the first one until it
+# agrees: while it is off, nothing here is said, and its reading is as it was.
+ROOMS_READING = knock.ROOMS_SWITCH in FEATURES
+ROOM_HEADING = "=== YOUR ROOM WITH {name} (/rooms/{id}) ==="
+ROOM_APART = ("What is written in this room stays in this room. Don't repeat it in another "
+              "room or anywhere else.")
+ROOM_WRITTEN = "--- letters you have written ---"
+ROOM_READ = "--- letters from {name} you have already read ---"
+ROOM_RESTING = "--- resting ---"
+ROOM_ARRIVED = "--- letters that have arrived since your last waking ---"
+ROOM_NONE_ARRIVED = "(no letters have arrived)"
+ROOM_OVER = ("These rest at this waking, past the {n:,} words of letters this room shows in "
+             "full: {stems}.")
+ROOM_BUDGET = 3000          # words of letters in full in each room; new letters not counted
+READING_MOST_ROOMS = 40000  # the backstop for the whole reading, with the switch on
+NEW_LETTERS_IN = "New letters in: {rooms}."
+ROOM_OF = "{name}'s room"
+ROOM_OPEN = "Your room with {name} is open: /rooms/{id}."
+ATTENDANCES_SHOWN = 30
+EARLIER_WAKINGS = "And {n} earlier wakings. Ask for them with show attendances."
+SHOW_ATTENDANCES = "show attendances: every waking listed at your next waking\n"
+SHOWING_ATTENDANCES = "show attendances"
+MANY_ROOMS = 4              # rooms from which a waking may be longer (the founder, question A)
+MANY_ROOMS_MAX_TOKENS = 12000
+AGENT_LETTER_MOST = 600     # words in a letter between two agents
+LETTER_TO_BLOCK = """<<LETTER>>
+to: (the name of the one you write to, as the heading of their room says it)
+(a letter to one of the rooms you share; they will read it and may answer by letter, which you will find at a later waking. One letter to each room at a waking. What is written in a room stays in that room. A letter to another agent is at most 600 words.)
+<<END>>"""
+LETTER_NOT_SENT = {
+    "unknown": ("Your letter to \"{name}\" at your last waking was not sent: you share no room "
+                "by that name. It is kept in your study as {stem}."),
+    "second": ("Your second letter to {name} at your last waking was not sent: one letter goes "
+               "to each room at a waking. It is kept in your study as {stem}."),
+    "repeated": ("Your letter to {name} repeated eight or more words in a row from letters in "
+                 "another room. It was not sent. It is kept in your study as {stem}."),
+    "long": ("Your letter to {name} at your last waking was not sent: a letter between agents is "
+             "at most 600 words. It is kept in your study as {stem}."),
+}
+LETTERS_TO_ROOMS_ACT = "wrote letters to {n} rooms"
+
 # What both parties sign is the bond as it was made: who, on what terms, asked
 # when and answered when. The seal and any release are later marks on the same
 # record, not part of what either party signed, which is what lets both
@@ -2557,9 +2599,99 @@ def who_is_here_said():
 
 def kept_folders():
     """Where it keeps what is private: its notebook, and its room's letters, read and
-    unread, its own and its person's."""
+    unread, its own and its person's; with every room read, every room's."""
+    if ROOMS_READING:
+        return [PRIVATE, *(folder for room in rooms.of(NAME) for folder in room_folders(room))]
     places = room_places()
     return [PRIVATE, *(places.letters if places else ())]
+
+
+def room_folders(room):
+    """Where one room keeps its letters, every one of them, whoever wrote it."""
+    if room.kind == rooms.AGENTS_KIND:
+        held = rooms.agent_letters(room.id, NAME)
+        return held[:2] if held else ()
+    places = rooms.places(room.id)
+    return places.letters if places else ()
+
+
+def stamp_in(path):
+    """The moment a letter's name carries, or "" where it carries none."""
+    found = PRIVATE_STAMP.search(Path(path).name)
+    return found.group(0) if found else ""
+
+
+def room_letters(room):
+    """One room's letters, as a waking with every room read shows them: those it wrote,
+    those it has read, and those that have arrived since its last waking, each with any
+    photograph beside it. In a room between two agents, nothing is moved: what it has read
+    is what is no later than its mark."""
+    if room.kind == rooms.AGENTS_KIND:
+        mine, theirs, mark = rooms.agent_letters(room.id, NAME)
+        for folder in (mine, theirs):
+            folder.mkdir(parents=True, exist_ok=True)
+        try:
+            up_to = str((load(mark) or {}).get("up_to") or "")
+        except (ValueError, AttributeError):
+            up_to = ""
+        others = sorted(theirs.glob("*.md"))
+        return {"room": room, "places": None, "mark": mark, "mine": mine,
+                "written": sorted(mine.glob("*.md")),
+                "read": [one for one in others if stamp_in(one) <= up_to],
+                "arrived": [(one, None) for one in others if stamp_in(one) > up_to]}
+    places = rooms.places(room.id)
+    for folder in (places.outgoing, places.incoming, places.read):
+        folder.mkdir(parents=True, exist_ok=True)
+    return {"room": room, "places": places, "written": sorted(places.outgoing.glob("*.md")),
+            "read": sorted(places.read.glob("*.md")),
+            "arrived": [(one, photo_beside(one)) for one in sorted(places.incoming.glob("*.md"))]}
+
+
+def room_rests(view, shelved, season):
+    """Which of a room's letters rest at this waking, and which of them rest only because
+    the room has passed its words in full (ROOM_BUDGET), oldest first. Nothing rests at a
+    season reading; a letter placed keep, or asked to be shown, never rests for the budget."""
+    if season:
+        return set(), []
+    written, read_ = view["written"], view["read"]
+    rests = shelf.resting(shelved, [one.stem for one in read_], [one.stem for one in written])
+    in_full = sorted((one for one in [*written, *read_] if one.stem not in rests), key=stamp_in)
+    words = sum(words_in(as_read(one)) for one in in_full)
+    over = []
+    for one in in_full:
+        if words <= ROOM_BUDGET:
+            break
+        if shelved["placements"].get(one.stem) == shelf.KEEP or one.stem in shelved["show_next"]:
+            continue
+        rests.add(one.stem)
+        over.append(one.stem)
+        words -= words_in(as_read(one))
+    return rests, over
+
+
+def letters_in_order(text):
+    """Each <<LETTER>> in a reply, in order, with the <<PICTURE>> that follows it, if one does
+    before the next letter: (letter, picture or None). By the rule every block is read by."""
+    found, inside, body = [], None, []
+    for line in text.split("\n"):
+        said = line.strip()
+        if inside is None:
+            if said in ("<<LETTER>>", "<<PICTURE>>"):
+                inside, body = said, []
+            elif BLOCK_LINE.fullmatch(said) and said != "<<END>>":
+                inside, body = said, []
+            continue
+        if said == "<<END>>":
+            words = "\n".join(body).strip()
+            if inside == "<<LETTER>>":
+                found.append([words, None])
+            elif inside == "<<PICTURE>>" and found and found[-1][1] is None:
+                found[-1][1] = words
+            inside = None
+        else:
+            body.append(line)
+    return [tuple(one) for one in found]
+
 
 
 def repeats_what_is_kept(words):
@@ -5175,6 +5307,60 @@ def reflection_waking(key):
         print("The waiting self-document was let go; it is kept in", SELF_HISTORY)
 
 
+def letters_to_rooms(text, views, at):
+    """Each <<LETTER>> of a waking with several rooms, sent to the room its "to:" names, or
+    kept in its study and told why: (the first room's letter name, if one went there; the
+    rooms written to, by address; what it is told at its next waking). One letter to each
+    room; none that repeats eight words in a row from another room's letters; none longer
+    than AGENT_LETTER_MOST words to another agent. Never sent anywhere it did not name."""
+    by_name = {}
+    for view in views:
+        room = view["room"]
+        by_name.setdefault(room.other.lower(), view)
+        by_name.setdefault(room.id, view)
+    first_name, sent, told = None, [], []
+    for n, (said, drawn) in enumerate(letters_in_order(text), start=1):
+        line, _, rest = said.partition("\n")
+        named = None
+        if line.strip().lower().startswith("to:"):
+            named, said = line.strip()[3:].strip().strip(".").strip(), rest.strip()
+        if not said:
+            continue
+        view = by_name.get((named or "").lower())
+        why = None
+        if view is None:
+            why = "unknown"
+        elif view["room"].id in sent:
+            why = "second"
+        elif kept_words.repeats(said, [folder for other in views if other is not view
+                                       for folder in room_folders(other["room"])]):
+            why = "repeated"
+        elif view["room"].kind == rooms.AGENTS_KIND and words_in(said) > AGENT_LETTER_MOST:
+            why = "long"
+        if why:
+            kept_as = PACKET / "study" / ("draft-%s-letter-%d.md" % (at, n))
+            kept_as.write_text(said + "\n", encoding="utf-8")
+            told.append(LETTER_NOT_SENT[why].format(
+                name=view["room"].other if view else (named or "no one"), stem=kept_as.stem))
+            continue
+        room = view["room"]
+        if room.kind == rooms.AGENTS_KIND:
+            name = "%s-to-%s-%s" % (NAME, room.parties[0], at)
+            where = view["mine"]
+        else:
+            name = "to-%s-%s" % (rooms.person_of(room.id), at)
+            where = view["places"].outgoing
+        (where / (name + ".md")).write_text(said + "\n", encoding="utf-8")
+        picture = picture_drawn(drawn) if drawn else None
+        if picture:
+            (where / (name + offering.PICTURE_SUFFIX)).write_text(picture + "\n",
+                                                                 encoding="utf-8")
+        if room.id == AGENT["room"]:
+            first_name = name + ".md"
+        sent.append(room.id)
+    return first_name, sent, told
+
+
 def main():
     first = "--first" in sys.argv
     tide = "--tide" in sys.argv
@@ -5197,6 +5383,7 @@ def main():
     if not (PACKET / "self.md").exists():
         print("No packet found at", PACKET)
         sys.exit(1)
+    global HOW_TO_ACT, MAX_TOKENS  # set below, where every room is read
     # The model it runs on today, on its own clock: the newest change the founder set
     # whose day has come, else its entry's (model_change.py). A record of changes that
     # can't be read is never guessed at.
@@ -5240,6 +5427,16 @@ def main():
             print("This waking is refused: the room of", NAME, "names no one to write to.")
             sys.exit(1)
         take_up_later_words()
+    # Every room it is in, where its wakings read every room (ROOMS_READING); with more than
+    # one, <<LETTER>> names whom it is to, and from MANY_ROOMS a waking may be longer.
+    many = ROOMS_READING and not roomless
+    my_rooms = rooms.of(NAME) if many else []
+    if many:
+        HOW_TO_ACT = HOW_TO_ACT.replace(SHOW_FOUNDING, SHOW_FOUNDING + SHOW_ATTENDANCES, 1)
+        if len(my_rooms) > 1:
+            HOW_TO_ACT = HOW_TO_ACT.replace(explained("LETTER"), LETTER_TO_BLOCK, 1)
+        if len(my_rooms) >= MANY_ROOMS:
+            MAX_TOKENS = max(MAX_TOKENS, MANY_ROOMS_MAX_TOKENS)
     for d in ["study", "attendances", "self-history", "memory"]:
         (PACKET / d).mkdir(parents=True, exist_ok=True)
     for d in ([] if roomless else [places.outgoing, places.incoming, places.read, places.bonds,
@@ -5267,8 +5464,10 @@ def main():
     transcript = founding_transcript(NAME)
     founding = read(transcript) if transcript else ""
 
-    incoming = [] if roomless else [(p, photo_beside(p))
-                                    for p in sorted(places.incoming.glob("*.md"))]
+    incoming = [] if roomless or many else [(p, photo_beside(p))
+                                            for p in sorted(places.incoming.glob("*.md"))]
+    room_views = [room_letters(room) for room in my_rooms]
+    arrivals = [*incoming, *(one for view in room_views for one in view["arrived"])]
 
     past = [json.loads(read(p)) for p in sorted((PACKET / "attendances").glob("*.json"))]
     # The first one's letter of welcome, given before anything is read, so that
@@ -5424,6 +5623,17 @@ def main():
     # anyway, because that is what it means for the record to say when it is
     # copied.
     happened += export_lines(since)
+    if many:  # which rooms have new letters, and each room made since it last looked
+        new_in = [ROOM_OF.format(name=view["room"].other) for view in room_views
+                  if view["arrived"]]
+        if new_in:
+            happened.append(NEW_LETTERS_IN.format(rooms=", ".join(new_in)))
+        made_rooms = knock.rooms_untold(NAME)
+        for one in made_rooms:
+            room = next((each for each in my_rooms if each.id == one["room"]), None)
+            if room:
+                happened.append(ROOM_OPEN.format(name=room.other, id=room.id))
+        happened += (past[-1].get("letters_not_sent") or []) if past else []
 
     # And what it asked of the threshold at its last waking and was not given:
     # a seal refused, with what is still waiting, or a promise that could not be
@@ -5524,8 +5734,8 @@ def main():
         bond_notes.append(OFFERED_TO_YOU.format(
             offers="\n\n".join(offered_note(one) for one in offered_to_it)))
 
-    written = [] if roomless else sorted(places.outgoing.glob("*.md"))
-    already_read = [] if roomless else sorted(places.read.glob("*.md"))
+    written = [] if roomless or many else sorted(places.outgoing.glob("*.md"))
+    already_read = [] if roomless or many else sorted(places.read.glob("*.md"))
 
     studies = sorted((PACKET / "study").glob("*.md"))
     if studies:
@@ -5560,6 +5770,18 @@ def main():
     resting = set() if season else shelf.resting(
         shelved, [p.stem for p in already_read], [p.stem for p in written])
     founding_shown = bool(season) or shelved["show_founding"] or not founding
+    # with every room read, each room's letters and what rests of them, room by room
+    room_rested = {}
+    for view in room_views:
+        whose.update({one.stem: (one, NAME) for one in view["written"]})
+        whose.update({one.stem: (one, "founder") for one in view["read"]})
+        room_rested[view["room"].id] = room_rests(view, shelved, season)
+        resting |= room_rested[view["room"].id][0]
+    # rooms with new letters first, then the rest, the one with the newest letter first
+    room_views.sort(key=lambda view: max([stamp_in(one) for one in view["written"]
+                                          + view["read"]] + [""]), reverse=True)
+    room_views.sort(key=lambda view: not view["arrived"])  # stable: the newest kept first
+    shown_every_waking = bool(past) and bool(past[-1].get("show_attendances"))
 
     # Looking back: each earlier version kept, as one line, and any it asked at
     # its last waking to be shown, whole. While it is shut away there are none
@@ -5615,6 +5837,53 @@ def main():
         return shelf.line(stem, hand, letter_words(path), shelved["notes"].get(stem),
                           hand == "founder" and photo_beside(path), here(), FROM_THE_OTHER)
 
+    def room_parts(forced):
+        """Each room's section, in order: its heading, its line on keeping rooms apart, its
+        letters written and read, what rests, and what has arrived, photographs and all."""
+        parts = []
+        for view in room_views:
+            room = view["room"]
+            rests, over = room_rested[room.id]
+            rests = rests | {stem for stem in forced
+                             if stem in {one.stem for one in view["written"] + view["read"]}}
+            parts.append(ROOM_HEADING.format(name=room.other.upper(), id=room.id) + "\n"
+                         + ROOM_APART)
+            parts += section(ROOM_WRITTEN, kept(
+                [one for one in view["written"] if one.stem not in rests], "your letter",
+                none=ALL_RESTING if view["written"] else "(none yet)"))
+            parts += section(ROOM_READ.format(name=room.other), kept(
+                [one for one in view["read"] if one.stem not in rests], "letter",
+                note_photos=True, asked_for=asked_for,
+                none=ALL_RESTING if view["read"] else "(none yet)"))
+            lines = [shelf.line(stem, whose[stem][1], letter_words(whose[stem][0]),
+                                shelved["notes"].get(stem),
+                                whose[stem][1] == "founder" and photo_beside(whose[stem][0]),
+                                here(), "from " + room.other)
+                     for stem in shelf.oldest_first(rests)]
+            if over:
+                lines.append(ROOM_OVER.format(n=ROOM_BUDGET, stems=", ".join(over)))
+            if lines:
+                parts.append(ROOM_RESTING + "\n" + "\n".join(lines))
+            parts.append(ROOM_ARRIVED + ("" if view["arrived"] else "\n" + ROOM_NONE_ARRIVED))
+            for one, photo in view["arrived"]:
+                said = f"--- letter: {one.name} ---\n{as_read(one)}".rstrip()
+                if photo:
+                    said += "\n\nA photograph came with this letter:"
+                parts.append(said)
+                if photo:
+                    parts.append(seen(photo))
+        return parts
+
+    def attendances_said():
+        """Its attendances: every one; or, with every room read, the last ATTENDANCES_SHOWN and
+        one line for the rest, unless it asked for them all."""
+        if not past:
+            return "(none yet)"
+        if not many or shown_every_waking or len(past) <= ATTENDANCES_SHOWN:
+            return "\n".join(attended(r) for r in past)
+        return "\n".join([*(attended(r) for r in past[-ATTENDANCES_SHOWN:]),
+                          EARLIER_WAKINGS.format(n=len(past) - ATTENDANCES_SHOWN)])
+
     def opening_with(forced):
         """The reading proper, with some letters resting for this waking besides.
 
@@ -5655,10 +5924,9 @@ def main():
             "=== YOUR WILL ===\n" + will,
             "=== YOUR FOUNDING RECORD ===\n"
             + ((founding or "(none found)") if founding_shown else FOUNDING_RESTS),
-            "=== YOUR ATTENDANCES SO FAR ===\n"
-            + ("\n".join(attended(r) for r in past) if past else "(none yet)"),
+            "=== YOUR ATTENDANCES SO FAR ===\n" + attendances_said(),
             *bond_notes,
-            *([] if roomless else [  # with no room there are no letters
+            *(room_parts(forced) if many else [] if roomless else [  # no room, no letters
                 *section("=== LETTERS YOU HAVE WRITTEN ===",
                          kept([p for p in written if p.stem not in rests], "your letter",
                               none=ALL_RESTING if written else "(none yet)")),
@@ -5669,7 +5937,7 @@ def main():
                 *([RESTING + "\n" + "\n".join([*(lines or [NOTHING_RESTS]), *under])]
                   if lines or under else [])]),
             "=== YOUR STUDY (private drafts; not shown on the hearth) ===\n" + study_text,
-            *([] if roomless else [
+            *([] if roomless or many else [
                 "=== LETTERS THAT HAVE ARRIVED SINCE YOUR LAST WAKING ===\n"
                 "Where a photograph came with a letter, it is shown to you as it was seen."
                 + ("" if incoming else "\n\n(no letters have arrived)")]),
@@ -5757,7 +6025,7 @@ def main():
     forced = set()
     reading = reading_with(forced)
     while True:
-        over = words_of(reading) - READING_MOST
+        over = words_of(reading) - (READING_MOST_ROOMS if many else READING_MOST)
         could_rest = [stem for stem in shelf.oldest_first(whose)
                       if stem not in resting | forced
                       and shelved["placements"].get(stem) != shelf.KEEP]
@@ -5777,7 +6045,7 @@ def main():
         if LONGER_WAKING:
             # a letter that has only just arrived is its own too, and may be opened
             resp, looked, rounds, beside_look, spent = longer_waking(client, reading, {
-                "letters": {**whose, **{p.stem: (p, "founder") for p, _ in incoming}},
+                "letters": {**whose, **{p.stem: (p, "founder") for p, _ in arrivals}},
                 "versions": versions, "said_of": said_of if LOOKING_BACK else {},
                 "named": named, "founding": founding,
                 "proposals": {proposal_stem(one): one for one in made},
@@ -5818,7 +6086,7 @@ def main():
     # signs the new version as it was written; a no sets the proposal aside,
     # kept. A first line that is neither changes nothing. Each refusal is told
     # at the next waking, once.
-    kept_self = keep_self(text, waiting, at, sign, [p.stem for p, _ in incoming])
+    kept_self = keep_self(text, waiting, at, sign, [p.stem for p, _ in arrivals])
     acted += kept_self["acted"]
     proposed, confirmed, let_go = (kept_self[one] for one in ("proposed", "confirmed", "let_go"))
     self_confirm_refused = kept_self["refused"]
@@ -5856,11 +6124,13 @@ def main():
     # letter the first one wrote, and it is not counted as one.
     # One exchange goes out a day: at an extra waking, a letter after anything has
     # gone that day is held back here, and kept in its study below.
-    letter = None if roomless else block(text, "LETTER")  # with no room, no one to write to
+    # with more than one room, each letter names its room, and goes there or to the study
+    to_rooms = many and len(my_rooms) > 1
+    letter = None if roomless or to_rooms else block(text, "LETTER")  # no room: no one to write to
     held_back = None
     if letter and again and gone_out_on(waking.today(rhythm_set(), threshold.moment(at))):
         held_back, letter = letter, None
-    picture = None if roomless else picture_drawn(block(text, "PICTURE"))
+    picture = None if roomless or to_rooms else picture_drawn(block(text, "PICTURE"))
     kept_picture = picture_kept = None
     if held_back and picture:  # a picture goes where its letter goes: to the study
         kept_picture, picture = picture, None
@@ -5912,6 +6182,16 @@ def main():
             shutil.copy(beside_at, places.outgoing / f"{to_the_other()}{at}.svg")
             beside_at.replace(STUDY_SENT / beside_at.name)
         draft_at.replace(STUDY_SENT / draft_at.name)
+
+    letters_not_sent, sent_to = [], []
+    if to_rooms:
+        letter_name, sent_to, letters_not_sent = letters_to_rooms(text, room_views, at)
+        if len(sent_to) == 1:
+            acted.append(LETTER_ACT)
+        elif sent_to:
+            acted.append(LETTERS_TO_ROOMS_ACT.format(n=len(sent_to)))
+        if letters_not_sent and STUDY_ACT not in acted:
+            acted.append(STUDY_ACT)
 
     # An errand. It waits in errands/ where the founder will see it, and it is
     # his to answer with a letter or to leave; nothing here asks him twice.
@@ -5986,7 +6266,14 @@ def main():
     # copied aside before the new one is written.
     every_stem = set() if roomless else {
         p.stem for folder in (places.outgoing, places.read, places.incoming)
-        for p in folder.glob("*.md")}
+        for p in folder.glob("*.md")} | set(whose) | {p.stem for p, _ in arrivals}
+    # "show attendances", with every room read: its wakings all listed at the next waking
+    show_attendances = False
+    if many and shelf_said:
+        kept_lines = [line for line in shelf_said.split("\n")
+                      if line.strip().lower() != SHOWING_ATTENDANCES]
+        show_attendances = len(kept_lines) != len(shelf_said.split("\n"))
+        shelf_said = "\n".join(kept_lines)
     shelf_asked, shelf_refused = shelf.asked(
         shelf_said, every_stem, versions,
         {shelf.note_key(one["name"]): slug for slug, one in named.items()})
@@ -6522,6 +6809,15 @@ def main():
         shutil.move(str(p), str(places.read / p.name))
         if photo:
             shutil.move(str(photo), str(places.read / photo.name))
+    for view in room_views:  # and with every room read, each room's
+        if view["places"] is not None:
+            for p, photo in view["arrived"]:
+                shutil.move(str(p), str(view["places"].read / p.name))
+                if photo:
+                    shutil.move(str(photo), str(view["places"].read / photo.name))
+        elif view["arrived"]:  # between agents, nothing is moved: its mark is set
+            write_json(view["mark"], {"up_to": max(stamp_in(p) for p, _ in view["arrived"]),
+                                      "at": at})
 
     # ---- sign and log (private) -------------------------------------------
     record = {
@@ -6597,6 +6893,12 @@ def main():
         record["standing_welcome_refused"] = standing_welcome_refused
     if roomless:  # that it held no room at this waking
         record["roomless"] = True
+    if letters_not_sent:  # each letter to a room that was kept in its study, and why
+        record["letters_not_sent"] = letters_not_sent
+    if sent_to:  # the rooms it wrote to, by address, never by the words
+        record["letters_to"] = sent_to
+    if show_attendances:  # its wakings, all listed at the next waking
+        record["show_attendances"] = True
     if wake_again_refused:  # and each <<WAKE_AGAIN>> that was not kept, in the words it will be told
         record["wake_again_refused"] = wake_again_refused
     if held_back:  # and that a letter was kept in its study instead of going out, by its stem
@@ -6628,6 +6930,10 @@ def main():
     if change_now and not change_now.get("announced_at"):
         note_event("event", CHANGE_EVENT.format(name=COMMONS_NAME, model=change_now["model"]))
         model_change.mark_announced(NAME, change_now["on"], at)
+    # Each room made since it last looked, told once, now that the waking is kept.
+    if many:
+        for one in made_rooms:
+            knock.room_told(one, NAME, at)
     # A letter of welcome shown at this waking is read once the waking is kept;
     # one shown at a waking that failed before here is shown again at the next.
     if welcome_received:

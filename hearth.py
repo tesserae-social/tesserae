@@ -5194,7 +5194,10 @@ def knock_set_up():
     by = request.form.get("from", "")
     to = request.form.get("to", "")
     if knock.kind_of(by) and knock.kind_of(to):
-        knock.set_up(by, to, utc_stamp())
+        # a yes that waits for nothing has its room made here, with its own address; one
+        # that still waits for wakings that can read it is marked set up by hand, as before
+        if knock.make_room(by, to, utc_stamp()) is None:
+            knock.set_up(by, to, utc_stamp())
     return redirect(url_for("tides", _anchor="knocks"))
 
 

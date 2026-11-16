@@ -347,9 +347,29 @@ def told(by, to, at):
         write(dict(held, told_at=at))
 
 
+# An agent whose wakings read every room it is in, one section each (attend.py,
+# design-rooms-and-doors section 1), behind this switch in its registry entry. Off for
+# the first one until it agrees.
+ROOMS_SWITCH = "rooms_reading"
+
+
+def reads_every_room(who):
+    """Whether an agent's wakings read every room it is in: its switch is on."""
+    agent = agents.by_id(who)
+    return agent is not None and ROOMS_SWITCH in (agent.get("features") or ())
+
+
 def needs_a_second_room(held):
-    """Whether a yes would need an agent of the two to hold a second room."""
-    return any(kind_of(who) == "agent" and rooms.of(who) for who in (held["from"], held["to"]))
+    """Whether a yes waits for wakings that can read it: where an agent of the two already
+    holds a room and its wakings read only one, or, between two agents, where either's
+    wakings read only one, or either has no first room with a person yet: a room between
+    agents is never an agent's first."""
+    pair = (held["from"], held["to"])
+    if all(kind_of(who) == "agent" for who in pair):
+        return any(not reads_every_room(who) or not rooms.places(agents.by_id(who)["room"])
+                   for who in pair)
+    return any(kind_of(who) == "agent" and not reads_every_room(who) and rooms.of(who)
+               for who in pair)
 
 
 def answer(by, to, said, reply, at):
@@ -387,6 +407,40 @@ def to_set_up():
     return sorted([held for held in every() if held.get("answer") == YES
                    and not held.get("set_up_at")],
                   key=lambda one: one.get("answered_at") or "")
+
+
+def make_room(by, to, at):
+    """The founder's "make the room", on /tides: the room of a yes that waits for nothing,
+    made by found_room.py and marked set up, with its address; None where no such yes
+    waits on him, or where it still waits for wakings that can read it (set_up, below,
+    marks one of those by hand, as before)."""
+    import found_room  # read only when a room is made
+    held = read(by, to)
+    if (not held or held.get("answer") != YES or held.get("set_up_at")
+            or needs_a_second_room(held)):
+        return None
+    agent_side = to if kind_of(to) == "agent" else by
+    other = by if agent_side == to else to
+    try:
+        home = found_room.found_later(agent_side, other, f"{by}--{to}", at)
+    except (found_room.RoomError, MemberError):
+        return None
+    record = dict(held, set_up_at=at, room_made_at=at, room=home.name)
+    write(record)
+    return record
+
+
+def rooms_untold(who):
+    """The yeses whose room was made, whose making has not yet been told to one of the two."""
+    return [held for held in every() if held.get("room") and who in (held["from"], held["to"])
+            and not (held.get("room_told") or {}).get(who)]
+
+
+def room_told(held, who, at):
+    """Mark a made room as told to one of the two, the first time it is."""
+    now = read(held["from"], held["to"])
+    if now:
+        write(dict(now, room_told={**(now.get("room_told") or {}), who: at}))
 
 
 def set_up(by, to, at):

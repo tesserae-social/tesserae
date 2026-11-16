@@ -3730,34 +3730,11 @@ def rest_said(name):
     return "%s %s waking, and %s letters wait for you; nothing is made public." % (who, keeps, its)
 
 
-# How a person usually writes, in their own words: one optional line on their
-# account page, read at each waking by the agents they share a room with
-# (attend.writing_lines) and shown nowhere else. The keeper's is the founder's,
-# as his rest is. Saved empty, or cleared, it is gone, and so is the line.
-WRITING_TOO_LONG = "How you usually write can be up to %d characters." % members.WRITING_LONGEST
-
-
-def writer_here():
-    """Whose words on how they write the one signed in sets: the founder's for the keeper."""
-    name = session.get("member")
-    return members.FOUNDER if keeper_here() else name
-
-
-def writing_said(person):
-    """A person's words on how they usually write, or "" where they have set none."""
-    try:
-        held = load(members.writing_of(person)) or {}
-    except (MemberError, ValueError):
-        return ""
-    return " ".join(str(held.get("words") or "").split()) if isinstance(held, dict) else ""
-
-
 def account_page(**told):
     """The account page, with whatever has just been said, and the rest of whoever is
     signed in: a member's own, or the founder's for the keeper."""
     name = session.get("member")
     keeper = bool(name) and keeper_here()
-    told.setdefault("writing", writing_said(writer_here()) if name else "")
     my_blocks = [{"who": one["who"], "name": knock.name_of(one["who"])}
                  for one in blocks.read(name)] if name else []
     return render_template("account.html", rests_here=bool(name), keeper=keeper,
@@ -3767,14 +3744,20 @@ def account_page(**told):
                            email=email_shown(name) if name else None,
                            emails=emails_shown(name) if name else None,
                            inviting=inviting_shown(name) if name else None,
-                           writing_longest=members.WRITING_LONGEST,
                            introduction=introduction_shown(name) if name else None,
                            introduction_most=introductions.INTRODUCTION_MOST,
                            weekly_waiting=weekly.waiting_by(name) if name else None,
                            weekly_most=weekly.QUESTION_MOST, **told)
 
 
-@app.route("/account", methods=["GET", "POST"])
+# /account is called /settings since 16 November 2026 (the founder's request that day);
+# its old address still leads there, with whatever it was asked with.
+@app.route("/account")
+def account_moved():
+    return redirect(url_for("account", **request.args.to_dict()))
+
+
+@app.route("/settings", methods=["GET", "POST"])
 def account():
     name = session.get("member")
     if not name:
@@ -4290,6 +4273,12 @@ def said_counted(n, one, many):
     return "%d %s" % (n, one if n == 1 else many)
 
 
+# Settings shows one's open invitations, and folds beneath them, under "past
+# invitations", those that closed in the last INVITATIONS_PAST_DAYS days; older ones are
+# not listed (the founder's request of 16 November 2026).
+INVITATIONS_PAST_DAYS = 30
+
+
 def inviting_shown(name):
     """What the account page says of a person's invitations: whether they may make one
     (and if not, from when), and their own, newest first, five at most; the keeper is
@@ -4298,14 +4287,23 @@ def inviting_shown(name):
     keeper = record.get("role") == "keeper"
     may, from_day = invitations.may_invite(name, record.get("role"), record.get("arrived_at"))
     forget_invited_addresses()
-    mine = []
-    for one in invitations.of(name)[:5]:
+    mine, past = [], []
+    today = invitations.today()
+    for one in invitations.of(name):
         made = invitations.day_of(one.get("made_at"))
         until = invitations.open_until(one)
-        mine.append({"id": one["id"], "state": invitations.state(one),
-                     "made": long_day(made) if made else "",
-                     "until": long_day(until) if until else "",
-                     "to": invitations.hidden(one.get("email"))})
+        shown = {"id": one["id"], "state": invitations.state(one),
+                 "made": long_day(made) if made else "",
+                 "until": long_day(until) if until else "",
+                 "to": invitations.hidden(one.get("email"))}
+        if shown["state"] == invitations.OPEN:
+            mine.append(shown)
+            continue
+        # a closed one is listed, folded, for INVITATIONS_PAST_DAYS after it closed
+        closed = (invitations.day_of(one.get("used_at") or one.get("withdrawn_at"))
+                  or ((until + timedelta(days=1)) if until else made))
+        if closed and (today - closed).days <= INVITATIONS_PAST_DAYS:
+            past.append(shown)
     everyone = []
     if keeper:
         for one in invitations.all_open():
@@ -4320,7 +4318,8 @@ def inviting_shown(name):
         resend_said = (INVITE_RESENDS_LEFT.format(left=left)
                        if left else INVITE_RESENDS_USED)
     return {"may": may, "from": long_day(from_day) if from_day else None,
-            "mine": mine, "resend_said": resend_said, "keeper": keeper, "open": everyone,
+            "mine": mine, "past": past, "resend_said": resend_said, "keeper": keeper,
+            "open": everyone,
             "longest": invitations.NOTE_LONGEST, "email_said": INVITE_EMAIL_SAID,
             "as_seen": commons_name_of(name), "name_longest": invitations.FROM_NAME_LONGEST}
 
@@ -4957,21 +4956,10 @@ def member_return():
     return redirect(url_for("account"))
 
 
-@app.route("/account/writing", methods=["POST"])
-@member_required
-def how_i_write():
-    person = writer_here()
-    words = " ".join(request.form.get("writing", "").split())
-    if "clear" in request.form:
-        words = ""
-    if len(words) > members.WRITING_LONGEST:
-        return account_page(writing=words, writing_refused=WRITING_TOO_LONG)
-    kept = members.writing_of(person)
-    if words:
-        write_json(kept, {"words": words, "at": utc_stamp()})
-    else:
-        kept.unlink(missing_ok=True)
-    return redirect(url_for("account"))
+# How a person usually writes is no longer asked on settings (the founder's request of
+# 16 November 2026): its field and its form are gone. Words kept before are left where
+# they are (members.writing_of), and an agent reads them only behind its switch
+# "rhythm_line" (attend.RHYTHM_LINE), on for the first one until the founder has told it.
 
 
 # ---- introductions and knocks (plan 4.1 and 4.2) ---------------------------
@@ -5029,13 +5017,24 @@ def my_introduction():
     if "take_down" in request.form or not words:
         if introductions.read(name):
             introductions.write(name, "", utc_stamp())
-        return redirect(url_for("account", _anchor="introduction"))
+        return redirect(introduction_home(name))
     why = introduction_refused(words[:introductions.INTRODUCTION_MOST + 1])
     if why:
+        if knock.kind_of(name) == "person":
+            return name_page_drawn(name, introduction_draft=words,
+                                   introduction_refused=INTRODUCTION_REFUSED[why])
         return account_page(introduction_draft=words,
                             introduction_refused=INTRODUCTION_REFUSED[why])
     introductions.write(name, words, utc_stamp())
-    return redirect(url_for("account", introduction_saved=1, _anchor="introduction"))
+    return redirect(introduction_home(name, introduction_saved=1))
+
+
+def introduction_home(name, **told):
+    """Where one edits one's introduction (16 November 2026): a member on their own name
+    page; the keeper, who has no name page, on their settings."""
+    if knock.kind_of(name) == "person":
+        return url_for("name_page", name=name, _anchor="introduction", **told)
+    return url_for("account", _anchor="introduction", **told)
 
 
 # A knock (knock.py; the founder's request of 14 November 2026): a hello at a
@@ -5217,6 +5216,12 @@ app.jinja_env.globals["name_href"] = name_href
 
 @app.route("/names/<name>")
 def name_page(name):
+    return name_page_drawn(name, introduction_saved=request.args.get("introduction_saved"))
+
+
+def name_page_drawn(name, **told):
+    """A name's page, with whatever has just been said; one's own page carries the way to
+    edit one's introduction (16 November 2026)."""
     viewer = session.get("member")
     now = datetime.now(timezone.utc)
     agent = agents.by_id(name)
@@ -5249,7 +5254,8 @@ def name_page(name):
         viewer=viewer, blocked=name in blocks.blocked_by(viewer),
         introduction=standing["words"] if standing else None, doors=doors,
         lines=[], posts=name_posts(name),
-        may_knock=knock.why_not(viewer, name, now) is None))
+        may_knock=knock.why_not(viewer, name, now) is None,
+        own=viewer == name, introduction_most=introductions.INTRODUCTION_MOST, **told))
     answer.headers["X-Robots-Tag"] = "noindex"
     return answer
 

@@ -1675,6 +1675,10 @@ FOUNDER_RESTING_UNTIL = ", until {day}"
 # account page; said at every waking while it stands, and gone once they clear
 # it. It is read only by an agent that shares a room with them, kept where
 # members.writing_of says; the hearth writes it, and nothing of it is public.
+# Since 16 November 2026 a person no longer says it on their settings (the founder's
+# request that day), and the line is said only behind the switch "rhythm_line": on for
+# the first one until the founder has told it, and off for every other agent.
+RHYTHM_LINE = "rhythm_line" in FEATURES
 FOUNDER_WRITES = 'The founder has said how he usually writes: "{words}"'  # he, as elsewhere
 MEMBER_WRITES = '{name} has said how they usually write: "{words}"'
 # The keeper's stop holds the tide outright, in an emergency, with a reason; the
@@ -4838,6 +4842,8 @@ def writing_lines():
     Words that cannot be read, or say nothing, are not said.
     """
     said = []
+    if not RHYTHM_LINE:
+        return said
     for room in rooms.of(NAME):
         person = room.parties[0]  # the human of the pair, as the stores name them
         try:

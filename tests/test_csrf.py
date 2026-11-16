@@ -284,12 +284,12 @@ def test_signing_out_with_its_token_signs_a_member_out(hearth):
     hearth.members.create_member("birch", sealed, "member", [])
     member = hearth.app.test_client()
     post(member, "/login", data={"pseudonym": "birch", "password": KEEPER_PASSWORD})
-    assert member.get("/account").status_code == 200
+    assert member.get("/settings").status_code == 200
     answer = post(member, "/logout")
     assert answer.status_code == 302 and answer.headers["Location"] == "/"
     with member.session_transaction() as held:
         assert dict(held) == {}
-    assert member.get("/account").headers["Location"].endswith("/login")
+    assert member.get("/settings").headers["Location"].endswith("/login")
 
 
 def test_signing_out_without_a_token_is_refused_and_signs_no_one_out(founder, keeper):

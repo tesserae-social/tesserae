@@ -13,7 +13,7 @@ from test_hearth_pages import a_pause, an_attendance
 from test_hearth_tide import dawn, held_command, run_tide_once, set_rhythm
 
 KEEPERS_PAGES = ("/", "/rooms/first", "/attendances", "/chronicle", "/self", "/export",
-                 "/backups", "/bench", "/commons", "/account")
+                 "/backups", "/bench", "/commons", "/settings")
 
 INVITATION = "Either of you may ask."
 TEMPLATES = REPO / "templates"

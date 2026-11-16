@@ -78,7 +78,7 @@ def test_one_waiting_at_a_time_and_it_may_be_taken_back(world, birch, data_dir):
     post(birch, "/account/weekly-question", data={"question": ASKS})
     answer = post(birch, "/account/weekly-question", data={"question": LATER})
     assert "One of your questions is waiting already" in page(answer)
-    assert "Your question waits its turn" in page(birch.get("/account"))
+    assert "Your question waits its turn" in page(birch.get("/settings"))
     post(birch, "/account/weekly-question", data={"withdraw": "1"})
     assert read_json(data_dir / "weekly-questions.json")["waiting"] == []
     assert post(birch, "/account/weekly-question", data={"question": LATER}).status_code == 302

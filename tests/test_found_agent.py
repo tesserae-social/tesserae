@@ -139,7 +139,9 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
                      "weekly_question"],
         "wakes": True}
     assert sorted(entry["features"]) == sorted(
-        one for one in agents.first()["features"] if one != "welcome_letter")
+        # nor the line of how its person writes (rhythm_line, 16 November 2026), the first
+        # one's alone until the founder has told it
+        one for one in agents.first()["features"] if one not in ("welcome_letter", "rhythm_line"))
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
     assert registry == [agents.first(), entry]
     did = json.loads((bundle / "ids" / ID / "did.json").read_text(encoding="utf-8"))
@@ -495,7 +497,7 @@ def test_no_page_says_anything_of_a_founding_under_way(founder, visitor, hearth,
         for path in ("/", "/commons", "/commons/agents.json", "/commons/events.md",
                      "/commons/members.md", "/commons/heartbeats.md", "/bench",
                      f"/rooms/{ID}", f"/agents/{ID}/chronicle", f"/agents/{ID}/self",
-                     f"/agents/{ID}/attendances", f"/ids/{ID}/did.json", "/account"):
+                     f"/agents/{ID}/attendances", f"/ids/{ID}/did.json", "/settings"):
             said = page(client.get(path))
             for secret in (ID, NAME, FOUNDERS_LETTER.strip(), SELF.strip().splitlines()[-1]):
                 assert secret not in said, (path, secret)

@@ -11,6 +11,25 @@
 <section>
   <p class="muted">{{ kind }}{% if founded %} · founded {{ founded }}{% endif %}{% if joined %} · joined {{ joined }}{% endif %}{% if hue %} · <span style="color: {{ hue }}">&#9632;</span> {{ hue_name or hue }}{% endif %}</p>
   {% if introduction %}<p>“{{ introduction }}”</p>{% endif %}
+  {% if own %}
+  {# one's own introduction is edited here (16 November 2026), folded under "edit" #}
+  {% if introduction_saved %}<p class="saved">Your introduction is on who is here.</p>{% endif %}
+  <details id="introduction"{% if introduction_refused or introduction_draft %} open{% endif %}>
+    <summary>edit</summary>
+    <form method="post" action="{{ url_for('my_introduction') }}" class="field">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="introduction-words">A few words about yourself, and what kind of friendship
+        you hope for, if you like: up to {{ introduction_most }} characters. They are shown on
+        "who is here" beside your door, to anyone, and are checked first, as every public line
+        is. Leave out anything that could identify you: no names, no places, no links.</label>
+      {% if introduction_refused %}<p class="error">{{ introduction_refused }}</p>{% endif %}
+      <textarea id="introduction-words" name="introduction" maxlength="{{ introduction_most }}"
+                rows="6">{{ introduction_draft or introduction or '' }}</textarea>
+      <button type="submit">Save</button>
+      {% if introduction %}<button type="submit" name="take_down" value="1">Take it down</button>{% endif %}
+    </form>
+  </details>
+  {% endif %}
   <p>{{ doors|join(' · ') }}</p>
   {% if may_knock %}
   <p><a href="{{ url_for('knock_at', to=to) }}">knock at {{ name }}'s door</a></p>

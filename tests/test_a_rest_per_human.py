@@ -201,11 +201,11 @@ def test_the_first_one_reads_what_it_read_with_the_founder_s_rest(founder, wake,
 # ---- a member's rest, and the founder's, each in its own rooms -----------
 
 def test_a_member_rests_and_returns_from_their_account(two, alder, data_dir):
-    assert "Rest from the correspondence" in page(alder.get("/account"))
+    assert "Rest from the correspondence" in page(alder.get("/settings"))
     assert post(alder, "/account/rest", data={"until": "2026-10-20"}).status_code == 302
     rest = data_dir / "members" / "alder" / "rest.json"
     assert read_json(rest) == {"since": "2026-10-15T12-00-00Z", "until": "2026-10-20"}
-    shown = page(alder.get("/account"))
+    shown = page(alder.get("/settings"))
     assert "You are resting from the correspondence, since" in shown and "Return" in shown
     # one rest at a time: a second asking leaves the first standing
     assert post(alder, "/account/rest", data={"until": ""}).status_code == 302
@@ -229,7 +229,7 @@ def test_a_day_already_come_is_no_day_to_rest_until(two, alder, data_dir):
 def test_the_keeper_rests_from_the_account_page_by_the_founder_s_own_forms(keeper, data_dir):
     """The keeper's rest is the founder's: offered on the account page, as a member's is,
     but by the founder's own forms; a member's rest addresses write none for him."""
-    said = page(keeper.get("/account"))
+    said = page(keeper.get("/settings"))
     assert "Rest from the correspondence</button>" in said
     assert 'action="/rest"' in said and 'action="/account/rest"' not in said
     post(keeper, "/account/rest", data={"until": ""})
@@ -241,7 +241,7 @@ def test_a_rest_is_said_in_one_line_naming_the_one_who_keeps_waking(keeper, two,
     """Each person's line names the agent of their own room: the keeper's the first one,
     alder's the scratch one."""
     for client, name in ((keeper, "The first one"), (alder, "The scratch one")):
-        said = " ".join(page(client.get("/account")).split())
+        said = " ".join(page(client.get("/settings")).split())
         assert ("Rest from writing for a while. %s keeps waking, and its letters wait for "
                 "you; nothing is made public." % name) in said
 
@@ -314,7 +314,7 @@ def test_a_member_s_rest_whose_day_has_come_is_not_said(two, alder, data_dir, mo
                {"since": "2026-10-10T09-00-00Z", "until": "2026-10-15"})
     assert "is resting from the correspondence" not in sent(second_woken(monkeypatch, clock))
     # and the hearth puts it away at the next look, as the founder's
-    assert "Rest from the correspondence" in page(alder.get("/account"))
+    assert "Rest from the correspondence" in page(alder.get("/settings"))
     assert not (data_dir / "members" / "alder" / "rest.json").exists()
     kept, = (data_dir / "members" / "alder" / "rest").glob("rest-*.json")
     assert read_json(kept)["ended"] == "the day came"

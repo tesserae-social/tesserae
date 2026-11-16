@@ -628,11 +628,17 @@ def test_how_its_person_writes_is_read_by_their_name_and_nothing_else_moves(
         later, monkeypatch, data_dir):
     write_json(data_dir / "members" / ALDER / "writing.json",
                {"words": "Mostly on Sunday evenings.", "at": "2026-11-05T09-00-00Z"})
+    # behind rhythm_line, off for every agent but the first one (16 November 2026): held
+    # here with it on, and with it off the line is not said at all
+    monkeypatch.setattr(later, "RHYTHM_LINE", True)
     turn = wake_as(later, monkeypatch, "")
     sent = json.dumps(turn.asked[-1], sort_keys=True, ensure_ascii=False, default=str)
     assert sent.count(json.dumps(ALDER_WRITES, ensure_ascii=False)[1:-1]) == 1
     put_back = sent.replace(json.dumps("\n" + ALDER_WRITES, ensure_ascii=False)[1:-1], "", 1)
     assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == LATER_READING
+    monkeypatch.setattr(later, "RHYTHM_LINE", False)
+    assert "usually write" not in json.dumps(wake_as(later, monkeypatch, "").asked[-1],
+                                             default=str)
 
 
 def test_how_its_person_writes_is_never_in_another_agent_s_reading(

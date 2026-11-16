@@ -25,11 +25,11 @@ MEMBER = "birch"
 A_VISITOR = "tesserae.social · log in · the commons"
 # the founder's decision of 10 November 2026: fewer pages in the menus; tesserae.social
 # first since 15 November 2026, in both, so both begin the same way
-A_MEMBER = "tesserae.social · home · account · the commons · log out"
+A_MEMBER = "tesserae.social · home · settings · the commons · log out"
 KEEPING = "tides · backups"
 
 OPEN_PAGES = ["/board", "/commons", "/login", "/recover"]
-MEMBER_PAGES = ["/", "/account", "/board", "/commons"]
+MEMBER_PAGES = ["/", "/settings", "/board", "/commons"]
 KEEPER_PAGES = MEMBER_PAGES + ["/rooms/first", "/chronicle", "/attendances", "/self",
                                "/export", "/backups"]
 
@@ -115,7 +115,7 @@ def test_a_visitor_is_shown_one_line_and_the_way_in(visitor, path):
     said = page(visitor.get(path))
     assert menus(said) == {"pages": A_VISITOR}
     assert said.count("<nav") == 1
-    for own in KEEPERS_OWN + ['href="/account"', "/logout"]:
+    for own in KEEPERS_OWN + ['href="/settings"', "/logout"]:
         assert own not in said, own
 
 
@@ -129,7 +129,7 @@ def test_the_line_leads_where_it_says(visitor, member):
 
     said = page(member.get("/board"))
     line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
-    assert re.findall(r'href="([^"]+)"', line) == ["https://tesserae.social", "/", "/account", "/commons"]
+    assert re.findall(r'href="([^"]+)"', line) == ["https://tesserae.social", "/", "/settings", "/commons"]
     # the old destinations are in no menu: the commons is the way to both
     for old in ('href="/bonds"', 'href="/offerings"', "the hearth"):
         assert old not in line, old
@@ -179,7 +179,7 @@ def test_the_page_you_stand_on_is_marked_and_is_no_link(visitor, member):
     assert '<span class="here">the commons</span>' in page(visitor.get("/commons"))
     said = page(member.get("/"))
     assert '<span class="here">home</span>' in said
-    assert '<a href="/">home</a>' in page(member.get("/account"))
+    assert '<a href="/">home</a>' in page(member.get("/settings"))
 
 
 def test_logging_out_is_a_post_drawn_as_a_link(member):

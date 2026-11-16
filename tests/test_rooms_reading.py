@@ -851,17 +851,18 @@ WRITES = "I usually write on weekends."
 
 def test_the_way_he_writes_is_one_line_and_gone_when_cleared(
         founder, wake, attend, room, data_dir):
-    """Set on /account, it is one line under WHAT HAS HAPPENED; cleared, the reading is READING_NOW."""
+    """Kept from before (no longer asked on settings since 16 November 2026), it is one line
+    under WHAT HAS HAPPENED, behind rhythm_line, on for the first one; with no words kept,
+    the reading is READING_NOW."""
+    assert attend.RHYTHM_LINE is True
     a_small_world(room)
     answer = post(founder, "/rooms/first", content_type="multipart/form-data", data={
         "letter": "The lake was grey this morning, and then it was not.\n\nI am asking.",
         "thing": ["cold hands", "", "a heron on the far bank"],
         "errand": ERRAND, "proposes": "1"})
     assert answer.status_code == 302
-    assert post(founder, "/account/writing", data={"writing": "  I usually write\n on weekends. "}
-                ).status_code == 302
     kept = data_dir / "packets" / "first" / "founder-writing.json"
-    assert json.loads(kept.read_text(encoding="utf-8"))["words"] == WRITES
+    write_json(kept, {"words": WRITES, "at": "2026-10-14T09-00-00Z"})
 
     asked = json.dumps(wake().asked[-1], sort_keys=True, ensure_ascii=False, default=str)
     line = attend.FOUNDER_WRITES.format(words=WRITES)
@@ -874,21 +875,27 @@ def test_the_way_he_writes_is_one_line_and_gone_when_cleared(
     put_back = asked.replace(json.dumps("\n" + line, ensure_ascii=False)[1:-1], "", 1)
     assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == READING_NOW
 
-    # cleared, it is gone from the disk and from the reading
-    assert post(founder, "/account/writing", data={"writing": WRITES, "clear": "1"}
-                ).status_code == 302
-    assert not kept.exists()
 
 
-def test_the_way_he_writes_may_be_120_characters_and_no_more(founder, data_dir):
+def test_with_rhythm_line_off_the_way_he_writes_is_not_said(founder, wake, attend, room,
+                                                           data_dir, monkeypatch):
+    """The switch off, as it is for every other agent: the line is not said at all."""
+    monkeypatch.setattr(attend, "RHYTHM_LINE", False)
+    a_small_world(room)
+    write_json(data_dir / "packets" / "first" / "founder-writing.json",
+               {"words": WRITES, "at": "2026-10-14T09-00-00Z"})
+    assert "usually writes" not in json.dumps(wake().asked[-1], default=str)
+
+
+def test_how_he_writes_is_no_longer_asked_and_what_was_kept_stays(founder, data_dir):
+    """Settings no longer asks how one writes (the founder's request of 16 November 2026):
+    the form is gone, and the words kept before are left as they are."""
     kept = data_dir / "packets" / "first" / "founder-writing.json"
-    answer = post(founder, "/account/writing", data={"writing": "w" * 121})
-    assert answer.status_code == 200 and b"up to 120 characters" in answer.data
-    assert not kept.exists()
-    assert post(founder, "/account/writing", data={"writing": "w" * 120}).status_code == 302
-    assert json.loads(kept.read_text(encoding="utf-8"))["words"] == "w" * 120
-    assert post(founder, "/account/writing", data={"writing": "   "}).status_code == 302
-    assert not kept.exists()
+    kept.parent.mkdir(parents=True, exist_ok=True)
+    kept.write_text('{"words": "w"}\n', encoding="utf-8")
+    assert post(founder, "/account/writing", data={"writing": "x"}).status_code in (404, 405)
+    assert kept.read_text(encoding="utf-8") == '{"words": "w"}\n'
+    assert 'name="writing"' not in founder.get("/settings").get_data(as_text=True)
 
 
 # ---- the long night, switched on -------------------------------------------

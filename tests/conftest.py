@@ -1093,6 +1093,7 @@ def pages_before_fewer(hearth, monkeypatch):
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_FEWER)), env.loader]))
     bench_linked_as_before(hearth, monkeypatch)
+    account_at_account(hearth, monkeypatch)
 
 
 def bench_linked_as_before(hearth, monkeypatch):
@@ -1131,6 +1132,7 @@ def pages_before_saturday(hearth, monkeypatch):
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_SATURDAY)), env.loader]))
     bench_linked_as_before(hearth, monkeypatch)
+    account_at_account(hearth, monkeypatch)
 
 
 
@@ -1156,6 +1158,37 @@ def pages_before_pages(hearth, monkeypatch):
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_PAGES)), env.loader]))
 
 
+PAGES_BEFORE_SETTINGS = Path(__file__).resolve().parent / "pages_before_settings"
+
+
+def pages_before_settings(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before settings (16 November 2026, the
+    founder's request that day, part B1): the members' menu says "account" where it says
+    "settings", and the page it leads to is at /account, as it was. base.html, account.html
+    and name.html as they were are kept in tests/pages_before_settings and drawn in place of
+    today's, and every template's url_for("account") gives /account again.
+    pages_before_doors calls it first, so every older drawing stands on it too."""
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_SETTINGS)), env.loader]))
+    account_at_account(hearth, monkeypatch)
+
+
+def account_at_account(hearth, monkeypatch):
+    """Let a page drawn as before link the account page where it linked it, /account, as
+    every drawing from before 16 November 2026 did (it is /settings since)."""
+    env = hearth.app.jinja_env
+    built = env.globals["url_for"]
+
+    def url_for(endpoint, **values):
+        said = built(endpoint, **values)
+        if endpoint == "account" and said.startswith("/settings"):
+            return "/account" + said[len("/settings"):]
+        return said
+    monkeypatch.setitem(env.globals, "url_for", url_for)
+
+
 PAGES_BEFORE_DOORS = Path(__file__).resolve().parent / "pages_before_doors"
 
 
@@ -1166,6 +1199,7 @@ def pages_before_doors(hearth, monkeypatch):
     page. The templates as they were are kept in tests/pages_before_doors and drawn in place
     of today's. pages_before_small calls it first, so every older drawing stands on it too."""
     from jinja2 import ChoiceLoader, FileSystemLoader
+    pages_before_settings(hearth, monkeypatch)  # behind it, being newer
     env = hearth.app.jinja_env
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_DOORS)), env.loader]))

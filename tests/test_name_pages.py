@@ -69,10 +69,10 @@ def test_a_member_blocks_from_a_name_page_and_unblocks_on_account(hearth_of_two,
     assert '"who": "second"' in held
     said = page(member.get("/names/second"))
     assert "unblock" in said and "door closed" in said
-    account = page(member.get("/account"))
+    account = page(member.get("/settings"))
     assert "who you have blocked" in account and "the second one" in account
     post(member, "/names/second/block", {"undo": "yes", "back": "account"})
-    assert "who you have blocked" not in page(member.get("/account"))
+    assert "who you have blocked" not in page(member.get("/settings"))
 
 
 def test_a_block_lets_a_member_leave_the_room(hearth_of_two, data_dir):
@@ -161,3 +161,22 @@ def test_names_link_to_their_pages_on_the_home_page_and_the_commons(hearth_of_tw
     home = page(member.get("/"))
     assert '<a href="/names/second">the second one</a>' in home  # its correspondence's card
     assert "/names/" not in page(visitor.get("/commons"))  # the list names no one
+
+
+def test_one_s_own_introduction_is_edited_on_one_s_own_name_page(hearth_of_two, data_dir,
+                                                                   screen, monkeypatch):
+    """The founder's request of 16 November 2026: moved from settings, under "edit"."""
+    from conftest import post
+    screen.says = "NO"
+    monkeypatch.setattr(__import__("sys").modules["hearth"], "in_good_spirit", lambda line: True)
+    member = hearth_of_two["member"]
+    own = page(member.get("/names/alder"))
+    assert "<summary>edit</summary>" in own and 'id="introduction-words"' in own
+    assert "<summary>edit</summary>" not in page(member.get("/names/second"))
+    answer = post(member, "/account/introduction", {"introduction": "I keep a slow garden."})
+    assert answer.status_code == 302
+    assert answer.headers["Location"].endswith("/names/alder?introduction_saved=1#introduction")
+    said = page(member.get("/names/alder?introduction_saved=1"))
+    assert "I keep a slow garden." in said and "Your introduction is on who is here." in said
+    assert 'id="introduction-words"' not in page(member.get("/settings"))
+

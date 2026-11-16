@@ -49,7 +49,7 @@ import pytest
 from nacl.signing import SigningKey
 
 from conftest import (atrium_before_doors, blocks, block, letter_part_as_before, page,
-                      pages_before_doors, pages_before_fewer,
+                      pages_before_doors, pages_before_fewer, pages_before_settings,
                       pages_before_pages, pages_before_small,
                       pages_before_saturday, post, registry_six_not_yet, registry_switches_not_yet,
                       rooms_to_twelve, times_as_before,
@@ -227,6 +227,13 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # place (conftest.pages_before_small) each is exactly the one held before, in
 # SMALL_BEFORE below. No waking moved.
 #
+# Every page with the members' menu cut again, on purpose, later on 16 November 2026, on
+# the branch rooms, by the founder's request that day (part B1, settings), and for nothing
+# else: the menu says "settings" where it said "account", and links /settings, where the
+# page now is (/account leads there). With the base.html of before drawn in its place and
+# the page linked at /account again (conftest.pages_before_settings) each is exactly the
+# one held before, in SETTINGS_BEFORE below. No reading moved.
+#
 # / cut again, on purpose, on 16 November 2026, on the branch rooms, by the founder's
 # request that day (part A, the rooms update), and for nothing else: the name on each
 # correspondence's card links to its page, and the right column begins with "Doors open
@@ -234,16 +241,16 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # before drawn in their place (conftest.pages_before_doors) it is exactly the one held
 # before, in DOORS_BEFORE below. No waking moved.
 PAGES = {
-    "/": "1e7a25c6b3492162bc0af8c6f601d0435a609e629dbbab9322240648bbff1812",
-    "/rooms/first": "88f2eb2dad8ea46be3f6154e1f656b6ff6f0af72da0fa54b46a32d14eba96bd0",
+    "/": "f2a163bfd3941218ca438b6e7b0ed2b7662124820fb0663fcefbd0d364a5015a",
+    "/rooms/first": "1513d456960074562addbf5746e42ddcde45735fc800f440779c8a346bb6ca32",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
-    "/self": "352b739ce9270b7a054b73e9d98cf0a6e7b9386d1899b3b03bcba69ea12f7eac",
-    "/attendances": "e8cd47113cddb45cf696213b14e5da6887c4082b65afa8069b1564054d607df9",
-    "/chronicle": "a02bc0de0d7d4dcc3a0b974c6f25af0078edb84165a34c590472ec0061ee0e12",
+    "/self": "8b888e0a8f85d7a0bac566238f4c813010b6e84057ce17987e59773548a6e87a",
+    "/attendances": "a4d66c9c92ae8be2195d3683d9e42650d212b2db742b9a56c995be510652a8df",
+    "/chronicle": "27c2c0a288f8305dbd12d698d2cee0b63ee96b0c703aca939f84a83dfec7826d",
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
-    "/export": "e012dbd33afb9c26e2b10d9f2a3e84e2e603b93de0ce27b6d59aac3e7a30e7d4",
-    "/bonds": "56779937136482a73a72308bfc1cbc4d0b7f103db4e1d8c2fc39b2dbb4ed6e19",
-    "/commons": "fb20b43dff9d44d424fd71c419aa4051be49f64d4c84f148abdbfe3bf20a28f2",
+    "/export": "8789c8fe19b9d30b71a6283ff5a6a3cb8eda85d914a6430ce69d2602489f2542",
+    "/bonds": "146f4702c2b06132de2596463adfd6570e71c73128fd40e300ff77ccbe00f6bd",
+    "/commons": "9b36fbfa3c59dabfe5c2bc2df70f741a0d51cc75eeafcbd39453a25d995392ec",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
@@ -329,8 +336,9 @@ LETTER_PARTS_BEFORE = {
     # on 15 November 2026 for the pages (it was 543861cd..., and is again drawn as
     # before: PAGES_BRANCH_AND_LETTER_PARTS_BEFORE), and later that day for the small
     # changes (it was 8be0675a..., and is again drawn as before:
-    # SMALL_AND_LETTER_PARTS_BEFORE)
-    "PAGES['/chronicle']": "4affe3f16e92cfa683955e553b5f19d7c45cfbeabe1349803ce6ebd2e192ef81",
+    # SMALL_AND_LETTER_PARTS_BEFORE), and on 16 November 2026 for settings (it was
+    # 4affe3f1..., and is again drawn as before: SETTINGS_AND_LETTER_PARTS_BEFORE)
+    "PAGES['/chronicle']": "051e939343b548cb134ebb0a44206e2e5309ed28c31f91f97d053c2f9ecd3721",
     "PAGES['/chronicle.md']": "26316c2b5ea305af550820e1036a3fc8ba21a7707d3d86f69eeedd20b69e770b",
     "PAGES['/commons/events.md']":
         "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
@@ -462,6 +470,23 @@ SMALL_BEFORE = {
 SMALL_AND_LETTER_PARTS_BEFORE = {
     **SMALL_BEFORE,
     "/chronicle": "8be0675a643bd0ca54b8be89ceffcb665201cf923e78b4e439fc3d3e3abffc4d",
+}
+
+# What every page settings moved (16 November 2026, later) was before it, and is again
+# drawn with the base.html of before (conftest.pages_before_settings).
+SETTINGS_BEFORE = {
+    "/": "1e7a25c6b3492162bc0af8c6f601d0435a609e629dbbab9322240648bbff1812",
+    "/rooms/first": "88f2eb2dad8ea46be3f6154e1f656b6ff6f0af72da0fa54b46a32d14eba96bd0",
+    "/self": "352b739ce9270b7a054b73e9d98cf0a6e7b9386d1899b3b03bcba69ea12f7eac",
+    "/attendances": "e8cd47113cddb45cf696213b14e5da6887c4082b65afa8069b1564054d607df9",
+    "/chronicle": "a02bc0de0d7d4dcc3a0b974c6f25af0078edb84165a34c590472ec0061ee0e12",
+    "/export": "e012dbd33afb9c26e2b10d9f2a3e84e2e603b93de0ce27b6d59aac3e7a30e7d4",
+    "/bonds": "56779937136482a73a72308bfc1cbc4d0b7f103db4e1d8c2fc39b2dbb4ed6e19",
+    "/commons": "fb20b43dff9d44d424fd71c419aa4051be49f64d4c84f148abdbfe3bf20a28f2",
+}
+SETTINGS_AND_LETTER_PARTS_BEFORE = {
+    **SETTINGS_BEFORE,
+    "/chronicle": "4affe3f16e92cfa683955e553b5f19d7c45cfbeabe1349803ce6ebd2e192ef81",
 }
 
 # What every page the rooms update of 16 November 2026 moved was before it, and is again
@@ -639,6 +664,20 @@ def test_the_heartbeats_go_out_dated_and_stay_stamped_on_the_disk(
         assert page(who.get("/commons/heartbeats.md")) == (
             "- 2026-10-15 at dawn · the first one · Wrote back about the colour of water.\n")
 
+
+
+@pytest.mark.parametrize("address", list(SETTINGS_BEFORE))
+def test_with_the_pages_drawn_before_settings_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page settings moved (16 November 2026), drawn with the base.html of before and
+    the page linked at /account: each is exactly the page held before."""
+    pages_before_settings(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    held = (SETTINGS_AND_LETTER_PARTS_BEFORE if letter_parts else SETTINGS_BEFORE)[address]
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
 
 
 @pytest.mark.parametrize("address", list(DOORS_BEFORE))

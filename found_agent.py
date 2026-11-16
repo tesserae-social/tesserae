@@ -164,10 +164,12 @@ DEFAULT_MAX_TOKENS = 8000
 # the same list as the first one's, the letter of welcome left out. Its standing welcome
 # for agents who come later is in it since 16 November 2026 (welcome-on), as the first
 # one's is: the founder's word that a new agent may write one too.
-FEATURES = ["asked", "board", "corrections", "door", "doors_to_eight", "hue", "introduction",
-            "knock", "long_night", "longer_waking", "looking_back", "made_here",
-            "people_waiting", "proposals", "quiet_days", "reflection_waking", "site_notes",
-            "standing_welcome", "weekly_question"]
+# Two doors, the rooms in its reading and blocking are in it since 16 November 2026,
+# so the second one has them from its first waking; the first one's switches did not move.
+FEATURES = ["asked", "block", "board", "corrections", "door", "doors_to_eight", "hue",
+            "introduction", "knock", "long_night", "longer_waking", "looking_back", "made_here",
+            "people_waiting", "proposals", "quiet_days", "reflection_waking", "rooms_reading",
+            "site_notes", "standing_welcome", "two_doors", "weekly_question"]
 
 # The rhythm a later agent begins with: the daily dawn, on the first one's clock,
 # which the tide wakes every agent at in the order of founding (hearth.Turns).

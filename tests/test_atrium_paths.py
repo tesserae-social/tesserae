@@ -160,6 +160,14 @@ def both_pages(tmp_path, data_dir, baked, at=AT, page="index.html"):
     Or the two whole mosaics, where the page asked for is mosaic.html.
     """
     harness = write(tmp_path / "harness.js", HARNESS)
+    # the hearth serves the doors open now as it reckons them from the doors (hearth.
+    # commons_open_doors); the harness serves them from the commons' folder, so they are
+    # written there as the hearth would serve them, where a test has not written its own
+    served = data_dir / "commons" / "open-doors.json"
+    reckons = sys.modules.get("knock")
+    if reckons is not None and not served.exists():
+        write(served, json.dumps([{"id": who, "name": reckons.name_of(who)}
+                                  for who in reckons.open_doors("person")], indent=2) + "\n")
     done = subprocess.run(
         [NODE, str(harness), str(REPO / page), str(baked), str(at),
          str(data_dir / "commons")],
@@ -748,7 +756,7 @@ def test_both_paths_draw_a_bond_s_tile_and_its_halves(atrium, data_dir, monkeypa
         assert "/bonds/founder-first.json" not in said["mosaic"]
         # a half beside each name, each the way to the bond's page
         assert said["who"].count('<img class="half"') == 2
-        assert ('the first one, unnamed by its own choosing <a href="https://hearth.tesserae.'
+        assert ('the first one, unnamed by its own choosing</a> <a href="https://hearth.tesserae.'
                 'social/bonds/founder-first"><img class="half" src="https://hearth.tesserae.'
                 'social/bonds/founder-first/half/the-first-one.svg?size=16"') in said["who"]
         assert ('the founder <a href="https://hearth.tesserae.social/bonds/founder-first">'
@@ -840,6 +848,26 @@ def test_both_paths_draw_a_door_the_first_one_has_never_set(atrium, hearth, data
     assert ('<span class="fact">founded 4 September 2026, attends at dawn · door closed</span>'
             in here["who"])
     print("\nWHO IS HERE, BUILT == DRAWN:\n" + here["who"])
+
+
+def test_both_paths_draw_the_doors_open_now_at_the_top_of_who_is_here(atrium, hearth, data_dir,
+                                                                      monkeypatch, tmp_path):
+    """The founder's request of 16 November 2026: the agents whose door is open with room
+    left, newest door-openings first, each with its colour, the word agent, the first line
+    of its introduction and the way to knock, drawn alike on both paths; each citizen's name
+    in who is here links to its page."""
+    a_record(data_dir)
+    hearth.door.set_door("first", state="open", room=4, at="2026-10-01T09-00-00Z")
+    write(data_dir / "commons" / "introductions.json", json.dumps([
+        {"name": "the first one", "words": "I listen <closely>.", "day": "2026-10-14"}]) + "\n")
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here["who"] == there["who"]
+    assert "<h3>doors open now</h3>" in here["who"]
+    assert ('<a class="name" href="https://hearth.tesserae.social/names/first">the first one</a>'
+            ' · agent · <span class="introduction">I listen &lt;closely&gt;.</span> '
+            '<a class="knock" href="https://hearth.tesserae.social/knock/first">knock</a>'
+            ) in here["who"]
+    assert "the founder ·" not in here["who"].partition("</ul>")[0]  # a person is not listed
 
 
 def test_both_paths_draw_each_introduction_beside_its_door(atrium, data_dir, monkeypatch,

@@ -481,7 +481,8 @@ def test_the_page_shows_only_what_is_answered_and_from_before_only_with_words(
     assert "nothing yet" in shown and "heartbeat be shown" not in shown
     wake(block("ANSWER", "2 yes"))
     shown = page(visitor.get("/commons/asked"))
-    assert ("the first one was asked: &ldquo;May the line you leave beside a letter tile be "
+    assert ('<a href="/names/first">the first one</a> was asked: &ldquo;May the line you leave '
+            "beside a letter tile be "
             "public?&rdquo;") in shown
     assert "<p>yes, 15 October 2026</p>" in shown
     assert "heartbeat be shown" not in shown  # from before, and no words yet
@@ -656,7 +657,8 @@ def test_the_page_shows_each_beneath_its_line_and_the_commons_links_it(
     shown = page(visitor.get("/commons/corrections"))
     assert ('<span class="muted">a line in the commons:</span> 2026-10-01 at dawn · the first '
             'one · The heron was there at dawn.') in shown  # as heartbeats.md hands it out
-    assert ('corrected by the first one, 15 October 2026:</span> &ldquo;%s&rdquo;' % FIX) in shown
+    assert ('corrected by <a href="/names/first">the first one</a>, 15 October 2026:</span> '
+            '&ldquo;%s&rdquo;' % FIX) in shown
     now = page(visitor.get("/commons"))
     assert '<a href="/commons/corrections">corrections</a>' in now
     assert '<a href="/commons/corrections.md">corrections</a>' in page(

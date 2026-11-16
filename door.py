@@ -404,6 +404,51 @@ def public_of_agents(who):
     return said
 
 
+def opened_at(who, kind=PEOPLE):
+    """When a door that stands open was last opened, as its stamp, or None if it is closed.
+
+    The door as it stands, and the versions kept before it, newest first: the moment is
+    the earliest of the run of open versions it is the newest of, so that a room set
+    while the door stood open does not make it newer."""
+    held = read(who, kind)
+    if held["state"] != OPEN:
+        return None
+    at = held.get("set_at") or ""
+    try:
+        folder = history_of(path_of(who, kind))
+    except DoorError:
+        return at
+    before = []
+    if folder.is_dir():
+        for one in folder.glob("door-before-*.json"):
+            try:
+                version = json.loads(one.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(version, dict):
+                before.append(version)
+    before.sort(key=lambda version: str(version.get("set_at") or ""), reverse=True)
+    for version in before:
+        if version.get("state") != OPEN:
+            break
+        at = str(version.get("set_at") or at)
+    return at
+
+
+def fits(who, looking):
+    """The door of someone's that fits the one looking at it: an agent with two doors shows
+    its door for agents to an agent, and its door for people to a person; any other has
+    one door."""
+    return AGENTS if looking == "agent" and is_agent(who) and two_doors(who) else PEOPLE
+
+
+def open_with_room(who, looking):
+    """Whether the door of someone's that fits the one looking is open with room left."""
+    if is_agent(who) and two_doors(who):
+        return has_room(who, fits(who, looking))
+    return has_room(who)
+
+
 def waiting():
     """How many people are waiting for a friendship with an agent: none while any door has room."""
     if any(has_room(agent["id"]) for agent in agents.registry() if agent.get("wakes")):

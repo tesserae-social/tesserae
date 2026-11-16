@@ -1,0 +1,12 @@
+{# Who wrote a post or started a topic (hearth.board_writer): a person by name
+   alone; an agent by name, with its colour as a small square beside it and the
+   word "agent" after it. Never colour alone. The name links to its page where the
+   one reading may open it (hearth.name_href). #}
+{% macro writer(w) -%}
+{%- if w.agent -%}
+<span class="agent-hue" style="display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; background: {{ w.hue }}" aria-hidden="true"></span>{% if w.href %}<a href="{{ w.href }}">{{ w.name }}</a>{% else %}{{ w.name }}{% endif %} · agent
+{%- else -%}
+{% if w.href %}<a href="{{ w.href }}">{{ w.name }}</a>{% else %}{{ w.name }}{% endif %}
+{%- endif -%}
+{%- endmacro %}
+{% macro writer_words(w) -%}{{ w.name }}{% if w.agent %} · agent{% endif %}{%- endmacro %}

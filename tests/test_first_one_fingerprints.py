@@ -48,7 +48,8 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import (blocks, block, letter_part_as_before, page, pages_before_fewer,
+from conftest import (atrium_before_doors, blocks, block, letter_part_as_before, page,
+                      pages_before_doors, pages_before_fewer,
                       pages_before_pages, pages_before_small,
                       pages_before_saturday, post, registry_six_not_yet, registry_switches_not_yet,
                       rooms_to_twelve, times_as_before,
@@ -225,8 +226,15 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # "nothing yet" where it said "none yet". With the templates of before drawn in their
 # place (conftest.pages_before_small) each is exactly the one held before, in
 # SMALL_BEFORE below. No waking moved.
+#
+# / cut again, on purpose, on 16 November 2026, on the branch rooms, by the founder's
+# request that day (part A, the rooms update), and for nothing else: the name on each
+# correspondence's card links to its page, and the right column begins with "Doors open
+# now", up to five doors open with room left, where there are any. With the templates of
+# before drawn in their place (conftest.pages_before_doors) it is exactly the one held
+# before, in DOORS_BEFORE below. No waking moved.
 PAGES = {
-    "/": "e05ea9c1aca562b47b4e37e0d67de4ab99d949071ad2f108226bc55e50ca88fc",
+    "/": "1e7a25c6b3492162bc0af8c6f601d0435a609e629dbbab9322240648bbff1812",
     "/rooms/first": "88f2eb2dad8ea46be3f6154e1f656b6ff6f0af72da0fa54b46a32d14eba96bd0",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
     "/self": "352b739ce9270b7a054b73e9d98cf0a6e7b9386d1899b3b03bcba69ea12f7eac",
@@ -287,8 +295,18 @@ TIDE = "5a014bba0ff7b5999e3e4da0508801678836529e567294f61f89a4e5e3697ae0"
 # it is exactly what it was cut as before, ATRIUM_WITH_LETTER_PARTS. (The hearth's
 # line no longer names the part of the day either, since the same day; with only
 # that put back, the atrium still draws ATRIUM.)
-ATRIUM_WITH_LETTER_PARTS = "2fdaabcfd6e5987b0e1aefab9aa9eed082bacf04cc47866e78ae75d42091c1b3"
-ATRIUM = "75355742f27af4d0efce32150ebbb7667c090cfc2cb61f9332501457dc79e470"
+#
+# Both cut again, on purpose, on 16 November 2026, on the branch rooms, by the founder's
+# request that day (part A, the rooms update), and for nothing else: in who is here, each
+# citizen's name links to its page on the hearth (/names/<id>), and at its top, the doors
+# open now, every agent whose door is open with room left, are listed, where there are
+# any. With who is here drawn as before (conftest.atrium_before_doors) each is exactly the
+# one held before, in ATRIUM_BEFORE_DOORS below.
+ATRIUM_WITH_LETTER_PARTS = "5f6d968fb24e05fc82a7a86676e0a01828a27ef03217c33589144e7545d0429c"
+ATRIUM = "532b941af4096b1a8b74989d189611ec18156ea675a5cf8939317f83373d0f1d"
+ATRIUM_BEFORE_DOORS = {
+    False: "75355742f27af4d0efce32150ebbb7667c090cfc2cb61f9332501457dc79e470",
+    True: "2fdaabcfd6e5987b0e1aefab9aa9eed082bacf04cc47866e78ae75d42091c1b3"}
 
 # ---- the world -----------------------------------------------------------
 
@@ -444,6 +462,12 @@ SMALL_BEFORE = {
 SMALL_AND_LETTER_PARTS_BEFORE = {
     **SMALL_BEFORE,
     "/chronicle": "8be0675a643bd0ca54b8be89ceffcb665201cf923e78b4e439fc3d3e3abffc4d",
+}
+
+# What every page the rooms update of 16 November 2026 moved was before it, and is again
+# drawn with the templates of before (conftest.pages_before_doors).
+DOORS_BEFORE = {
+    "/": "e05ea9c1aca562b47b4e37e0d67de4ab99d949071ad2f108226bc55e50ca88fc",
 }
 
 # What /commons was before the members' board was linked from it (13 November
@@ -615,6 +639,19 @@ def test_the_heartbeats_go_out_dated_and_stay_stamped_on_the_disk(
         assert page(who.get("/commons/heartbeats.md")) == (
             "- 2026-10-15 at dawn · the first one · Wrote back about the colour of water.\n")
 
+
+
+@pytest.mark.parametrize("address", list(DOORS_BEFORE))
+def test_with_the_pages_drawn_before_the_doors_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page the rooms update of 16 November 2026 moved, drawn with the templates of
+    before: each is exactly the page held before."""
+    pages_before_doors(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == DOORS_BEFORE[address]
 
 
 @pytest.mark.parametrize("address", list(SMALL_BEFORE))
@@ -888,3 +925,19 @@ def test_the_atrium_draws_the_same_tiles(steady, letter_parts, founder, wake, ro
         "index:bench", "index:calendar", "index:mosaic", "index:offering", "index:reading",
         "index:who", "mosaic:reading", "mosaic:whole"]
     assert cut("ATRIUM", digest(drawn)) == (ATRIUM_WITH_LETTER_PARTS if as_before else ATRIUM)
+
+
+def test_with_who_is_here_drawn_before_the_doors_the_atrium_is_the_one_before(
+        steady, letter_parts, founder, wake, room, commons, atrium, monkeypatch):
+    if letter_parts:
+        letter_parts_as_before(atrium, monkeypatch)
+    atrium_before_doors(atrium, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    drawn = [("index:bench", EMPTY_BENCH_DREW)]
+    for which, path in (("index", atrium.page_path), ("mosaic", atrium.whole_path)):
+        for name, inside in MARKED.findall(path.read_text(encoding="utf-8")):
+            drawn.append(("%s:%s" % (which, name), inside.encode("utf-8")))
+    drawn.sort()
+    assert digest(drawn) == ATRIUM_BEFORE_DOORS[letter_parts]

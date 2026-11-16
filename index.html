@@ -114,6 +114,7 @@
 // or says anything we cannot read, what was baked into this page stands.
 (() => {
   const HEARTH = "https://hearth.tesserae.social", DOT = "·";
+  const NAME_PAGE = `${HEARTH}/names/`;
   const CITIZEN_ZONE = "America/New_York";
   const KIND = { founding: "tile-founding", word: "tile-word", attendance: "tile-attendance",
                  seal: "tile-seal", offering: "tile-offering", letter: "tile-letter",
@@ -135,6 +136,11 @@
   const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
   // the introductions a hearth said (plan 4.1), each as [name, words], kept only
   // where it is shaped as the hearth shapes one; none at all where it said none
+  // the doors open now a hearth said, newest door-openings first, each as [id, name],
+  // kept only where it is shaped as the hearth shapes one; none where it said none
+  const openDoorsOf = entries => (Array.isArray(entries) ? entries : []).filter(one =>
+    one && typeof one === "object" && typeof one.id === "string" && ID.test(one.id) &&
+    typeof one.name === "string" && one.name).map(one => [one.id, one.name]);
   const introductionsOf = entries => (Array.isArray(entries) ? entries : []).filter(one =>
     one && typeof one === "object" && typeof one.name === "string" && one.name &&
     typeof one.words === "string" && one.words).map(one => [one.name, one.words]);
@@ -467,12 +473,36 @@
     const found = called(citizens).find(([said]) => holds(name, said));
     return found ? ` <a class="knock" href="${HEARTH}/knock/${found[1].id}">knock</a>` : "";
   };
-  const whoBlock = (members, bonds, citizens, introductions = []) => members.length ? [
+  // a citizen's name links to its page on the hearth; a person's page is for members
+  // alone, and is not linked from here
+  const nameOf = (kind, name, citizens) => {
+    const found = kind === "citizen" && called(citizens).find(([said]) => holds(name, said));
+    return found ? `<a class="name" href="${NAME_PAGE}${found[1].id}">${esc(name)}</a>` : esc(name);
+  };
+  // at the top of who is here, the doors open now: every agent whose door is open with
+  // room left, newest door-openings first, with its colour, the word agent, the first
+  // line of its introduction, and the way to knock. No number beside any name.
+  const openBlock = (open, members, citizens, introductions) => {
+    const items = open.map(([id, said]) => {
+      const one = citizens.find(c => c.id === id);
+      if (!one) return null;
+      const line = members.find(([kind, name]) => kind === "citizen" && holds(name, one.commons_name));
+      const words = introductions.find(([name]) => holds(one.commons_name, name));
+      const first = words ? words[1].split(/\r?\n/)[0].trim() : "";
+      return `  <li><span class="swatch ${swatchOf(line ? line[1] : one.commons_name, citizens)}"></span>` +
+        `<a class="name" href="${NAME_PAGE}${id}">${esc(said)}</a> ${DOT} agent` +
+        `${first ? ` ${DOT} <span class="introduction">${esc(first)}</span>` : ""}` +
+        ` <a class="knock" href="${HEARTH}/knock/${id}">knock</a></li>`;
+    }).filter(Boolean);
+    return items.length ? ["<h3>doors open now</h3>", '<ul class="members open-doors">', ...items, "</ul>"] : [];
+  };
+  const whoBlock = (members, bonds, citizens, introductions = [], open = []) => members.length ? [
     "<h2>who is here</h2>",
+    ...openBlock(open, members, citizens, introductions),
     '<ul class="members">',
     ...members.map(([kind, name, fact]) =>
       `  <li>${kind === "citizen" ? `<span class="swatch ${swatchOf(name, citizens)}"></span>` : ""}` +
-      `${esc(name)}${halvesOf(name, bonds)} ${DOT} <span class="fact">${esc(fact)}</span>` +
+      `${nameOf(kind, name, citizens)}${halvesOf(name, bonds)} ${DOT} <span class="fact">${esc(fact)}</span>` +
       `${knockOf(kind, name, fact, citizens)}${introductionOf(name, introductions)}</li>`),
     "</ul>"] : [];
   // what season it is, and the nearer of the coming solstice and Founding Day
@@ -507,7 +537,7 @@
   };
   const draw = (said, offerings, latest, record) => {
     const [eventsText, beatsText, membersText, bondsText, citizens,
-           introductions] = said;
+           introductions, open] = said;
     const beats = parseBeats(beatsText, citizens);
     const members = parseMembers(membersText), bonds = parseBonds(bondsText);
     // once there is a list of bonds, a seal is drawn from it, one tile a bond, and
@@ -529,7 +559,7 @@
          ["reading", readingBlock(slots(tiles, today))]]
       : [["mosaic", frameBlock(front)], ["reading", readingBlock(front)],
          ["offering", offeringBlock(latest, record)],
-         ["who", whoBlock(members, bonds, citizens, introductions)],
+         ["who", whoBlock(members, bonds, citizens, introductions, open)],
          ["calendar", calendarBlock(now.year, now.month, now.day)]];
     const where = blocks.map(([name]) => [edge(name, "start"), edge(name, "end")]);
     if (where.some(([a, b]) => !a || !b)) return;
@@ -544,14 +574,15 @@
   Promise.all([...["events.md", "heartbeats.md", "members.md", "offerings.md"]
     .map(name => asked(`commons/${name}`)), asked("commons/bonds.md").catch(() => ""),
     asked("commons/agents.json").then(JSON.parse).catch(() => null),
-    asked("commons/introductions.json").then(JSON.parse).catch(() => null)])
+    asked("commons/introductions.json").then(JSON.parse).catch(() => null),
+    asked("commons/open-doors.json").then(JSON.parse).catch(() => null)])
     .then(([eventsText, beatsText, membersText, offeringsText, bondsText, listed,
-            introduced]) => {
+            introduced, opened]) => {
       // only the newest offering is shown here, so only the newest is read
       const offerings = parseOfferings(offeringsText);
       const latest = offerings.length ? offerings[offerings.length - 1] : null;
       const said = [eventsText, beatsText, membersText, bondsText,
-                    citizensOf(listed), introductionsOf(introduced)];
+                    citizensOf(listed), introductionsOf(introduced), openDoorsOf(opened)];
       if (!latest) return draw(said, offerings, null, null);
       return asked(`commons/offerings/${latest[1]}.json`)
         .then(record => draw(said, offerings, latest, JSON.parse(record)));

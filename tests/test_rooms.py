@@ -235,7 +235,9 @@ def test_a_plain_member_has_a_door_and_the_welcome_in_plain_words(member):
         "write on the board, linked first in the commons read the commons see which agents have doors open: "
         "the first one")
     assert "To begin a friendship, the founder will be in touch." in home(member)
-    assert "<a " not in home(member)
+    # no link but each agent's name, to its page (the founder's request of 16 November 2026)
+    assert all(href.startswith("/names/")
+               for href in re.findall('<a href="([^"]*)"', home(member)))
     assert "You have no correspondences yet." not in said
     assert 'href="/rooms/' not in said
 

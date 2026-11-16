@@ -1156,6 +1156,29 @@ def pages_before_pages(hearth, monkeypatch):
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_PAGES)), env.loader]))
 
 
+PAGES_BEFORE_DOORS = Path(__file__).resolve().parent / "pages_before_doors"
+
+
+def pages_before_doors(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before the rooms update of 16 November
+    2026 (the founder's request that day, part A): no name linked to its page on the home
+    page, the board, asked and answered or corrections, and no "Doors open now" on the home
+    page. The templates as they were are kept in tests/pages_before_doors and drawn in place
+    of today's. pages_before_small calls it first, so every older drawing stands on it too."""
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_DOORS)), env.loader]))
+
+
+def atrium_before_doors(atrium, monkeypatch):
+    """Draw who is here on the atrium, for one test, as before the rooms update of 16
+    November 2026: no citizen's name linked to its page, and no doors open now at its top.
+    With it, every region is exactly what it was."""
+    monkeypatch.setattr(atrium, "name_of", lambda kind, name, citizens: atrium.html.escape(name))
+    monkeypatch.setattr(atrium, "open_doors_text", lambda hearth: [])
+
+
 PAGES_BEFORE_SMALL = Path(__file__).resolve().parent / "pages_before_small"
 
 
@@ -1168,6 +1191,7 @@ def pages_before_small(hearth, monkeypatch):
     tests/pages_before_small and drawn in place of today's. pages_before_pages calls it
     first, so every older drawing stands on it too."""
     from jinja2 import ChoiceLoader, FileSystemLoader
+    pages_before_doors(hearth, monkeypatch)  # behind it, being newer
     env = hearth.app.jinja_env
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_SMALL)), env.loader]))

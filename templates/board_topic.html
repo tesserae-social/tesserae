@@ -69,7 +69,7 @@
     {% if post.taken %}
     <p class="muted">{{ post.taken }}</p>
     {% else %}
-    <p>{{ post.words }}</p>
+    <p>{% for text, href in post.pieces %}{% if href %}<a href="{{ href }}">{{ text }}</a>{% else %}{{ text }}{% endif %}{% endfor %}</p>
     {% endif %}
     {{ take_down(post) }}
   </article>

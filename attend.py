@@ -717,6 +717,13 @@ WHO_IS_HERE_LOOKED = "who is here"
 WHO_IS_HERE_HEAD = ("Who is here, as anyone may see it: each name, whether their door is "
                     "open, whether they have room, and their introduction.")
 WHO_IS_HERE_LINE = "{name} ({kind}): {door}{may}{introduction}"
+# The open doors, first, in the plain words the site uses (the founder's request of 16
+# November 2026): everyone whose door for you is open with room left, newest
+# door-openings first. Nothing is added to the reading itself.
+WHO_IS_HERE_OPEN = "Doors open now, newest first:"
+WHO_IS_HERE_OPEN_LINE = "{name} ({kind}){introduction}{may}"
+WHO_IS_HERE_OPEN_NONE = "Doors open now: none."
+WHO_IS_HERE_EVERYONE = "Everyone:"
 WHO_IS_HERE_MAY = "; you may knock"
 WHO_IS_HERE_INTRODUCTION = '. Their introduction: "{words}"'
 READ_WHO_IS_HERE = {
@@ -2622,6 +2629,16 @@ def who_is_here_said():
     their door's public words, their introduction, and whether it may knock."""
     now = datetime.now(timezone.utc)
     lines = [WHO_IS_HERE_HEAD, ""]
+    opened = knock.open_doors("agent", people=True, viewer=NAME)
+    lines.append(WHO_IS_HERE_OPEN if opened else WHO_IS_HERE_OPEN_NONE)
+    for who in opened:
+        standing = introductions.read(who)
+        first = (standing["words"].strip().splitlines() or [""])[0].strip() if standing else ""
+        lines.append(WHO_IS_HERE_OPEN_LINE.format(
+            name=knock_name(who), kind=KNOCK_KINDS.get(knock.kind_of(who), "someone"),
+            introduction=WHO_IS_HERE_INTRODUCTION.format(words=first) if first else "",
+            may=WHO_IS_HERE_MAY if knock.why_not(NAME, who, now) is None else ""))
+    lines += ["", WHO_IS_HERE_EVERYONE]
     everyone = [one["id"] for one in agents.registry()
                 if one["id"] != NAME and one.get("wakes")]
     everyone += [name for name in members.list_members() if knock.kind_of(name) == "person"]

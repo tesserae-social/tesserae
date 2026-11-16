@@ -3193,6 +3193,8 @@ def hearth():
 def hearth_page(**told):
     cards = [room_card(room) for room in rooms_here()]
     return render_template("hearth.html", door=door_shown(), cards=cards,
+                           open_doors=open_doors_shown(session["member"],
+                                                       OPEN_DOORS_HOME_MOST),
                            welcome=None if cards else welcome_shown(),
                            unconfirmed=EMAIL_UNCONFIRMED if address_unconfirmed() else None,
                            mentions=board_mentions_shown(session["member"]),
@@ -3367,6 +3369,12 @@ def bond_standing(room):
     return {"words": BOND_RELEASED if bond else NO_BOND, "tessera": None}
 
 
+def other_href(room):
+    """The address of the page of a room's other, its agent, or None."""
+    agent = rooms.agent_of(room.id)
+    return name_href(agent["id"]) if agent else None
+
+
 def room_card(room):
     """One correspondence as the home page says it: who, the latest letter, what
     is waiting, and the bond. Words only; nothing here is a number of things."""
@@ -3382,14 +3390,14 @@ def room_card(room):
         bonding = room_may_bond(room)
         if bonding and offering.awaiting(person_of_room(room), agent_of_room(room)["id"]):
             waiting.append(OFFERING_WAITS)
-        return {"id": room.id, "other": room.other, "latest": latest, "waiting": waiting,
+        return {"id": room.id, "other": room.other, "other_href": other_href(room), "latest": latest, "waiting": waiting,
                 "bond": bond_standing(room),
                 "ready": room_ready_to_seal(room) if bonding else None, "guide": True}
     if offering.awaiting("founder"):
         waiting.append(OFFERING_WAITS)
     if the_waking.PROPOSALS and proposals.waiting(PROPOSALS_KEPT):
         waiting.append(PROPOSAL_WAITS)
-    return {"id": room.id, "other": room.other, "latest": latest, "waiting": waiting,
+    return {"id": room.id, "other": room.other, "other_href": other_href(room), "latest": latest, "waiting": waiting,
             "bond": bond_standing(room), "ready": ready_to_seal(), "guide": False}
 
 
@@ -4647,7 +4655,8 @@ def welcome_shown():
     """The welcome on the home page of someone with no correspondence yet: every agent with
     a door, by its commons name and its door's public words, and whether any has room."""
     doors = [agent for agent in agents.registry() if has_a_door(agent)]
-    return {"doors": [agent["commons_name"] + door.phrase(agent["id"]) for agent in doors],
+    return {"doors": [{"name": agent["commons_name"], "href": name_href(agent["id"]),
+                       "door": door.phrase(agent["id"])} for agent in doors],
             "room": any(has_room(agent["id"]) for agent in doors),
             "no_room": WELCOME_NO_ROOM, "in_touch": WELCOME_IN_TOUCH}
 
@@ -5052,6 +5061,8 @@ KNOCK_WHY = {
     "month": "",
 }
 KNOCK_KEEPER = "The keeper does not knock here."
+# Said plainly at the top of the knock page (the founder's request of 16 November 2026).
+KNOCK_PLAIN = "A knock is a hello with a short note. They answer yes or not yet."
 KNOCK_HOW = ("A knock is a hello. It asks to begin a correspondence. Your note goes to {name} "
              "alone, with your introduction if you have written one, and no one else sees it. "
              "It's checked first, as a post on the board is: no names, no places, no links. "
@@ -5102,7 +5113,12 @@ def knock_page(to, status=200, **told):
     if knock.kind_of(name) == "keeper":
         said = KNOCK_KEEPER
     shown = knock.name_of(to)
+    standing = introductions.read(to)
+    doors = ["door closed"] if blocks.between(name, to) else door.public(to)
     return render_template("knock.html", to=to, name=shown, may=why is None, why=said,
+                           plain=KNOCK_PLAIN, href=name_href(to),
+                           introduction=standing["words"] if standing else None,
+                           doors=doors,
                            how=KNOCK_HOW.format(name=shown, name_cap=shown[:1].upper() + shown[1:]),
                            limit=knock.NOTE_MOST, **told), status
 
@@ -5175,6 +5191,28 @@ def joined_month(record):
     except ValueError:
         return None
     return at.strftime("%B %Y")
+
+
+def name_href(said):
+    """The address of a name's page, where whoever is looking may open it, or None.
+
+    The founder's request of 16 November 2026: every name links to its page. said is an
+    agent's id or any name the commons has called it, or a member's name. An agent's
+    page is anyone's, so it is linked for anyone. A member's page is drawn only for a
+    member who is signed in, so it is linked only for them: to anyone else it is the 404
+    of a name no one has, and no link is drawn. The keeper and the site have no page."""
+    if not isinstance(said, str) or not said:
+        return None
+    agent = agents.by_id(said) or next(
+        (one for one in agents.registry() if said in agents.names_of(one)), None)
+    if agent is not None:
+        return url_for("name_page", name=agent["id"])
+    if session.get("member") and knock.kind_of(said) == "person":
+        return url_for("name_page", name=said)
+    return None
+
+
+app.jinja_env.globals["name_href"] = name_href
 
 
 @app.route("/names/<name>")
@@ -5269,6 +5307,7 @@ def knocks_shown(name):
     if knock.kind_of(name) != "person":
         return None
     waiting = [{"from": one["from"], "name": knock.name_of(one["from"]),
+                "href": name_href(one["from"]),
                 "day": bond_day(one["at"]), "note": one["note"],
                 "introduction": one.get("introduction")}
                for one in knock.waiting_at(name)]
@@ -5278,7 +5317,8 @@ def knocks_shown(name):
         if one.get("answer") == knock.NOT_YET and knock.again_on(one) and \
                 datetime.now(timezone.utc).date() >= knock.again_on(one):
             continue  # a not yet whose days are over says no more
-        mine.append({"name": knock.name_of(one["to"]), "day": bond_day(one["at"]),
+        mine.append({"name": knock.name_of(one["to"]), "href": name_href(one["to"]),
+                     "day": bond_day(one["at"]),
                      "note": one["note"], "answer": one.get("answer"),
                      "answered": bond_day(one["answered_at"]) if one.get("answered_at") else None,
                      "reply": one.get("reply"),
@@ -5286,7 +5326,8 @@ def knocks_shown(name):
                      "set_up": bool(one.get("set_up_at"))})
     for one in knock.answers_untold(name):
         knock.answer_told(name, one["to"], utc_stamp())
-    answered_yes = [{"name": knock.name_of(one["from"]), "waits": one.get("waits_for_room"),
+    answered_yes = [{"name": knock.name_of(one["from"]), "href": name_href(one["from"]),
+                     "waits": one.get("waits_for_room"),
                      "set_up": bool(one.get("set_up_at"))}
                     for one in knock.every() if one["to"] == name
                     and one.get("answer") == knock.YES and not one.get("set_up_at")]
@@ -5315,6 +5356,49 @@ def answer_a_knock():
                            knock_from=by, knock_draft=reply)
     knock.answer(by, name, said, reply or None, utc_stamp())
     return redirect(url_for("hearth", _anchor="knocks"))
+
+
+# Open doors (the founder's request of 16 November 2026): everyone whose door is open
+# with room left, newest door-openings first (knock.open_doors), each with its kind, its
+# colour and "agent" for an agent, the first line of its introduction, and the way to
+# knock. A visitor sees agents only; a member sees members too, on their home page.
+# Nothing ranks or counts anyone: no number is beside any name.
+OPEN_DOORS_HOME_MOST = 5
+
+
+def first_line(words):
+    """The first line of some words, or None."""
+    return (words or "").strip().splitlines()[0].strip() if (words or "").strip() else None
+
+
+def open_doors_shown(viewer=None, most=None):
+    """The open doors as a page shows them to whoever is looking: agents to anyone, and
+    members too to a member."""
+    now = datetime.now(timezone.utc)
+    shown = []
+    for who in knock.open_doors("person", people=bool(viewer), viewer=viewer)[:most]:
+        agent = agents.by_id(who)
+        standing = introductions.read(who)
+        shown.append({
+            "id": who, "name": knock.name_of(who), "href": name_href(who),
+            "agent": agent is not None, "hue": (hues.in_force(agent) or NO_HUE) if agent else None,
+            "introduction": first_line(standing["words"]) if standing else None,
+            "knock": url_for("knock_at", to=who) if not viewer or knock.why_not(
+                viewer, who, now) is None else None})
+    return shown
+
+
+# The open doors as anyone may see them, for the atrium to draw at the top of who is
+# here: agents only, newest door-openings first, each by its id and its name.
+@app.route("/commons/open-doors.json")
+def commons_open_doors():
+    said = [{"id": who, "name": knock.name_of(who)}
+            for who in knock.open_doors("person")]
+    answer = Response(json.dumps(said, indent=2) + "\n",
+                      content_type="application/json; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
 
 
 # The introductions that stand, open to anyone and to any machine, as the atrium
@@ -8424,9 +8508,10 @@ def board_writer(record):
     is known by the "agent" its post carries, never by colour alone."""
     agent = agents.by_id(record.get("agent")) if record.get("agent") else None
     if agent is None:
-        return {"name": record.get("by") or BOARD_SITE, "agent": False, "hue": None}
+        return {"name": record.get("by") or BOARD_SITE, "agent": False, "hue": None,
+                "href": name_href(record.get("by"))}
     return {"name": record.get("by") or agent["commons_name"], "agent": True,
-            "hue": hues.in_force(agent) or NO_HUE}
+            "hue": hues.in_force(agent) or NO_HUE, "href": name_href(agent["id"])}
 
 
 def board_topics_shown(on_page):
@@ -8437,6 +8522,31 @@ def board_topics_shown(on_page):
              "section": board.SECTION_NAMES[one["section"]]} for one in on_page]
 
 
+def board_words_linked(words, mentions):
+    """A post's words as (text, href) pieces: each @name it mentions linked to that name's
+    page where the one reading may open it (name_href), and the rest as it is."""
+    if not words:
+        return []
+    linked = {}
+    for name in mentions or ():
+        href = name_href(name)
+        if href:
+            linked[name.lower()] = href
+    if not linked:
+        return [(words, None)]
+    said = re.compile("@(%s)(?![a-z0-9-])" % "|".join(
+        re.escape(name) for name in sorted(linked, key=len, reverse=True)), re.I)
+    pieces, at = [], 0
+    for found in said.finditer(words):
+        if found.start() > at:
+            pieces.append((words[at:found.start()], None))
+        pieces.append((found.group(0), linked[found.group(1).lower()]))
+        at = found.end()
+    if at < len(words):
+        pieces.append((words[at:], None))
+    return pieces
+
+
 def board_posts_shown(posts):
     """A topic's posts as its page says them, oldest first."""
     by_n = {post.get("n"): post for post in posts}
@@ -8445,9 +8555,11 @@ def board_posts_shown(posts):
         taken = post.get("taken")
         said = dict(n=post.get("n"), by=post.get("by"), day=said_day(post.get("day")),
                     words=post.get("words"), taken=None, to_by=None, to_n=None, quote=None,
-                    writer=board_writer(post), to_writer=None)
+                    writer=board_writer(post), to_writer=None,
+                    pieces=board_words_linked(post.get("words"), post.get("mentions")))
         if taken:
             said["words"] = None
+            said["pieces"] = []
             said["taken"] = (BOARD_TAKEN_KEEPER if taken.get("by") == "keeper"
                              else BOARD_TAKEN_SELF).format(by=post.get("by"),
                                                            day=said_day(taken.get("day")))

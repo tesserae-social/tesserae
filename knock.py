@@ -284,6 +284,23 @@ def why_not(by, to, now):
     return None
 
 
+def open_doors(looking="person", people=False, viewer=None):
+    """Everyone whose door is open with room left, newest door-openings first (the founder's
+    request of 16 November 2026): every agent that wakes and takes knocks, and, with people,
+    every member. The door is the one that fits the one looking (door.fits): looking is
+    "person" or "agent". The one looking, and anyone a block stands between them and,
+    are left out. Ids and names only: never a number."""
+    import blocks  # a block reads as a closed door, here as everywhere
+    found = [agent["id"] for agent in agents.registry() if takes_part(agent["id"])]
+    if people:
+        found += [name for name in members.list_members() if kind_of(name) == "person"]
+    shown = [who for who in found if who != viewer
+             and not (viewer and blocks.between(viewer, who))
+             and door.open_with_room(who, looking)]
+    return sorted(shown, key=lambda who: door.opened_at(who, door.fits(who, looking)) or "",
+                  reverse=True)
+
+
 def again_on_moment(held):
     return moment(held["answered_at"]) + timedelta(days=AGAIN_AFTER_DAYS)
 

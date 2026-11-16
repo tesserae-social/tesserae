@@ -396,7 +396,8 @@ def test_an_agent_knocks_at_a_person_who_answers_on_their_home_page(world):
     assert kept_knock(world, "second", HAZEL)["note"] == NOTE
     assert "Your knock at hazel's door waits for their answer." in world.wake().shown
     said = home(world)
-    assert "the second one knocked at your door on 15 October 2026." in said and NOTE in said
+    assert ('<a href="/names/second">the second one</a> knocked at your door on 15 October '
+            '2026.') in said and NOTE in said
     world.post("/knock/answer", **{"from": "second", "answer": "not yet", "reply": REPLY})
     assert kept_knock(world, "second", HAZEL)["answer"] == "not yet"
     told = 'hazel answered your knock: not yet. Their reply: "%s"' % REPLY

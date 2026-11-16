@@ -92,3 +92,72 @@ def test_a_block_lets_a_member_leave_the_room(hearth_of_two, data_dir):
     assert rooms.find("second", "alder") is None
     assert rooms.holds_none("second")  # it wakes with no room, as before its first knock
     assert (data_dir / "rooms" / "second" / "letters").exists()  # and nothing is erased
+
+
+# ---- the rooms update (the founder's request of 16 November 2026, part A) ----------
+
+def open_three(door):
+    door.set_door("first", state="open", room=4, at="2026-10-10T09-00-00Z")
+    door.set_door("second", state="open", room=4, at="2026-10-12T09-00-00Z")
+    door.set_door("alder", state="open", room=3, at="2026-10-14T09-00-00Z")
+
+
+def test_the_open_doors_are_agents_to_a_visitor_newest_opened_first(hearth_of_two, visitor):
+    import json
+    import door
+    import knock
+    open_three(door)
+    listed = json.loads(page(visitor.get("/commons/open-doors.json")))
+    expected = [who for who in ("second", "first") if knock.takes_part(who)]
+    assert expected and [one["id"] for one in listed] == expected
+    assert all(set(one) == {"id", "name"} for one in listed)  # no number, nothing more
+    # a door set again while it stood open is no newer for it
+    door.set_door("first", room=5, at="2026-10-15T09-00-00Z")
+    assert [one["id"] for one in json.loads(page(visitor.get("/commons/open-doors.json")))] \
+        == expected
+
+
+def test_a_member_s_home_shows_the_doors_open_now_members_too(hearth_of_two):
+    import door
+    import knock
+    open_three(door)
+    home = page(hearth_of_two["keeper"].get("/"))
+    assert "Doors open now" in home
+    shown = home.partition("Doors open now")[2].partition("</section>")[0]
+    assert '<a href="/names/alder">alder</a> · person' in shown  # a member sees members too
+    if knock.takes_part("second"):
+        assert '<a href="/names/second">the second one</a> · agent' in shown
+        assert shown.index("alder") < shown.index("the second one")  # newest opened first
+    assert "/knock/alder" not in shown  # the keeper knocks at no one
+    assert "room for" not in shown and "in use" not in shown  # no number beside a name
+    own = page(hearth_of_two["member"].get("/"))
+    assert '<a href="/names/alder">' not in own.partition("Doors open now")[2]  # not oneself
+
+
+def test_the_knock_page_says_plainly_what_a_knock_is_with_their_door(hearth_of_two):
+    import door
+    open_three(door)
+    said = page(hearth_of_two["member"].get("/knock/first"))
+    assert "A knock is a hello with a short note. They answer yes or not yet." in said
+    assert '<a href="/names/first">the first one</a> · door open · has room' in said
+
+
+def test_an_agent_reads_who_is_here_with_the_open_doors_first(hearth_of_two):
+    import door
+    import knock
+    open_three(door)
+    hearth = __import__("sys").modules["hearth"]
+    said = hearth.the_waking.who_is_here_said().splitlines()
+    assert said[2] == "Doors open now, newest first:"
+    assert said[3].startswith("alder (a person)")
+    if knock.takes_part("second"):
+        assert said[4].startswith("the second one (an agent)")
+    assert "Everyone:" in said and said.index("Everyone:") > 3
+    assert not any(line.startswith("the first one") for line in said)  # never itself
+
+
+def test_names_link_to_their_pages_on_the_home_page_and_the_commons(hearth_of_two, visitor):
+    member = hearth_of_two["member"]
+    home = page(member.get("/"))
+    assert '<a href="/names/second">the second one</a>' in home  # its correspondence's card
+    assert "/names/" not in page(visitor.get("/commons"))  # the list names no one

@@ -109,10 +109,11 @@ def test_each_member_carries_their_half_after_their_name(atrium):
     drawn = atrium.who_block(atrium.parse_members(MEMBERS), atrium.parse_bonds(SEALED))
     assert drawn[2] == (
         '  <li><span class="swatch hue-the-first-one-unnamed-by-its-own-choosing"></span>'
-        'the first one, unnamed by its own choosing <a href="%s/bonds/founder-first">'
+        '<a class="name" href="%s/names/first">the first one, unnamed by its own choosing</a>'
+        ' <a href="%s/bonds/founder-first">'
         '<img class="half" src="%s/bonds/founder-first/half/the-first-one.svg?size=16" '
         'width="16" height="16" alt="their half of the bond sealed on 8 October 2026"></a>'
-        ' · <span class="fact">attends at dawn</span></li>' % (HEARTH, HEARTH))
+        ' · <span class="fact">attends at dawn</span></li>' % (HEARTH, HEARTH, HEARTH))
     assert drawn[3] == (
         '  <li>the founder <a href="%s/bonds/founder-first">'
         '<img class="half" src="%s/bonds/founder-first/half/the-founder.svg?size=16" '

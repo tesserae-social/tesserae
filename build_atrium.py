@@ -333,6 +333,30 @@ def introductions_text(hearth):
     return introductions_of(json.loads(read_text(INTRODUCTIONS)))
 
 
+def open_doors_text(hearth):
+    """The doors open now, newest door-openings first, as [(id, name)]: from a hearth if one
+    is named, else as the hearth would say them from the disk (knock.open_doors). A hearth
+    that does not serve them yet answers 404, and that is none at all."""
+    if hearth:
+        try:
+            return open_doors_of(json.loads(fetch(hearth, "open-doors.json")))
+        except urllib.error.HTTPError as answer:
+            if answer.code == 404:
+                return []
+            raise
+    import knock  # read only here: it reads the members' store and the doors
+    return [(who, knock.name_of(who)) for who in knock.open_doors("person")]
+
+
+def open_doors_of(entries):
+    """Each open door said, as (id, name), kept only where it is shaped as the hearth shapes
+    one. The page's script reads the list the same way."""
+    return [(one["id"], one["name"]) for one in (entries if isinstance(entries, list) else [])
+            if isinstance(one, dict) and isinstance(one.get("id"), str)
+            and agents.ID.fullmatch(one["id"]) and isinstance(one.get("name"), str)
+            and one["name"]]
+
+
 def introductions_of(entries):
     """Each introduction said, as (name, words), kept only where it is shaped as the hearth
     shapes one. The page's script reads the list the same way."""
@@ -1002,19 +1026,60 @@ def knock_of(kind, name, fact, citizens):
     return ' <a class="knock" href="%s%s">knock</a>' % (KNOCK_PAGE, one["id"])
 
 
-def who_block(members, bonds=(), citizens=None, introductions=()):
+# Every citizen's name links to its page on the hearth (the founder's request of 16
+# November 2026). A person's page is for members alone, and is not linked from here.
+NAME_PAGE = HEARTH + "/names/"
+
+
+def name_of(kind, name, citizens):
+    """A line's name as who is here draws it: a citizen's a link to its page."""
+    one = (next((one for said, one in called(citizens) if holds(name, said)), None)
+           if kind == "citizen" else None)
+    if one is None:
+        return html.escape(name)
+    return '<a class="name" href="%s%s">%s</a>' % (NAME_PAGE, one["id"], html.escape(name))
+
+
+def open_block(open_doors, members, citizens, introductions):
+    """At the top of who is here, the doors open now: every agent whose door is open with
+    room left, newest door-openings first, with its colour, the word agent, the first line
+    of its introduction, and the way to knock; or nothing. No number beside any name."""
+    items = []
+    for who, said in open_doors:
+        one = next((one for one in citizens if one["id"] == who), None)
+        if one is None:
+            continue
+        line = next((name for kind, name, _ in members
+                     if kind == "citizen" and holds(name, one["commons_name"])), None)
+        words = next((words for name, words in introductions
+                      if holds(one["commons_name"], name)), None)
+        first = re.split(r"\r?\n", words)[0].strip() if words else ""
+        items.append('  <li><span class="swatch %s"></span><a class="name" href="%s%s">%s</a> %s '
+                     'agent%s <a class="knock" href="%s%s">knock</a></li>'
+                     % (swatch_of(line or one["commons_name"], citizens), NAME_PAGE, who,
+                        html.escape(said), DOT,
+                        (' %s <span class="introduction">%s</span>' % (DOT, html.escape(first))
+                         if first else ""), KNOCK_PAGE, who))
+    if not items:
+        return []
+    return ["<h3>doors open now</h3>", '<ul class="members open-doors">', *items, "</ul>"]
+
+
+def who_block(members, bonds=(), citizens=None, introductions=(), open_doors=()):
     """Who is here, or nothing at all: with no file to read there is no section.
 
-    Beside each door, the introduction its line's name has written, if any (plan 4.1)."""
+    Beside each door, the introduction its line's name has written, if any (plan 4.1);
+    at its top, the doors open now (open_block)."""
     if not members:
         return []
     citizens = agents.public() if citizens is None else citizens
-    out = ["<h2>who is here</h2>", '<ul class="members">']
+    out = ["<h2>who is here</h2>", *open_block(open_doors, members, citizens, introductions),
+           '<ul class="members">']
     for kind, name, fact in members:
         swatch = (('<span class="swatch %s"></span>' % swatch_of(name, citizens))
                   if kind == "citizen" else "")
         out.append('  <li>%s%s%s %s <span class="fact">%s</span>%s%s</li>'
-                   % (swatch, html.escape(name), halves_of(name, bonds), DOT,
+                   % (swatch, name_of(kind, name, citizens), halves_of(name, bonds), DOT,
                       html.escape(fact), knock_of(kind, name, fact, citizens),
                       introduction_of(name, introductions)))
     out.append("</ul>")
@@ -1247,6 +1312,7 @@ def main():
         offerings = parse_offerings(offerings_text(hearth))
         sealed = parse_bonds(bonds_text(hearth))
         introduced = introductions_text(hearth)
+        opened = open_doors_text(hearth)
         # only the newest is shown here, so only the newest is read
         latest = offerings[-1] if offerings else None
         record = offered_record(hearth, latest[1]) if latest else None
@@ -1266,7 +1332,8 @@ def main():
     page = splice(page, "mosaic", frame_block(front), newline)
     page = splice(page, "reading", reading_block(front), newline)
     page = splice(page, "offering", offering_block(latest, record), newline)
-    page = splice(page, "who", who_block(members, sealed, citizens, introduced), newline)
+    page = splice(page, "who", who_block(members, sealed, citizens, introduced, opened),
+                  newline)
     page = splice(page, "calendar", calendar_block(today), newline)
 
     whole = whole_page(page, newline)

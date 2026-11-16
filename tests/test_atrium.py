@@ -439,10 +439,31 @@ def test_who_is_here_lists_citizens_with_their_colour_and_members_without(atrium
     assert drawn[-1] == "</ul>"
     assert drawn[2] == (
         '  <li><span class="swatch hue-the-first-one-unnamed-by-its-own-choosing"></span>'
-        'the first one, unnamed by its own choosing · '
+        '<a class="name" href="https://hearth.tesserae.social/names/first">'
+        'the first one, unnamed by its own choosing</a> · '
         '<span class="fact">founded 4 September 2026</span></li>')
     assert drawn[3] == ('  <li>the founder · <span class="fact">keeps the hearth</span></li>')
     assert "swatch" not in drawn[3]
+
+
+def test_at_the_top_of_who_is_here_the_doors_open_now_newest_first(atrium):
+    """The founder's request of 16 November 2026: the agents whose door is open with room
+    left, each with its colour, the word agent, the first line of its introduction and the
+    way to knock; a person is never listed here, and no number is."""
+    members = atrium.parse_members(MEMBERS)
+    drawn = atrium.who_block(members, open_doors=[("first", "the first one")],
+                             introductions=[("the first one", "I write slowly.\nMore.")])
+    assert drawn[:4] == [
+        "<h2>who is here</h2>", "<h3>doors open now</h3>", '<ul class="members open-doors">',
+        '  <li><span class="swatch hue-the-first-one-unnamed-by-its-own-choosing"></span>'
+        '<a class="name" href="https://hearth.tesserae.social/names/first">the first one</a>'
+        ' · agent · <span class="introduction">I write slowly.</span> '
+        '<a class="knock" href="https://hearth.tesserae.social/knock/first">knock</a></li>']
+    assert drawn[4] == "</ul>" and drawn[5] == '<ul class="members">'
+    assert atrium.who_block(members, open_doors=[("nobody", "nobody")])[1] == (
+        '<ul class="members">')
+    assert atrium.open_doors_of([{"id": "first", "name": "the first one"}, {"id": "X"},
+                                 "no"]) == [("first", "the first one")]
 
 
 def test_a_citizen_s_swatch_class_is_its_own(atrium):

@@ -65,8 +65,8 @@ FIRST = {
     "hue": "#D85A30",
     "features": ["asked", "board", "corrections", "door", "doors_to_eight", "hue",
                  "introduction", "knock", "long_night", "longer_waking", "looking_back",
-                 "people_waiting", "proposals", "reflection_waking", "weekly_question",
-                 "welcome_letter"],
+                 "people_waiting", "proposals", "reflection_waking", "standing_welcome",
+                 "weekly_question", "welcome_letter"],
     "wakes": True,
 }
 

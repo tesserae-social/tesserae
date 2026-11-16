@@ -28,7 +28,7 @@ What is kept here, under DATA_DIR/comings/, which no page serves:
                                        at a coming, so that they are taken in turn
 
 And in an agent's own packet, behind its switch STANDING_SWITCH, off for every
-agent until it agrees:
+agent until it agrees (on for the first one since 16 November 2026, at its asking):
 
     standing-welcome/letter.json               its standing welcome, signed
     standing-welcome/history/letter-before-<at>.json

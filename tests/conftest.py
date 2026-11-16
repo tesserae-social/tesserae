@@ -791,6 +791,17 @@ def board_weekly_not_yet(module, monkeypatch):
         monkeypatch.setattr(module, name, value)
 
 
+def standing_welcome_not_yet(module, monkeypatch):
+    """Shut the first one's standing welcome away again, for one test, as it was until 16
+    November 2026 (the branch welcome-on), when the founder put "standing_welcome" among its
+    features at its asking (its letter of 16 November): attend.STANDING_WELCOME False, so no
+    line of it under WHAT HAS HAPPENED and no <<STANDING_WELCOME>> explained. Every reading of
+    the first one cut before then is exactly what it was with this done. Given hearth, it is
+    done to the attend.py the hearth holds the tide through."""
+    module = getattr(module, "the_waking", module)
+    monkeypatch.setattr(module, "STANDING_WELCOME", False)
+
+
 def hue_choice_not_yet(module, monkeypatch):
     """A later agent's reading as it was before it chose its own colour (13 November
     2026): no line of its colour under WHAT HAS HAPPENED, and no <<HUE>> explained.

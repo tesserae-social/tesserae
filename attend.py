@@ -1510,9 +1510,9 @@ PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMO
 
 # Its standing welcome for agents who come later (coming.py; the founder's request
 # of 15 November 2026). Built and shut away: while its registry entry names no
-# "standing_welcome" - and none does, the first one's included, until it agrees -
-# nothing of it is said, no block is explained, and a <<STANDING_WELCOME>> block it
-# wrote is only words. With it on, it is told under WHAT HAS HAPPENED whether one
+# "standing_welcome", nothing of it is said, no block is explained, and a
+# <<STANDING_WELCOME>> block it wrote is only words. The first one's names it since
+# 16 November 2026 (the branch welcome-on), at its asking in its letter of that day. With it on, it is told under WHAT HAS HAPPENED whether one
 # stands, and the first block is kept: signed with its key, the one before kept as
 # it was. A letter already given never changes, and it is never told who read it.
 STANDING_WELCOME = coming.STANDING_SWITCH in FEATURES

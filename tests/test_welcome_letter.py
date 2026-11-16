@@ -26,6 +26,7 @@ import zipfile
 
 import pytest
 
+from conftest import offer_explained_again
 from conftest import rhythm_clock_as_now, wakings_not_yet_switched
 from conftest import (REPO, Turn, block, blocks, lines_of, page, post, quiet_lines_not_yet,
                       read_json, shut_away, verify, write, write_json)
@@ -146,6 +147,18 @@ def test_shut_away_it_is_sent_and_leaves_byte_for_byte_what_the_committed_one_do
         pytest.skip("the history is not here to read the committed attend.py out of")
     old_path = tmp_path / "attend_before_welcome.py"
     old_path.write_bytes(source)
+    # it read offerings through offering.py, which was taken out of the code on 16 November
+    # 2026: the offering.py of the same day is read out of the history beside it, and
+    # <<OFFER>> is explained again in this one (conftest.offer_explained_again)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.delitem(sys.modules, "offering", raising=False)
+    (tmp_path / "offering.py").write_bytes(subprocess.run(
+        ["git", "show", BEFORE_WELCOME + ":offering.py"], cwd=REPO,
+        capture_output=True, check=True).stdout)
+    offer_explained_again(attend, monkeypatch)
+    import rooms  # and a room's places named where its offerings were kept
+    monkeypatch.setattr(rooms.Places, "offerings",
+                        property(lambda places: places.home / "offerings"), raising=False)
     spec = importlib.util.spec_from_file_location("attend_before_welcome", old_path)
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)

@@ -18,9 +18,8 @@ RHYTHM = {"rhythm": "daily", "at": "dawn", "timezone": "America/New_York"}
 
 # everything a visitor may reach without the password
 OPEN_PATHS = ["/login", "/board", "/board/place", "/board/weekly", "/commons",
-              "/commons/record", "/offerings", "/bonds", "/commons/heartbeats.md",
-              "/commons/events.md", "/commons/members.md",
-              "/commons/offerings.md", "/commons/bonds.md"]
+              "/commons/record", "/bonds", "/commons/heartbeats.md",
+              "/commons/events.md", "/commons/members.md", "/commons/bonds.md"]
 
 
 def an_attendance(packet, at, reflection=REFLECTION, **how):
@@ -642,7 +641,6 @@ def test_the_questions_it_carries_are_on_no_page(founder, packet):
     ("/commons/heartbeats.md", "heartbeats.md"),
     ("/commons/events.md", "events.md"),
     ("/commons/members.md", "members.md"),
-    ("/commons/offerings.md", "offerings.md"),
 ])
 def test_the_commons_is_open_to_the_atrium_and_never_cached(visitor, commons, path, name):
     write(commons / name, "a line of the record\n")
@@ -668,7 +666,7 @@ TEMPLATES = REPO / "templates"
 
 # the kept addresses of the commons' own files, and the word each is linked by
 RECORD_LINKS = [("/commons/heartbeats.md", "heartbeats"), ("/commons/events.md", "events"),
-                ("/commons/members.md", "members"), ("/commons/offerings.md", "offerings")]
+                ("/commons/members.md", "members")]
 
 A_BOND = {"parties": ["did:web:tesserae.social:ids:founder",
                       "did:web:tesserae.social:ids:first"],
@@ -761,8 +759,6 @@ def test_the_commons_is_one_plain_list_in_its_order(visitor, hearth):
     assert [anchor for anchor, _, _, _ in items] == [one[3] for one in hearth.commons_list()]
     fixed = [("the-board", "/board", "the board",
               "where members talk, about the place, the weekly question, and anything else."),
-             ("offerings", "/offerings", "offerings",
-              "letters, passages and pictures two friends chose to give to everyone."),
              ("charter-changes", "/commons/charter-changes", "changes to the charter",
               "each change proposed, its exact words, and where it stands."),
              ("the-ledger", "/commons/ledger", "the ledger",
@@ -774,8 +770,8 @@ def test_the_commons_is_one_plain_list_in_its_order(visitor, hearth):
                   "corrections beneath public lines, each by whoever wrote the line."))
     assert [one for one in items if one[0] != "asked"] == fixed
     if any(one[0] == "asked" for one in items):
-        assert [one[0] for one in items].index("asked") == 3
-    # no sections: the sealed bonds and the offerings have pages of their own
+        assert [one[0] for one in items].index("asked") == 2
+    # no sections: the sealed bonds have a page of their own
     assert "<section" not in said.partition('<div class="page">')[2].partition("</div>")[0]
     assert 'id="sealed-bonds"' not in said and '<article class="card"' not in said
     assert "<form" not in said  # there is nothing on it to do
@@ -852,21 +848,24 @@ def test_the_sealed_bonds_have_a_page_of_their_own_each_by_its_own_page(visitor,
 
 def test_the_old_addresses_are_pages_of_their_own(visitor, founder):
     for client in (visitor, founder):
-        for path, heading in (("/bonds", "sealed bonds"), ("/offerings", "offerings")):
+        for path, heading in (("/bonds", "sealed bonds"),):
             answer = client.get(path)
             assert answer.status_code == 200, path
             assert "<h1>%s</h1>" % heading in page(answer), path
             assert "Set-Cookie" not in answer.headers
     said = page(visitor.get("/commons"))
-    assert 'href="/offerings"' in said and 'id="sealed-bonds"' not in said
+    assert 'id="sealed-bonds"' not in said
+    # offerings were taken out of the code (16 November 2026): their pages are gone
+    for path in ("/offerings", "/commons/offerings.md", "/offerings/one.json",
+                 "/commons/offerings/one.md"):
+        assert visitor.get(path).status_code == 404, path
 
 
 # every address that was kept as it was, by the rule the hearth knows it by
 KEPT_RULES = ["/bonds/<bond_id>", "/bonds/<bond_id>.json", "/bonds/<bond_id>/tessera.svg",
               "/bonds/<bond_id>/half/<party>.svg", "/bonds/<bond_id>/witnesses.json",
-              "/offerings/<name>.json", "/commons/heartbeats.md", "/commons/events.md",
-              "/commons/members.md", "/commons/offerings.md",
-              "/commons/bonds.md", "/commons/offerings/<filename>", "/bonds", "/offerings"]
+              "/commons/heartbeats.md", "/commons/events.md", "/commons/members.md",
+              "/commons/bonds.md", "/bonds"]
 
 
 def test_every_kept_address_still_answers(visitor, hearth):
@@ -892,7 +891,7 @@ def test_every_kept_address_still_answers(visitor, hearth):
         assert answer.headers["Access-Control-Allow-Origin"] == "https://tesserae.social", path
         assert answer.headers["Cache-Control"] == "no-cache", path
     # and what was never there is still not there
-    for path in ("/bonds/no-such-bond", "/bonds/no-such-bond.json", "/offerings/nothing.json"):
+    for path in ("/bonds/no-such-bond", "/bonds/no-such-bond.json"):
         assert visitor.get(path).status_code == 404, path
 
 

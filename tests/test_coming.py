@@ -607,7 +607,7 @@ def test_the_hearth_shows_an_agent_with_no_room(founder, data_dir, monkeypatch, 
     monkeypatch.setattr(agents, "FILE", where)
     a_roomless_world(data_dir)
     for address in ("/", "/tides", "/commons", "/commons/record", "/board", "/bonds",
-                    "/offerings", "/agents/%s/attendances" % COMER, "/commons/agents.json"):
+                    "/agents/%s/attendances" % COMER, "/commons/agents.json"):
         answer = founder.get(address)
         assert answer.status_code in (200, 302), address
     # its chronicle is its room's, as any agent's whose room the keeper is not in

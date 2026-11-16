@@ -28,7 +28,6 @@ A room's things are kept in a folder of its own:
     DATA_DIR/rooms/<room>/letters/outgoing      the agent's letters
     DATA_DIR/rooms/<room>/errands               what the agent has asked
     DATA_DIR/rooms/<room>/bonds                 the asking, the answers, the bond
-    DATA_DIR/rooms/<room>/offerings             what either has offered the commons
 
 and the folder is a room only where its room.json is: with no room.json there
 is no room, the first one's no less than any other's, and nothing stands in for
@@ -84,7 +83,7 @@ KINDS = (PERSON_KIND, AGENTS_KIND)
 Room = namedtuple("Room", "id mine parties other bond kind", defaults=(PERSON_KIND,))
 
 
-class Places(namedtuple("Places", "home incoming read outgoing errands bonds offerings")):
+class Places(namedtuple("Places", "home incoming read outgoing errands bonds")):
     """Where one room's things are kept, by the names the folders have on disk.
 
     home is the folder the room's folders are in: its own, under rooms/.
@@ -335,7 +334,7 @@ def places(room_id):
     home = DATA / ROOMS / room_id
     letters = home / "letters"
     return Places(home, letters / "incoming", letters / "read", letters / "outgoing",
-                  home / "errands", home / "bonds", home / "offerings")
+                  home / "errands", home / "bonds")
 
 
 # ---- the person of an agent's room, by its agent -------------------------

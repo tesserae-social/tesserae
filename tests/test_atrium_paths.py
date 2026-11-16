@@ -43,7 +43,7 @@ from conftest import JSDOM_HOME, NODE_ENV, NOW, REPO, write
 
 NODE = shutil.which("node")
 
-REGIONS = ["mosaic", "reading", "offering", "who", "calendar"]
+REGIONS = ["mosaic", "reading", "who", "calendar"]
 
 # and what the two of them write on the whole mosaic's own page
 WHOLE_REGIONS = ["whole", "reading"]
@@ -68,8 +68,7 @@ const fs = require("fs");
 const { JSDOM } = require("jsdom");
 
 // the whole commons, handed over as a folder: the page asks for files under
-// commons/ by name, and one of them - an offering's own record - is asked for
-// only once the index says there is one
+// commons/ by name
 const [page, baked, at, commons] = process.argv.slice(2);
 const path = require("path");
 const under = (asked) => {
@@ -186,36 +185,7 @@ def both_paths(tmp_path, data_dir, baked, at=AT):
 MEMBERS = ("citizen · the first one, unnamed by its own choosing · attends at dawn\n"
            "member · the founder · keeps the hearth\n")
 
-# two offerings, placed on two days: one that is words, and one that is a picture
-OFFERINGS = ("- 2026-10-11 · 2026-10-11T09-00-00Z · letter · the founder and the first one\n"
-             "- 2026-10-13 · 2026-10-13T09-00-00Z · passage · the founder and the first one\n")
-
-RECORDS = {
-    "2026-10-11T09-00-00Z": {
-        "id": "2026-10-11T09-00-00Z", "offered_by": "first", "kind": "picture",
-        "source": "to-founder-2026-10-11T08-00-00Z", "text": "", "at": "2026-10-11T08-30-00Z",
-        "sealed_at": "2026-10-11T09-00-00Z", "file": "2026-10-11T09-00-00Z.svg",
-        "signatures": {"founder": "x", "first": "y"},
-    },
-    "2026-10-13T09-00-00Z": {
-        "id": "2026-10-13T09-00-00Z", "offered_by": "founder", "kind": "passage",
-        "source": "founder-2026-10-12T09-00-00Z",
-        "text": "The lake was still this morning.\n\nAnd \"quoted\" & <marked> besides.",
-        "at": "2026-10-13T08-30-00Z", "sealed_at": "2026-10-13T09-00-00Z",
-        "signatures": {"founder": "x", "first": "y"},
-    },
-}
-
-
-def offerings(data_dir, index=OFFERINGS, records=RECORDS):
-    """The offerings of the commons: the index, and a record for each."""
-    write(data_dir / "commons" / "offerings.md", index)
-    for one, record in records.items():
-        write(data_dir / "commons" / "offerings" / (one + ".json"),
-              json.dumps(record, indent=2) + "\n")
-
-
-def a_record(data_dir, members=MEMBERS, offered=""):
+def a_record(data_dir, members=MEMBERS):
     """One commons, with a little of everything in it.
 
     Every file the page asks the hearth for is written, even where it is empty:
@@ -223,7 +193,6 @@ def a_record(data_dir, members=MEMBERS, offered=""):
     what it holds before anything has been written there. A file that answers
     nothing at all is a hearth gone quiet, which is tested on its own.
     """
-    write(data_dir / "commons" / "offerings.md", offered)
     write(data_dir / "commons" / "events.md",
           "2026-09-02 · word · the word was published\n"
           "2026-09-04 · founding · the first one was founded\n"
@@ -231,10 +200,6 @@ def a_record(data_dir, members=MEMBERS, offered=""):
           "2026-10-01 · whistling · a kind we do not know\n"  # and a kind we do not
           "2026-10-08 · seal · a bond was sealed\n"
           "2026-10-09 · event · a line with \"quotes\" & <marks>\n"
-          # the commons keeps a line for an offering too; both paths pass it over
-          # and draw the tile from offerings.md, where the offering's name is
-          "2026-10-11 · offering · an offering was placed\n"
-          "2026-10-13 · offering · an offering was placed\n"
           "nonsense, and no date at all\n")
     # both shapes of a heartbeat line are here: the newer, which writes the
     # middot between the name and the words, and the older, which ran the two
@@ -263,7 +228,6 @@ def titles_of(said):
 
 def test_both_paths_draw_the_same_atrium(atrium, data_dir, monkeypatch, tmp_path):
     a_record(data_dir)
-    offerings(data_dir)
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     for name in REGIONS:
         assert here[name] == there[name], name
@@ -276,7 +240,6 @@ def test_the_dated_heartbeats_the_hearth_serves_draw_the_same_atrium(atrium, dat
     10 November 2026). Both draw the one atrium, and the whole mosaic."""
     import shutil
     a_record(data_dir)
-    offerings(data_dir)
     baked = build(atrium, monkeypatch)
     served = tmp_path / "served"
     shutil.copytree(data_dir / "commons", served / "commons")
@@ -321,7 +284,6 @@ def main_of(page):
 def test_both_paths_draw_the_same_page_entire(atrium, data_dir, monkeypatch, tmp_path):
     """Not the marked regions alone: the name, the menu, the intro and the foot besides."""
     a_record(data_dir)
-    offerings(data_dir)
     built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
     assert main_of(drawn) == main_of(built)
 
@@ -348,7 +310,6 @@ def test_both_paths_leave_the_menu_and_the_question_alone(atrium, data_dir, monk
 
 def test_neither_path_writes_an_em_dash(atrium, data_dir, monkeypatch, tmp_path):
     a_record(data_dir)
-    offerings(data_dir)
     built, drawn = both_pages(tmp_path, data_dir, build(atrium, monkeypatch))
     assert "—" not in built and "—" not in drawn
 
@@ -378,7 +339,7 @@ def test_an_empty_record_is_where_the_two_paths_part(atrium, data_dir, monkeypat
     record with nothing in it is a hearth that has gone quiet, and what was baked
     into the page stands rather than the atrium emptying itself.
     """
-    for name in ("events.md", "heartbeats.md", "members.md", "offerings.md"):
+    for name in ("events.md", "heartbeats.md", "members.md"):
         write(data_dir / "commons" / name, "")
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
 
@@ -392,7 +353,7 @@ def test_an_empty_record_is_where_the_two_paths_part(atrium, data_dir, monkeypat
 
 def test_the_browser_path_leaves_the_page_alone_when_the_hearth_is_quiet(tmp_path, data_dir):
     """A hearth that cannot be reached changes nothing: what was baked in stands."""
-    for name in ("events.md", "heartbeats.md", "members.md", "offerings.md"):
+    for name in ("events.md", "heartbeats.md", "members.md"):
         (data_dir / "commons" / name).unlink(missing_ok=True)
     harness = write(tmp_path / "harness.js", HARNESS.replace(
         "ok: body !== undefined", "ok: false"))  # a hearth that answers nothing at all
@@ -455,7 +416,7 @@ def test_both_paths_shrink_the_tiles_alike_as_the_record_grows(atrium, data_dir,
     That is the whole mosaic's page. The front page's tiles are one size however
     long the record runs, and it shows the last year of it and no more.
     """
-    for name in ("heartbeats.md", "members.md", "offerings.md"):
+    for name in ("heartbeats.md", "members.md"):
         write(data_dir / "commons" / name, "")
     write(data_dir / "commons" / "events.md",
           "%s · event · a long time ago\n"
@@ -486,7 +447,7 @@ def test_both_paths_shrink_the_tiles_alike_as_the_record_grows(atrium, data_dir,
 
 def a_long_record(data_dir, first):
     """One plain event a day from a day long past to today, and nothing else."""
-    for name in ("heartbeats.md", "members.md", "offerings.md"):
+    for name in ("heartbeats.md", "members.md"):
         write(data_dir / "commons" / name, "")
     day, lines = datetime.date.fromisoformat(first), []
     while day <= datetime.date(2026, 10, 15):
@@ -537,7 +498,6 @@ def test_laying_the_frame_writes_nothing_into_the_page(atrium, data_dir, monkeyp
 
 def test_both_paths_draw_the_same_whole_mosaic(atrium, data_dir, monkeypatch, tmp_path):
     a_record(data_dir)
-    offerings(data_dir)
     write(data_dir / "commons" / "bonds.md",
           "2026-10-08 · founder-first · the founder and the first one · sealed\n")
     build(atrium, monkeypatch)
@@ -551,7 +511,7 @@ def test_both_paths_draw_the_same_whole_mosaic(atrium, data_dir, monkeypatch, tm
             '<li class="year">2026</li> <li class="tile-word" '
             'title="2 September 2026 · the word was published" tabindex="0"></li>')
         assert said["whole"].count("<li") == 48 + 1          # every slot, and the year
-        assert said["whole"].count('<li class="empty">') == 34
+        assert said["whole"].count('<li class="empty">') == 36
         # oldest first: the same tiles as the front page's, in the other order
         shown = titles_of(said["whole"])
         assert shown == titles_of(front["mosaic"])[::-1]
@@ -562,9 +522,7 @@ def test_both_paths_draw_the_same_whole_mosaic(atrium, data_dir, monkeypatch, tm
                 'aria-label="8 October 2026 · a bond was sealed">'
                 '<img src="https://hearth.tesserae.social/bonds/founder-first/tessera.svg'
                 '?size=34" width="34" height="34" alt=""></a></li>') in said["whole"]
-        assert ('<a href="https://hearth.tesserae.social/offerings#2026-10-13T09-00-00Z"'
-                in said["whole"])
-        assert said["whole"].count("<a href=") == 3
+        assert said["whole"].count("<a href=") == 1
 
 
 def test_both_paths_draw_the_same_whole_page_entire(atrium, data_dir, monkeypatch, tmp_path):
@@ -598,7 +556,7 @@ def test_both_paths_label_each_year_of_the_whole_mosaic(atrium, data_dir, monkey
 
 
 def test_the_whole_mosaic_stands_as_baked_when_the_hearth_is_quiet(tmp_path, data_dir):
-    for name in ("events.md", "heartbeats.md", "members.md", "offerings.md"):
+    for name in ("events.md", "heartbeats.md", "members.md"):
         (data_dir / "commons" / name).unlink(missing_ok=True)
     harness = write(tmp_path / "harness.js", HARNESS.replace(
         "ok: body !== undefined", "ok: false"))
@@ -657,7 +615,7 @@ def test_both_paths_keep_the_founder_s_line_beside_a_letter(atrium, data_dir,
 
 def test_both_paths_read_out_a_letter_as_the_newest_tile(atrium, data_dir, monkeypatch,
                                                          tmp_path):
-    for name in ("heartbeats.md", "members.md", "offerings.md"):
+    for name in ("heartbeats.md", "members.md"):
         write(data_dir / "commons" / name, "")
     write(data_dir / "commons" / "events.md",
           "2026-10-15 · letter · the founder wrote a letter in the evening\n")
@@ -665,67 +623,6 @@ def test_both_paths_read_out_a_letter_as_the_newest_tile(atrium, data_dir, monke
     assert here == there
     assert here["reading"] == ('<p class="reading">15 October 2026 · the founder wrote '
                                'a letter</p>')
-
-
-# ---- the offerings, on both paths ----------------------------------------
-
-def test_both_paths_show_the_newest_offering_and_no_other(atrium, data_dir, monkeypatch,
-                                                          tmp_path):
-    a_record(data_dir)
-    offerings(data_dir)
-    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
-    assert here["offering"] == there["offering"]
-    for said in (here, there):
-        assert "<h2>offered from the hearth</h2>" in said["offering"]
-        assert "13 October 2026 · a passage · the founder and the first one" in said["offering"]
-        assert "The lake was still this morning." in said["offering"]
-        # two paragraphs inside the quotation, and what was quoted in them
-        # escaped the one way on both paths
-        quoted = said["offering"].split("<blockquote>")[1].split("</blockquote>")[0]
-        assert "&amp; &lt;marked&gt; besides." in quoted
-        assert quoted.count("<p>") == 2
-        assert ('<a href="https://hearth.tesserae.social/offerings#2026-10-13T09-00-00Z">'
-                "all offerings</a>") in said["offering"]
-        assert "2026-10-11T09-00-00Z.svg" not in said["offering"]   # the older one is past
-
-
-def test_both_paths_draw_an_offering_as_a_tile_that_leads_to_it(atrium, data_dir, monkeypatch,
-                                                                tmp_path):
-    a_record(data_dir)
-    offerings(data_dir)
-    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
-    for said in (here, there):
-        # one tile per offering, and no second tile from the commons' own line
-        assert said["mosaic"].count('class="tile-offering"') == 2
-        assert said["mosaic"].count("an offering was placed") == 0
-        assert ('<a href="https://hearth.tesserae.social/offerings#2026-10-13T09-00-00Z"'
-                in said["mosaic"])
-        assert ('<a href="https://hearth.tesserae.social/bonds/founder-first.json"'
-                in said["mosaic"])
-        # the tiles with nowhere to lead are still hover-only
-        assert said["mosaic"].count("<a href=") == 3
-
-
-def test_both_paths_show_a_picture_offering_from_the_hearth(atrium, data_dir, monkeypatch,
-                                                            tmp_path):
-    a_record(data_dir)
-    offerings(data_dir, index=OFFERINGS.splitlines(True)[0])
-    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
-    assert here["offering"] == there["offering"]
-    for said in (here, there):
-        assert ('<img class="offering" src="https://hearth.tesserae.social/commons/offerings/'
-                '2026-10-11T09-00-00Z.svg" alt="an offering from the founder and the first '
-                'one">') in said["offering"]
-        assert "<blockquote>" not in said["offering"]
-
-
-def test_both_paths_leave_the_section_off_where_nothing_was_offered(atrium, data_dir,
-                                                                    monkeypatch, tmp_path):
-    a_record(data_dir)
-    write(data_dir / "commons" / "offerings.md", "")
-    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
-    assert here["offering"] == there["offering"] == ""
-    assert "tile-offering" not in here["mosaic"] + there["mosaic"]
 
 
 # ---- the bonds, on both paths --------------------------------------------
@@ -739,7 +636,6 @@ RELEASED = ("2026-10-08 · founder-first · the founder and the first one · "
 def test_both_paths_draw_a_bond_s_tile_and_its_halves(atrium, data_dir, monkeypatch, tmp_path,
                                                       listed):
     a_record(data_dir)
-    offerings(data_dir)
     write(data_dir / "commons" / "bonds.md", listed)
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     for name in REGIONS:

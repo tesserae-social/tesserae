@@ -33,7 +33,7 @@ def the_letter(room):
 
 
 def kept_things(hearth, room):
-    return hearth.offering.split_things(the_letter(room).read_text(encoding="utf-8"))
+    return hearth.letter_things.split_things(the_letter(room).read_text(encoding="utf-8"))
 
 
 # ---- saving them ---------------------------------------------------------
@@ -186,40 +186,6 @@ def test_an_old_letter_reads_byte_for_byte_as_before(wake, room):
         in turn.reading
     assert ("--- letter: %s ---\n%s" % (earlier, as_it_was)).rstrip() in turn.opening
     assert "Three plain things" not in turn.shown
-
-
-# ---- private: never offered ----------------------------------------------
-
-def test_offering_the_whole_letter_leaves_the_things_out(founder, hearth, room):
-    leave(founder, [SLEPT, FROST, HANDS])
-    stem = the_letter(room).stem
-    assert post(founder, "/offer", data={"kind": "letter", "source": stem}).status_code == 302
-    offered = read_json(sorted((room / "offerings").glob("pending-*.json"))[0])
-    assert offered["text"] == LETTER.strip()
-    for thing in (SLEPT, FROST, HANDS):
-        assert thing not in offered["text"]
-    assert "three plain things" not in offered["text"]
-
-
-def test_a_thing_cannot_be_offered_as_a_passage(founder, room):
-    leave(founder, [SLEPT, FROST])
-    stem = the_letter(room).stem
-    answer = post(founder, "/offer", data={"kind": "passage", "source": stem, "text": FROST})
-    assert answer.status_code == 200
-    assert "quoted word for word" in page(answer)
-    assert not list((room / "offerings").glob("pending-*.json"))
-
-
-def test_the_first_one_offering_the_letter_leaves_the_things_out(founder, wake, commons, room):
-    leave(founder, [SLEPT, FROST, HANDS])
-    stem = the_letter(room).stem
-    wake(block("OFFER", "offer letter %s" % stem))
-    offered = read_json(sorted((room / "offerings").glob("pending-*.json"))[0])
-    assert offered["text"] == LETTER.strip()
-    post(founder, "/offer/consent", data={"id": offered["id"]})
-    public = (commons / "offerings" / (offered["id"] + ".md")).read_text(encoding="utf-8")
-    assert SLEPT not in public and FROST not in public and HANDS not in public
-    assert "Dear first one," in public
 
 
 # ---- the guard -----------------------------------------------------------

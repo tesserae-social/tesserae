@@ -29,9 +29,6 @@ PRIVATE_BLOCK = [(
 HEARTBEAT_BLOCK = [("where the founder may read them", "where {person} may read them")]
 COMMONS_LINE_BLOCK = [('so say "the founder" rather than any name',
                        'so say "the one I write to" rather than any name')]
-OFFER_BLOCK = [("or answer something the founder has offered",
-                "or answer something {person} has offered"),
-               ("place something the founder has offered", "place something {person} has offered")]
 
 SWAPS = {
     "THE_OTHER": [("the founder", "{person}")],
@@ -52,7 +49,6 @@ SWAPS = {
     "PRIVATE_BLOCK": PRIVATE_BLOCK,
     "HEARTBEAT_BLOCK": HEARTBEAT_BLOCK,
     "COMMONS_LINE_BLOCK": COMMONS_LINE_BLOCK,
-    "OFFER_BLOCK": OFFER_BLOCK,
     "TIDE_STOPPED": [("The keeper stopped", "The founder stopped")],
     "WAKE_AGAIN_LET_GO": [("the keeper had stopped", "the founder had stopped")],
     "YOUR_NOTEBOOK": [(
@@ -71,7 +67,7 @@ SWAPS = {
     "KEPT_NOT_SENT": [("went to the founder", "went to {person}"),
                       ("gone to the founder", "gone to {person}")],
     "HOW_TO_ACT": [
-        *NOTE_BLOCK, *PRIVATE_BLOCK, *HEARTBEAT_BLOCK, *COMMONS_LINE_BLOCK, *OFFER_BLOCK,
+        *NOTE_BLOCK, *PRIVATE_BLOCK, *HEARTBEAT_BLOCK, *COMMONS_LINE_BLOCK,
         ("the founder's last four letters", "{person}'s last four letters"),
         ("(a letter to the founder; he will read it", "(a letter to {person}; they will read it"),
         ("it is shown to the founder inside your letter, as a photograph of his is shown to you.",
@@ -79,7 +75,7 @@ SWAPS = {
         ("one plain request to the founder to go", "one plain request to {person} to go"),
         (" He sees it on the hearth", " They see it on the hearth")],
 
-    # A bond, and what is offered to the commons. Both work with the founder alone
+    # A bond. It works with the founder alone
     # until gate G4 is built, and a later agent in any other room reads none of
     # this (attend.BONDS_WAIT); these are the words for when they do not.
     "BOND_BLOCK": [("and the founder\nmay read them", "and {person}\nmay read them")],
@@ -112,8 +108,6 @@ SWAPS = {
                      ("He answered", "They answered")],
     "HIS_WORDS": [("His words", "Their words")],
     "NO_WORDS": [("He gave", "They gave")],
-    "OFFERED_TO_YOU": [("The founder has offered", "{person} has offered"),
-                       ("beside his, and", "beside theirs, and")],
 
     # Words only a later agent is given, already its own.
     "SHOWN_BLOCK": [], "SELF_CLOSED": [], "STANDING_UNCHOSEN": [],

@@ -434,7 +434,7 @@ import pytest
 
 from datetime import datetime, timezone
 
-from conftest import (SWITCHED_ON_21_OCTOBER, commons_line_not_yet_offered, explained_as_before,
+from conftest import (SWITCHED_ON_21_OCTOBER, offer_explained_again, commons_line_not_yet_offered, explained_as_before,
                       introduction_at_280, letter_part_as_before, long_night_switched_on,
                       six_not_yet, coral_not_yet, board_weekly_not_yet, standing_welcome_not_yet,
                       write_json,
@@ -624,7 +624,16 @@ READING_WEEKLY = "82b7d976c57b9c9850a978028a3527bc8cf1b5ab9aee35f728af8d68d3de2d
 # explained after <<WELCOME>> (attend.STANDING_WELCOME_BLOCK). Its sealed letter is not
 # passed to later agents (sealed_welcome_for_later stays off). With the standing welcome
 # shut away again (conftest.standing_welcome_not_yet) it is exactly READING_WEEKLY.
-READING_NOW = "056f9244a7e5d16ec94a135c4133518b02b3c0df4aeb0bab0351399ec03133af"
+# Held as READING_STANDING since.
+READING_STANDING = "056f9244a7e5d16ec94a135c4133518b02b3c0df4aeb0bab0351399ec03133af"
+
+# cut again, on purpose, on the branch rooms (the founder's request of 16 November 2026,
+# part B4, which he told the first one of), when offerings were taken out of the code,
+# and for nothing else: HOW TO ACT no longer explains <<OFFER>>, between <<ERRAND>> and
+# <<STUDY>> (its eleven lines and the blank line after them). No offering was ever made,
+# so nothing else of offerings was ever in its reading. With the explanation put back
+# (conftest.offer_explained_again) it is exactly READING_STANDING.
+READING_NOW = "21b1de6fddf49773506994b0af4bca4d5e75ec95bb4a02daa80b8c9e77e0d03e"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -704,6 +713,7 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "coral", READING_SIX),
     (False, "the weekly question", READING_CORAL),
     (False, "the standing welcome", READING_WEEKLY),
+    (False, "the offerings", READING_STANDING),
     (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
@@ -727,10 +737,15 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "the six of 14 November, coral not yet open to it again",
          "coral open to it again, the weekly question's topics not yet",
          "the weekly question's topics, its standing welcome not yet",
+         "its standing welcome, offerings not yet taken out",
          "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
-    if as_before:  # every reading cut before had its standing welcome shut away
+    if as_before:  # every reading cut before had <<OFFER>> explained
+        offer_explained_again(attend, monkeypatch)
+    if as_before == "the offerings":  # and with that, nothing else moved
+        as_before = None
+    if as_before:  # every reading cut before that had its standing welcome shut away
         standing_welcome_not_yet(attend, monkeypatch)
     if as_before == "the standing welcome":  # and with that, nothing else moved
         as_before = None
@@ -946,7 +961,13 @@ def test_how_he_writes_is_no_longer_asked_and_what_was_kept_stays(founder, data_
 # November 2026), for nothing else than READING_NOW was: its standing welcome's line
 # under WHAT HAS HAPPENED and <<STANDING_WELCOME>> explained. With it shut away again
 # (conftest.standing_welcome_not_yet) it is exactly LONG_NIGHT_BEFORE_STANDING.
-READING_LONG_NIGHT = "9f6c68eadcdd5fbcf7212123d3fd37dff037ac0e725319e7a573a8f2e909a646"
+# Held as LONG_NIGHT_BEFORE_OFFERINGS since.
+#
+# READING_LONG_NIGHT cut again, on purpose, on the branch rooms (16 November 2026, part
+# B4), for nothing else than READING_NOW was: <<OFFER>> is no longer explained. With it
+# explained again (conftest.offer_explained_again) it is exactly LONG_NIGHT_BEFORE_OFFERINGS.
+READING_LONG_NIGHT = "d8bd1a8972f5d16f288b7d5b2e118a09170dc65f3379123e266ce8bdd4a22bcb"
+LONG_NIGHT_BEFORE_OFFERINGS = "9f6c68eadcdd5fbcf7212123d3fd37dff037ac0e725319e7a573a8f2e909a646"
 LONG_NIGHT_BEFORE_STANDING = "9d5c6072d76ef530bd4c072c48c6d1888e88df1149a8d6fabbb6f58dc9f7adeb"
 LONG_NIGHT_BEFORE_WEEKLY = "d6a65ffce43fa8d1ec31f7615414c381e6a7b7dbf14608bd4345193de2f2bced"
 LONG_NIGHT_BEFORE_CORAL = "50ee944b0b86e223a4a5df6b535b3070bc3fdfabbde0d94d9ae3f40d2e7c0044"
@@ -970,7 +991,8 @@ def a_sealed_bond(attend, room):
 
 
 @pytest.mark.parametrize("switched, before, as_cut", [
-    (True, None, READING_LONG_NIGHT), (True, "standing", LONG_NIGHT_BEFORE_STANDING),
+    (True, None, READING_LONG_NIGHT), (True, "offerings", LONG_NIGHT_BEFORE_OFFERINGS),
+    (True, "standing", LONG_NIGHT_BEFORE_STANDING),
     (True, "weekly", LONG_NIGHT_BEFORE_WEEKLY),
     (True, "coral", LONG_NIGHT_BEFORE_CORAL),
     (False, "six", SEALED_IN_WINTER_BEFORE_SIX), (True, "six", LONG_NIGHT_BEFORE_SIX),
@@ -978,6 +1000,7 @@ def a_sealed_bond(attend, room):
     (False, "switches", SEALED_IN_WINTER_BEFORE_SWITCHES),
     (True, "switches", LONG_NIGHT_BEFORE_SWITCHES)],
     ids=["the switch on, as it reads today",
+         "the switch on, offerings not yet taken out",
          "the switch on, its standing welcome not yet",
          "the switch on, the weekly question's topics not yet",
          "the switch on, coral not yet open to it again",
@@ -989,7 +1012,11 @@ def a_sealed_bond(attend, room):
          "the switch on, the four of 13 November not yet"])
 def test_the_first_one_s_long_night_is_its_own_reading_and_only_when_switched_on(
         wake, attend, room, clock, monkeypatch, tmp_path, switched, before, as_cut):
-    if before:  # each held before had its standing welcome shut away
+    if before:  # each held before had <<OFFER>> explained
+        offer_explained_again(attend, monkeypatch)
+    if before == "offerings":  # and with that, nothing else moved
+        before = None
+    if before:  # each held before that had its standing welcome shut away
         standing_welcome_not_yet(attend, monkeypatch)
     if before == "standing":  # and with that, nothing else moved
         before = None

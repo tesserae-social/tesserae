@@ -161,10 +161,9 @@ def names_of(agent):
 
 
 # The kinds of line in events.md that may be an agent's own, its name at the
-# start of the words and a middot after it: a rest or a stop, a release, an
-# offering, a seal. A founding, the word and the founder's letters
+# start of the words and a middot after it: a rest or a stop, a release, a seal. A founding, the word and the founder's letters
 # are never read for a name, whatever their words begin with.
-NAMED_KINDS = ("event", "offering", "seal")
+NAMED_KINDS = ("event", "seal")
 
 # What comes between the name and the rest of the words, as events.md is read.
 AFTER_A_NAME = " · "

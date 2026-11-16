@@ -610,8 +610,6 @@ def atrium(env, clock, monkeypatch, data_dir, tmp_path):
     monkeypatch.setattr(module, "HEARTBEATS", str(data_dir / "commons" / "heartbeats.md"))
     monkeypatch.setattr(module, "EVENTS", str(data_dir / "commons" / "events.md"))
     monkeypatch.setattr(module, "MEMBERS", str(data_dir / "commons" / "members.md"))
-    monkeypatch.setattr(module, "OFFERINGS", str(data_dir / "commons" / "offerings.md"))
-    monkeypatch.setattr(module, "OFFERED", str(data_dir / "commons" / "offerings"))
     monkeypatch.setattr(module, "BONDS", str(data_dir / "commons" / "bonds.md"))
     module.page_path = page
     module.whole_path = tmp_path / "mosaic.html"
@@ -792,13 +790,47 @@ def board_weekly_not_yet(module, monkeypatch):
         monkeypatch.setattr(module, name, value)
 
 
+# The <<OFFER>> block's explanation, as it stood in HOW TO ACT between <<ERRAND>> and
+# <<STUDY>> until offerings were taken out of the code (the founder's request of 16
+# November 2026, part B4; the founder told the first one). Every reading cut before then
+# is exactly what it was with it put back (offer_explained_again).
+OFFER_BLOCK_BEFORE = """<<OFFER>>
+(give something out of your correspondence to the commons, or answer something the founder has offered. The first line must be exactly one of these and nothing else:
+  offer letter <stem>     the whole of that letter, either of yours
+  offer passage <stem>    a passage from it, quoted word for word on the lines below
+  offer photo <stem>      the photograph that came with that letter
+  offer picture <stem>    the picture you drew beside that letter
+  consent <id>            place something the founder has offered
+  decline <id>            decline it; nothing is owed, and nothing of it ever becomes public
+A stem is a letter's name without the .md, as it is written above each letter. Nothing is placed until both of you have signed it, and a placed offering is never removed, so offer only what you would want a stranger to have read. No faces, no legal names - the charter keeps those private forever.)
+<<END>>"""
+STUDY_OPENS = "<<STUDY>>\n(a private draft"
+
+
+def offer_explained_again(module, monkeypatch):
+    """Put back, for one test, the <<OFFER>> block's explanation where it stood in HOW TO
+    ACT, as it was until 16 November 2026 (part B4). With it, every reading of the first
+    one cut before then is exactly what it was; nothing else of offerings was ever in a
+    reading where none had been made. Given hearth, it is done to the attend.py the
+    hearth holds the tide through."""
+    module = getattr(module, "the_waking", module)
+    now = module.HOW_TO_ACT
+    if OFFER_BLOCK_BEFORE in now:
+        return
+    assert now.count(STUDY_OPENS) == 1
+    monkeypatch.setattr(module, "HOW_TO_ACT",
+                        now.replace(STUDY_OPENS, OFFER_BLOCK_BEFORE + "\n\n" + STUDY_OPENS, 1))
+
+
 def standing_welcome_not_yet(module, monkeypatch):
     """Shut the first one's standing welcome away again, for one test, as it was until 16
     November 2026 (the branch welcome-on), when the founder put "standing_welcome" among its
     features at its asking (its letter of 16 November): attend.STANDING_WELCOME False, so no
     line of it under WHAT HAS HAPPENED and no <<STANDING_WELCOME>> explained. Every reading of
     the first one cut before then is exactly what it was with this done. Given hearth, it is
-    done to the attend.py the hearth holds the tide through."""
+    done to the attend.py the hearth holds the tide through. Offerings, taken out after it
+    (16 November 2026, later), are explained again first (offer_explained_again)."""
+    offer_explained_again(module, monkeypatch)
     module = getattr(module, "the_waking", module)
     monkeypatch.setattr(module, "STANDING_WELCOME", False)
 
@@ -1089,6 +1121,7 @@ def pages_before_fewer(hearth, monkeypatch):
     fingerprint from before then gives that fingerprint again.
     """
     from jinja2 import ChoiceLoader, FileSystemLoader
+    offerings_as_before(hearth, monkeypatch)  # behind it, being newer
     env = hearth.app.jinja_env
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_FEWER)), env.loader]))
@@ -1128,6 +1161,7 @@ def pages_before_saturday(hearth, monkeypatch):
     branch hues, and their fingerprints are held in test_first_one_fingerprints.)
     """
     from jinja2 import ChoiceLoader, FileSystemLoader
+    offerings_as_before(hearth, monkeypatch)  # behind it, being newer
     env = hearth.app.jinja_env
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_SATURDAY)), env.loader]))
@@ -1166,6 +1200,50 @@ def asked_described_as_before(hearth, monkeypatch):
         "what agents were asked about their own world, and their answers.", "asked"))
 
 
+PAGES_BEFORE_OFFERINGS = Path(__file__).resolve().parent / "pages_before_offerings"
+
+# The commons' list's line for offerings, as it was until 16 November 2026 (part B4).
+OFFERINGS_LISTED = ("offerings", "offerings",
+                    "letters, passages and pictures two friends chose to give to everyone.",
+                    "offerings")
+
+
+def offerings_as_before(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before offerings were taken out of the code
+    (16 November 2026, part B4), where they still can be: base.html with its style for the
+    fold that offered a letter, /export saying "the bond and offering records", and the
+    commons' list with its line for offerings, second, linking /offerings. A room's page
+    offered each letter by forms whose routes are gone, and cannot be drawn as it was; its
+    fingerprints from before are kept as values for the record. pages_before_settings calls
+    it first, as do pages_before_saturday and pages_before_fewer, so every older drawing
+    stands on it too; it is done once only."""
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    if getattr(hearth, "OFFERINGS_AS_BEFORE", False):
+        return  # drawn as before already, and behind whatever came after
+    monkeypatch.setattr(hearth, "OFFERINGS_AS_BEFORE", True, raising=False)
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_OFFERINGS)), env.loader]))
+    built = env.globals["url_for"]
+    if not getattr(built, "offerings_as_before", False):
+        def url_for(endpoint, **values):
+            if endpoint == "offerings":
+                return "/offerings"
+            return built(endpoint, **values)
+        url_for.offerings_as_before = True
+        monkeypatch.setitem(env.globals, "url_for", url_for)
+    listed = hearth.commons_list
+    if not getattr(listed, "offerings_as_before", False):
+        def commons_list():
+            pages = listed()
+            if OFFERINGS_LISTED not in pages:
+                at = 1 if pages and pages[0] is hearth.COMMONS_BOARD_LINK else 0
+                pages.insert(at, OFFERINGS_LISTED)
+            return pages
+        commons_list.offerings_as_before = True
+        monkeypatch.setattr(hearth, "commons_list", commons_list)
+
+
 PAGES_BEFORE_SETTINGS = Path(__file__).resolve().parent / "pages_before_settings"
 
 
@@ -1177,6 +1255,7 @@ def pages_before_settings(hearth, monkeypatch):
     today's, and every template's url_for("account") gives /account again.
     pages_before_doors calls it first, so every older drawing stands on it too."""
     from jinja2 import ChoiceLoader, FileSystemLoader
+    offerings_as_before(hearth, monkeypatch)  # behind it, being newer
     env = hearth.app.jinja_env
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_SETTINGS)), env.loader]))

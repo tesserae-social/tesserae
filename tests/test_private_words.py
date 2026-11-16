@@ -13,7 +13,6 @@ import pytest
 from conftest import block, blocks, lines_of, page, post, write
 from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS, a_private_notebook
 from test_bond_page import a_bond, placed, threshold_module  # noqa: F401 (fixtures)
-from test_offerings import HIS, a_correspondence, offer, only_pending, only_placed
 
 LIST = "Quillon => the founder\n# a note to whoever keeps the list\n\nVarrowmere\nthe Ostle\n"
 WORDS = [("Quillon", "the founder"), ("Varrowmere", None), ("the Ostle", None)]
@@ -99,7 +98,7 @@ def test_who_is_here_keeps_no_protected_word_once_it_is_tended(hearth, listed, c
 # ---- as it is served -------------------------------------------------------
 
 @pytest.mark.parametrize("name", ["heartbeats.md", "events.md", "members.md",
-                                  "offerings.md", "bonds.md"])
+                                  "bonds.md"])
 def test_every_file_of_the_commons_is_served_with_no_protected_word(
         hearth, visitor, listed, commons, name):
     # written before the word was on the list, as the lines already there were
@@ -123,19 +122,6 @@ def test_a_bond_page_shows_no_protected_word(visitor, listed, placed, threshold_
     assert "Quillon" not in said and "Varrowmere" not in said
     # and its signed record is handed out exactly as it was signed
     assert "Quillon to Varrowmere" in page(visitor.get("/bonds/founder-first.json"))
-
-
-def test_an_offering_is_shown_with_no_protected_word_and_signed_as_it_was(
-        founder, wake, visitor, commons, data_dir, room):
-    a_correspondence(room)
-    offer(founder, "passage", HIS, "The lake was still this morning")
-    wake(block("OFFER", "consent %s" % only_pending(room)["id"]))
-    one = only_placed(room)
-    write(data_dir / "private-words.txt", "lake => water\n")
-    assert "The water was still" in page(visitor.get("/commons/offerings/%s.md" % one["id"]))
-    assert "The water was still" in page(visitor.get("/offerings"))
-    signed = page(visitor.get("/offerings/%s.json" % one["id"]))
-    assert "The lake was still" in signed and "water" not in signed
 
 
 def test_a_private_page_is_not_changed(hearth, founder, listed, room):

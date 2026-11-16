@@ -506,66 +506,21 @@ def test_with_no_members_file_the_section_is_left_off(atrium, data_dir, monkeypa
     assert '<p class="calendar">' in said          # the calendar stands on its own
 
 
-# ---- the offerings -------------------------------------------------------
+# ---- offerings, taken out (the founder's request of 16 November 2026, part B4) ----
 
-OFFERING_LINE = "- 2026-10-12 · 2026-10-12T09-00-00Z · passage · the founder and the first one\n"
-
-PLACED_RECORD = {
-    "id": "2026-10-12T09-00-00Z", "offered_by": "founder", "kind": "passage",
-    "source": "founder-2026-10-11T09-00-00Z", "text": "The lake was still this morning.",
-    "at": "2026-10-12T08-00-00Z", "sealed_at": "2026-10-12T09-00-00Z",
-    "signatures": {"founder": "x", "first": "y"},
-}
-
-
-def an_offering(data_dir, index=OFFERING_LINE, record=None, **how):
-    """One placed offering, as the commons keeps one."""
-    write(data_dir / "commons" / "offerings.md", index)
-    kept = dict(record if record is not None else PLACED_RECORD, **how)
-    write(data_dir / "commons" / "offerings" / (kept["id"] + ".json"),
-          json.dumps(kept, indent=2) + "\n")
-    return kept
-
-
-def test_a_line_of_offerings_names_the_day_the_offering_and_its_kind(atrium):
-    assert atrium.parse_offerings(OFFERING_LINE) == [
-        (datetime.date(2026, 10, 12), "2026-10-12T09-00-00Z", "passage",
-         "the founder and the first one")]
-
-
-def test_an_attribution_with_a_middot_in_it_is_the_whole_of_what_follows(atrium):
-    read = atrium.parse_offerings(
-        "- 2026-10-12 · an-offering · letter · the founder · and the first one\n")
-    assert read[0][3] == "the founder · and the first one"
-
-
-@pytest.mark.parametrize("line", [
-    "",
-    "   ",
-    "- 2026-10-12 · an-offering · letter",          # no one it belongs to
-    "- 2026-10-12 · an-offering ·  · the two of them",
-    "- 2026-10-12 ·  · letter · the two of them",
-    "- not a date · an-offering · letter · the two of them",
-    "- 2026-13-40 · an-offering · letter · the two of them",
-])
-def test_an_offering_line_that_is_not_one_is_passed_over(atrium, line):
-    assert atrium.parse_offerings(line + "\n") == []
-
-
-def test_an_offering_is_a_tile_that_leads_to_itself(atrium):
-    tiles = atrium.tiles_from([], [], atrium.parse_offerings(OFFERING_LINE))
-    assert tiles == [(datetime.date(2026, 10, 12), "tile-offering",
-                      "12 October 2026 · an offering from the founder and the first one",
-                      "https://hearth.tesserae.social/offerings#2026-10-12T09-00-00Z")]
-
-
-def test_one_offering_is_one_tile(atrium):
-    """The commons keeps a line for it too; the tile is drawn from the fuller record."""
+def test_there_are_no_offerings_on_the_atrium(atrium, data_dir, monkeypatch):
+    """No tile, no region and no file of them is read: a line the commons might hold for one
+    is a plain event, as any line of a kind not known is, and offerings.md is not read."""
     events = atrium.parse_events("2026-10-12 · offering · an offering was placed\n")
-    assert events == [(datetime.date(2026, 10, 12), "offering", "an offering was placed")]
-    tiles = atrium.tiles_from(events, [], atrium.parse_offerings(OFFERING_LINE))
-    assert len(tiles) == 1
-    assert tiles[0][1] == "tile-offering"
+    assert events == [(datetime.date(2026, 10, 12), "event", "offering · an offering was placed")]
+    assert not hasattr(atrium, "parse_offerings") and not hasattr(atrium, "offering_block")
+    write(data_dir / "commons" / "offerings.md",
+          "- 2026-10-12 · 2026-10-12T09-00-00Z · passage · the founder and the first one\n")
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    page = atrium.page_path.read_text(encoding="utf-8")
+    assert "offering" not in page.split("<script>")[0]
+    assert "tile-offering" not in page and "offerings" not in page
 
 
 def test_a_seal_leads_to_the_record_anyone_may_check(atrium):
@@ -577,112 +532,20 @@ def test_a_seal_leads_to_the_record_anyone_may_check(atrium):
 def test_a_tile_with_somewhere_to_lead_is_a_link_and_the_rest_are_not(atrium):
     tiles = atrium.tiles_from(
         atrium.parse_events("2026-10-12 · seal · a bond was sealed\n"),
-        atrium.parse_heartbeats("- 2026-10-12T15-00-00Z · the first one · attended\n"),
-        atrium.parse_offerings(OFFERING_LINE))
+        atrium.parse_heartbeats("- 2026-10-12T15-00-00Z · the first one · attended\n"))
     drawn = "".join(atrium.frame_block(atrium.slots(tiles, datetime.date(2026, 10, 12))))
-
-    assert ('<li class="tile-offering" title="12 October 2026 · an offering from the founder '
-            'and the first one"><a href="https://hearth.tesserae.social/offerings'
-            '#2026-10-12T09-00-00Z" aria-label="12 October 2026 · an offering from the '
-            'founder and the first one"></a></li>') in drawn
     assert ('<li class="tile-seal" title="12 October 2026 · a bond was sealed">'
             '<a href="https://hearth.tesserae.social/bonds/founder-first.json"') in drawn
     # a waking has nowhere to lead: it keeps the hover and the keyboard, and no link
     assert '<li class="tile-attendance" title="12 October 2026 · waking · ' \
         'the first one · attended" tabindex="0"></li>' in drawn
-    assert drawn.count("<a href=") == 2
+    assert drawn.count("<a href=") == 1
 
 
 def test_the_line_under_the_mosaic_reads_a_link_tile_out_like_any_other(atrium):
-    tiles = atrium.tiles_from([], [], atrium.parse_offerings(OFFERING_LINE))
+    tiles = atrium.tiles_from(atrium.parse_events("2026-10-12 · seal · a bond was sealed\n"), [])
     cells = atrium.slots(tiles, datetime.date(2026, 10, 12))
-    assert atrium.reading_text(cells).endswith(
-        "an offering from the founder and the first one")
-
-
-# ---- offered from the hearth ---------------------------------------------
-
-def test_the_newest_offering_is_shown_whole(atrium):
-    latest = atrium.parse_offerings(OFFERING_LINE)[0]
-    drawn = atrium.offering_block(latest, PLACED_RECORD)
-    assert drawn[0] == '<section class="offered">'
-    assert drawn[1] == "  <h2>offered from the hearth</h2>"
-    assert drawn[2] == ('  <p class="when">12 October 2026 · a passage · '
-                        "the founder and the first one</p>")
-    assert "    <p>The lake was still this morning.</p>" in drawn
-    assert drawn[-2] == ('  <p><a href="https://hearth.tesserae.social/offerings'
-                         '#2026-10-12T09-00-00Z">all offerings</a></p>')
-    assert drawn[-1] == "</section>"
-
-
-def test_the_words_of_an_offering_are_paragraphs_and_are_escaped(atrium):
-    latest = atrium.parse_offerings(OFFERING_LINE)[0]
-    drawn = "".join(atrium.offering_block(
-        latest, dict(PLACED_RECORD, text="One thought.\n\n<b>And another</b> & a third.")))
-    assert "<blockquote>" in drawn
-    assert "<p>One thought.</p>" in drawn
-    assert "<p>&lt;b&gt;And another&lt;/b&gt; &amp; a third.</p>" in drawn
-
-
-def test_an_offering_that_is_a_picture_is_shown_from_the_hearth(atrium):
-    latest = atrium.parse_offerings(OFFERING_LINE)[0]
-    drawn = "".join(atrium.offering_block(
-        latest, dict(PLACED_RECORD, text="", kind="picture",
-                     file="2026-10-12T09-00-00Z.svg")))
-    assert ('<img class="offering" src="https://hearth.tesserae.social/commons/offerings/'
-            '2026-10-12T09-00-00Z.svg" alt="an offering from the founder and the first one">'
-            ) in drawn
-    assert "<blockquote>" not in drawn
-
-
-def test_with_nothing_offered_there_is_no_section(atrium):
-    assert atrium.offering_block(None, None) == []
-    assert atrium.offering_block(atrium.parse_offerings(OFFERING_LINE)[0], None) == []
-
-
-def test_the_offering_is_on_the_page_and_the_tile_with_it(atrium, data_dir, monkeypatch):
-    an_offering(data_dir)
-    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
-    atrium.main()
-
-    page = atrium.page_path.read_text(encoding="utf-8")
-    said = page.split("<!-- offering:start -->")[1].split("<!-- offering:end -->")[0]
-    assert "<h2>offered from the hearth</h2>" in said
-    assert "The lake was still this morning." in said
-    assert "all offerings" in said
-
-    mosaic = page.split("<!-- mosaic:start -->")[1].split("<!-- mosaic:end -->")[0]
-    assert 'class="tile-offering"' in mosaic
-    assert "/offerings#2026-10-12T09-00-00Z" in mosaic
-
-
-def test_with_no_offerings_the_section_is_left_off(atrium, data_dir, monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
-    atrium.main()
-
-    page = atrium.page_path.read_text(encoding="utf-8")
-    said = page.split("<!-- offering:start -->")[1].split("<!-- offering:end -->")[0]
-    assert said.strip() == ""
-    assert "<h2>offered from the hearth</h2>" not in page.split("<script>")[0]
-    assert "tile-offering" not in page.split("<!-- mosaic:start -->")[1].split(
-        "<!-- mosaic:end -->")[0]
-
-
-def test_only_the_newest_offering_is_shown(atrium, data_dir, monkeypatch):
-    an_offering(data_dir, index=(
-        "- 2026-10-11 · an-older-one · letter · the founder and the first one\n" + OFFERING_LINE))
-    write(data_dir / "commons" / "offerings" / "an-older-one.json",
-          json.dumps(dict(PLACED_RECORD, id="an-older-one", kind="letter",
-                          text="THE OLDER OFFERING"), indent=2) + "\n")
-    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
-    atrium.main()
-
-    page = atrium.page_path.read_text(encoding="utf-8")
-    said = page.split("<!-- offering:start -->")[1].split("<!-- offering:end -->")[0]
-    assert "The lake was still this morning." in said
-    assert "THE OLDER OFFERING" not in said
-    mosaic = page.split("<!-- mosaic:start -->")[1].split("<!-- mosaic:end -->")[0]
-    assert mosaic.count('class="tile-offering"') == 2   # both are tiles all the same
+    assert atrium.reading_text(cells).endswith("a bond was sealed")
 
 
 # ---- the calendar --------------------------------------------------------
@@ -771,7 +634,7 @@ def test_the_atrium_is_rebuilt_from_the_commons(atrium, data_dir, monkeypatch, c
         assert '<p class="caption">' not in said and '<p class="legend">' not in said
     assert "so far" not in page and "as of" not in page
     said = capsys.readouterr().out
-    assert ("3 tiles in 44 slots at 34px (2 events, 1 attendances, 0 offerings), "
+    assert ("3 tiles in 44 slots at 34px (2 events, 1 attendances), "
             "0 here") in said
     assert "44 slots on the front page" in said
 
@@ -949,8 +812,7 @@ def test_both_places_keep_the_one_type_scale(path):
 
 
 @pytest.mark.parametrize("path, muted", [
-    (STYLE, [".menu", ".reading", ".calendar", ".offered .when",
-             "footer"]),
+    (STYLE, [".menu", ".reading", ".calendar", "footer"]),
     (BASE, [".muted", ".tagline", "footer"]),
 ], ids=["atrium", "hearth"])
 def test_the_quiet_lines_are_all_the_one_size(path, muted):
@@ -1065,14 +927,13 @@ def test_the_main_page_s_sections_keep_one_rhythm():
     assert rules[".frame .column section > h2:first-child"] == {"margin-top": "0"}
 
 
-def test_the_intro_and_the_offering_keep_the_page_s_rhythm():
+def test_the_intro_keeps_the_page_s_rhythm():
     rules = stylesheet(STYLE)
     # the intro sits under the name at the paragraphs' own gap, and no more
     assert rules[".intro"]["margin-top"] == rules[".intro p"]["margin"].split()[2] == \
         "var(--space-3)"
-    # the offering is a section, so the section's rhythm is the whole of what it
-    # gets: no margin of its own to fall out of step with
-    assert ".offered" not in rules
+    # nothing of offerings is left in the look (16 November 2026, part B4)
+    assert ".offered" not in rules and ".tile-offering" not in rules
 
 
 def test_the_atrium_says_none_of_this_in_the_page_itself():
@@ -1205,14 +1066,13 @@ def test_the_frame_holds_one_column_of_words_then_the_tiles_then_the_way_on():
     assert tiles.count("<ul") == 1 and "<p" not in tiles
     assert 'class="mosaic"' not in words
     for stop in ("<header>", '<nav class="menu"', '<div class="intro">', "<details>",
-                 '<p class="reading">',
-                 "<!-- offering:start -->", '<section class="who">', '<p class="calendar">',
+                 '<p class="reading">', '<section class="who">', '<p class="calendar">',
                  "<footer>"):
         assert words.count(stop) == 1, stop
     # the reading line is directly under the sentence and its question, and no
     # key follows it: the tiles say what they are in their own titles
     assert re.search(r'</details>\s*</div>\s*<!-- reading:start -->\s*<p class="reading">.*?</p>'
-                     r'\s*<!-- reading:end -->\s*<!-- offering:start -->', words, re.S)
+                     r'\s*<!-- reading:end -->\s*<section class="who">', words, re.S)
     for gone in ('<p class="caption">', '<p class="legend">', "<!-- caption:start -->"):
         assert gone not in words, gone
     # one way to the whole mosaic, after the last tile, and nowhere else on the page
@@ -1384,13 +1244,13 @@ def test_the_whole_mosaic_carries_the_size_it_was_reckoned_at(atrium):
 
 def test_the_whole_mosaic_keeps_its_holes_its_links_and_its_tesserae(atrium):
     tiles = atrium.tiles_from(
-        atrium.parse_events("2026-10-09 · event · a thing\n"), [],
-        atrium.parse_offerings(OFFERING_LINE),
+        atrium.parse_events("2026-10-09 · event · a thing\n"
+                            "2026-10-12 · event · another thing\n"), [],
         atrium.parse_bonds("2026-10-11 · founder-first · the founder and the first one · sealed\n"))
     drawn = "".join(atrium.whole_block(atrium.days(tiles, datetime.date(2026, 10, 13))))
     assert drawn.count('<li class="empty"></li>') == 2          # the 10th and the 13th
     assert '<li class="tile-event" title="9 October 2026 · a thing" tabindex="0"></li>' in drawn
-    assert ('<a href="https://hearth.tesserae.social/offerings#2026-10-12T09-00-00Z"' in drawn)
+    assert '<li class="tile-event" title="12 October 2026 · another thing"' in drawn
     assert ('<img src="https://hearth.tesserae.social/bonds/founder-first/tessera.svg?size=34" '
             'width="34" height="34" alt="">') in drawn
     at = [drawn.index(said) for said in ("9 October", "11 October", "12 October")]
@@ -1712,7 +1572,7 @@ def test_the_old_list_of_links_is_gone(atrium):
 
 
 # what the builder and the page's own script each write, in the order they stand
-REGIONS = ["mosaic", "reading", "offering", "who", "calendar"]
+REGIONS = ["mosaic", "reading", "who", "calendar"]
 
 # The page as it is read, top to bottom, with what lies between each pair of
 # markers left out: the name, the menu, the sentence, the question and what
@@ -1754,8 +1614,6 @@ SKELETON = """<main>
       </div>
 
       <!-- reading:start --><!-- reading:end -->
-
-      <!-- offering:start --><!-- offering:end -->
 
       <section class="who">
         <!-- who:start --><!-- who:end -->

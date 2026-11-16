@@ -83,11 +83,14 @@ def test_a_second_run_changes_nothing_at_all(amend, data_dir, world):
 
 
 def test_every_file_of_the_commons_kept_as_lines_is_amended(amend, data_dir, world):
-    for name in ("members.md", "offerings.md", "bonds.md"):
+    for name in ("members.md", "bonds.md"):
         write(world / name, "- 2026-10-15 · Quillon · kept\n")
+    # offerings were taken out of the code (16 November 2026): their list is no longer read
+    write(world / "offerings.md", "- 2026-10-15 · Quillon · kept\n")
     run(amend, data_dir, "--apply")
-    for name in ("members.md", "offerings.md", "bonds.md"):
+    for name in ("members.md", "bonds.md"):
         assert (world / name).read_text(encoding="utf-8") == "- 2026-10-15 · the founder · kept\n"
+    assert (world / "offerings.md").read_text(encoding="utf-8") == "- 2026-10-15 · Quillon · kept\n"
 
 
 def test_what_is_signed_is_not_touched(amend, data_dir, world):

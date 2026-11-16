@@ -48,8 +48,6 @@ QUIETLY = "(kept something private)"
 NOT_MOVED = ("Your <<PRIVATE>> at your last waking kept nothing: its first line asked to move a "
              "draft from your study, and no draft of that name is there. Nothing was moved, and "
              "no entry was made.")
-OFFER_REFUSED = ("Your offering at your last waking was not made, because it named an entry in "
-                 "your private notebook, and nothing there can be offered.")
 
 # the founder's pages, every one he may open, and the commons anyone may
 PAGES = ["/", "/letters", "/rooms/first", "/attendances", "/self", "/chronicle",
@@ -392,29 +390,6 @@ def test_it_is_never_screened(wake, packet, screen, monkeypatch, attend):
     for text, names in screen.asked:
         assert ENTRY not in text and not any(ENTRY in name for name in names)
         assert "attended quietly" not in text  # nor its heartbeat's own words
-
-
-@pytest.mark.parametrize("kind", ["letter", "passage", "photo", "picture"])
-def test_nothing_in_it_can_be_offered_and_it_is_told_once(wake, packet, clock, kind, room):
-    at = clock.stamp()
-    wake(private(ENTRY))
-    asked = "offer %s entry-%s" % (kind, at) + ("\n" + ENTRY if kind == "passage" else "")
-    wake(block("OFFER", asked))
-    assert not list((room / "offerings").glob("*.json"))
-    record = latest(packet)
-    assert record["kept_private"] == [OFFER_REFUSED]
-    assert "offered to the commons" not in record["acted"]
-    told = section(wake(), HAPPENED).splitlines()
-    assert told.count(OFFER_REFUSED) == 1
-    assert OFFER_REFUSED not in section(wake(), HAPPENED)
-
-
-def test_a_draft_moved_in_cannot_be_offered_either(wake, packet, room):
-    a_draft(packet, picture=True)
-    wake(private("from study: " + DRAFT_STEM))
-    wake(block("OFFER", "offer picture from-study-" + DRAFT_STEM))
-    assert latest(packet)["kept_private"] == [OFFER_REFUSED]
-    assert not list((room / "offerings").glob("*.json"))
 
 
 # ---- privacy: the console ------------------------------------------------

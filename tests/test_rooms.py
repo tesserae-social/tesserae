@@ -277,12 +277,6 @@ def test_an_errand_is_said_on_the_card(founder, room):
     assert card(founder)[1:3] == ["no letters yet", "an errand asked of you"]
 
 
-def test_an_offering_of_the_first_ones_is_said_on_the_card(founder, wake, room):
-    letter(room, "outgoing", "to-founder-2026-10-13T09-00-00Z", "Dear founder.\n")
-    wake(block("OFFER", "offer letter to-founder-2026-10-13T09-00-00Z"))
-    assert "an offering is waiting for your answer" in card(founder)
-
-
 def test_everything_that_waits_is_said_together_and_nothing_is_counted(founder, room):
     letter(room, "read", "founder-2026-10-11T09-00-00Z")
     letter(room, "outgoing", "to-founder-2026-10-12T06-30-00Z")
@@ -375,7 +369,7 @@ def test_the_room_holds_what_the_letters_page_and_the_bonds_page_held(founder, r
     for held in ['<textarea id="letter" name="letter">', 'type="file" id="photo" name="photo"',
                  'id="proposes" name="proposes"', "What a proposal might say",
                  '<select id="errand" name="errand">', "asked of you",
-                 "offer to the commons", "the correspondence",
+                 "the correspondence",
                  # and the bond, as it was on its own page
                  "the asking", "No bond is proposed.", "its answer"]:
         assert held in said, held
@@ -408,7 +402,7 @@ def test_every_form_in_the_room_carries_the_token(founder, wake, clock, room):
     errand(room)
     answered_yes(founder, wake, room, clock)  # so the threshold's forms are drawn too
     said = page(founder.get("/rooms/first"))
-    assert said.count("<form") >= 5
+    assert said.count("<form") >= 4  # one fewer since no letter is offered (16 November 2026)
     assert said.count('name="csrf_token"') == said.count("<form")
 
 
@@ -435,13 +429,9 @@ def test_a_letter_posted_to_the_old_address_is_still_left(founder, clock, room):
 
 def test_every_old_post_comes_back_to_the_room(founder, wake, clock, room):
     letter(room, "read", "founder-2026-10-01T09-00-00Z", "The lake was still.\n")
-    offered = post(founder, "/offer", data={"kind": "letter",
-                                            "source": "founder-2026-10-01T09-00-00Z"})
-    assert offered.headers["Location"].startswith("/rooms/first?offered=")
-    assert post(founder, "/offer/decline", data={"id": "nothing"}).headers[
-        "Location"] == "/rooms/first"
-    assert post(founder, "/offer/consent", data={"id": "nothing"}).headers[
-        "Location"] == "/rooms/first"
+    # offerings were taken out of the code (16 November 2026): no form offers anything
+    for path in ("/offer", "/offer/decline", "/offer/consent"):
+        assert post(founder, path, data={"id": "nothing"}).status_code == 404, path
 
     answered_yes(founder, wake, room, clock)
     kept = post(founder, "/bonds/intention", data={"letter": "I bring my days."})
@@ -508,8 +498,7 @@ def test_a_plain_member_and_a_stranger_have_no_room(member, hearth):
 def test_the_room_is_kept_in_a_folder_of_its_own(hearth, room, data_dir):
     kept = hearth.rooms.places("first")
     assert kept == (room, room / "letters" / "incoming", room / "letters" / "read",
-                    room / "letters" / "outgoing", room / "errands", room / "bonds",
-                    room / "offerings")
+                    room / "letters" / "outgoing", room / "errands", room / "bonds")
     assert kept.home == room == data_dir / "rooms" / "first"
     assert hearth.rooms.places("elsewhere") is None
 
@@ -598,9 +587,8 @@ def test_room_json_says_what_the_room_is_by_did_and_agrees_with_who_is_in_it(hea
 
 # Every hand that reaches a room's letters, errands, bond or offerings, and the
 # names the folders were once kept under in each of them.
-ROOM_HANDS = ("attend.py", "hearth.py", "offering.py", "threshold.py",
-              "backfill_letter_tiles.py")
-ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
+ROOM_HANDS = ("attend.py", "hearth.py", "threshold.py", "backfill_letter_tiles.py")
+ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")  # offerings: kept, never to come back
 NAMES_ONCE_KEPT = {"INCOMING", "READ", "OUTGOING", "LETTERS", "ERRANDS", "ANSWERED_ERRANDS",
                    "BONDS", "PROPOSAL", "BOND_RECORD", "OFFERINGS", "PHOTO_FOLDERS",
                    "PICTURE_FOLDERS"}
@@ -665,7 +653,7 @@ def test_where_a_room_is_kept_is_worked_out_each_time_it_is_asked(
         monkeypatch.setattr(module.rooms, "DATA", elsewhere)
     # told a place with no room in it, no hand finds one there
     assert hearth.room_places() is None and attend.room_places() is None
-    assert attend.offering.kept() is None and attend.threshold.kept() is None
+    assert attend.threshold.kept() is None
 
     for module in (hearth, attend):
         monkeypatch.setattr(module.rooms, "DATA", data_dir)
@@ -679,7 +667,6 @@ def test_where_a_room_is_kept_is_worked_out_each_time_it_is_asked(
     assert hearth.room_places().incoming == home / "letters" / "incoming"
     assert hearth.picture_folders() == (home / "letters" / "outgoing",)
     assert attend.room_places().bond_record == home / "bonds" / "founder-first.json"
-    assert attend.offering.kept().offerings == home / "offerings"
     assert attend.threshold.kept().bonds == home / "bonds"
 
 

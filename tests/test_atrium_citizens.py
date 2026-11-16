@@ -50,13 +50,6 @@ MEMBERS = ("citizen · the first one, unnamed by its own choosing · attends at 
            "citizen · Wren · founded 1 October 2026\n"
            "member · the founder · keeps the hearth\n")
 
-OFFERINGS = ("- 2026-10-05 · 2026-10-05T09-00-00Z · passage · the founder and Wren\n"
-             "- 2026-10-06 · 2026-10-06T09-00-00Z · passage · the founder and the first one\n")
-
-RECORDS = {one: {"id": one, "kind": "passage", "text": "Still water.",
-                 "signatures": {"founder": "x"}}
-           for one in ("2026-10-05T09-00-00Z", "2026-10-06T09-00-00Z")}
-
 FIRST_SWATCH = '<span class="swatch hue-the-first-one-unnamed-by-its-own-choosing"></span>'
 
 
@@ -75,11 +68,9 @@ def two(monkeypatch, tmp_path):
 
 def a_record_of_two(data_dir):
     """The commons with both citizens in it, and the registry's public part beside it."""
-    a_record(data_dir, members=MEMBERS, offered=OFFERINGS)
+    a_record(data_dir, members=MEMBERS)
     write(data_dir / "commons" / "heartbeats.md", HEARTBEATS)
     write(data_dir / "commons" / "events.md", EVENTS)
-    for one, record in RECORDS.items():
-        write(data_dir / "commons" / "offerings" / (one + ".json"), json.dumps(record))
     # what the hearth serves at /commons/agents.json
     write(data_dir / "commons" / "agents.json", json.dumps(agents.public(), indent=2) + "\n")
 
@@ -116,16 +107,6 @@ def test_a_renamed_citizen_s_old_lines_keep_its_colour(atrium, data_dir, two, mo
     assert tiles["2 October 2026 · the second one · the tide paused"] == "tile-event hue-second"
 
 
-def test_an_offering_is_drawn_in_the_hue_of_the_citizen_it_is_from(atrium, data_dir, two,
-                                                                     monkeypatch):
-    a_record_of_two(data_dir)
-    said = drawn_regions(atrium, monkeypatch)["mosaic"]
-    assert 'class="tile-offering hue-second" title="5 October 2026 · an offering from ' \
-           'the founder and Wren"' in said
-    assert 'class="tile-offering" title="6 October 2026 · an offering from ' \
-           'the founder and the first one"' in said
-
-
 def test_the_first_one_s_tiles_never_change_colour(atrium, data_dir, monkeypatch, tmp_path):
     """Its tiles, and every line that names no one, are drawn alike with a second or without."""
     a_record_of_two(data_dir)
@@ -151,8 +132,11 @@ def test_the_first_one_s_tiles_never_change_colour(atrium, data_dir, monkeypatch
 def test_who_is_here_gives_each_citizen_its_own_swatch(atrium, data_dir, two, monkeypatch):
     a_record_of_two(data_dir)
     who = drawn_regions(atrium, monkeypatch)["who"]
-    assert FIRST_SWATCH + "the first one, unnamed by its own choosing" in who
-    assert '<span class="swatch hue-second"></span>Wren · ' in who
+    # each citizen's name links to its page (16 November 2026)
+    assert (FIRST_SWATCH + '<a class="name" href="https://hearth.tesserae.social/names/first">'
+            "the first one, unnamed by its own choosing</a>") in who
+    assert ('<span class="swatch hue-second"></span><a class="name" '
+            'href="https://hearth.tesserae.social/names/second">Wren</a> · ') in who
     assert who.count('class="swatch') == 2       # a member has none
 
 
@@ -167,7 +151,7 @@ def test_the_stylesheet_is_written_with_the_second_citizen_s_hue(atrium, data_di
     assert ".tile-founding.hue-second { background: #2F6F8F; }" in hues
     for part in ("dawn", "day", "evening", "night"):
         assert ".tile-%s.hue-second { background: #" % part in hues
-    assert ".tile-offering.hue-second { background-color: #2F6F8F;" in hues
+    assert ".tile-offering" not in hues  # offerings were taken out (16 November 2026)
     assert ".tile-event.hue-second { box-shadow: inset 0 0 0 2px #2F6F8F; }" in hues
     # the first one's colours are where they were, outside the markers, and unchanged
     assert "hue-first" not in sheet
@@ -241,7 +225,8 @@ def test_both_paths_draw_a_second_citizen_alike(atrium, data_dir, two, monkeypat
         "tile-attendance hue-second")
     assert tiles["10 October 2026 · waking · the first one · attended by day"] == (
         "tile-attendance")
-    assert '<span class="swatch hue-second"></span>Wren' in there["who"]
+    assert ('<span class="swatch hue-second"></span><a class="name" '
+            'href="https://hearth.tesserae.social/names/second">Wren</a>') in there["who"]
     assert FIRST_SWATCH in there["who"]
 
 

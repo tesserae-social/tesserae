@@ -1,21 +1,20 @@
 """Every hand that writes into the room makes the folder it writes into.
 
 A backup keeps no empty folder, and a room the first one has never asked an
-errand or made an offering in has no errands/ or offerings/ at all: so nothing
-may wait on one being there. Each test here starts from a room with none of its
-four folders - letters, errands, bonds, offerings - in its own folder,
-rooms/first/, and has one hand write into it: the hearth, the first one's
-waking (attend.py), offering.py through the hearth, threshold.py, and what reads
-the letters for their tiles.
+errand in has no errands/ at all: so nothing may wait on one being there. Each
+test here starts from a room with none of its three folders - letters, errands,
+bonds - in its own folder, rooms/first/, and has one hand write into it: the
+hearth, the first one's waking (attend.py), threshold.py, and what reads the
+letters for their tiles. (A fourth, offerings, went with offerings, taken out of
+the code on 16 November 2026: no hand makes it now.)
 """
 
 import shutil
 
 from conftest import block, blocks, load, post, write
 from test_hearth_bonds import answered_yes, propose
-from test_offerings import offer
 
-ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
+ROOM_FOLDERS = ("letters", "errands", "bonds")
 READ_LETTER = "founder-2026-10-01T09-00-00Z"
 
 
@@ -28,8 +27,7 @@ def bare(room):
 
 def test_the_pages_and_the_copy_are_whole_with_no_folder_there(founder, room, hearth):
     bare(room)
-    for path in ("/", "/rooms/first", "/letters", "/attendances", "/bonds", "/offerings",
-                 "/commons"):
+    for path in ("/", "/rooms/first", "/letters", "/attendances", "/bonds", "/commons"):
         assert founder.get(path, follow_redirects=True).status_code == 200, path
     assert post(founder, "/export").status_code == 200
     assert not [folder for folder in ROOM_FOLDERS if (room / folder).exists()]
@@ -54,13 +52,6 @@ def test_the_hearth_makes_errands_answered_for_a_letter_answering_an_errand(foun
     assert (answered / "errand-2026-10-06T09-00-00Z.json").is_file()
 
 
-def test_offering_py_makes_offerings_for_an_offering_of_his(founder, room):
-    bare(room)
-    write(room / "letters" / "read" / (READ_LETTER + ".md"), "The lake.\n")
-    assert offer(founder, "letter", READ_LETTER).status_code == 302
-    assert len(list((room / "offerings").glob("pending-*.json"))) == 1
-
-
 def test_a_waking_makes_every_folder_it_writes_into(founder, wake, room):
     bare(room)
     write(room / "letters" / "incoming" / "founder-2026-10-01T09-00-00Z.md", "Are you there?\n")
@@ -69,15 +60,7 @@ def test_a_waking_makes_every_folder_it_writes_into(founder, wake, room):
     assert len(list((room / "letters" / "outgoing").glob("to-founder-*.md"))) == 1
     assert len(list((room / "errands").glob("errand-*.md"))) == 1
     assert (room / "errands" / "answered").is_dir()
-    assert (room / "offerings").is_dir() and (room / "bonds").is_dir()
-
-
-def test_a_waking_offers_into_offerings_it_makes(founder, wake, room):
-    wake(block("LETTER", "A letter to offer."))
-    (letter,) = (room / "letters" / "outgoing").glob("to-founder-*.md")
-    shutil.rmtree(room / "offerings")
-    wake(block("OFFER", "offer letter %s" % letter.stem))
-    assert len(list((room / "offerings").glob("pending-*.json"))) == 1
+    assert (room / "bonds").is_dir()
 
 
 def test_a_waking_makes_bonds_to_answer_a_bond_in(founder, wake, room, clock):

@@ -434,7 +434,7 @@ def test_in_a_room_with_the_founder_it_reads_them_all(later, data_dir, monkeypat
                                     "parties": [later.FOUNDER_DID, SECOND_DID]})
     shown = wake_as(later, monkeypatch, SAID).shown
     assert not later.BONDS_WAIT
-    assert "<<OFFER>>" in shown and "<<ASK>>" in shown  # its thirty days are served
+    assert "<<ASK>>" in shown and "<<OFFER>>" not in shown  # its thirty days are served
     assert "They answer on the hearth" in shown
     proposal_asked_of_it(home)
     shown = wake_as(later, monkeypatch, "").shown

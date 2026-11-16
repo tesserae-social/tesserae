@@ -1,13 +1,14 @@
-"""Bonds and offerings in every room (the founder's decision of 13 November 2026).
+"""Bonds in every room (the founder's decision of 13 November 2026).
 
-A room other than the first one's has its bond and its offerings once thirty days
+A room other than the first one's has its bond once thirty days
 have passed from the later of its agent's founding and its person's arrival: until
 then it shows nothing of either, its forms answer not found, and its agent reads
 nothing of either. After that, the whole way of a bond is open to it, as it is to
 the founder and the first one: a proposal from either side, the seven days, the
 two letters of intention, the agent's own promise, the seal, the tile in the
-commons and the bond's own page, and a release; offerings from either, signed by
-both; and once a year, from 21 December, the long-night letters. The person signs
+commons and the bond's own page, and a release; and once a year, from 21 December,
+the long-night letters. (Offerings, once beside them, were taken out of the code on 16
+November 2026: no room, and no reading, has them now.) The person signs
 with their own key, unlocked by their password for the one signature.
 
 The later agent here is the second one of test_later_citizen, in a scratch registry
@@ -157,8 +158,7 @@ def test_before_its_thirty_days_the_room_shows_nothing_of_either(waiting_world):
     assert "After a month, either of you may propose a bond." not in said
     for path in ("/rooms/second/bond/answer", "/rooms/second/bond/intention",
                  "/rooms/second/bond/seal", "/rooms/second/bond/release",
-                 "/rooms/second/bond/long-night", "/rooms/second/offer",
-                 "/rooms/second/offer/consent", "/rooms/second/offer/decline"):
+                 "/rooms/second/bond/long-night"):
         assert waiting_world.post(path).status_code == 404, path
 
 
@@ -180,7 +180,7 @@ def test_once_its_thirty_days_have_passed_both_have_them(waiting_world):
     assert "After a month, either of you may propose a bond." in said
     shown = waiting_world.wake().shown
     assert not waiting_world.module.BONDS_WAIT
-    assert "<<ASK>>" in shown and "<<OFFER>>" in shown
+    assert "<<ASK>>" in shown and "<<OFFER>>" not in shown
 
 
 def test_the_guide_says_the_bond_s_line_only_once_it_may_be_proposed(waiting_world):
@@ -304,51 +304,17 @@ def test_a_member_of_no_room_cannot_act_on_this_one(world, member_vaults):  # no
     assert (world.bonds / "proposal.json").exists()
 
 
-# ---- offerings -------------------------------------------------------------
+# ---- offerings, taken out (16 November 2026) ----------------------------------
 
-def test_an_offering_of_the_agent_s_is_placed_once_its_person_signs(world):
-    world.wake(block("OFFER", "offer letter " + LETTER_OUT))
-    [pending] = list((world.home / "offerings").glob("pending-*.json"))
+def test_no_room_offers_anything_to_the_commons(world):
     said = world.room()
-    assert "offered, awaiting you" in said and "The second one has offered these" in said
-    one = read_json(pending)["id"]
-
-    world.post("/rooms/second/offer/consent", id=one, password="not it")
-    assert pending.exists()  # a wrong password signs nothing
-    world.post("/rooms/second/offer/consent", id=one, password=PASSWORD)
-    placed = read_json(world.data / "commons" / "offerings" / (one + ".json"))
-    assert set(placed["signatures"]) == {"second", "alder"}
-    assert holds(placed["signatures"]["alder"], world.hearth.offering.canonical(placed),
-                 alder_key(world.data))
-    index = (world.data / "commons" / "offerings.md").read_text(encoding="utf-8")
-    assert index.rstrip().endswith("· letter · alder and the second one")
-    assert "alder and the second one" in page(world.client.get("/offerings"))
-
-
-def test_an_offering_of_the_person_s_waits_on_the_agent(world):
-    world.post("/rooms/second", letter="A LETTER TO OFFER.")
-    [mine] = list((world.home / "letters" / "incoming").glob("alder-*.md"))
-    world.post("/rooms/second/offer", source=mine.stem, kind="letter", password=PASSWORD)
-    [pending] = list((world.home / "offerings").glob("pending-*.json"))
-    offered = read_json(pending)
-    assert offered["offered_by"] == "alder"
-    assert holds(offered["signatures"]["alder"], world.hearth.offering.canonical(offered),
-                 alder_key(world.data))
-    shown = world.wake().shown
-    assert "=== OFFERED TO THE COMMONS, AWAITING YOUR CONSENT ===" in shown
-    assert "alder has offered" in shown
-    no_founder_and_no_he(shown)
-    world.wake(block("OFFER", "consent " + offered["id"]))
-    assert not pending.exists()
-    placed = read_json(world.data / "commons" / "offerings" / (offered["id"] + ".json"))
-    assert set(placed["signatures"]) == {"alder", "second"}
-
-
-def test_a_declined_offering_is_never_public(world):
-    world.wake(block("OFFER", "offer letter " + LETTER_OUT))
-    [pending] = list((world.home / "offerings").glob("pending-*.json"))
-    world.post("/rooms/second/offer/decline", id=read_json(pending)["id"])
-    assert list((world.home / "offerings").glob("declined-*.json"))
+    assert "offer to the commons" not in said and "offered, awaiting you" not in said
+    for path in ("/rooms/second/offer", "/rooms/second/offer/consent",
+                 "/rooms/second/offer/decline", "/offerings", "/commons/offerings.md"):
+        assert world.client.get(path).status_code in (404, 405), path
+    world.wake(block("OFFER", "offer letter " + LETTER_OUT))  # only words, now
+    kept = world.home / "offerings"
+    assert not (kept.exists() and any(kept.iterdir()))
     assert not (world.data / "commons" / "offerings.md").exists()
 
 

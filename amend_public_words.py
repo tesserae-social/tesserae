@@ -39,7 +39,7 @@ ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("DATA_DIR", ROOT))
 
 # The files of the commons that are kept as lines, in the order they are read.
-LINES = ("heartbeats.md", "events.md", "members.md", "offerings.md", "bonds.md")
+LINES = ("heartbeats.md", "events.md", "members.md", "bonds.md")
 
 AMENDED = "some heartbeat words were amended to keep private names private"
 MARK = b"\xef\xbb\xbf"

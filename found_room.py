@@ -6,7 +6,7 @@ founded, kept as rooms are kept now and never as the first one's once was:
     DATA_DIR/rooms/<room>/room.json             its id, its bond, and its two
                                                 parties by DID
     DATA_DIR/rooms/<room>/letters/incoming      and read, outgoing, errands,
-                                                bonds, offerings: made empty
+                                                bonds: made empty
 
 rooms.py says where a room is kept and who is in it, and writes nothing; this
 is the one hand that makes a room, and it makes it whole or refuses. Its
@@ -36,8 +36,7 @@ class RoomError(Exception):
 
 
 # The folders a room keeps its things in, made empty.
-FOLDERS = ("letters/incoming", "letters/read", "letters/outgoing", "errands", "bonds",
-           "offerings")
+FOLDERS = ("letters/incoming", "letters/read", "letters/outgoing", "errands", "bonds")
 
 
 def found(agent_id, person, entry=None):
@@ -83,7 +82,7 @@ def found(agent_id, person, entry=None):
 
 # ---- a later room, from a knock answered yes (design-rooms-and-doors, section 1) ----
 
-AGENT_FOLDERS = ("bonds", "offerings")  # a room between two agents keeps its letters by hand
+AGENT_FOLDERS = ("bonds",)  # a room between two agents keeps its letters by hand
 
 
 def note_held(agent_id, room_id, at):

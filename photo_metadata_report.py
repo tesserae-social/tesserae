@@ -37,7 +37,6 @@ def stored(root):
     for letters in sorted(list(root.glob("rooms/*/letters")) + list(root.glob("packets/*/letters"))):
         where = "room " + letters.parent.name
         places.append((where, letters))
-    places.append(("public offering", root / "commons" / "offerings"))
     for where, folder in places:
         if not folder.is_dir():
             continue

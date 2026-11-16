@@ -244,11 +244,10 @@ def test_a_new_agent_s_room_is_made_with_room_json_in_a_folder_of_its_own(
     home = data_dir / "rooms" / "second"
     assert made == rooms.places("second") and made.home == home
     assert json.loads((home / "room.json").read_text(encoding="utf-8")) == rooms.record("second")
-    for folder in (made.incoming, made.read, made.outgoing, made.errands, made.bonds,
-                   made.offerings):
+    for folder in (made.incoming, made.read, made.outgoing, made.errands, made.bonds):
         assert folder.is_dir() and not any(folder.iterdir())
     assert sorted(path.name for path in home.iterdir()) == [
-        "bonds", "errands", "letters", "offerings", "room.json"]
+        "bonds", "errands", "letters", "room.json"]  # no offerings since 16 November 2026
     # never the packet-era layout
     assert not (data_dir / "packets" / "second").exists()
 
@@ -296,12 +295,15 @@ def test_a_waking_with_no_room_is_refused_and_makes_none(
 
 def test_each_member_sees_only_their_own_room_on_home(world, keeper, alder, hazel):
     keepers = page(keeper.get("/"))
-    assert 'href="/rooms/first"' in keepers and "<h3>the first one</h3>" in keepers
+    # the name on the card links to its page (16 November 2026)
+    assert 'href="/rooms/first"' in keepers and (
+        '<h3><a href="/names/first">the first one</a></h3>') in keepers
     assert 'href="/rooms/second"' not in keepers and "the scratch one" not in keepers
 
     alders = page(alder.get("/"))
-    assert 'href="/rooms/second"' in alders and "<h3>the scratch one</h3>" in alders
-    assert 'href="/rooms/first"' not in alders and "<h3>the first one</h3>" not in alders
+    assert 'href="/rooms/second"' in alders and (
+        '<h3><a href="/names/second">the scratch one</a></h3>') in alders
+    assert 'href="/rooms/first"' not in alders and ">the first one</a></h3>" not in alders
     assert "from the first one" not in alders
     # what waits in alder's room is alder's room's
     assert "an errand asked of you" in alders
@@ -426,9 +428,6 @@ FIRST_ROOM_ONLY = [
     ("post", "/bonds/step-back", {}),
     ("post", "/bonds/seal", {}),
     ("post", "/bonds/release", {}),
-    ("post", "/offer", {"source": "founder-2026-10-01T09-00-00Z", "kind": "letter"}),
-    ("post", "/offer/consent", {"id": "2026-10-13T09-00-00Z"}),
-    ("post", "/offer/decline", {"id": "2026-10-13T09-00-00Z"}),
 ]
 
 

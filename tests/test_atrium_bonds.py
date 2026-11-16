@@ -57,14 +57,14 @@ def test_a_line_that_is_not_a_bond_is_passed_over(atrium, line):
 # ---- the seal tile -------------------------------------------------------
 
 def test_a_bond_on_the_list_is_one_seal_tile_and_the_events_line_is_passed_over(atrium):
-    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], (), atrium.parse_bonds(SEALED))
+    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], atrium.parse_bonds(SEALED))
     seals = [tile for tile in tiles if tile[1] == "tile-seal"]
     assert seals == [(datetime.date(2026, 10, 8), "tile-seal",
                       "8 October 2026 · a bond was sealed", HEARTH + "/bonds/founder-first")]
 
 
 def test_with_no_list_the_seal_is_drawn_as_it_always_was(atrium):
-    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], (), atrium.parse_bonds(""))
+    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], atrium.parse_bonds(""))
     assert [tile for tile in tiles if tile[1] == "tile-seal"] == [
         (datetime.date(2026, 10, 8), "tile-seal",
          "8 October 2026 · a bond was sealed between the founder and the first one",
@@ -72,7 +72,7 @@ def test_with_no_list_the_seal_is_drawn_as_it_always_was(atrium):
 
 
 def test_a_seal_tile_shows_its_tessera_at_the_tile_s_size(atrium):
-    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], (), atrium.parse_bonds(SEALED))
+    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], atrium.parse_bonds(SEALED))
     drawn = "".join(atrium.frame_block(atrium.slots(tiles, TODAY)))
     assert ('<li class="tile-seal" title="8 October 2026 · a bond was sealed">'
             '<a href="%s/bonds/founder-first" aria-label="8 October 2026 · a bond was sealed">'
@@ -99,7 +99,7 @@ def test_only_a_bond_s_own_page_carries_a_tessera(atrium):
 
 
 def test_a_seal_tile_reads_out_like_any_other(atrium):
-    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], (), atrium.parse_bonds(SEALED))
+    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], atrium.parse_bonds(SEALED))
     assert atrium.reading_text(atrium.slots(tiles, TODAY)) == "8 October 2026 · a bond was sealed"
 
 

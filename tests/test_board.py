@@ -363,7 +363,7 @@ def test_the_keeper_takes_down_anyone_s_and_keeps_the_words_privately(
 
 def test_the_commons_lists_the_board_first(world, visitor):
     shown = text(visitor.get("/commons"))
-    assert shown.index('href="/board"') < shown.index('href="/offerings"')
+    assert shown.index('href="/board"') < shown.index('href="/commons/charter-changes"')
 
 
 # ---- a board kept before topics -------------------------------------------------------

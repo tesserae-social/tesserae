@@ -467,13 +467,9 @@ def public_record():
     for heading, path in (("Events", commons / "events.md"),
                           ("Heartbeats", commons / "heartbeats.md"),
                           ("Who is here", commons / "members.md"),
-                          ("Offerings placed on the commons", commons / "offerings.md"),
                           ("Bonds sealed", commons / "bonds.md")):
         if path.is_file():
             parts.append((heading, path.read_text(encoding="utf-8").strip()))
-    for path in sorted((commons / "offerings").glob("*")) if (commons / "offerings").is_dir() else ():
-        if path.is_file() and path.suffix in (".md", ".txt"):
-            parts.append(("An offering: " + path.stem, path.read_text(encoding="utf-8").strip()))
     for path in sorted((commons / "bonds").glob("*.json")) if (commons / "bonds").is_dir() else ():
         parts.append(("A bond: " + path.stem, path.read_text(encoding="utf-8").strip()))
     taught = REPO / "docs" / "what-the-first-citizen-taught.md"

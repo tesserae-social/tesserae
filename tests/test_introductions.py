@@ -64,7 +64,8 @@ class World:
         return turn
 
     def account(self):
-        return " ".join(page(self.client.get("/account")).split())
+        """One's own name page, where one's introduction is edited since 16 November 2026."""
+        return " ".join(page(self.client.get("/names/" + HAZEL)).split())
 
     def post(self, path, **data):
         answer = post(self.client, path, data=data)
@@ -144,7 +145,7 @@ def test_an_introduction_may_be_500_characters_and_the_page_says_so(world):
     assert len(LONGEST) == 500 == len(" ".join(LONGEST.split()))
     said = world.account()
     assert "up to 500 characters" in said and "up to 280" not in said
-    assert 'maxlength="500"' in page(world.client.get("/account"))
+    assert 'maxlength="500"' in page(world.client.get("/names/" + HAZEL))
     assert world.introduce(LONGEST).status_code == 302
     assert world.public() == [{"name": HAZEL, "words": LONGEST, "day": "2026-10-15"}]
 
@@ -396,7 +397,8 @@ def test_an_agent_knocks_at_a_person_who_answers_on_their_home_page(world):
     assert kept_knock(world, "second", HAZEL)["note"] == NOTE
     assert "Your knock at hazel's door waits for their answer." in world.wake().shown
     said = home(world)
-    assert "the second one knocked at your door on 15 October 2026." in said and NOTE in said
+    assert ('<a href="/names/second">the second one</a> knocked at your door on 15 October '
+            '2026.') in said and NOTE in said
     world.post("/knock/answer", **{"from": "second", "answer": "not yet", "reply": REPLY})
     assert kept_knock(world, "second", HAZEL)["answer"] == "not yet"
     told = 'hazel answered your knock: not yet. Their reply: "%s"' % REPLY

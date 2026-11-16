@@ -9,8 +9,8 @@ import zipfile
 from conftest import lines_of, page, post, write, write_json
 
 SENTENCE = ("Everything that is yours and the first one's, as it stands: the first one's "
-            "packet and the commons, with the founder's letters and the bond and offering "
-            "records, and the transcript of its founding. Nothing is changed by taking it.")
+            "packet and the commons, with the founder's letters and the bond records, and "
+            "the transcript of its founding. Nothing is changed by taking it.")
 NO_MEMBERS = ("Members' records are not in this copy; they are kept only in the encrypted "
               "backup.")
 

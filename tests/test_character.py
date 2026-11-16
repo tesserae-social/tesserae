@@ -99,7 +99,14 @@ READING_NOW_ASKED_BEFORE_STANDING = "6dc9c9ad0bcabf75942f2966f14869de4f6d554c4bf
 # asking, so its line under WHAT HAS HAPPENED and <<STANDING_WELCOME>> explained. With it
 # shut away again (conftest.standing_welcome_not_yet) it is exactly
 # READING_NOW_ASKED_BEFORE_STANDING.
-READING_NOW_ASKED = "2f2f7347e4900e134165c2c4b74f1c159f883f4da0601a86338387902cc441ec"
+# Held as READING_NOW_ASKED_BEFORE_OFFERINGS since.
+READING_NOW_ASKED_BEFORE_OFFERINGS = (
+    "2f2f7347e4900e134165c2c4b74f1c159f883f4da0601a86338387902cc441ec")
+# Cut again, on purpose, on the branch rooms (16 November 2026, part B4), for nothing else
+# than READING_NOW was: <<OFFER>> no longer explained, offerings being taken out of the
+# code. With it explained again (conftest.offer_explained_again) it is exactly
+# READING_NOW_ASKED_BEFORE_OFFERINGS.
+READING_NOW_ASKED = "c44724ac2f0ad1f4efaf8a1899089e1d1481103efb02e62acfa54b7b23890470"
 
 # ASKED OF YOU's words as they were first cut, before they named no one.
 ASKED_HOW_FIRST_CUT = (
@@ -247,6 +254,15 @@ def test_as_switched_on_the_questions_kept_are_its_own_reading(founder, wake, at
         assert asked.count(escaped) == 1
         asked = asked.replace(escaped, "", 1)
     assert hashlib.sha256(asked.encode("utf-8")).hexdigest() == READING_NOW
+
+
+def test_with_offer_explained_again_it_is_the_reading_before(
+        founder, wake, attend, room, packet, monkeypatch):
+    from conftest import offer_explained_again
+    offer_explained_again(attend, monkeypatch)
+    the_small_world(founder, room)
+    two_questions(packet)
+    assert fingerprint_of_reading(wake()) == READING_NOW_ASKED_BEFORE_OFFERINGS
 
 
 def test_with_its_standing_welcome_shut_away_it_is_the_reading_before(
@@ -481,7 +497,8 @@ def test_the_page_shows_only_what_is_answered_and_from_before_only_with_words(
     assert "nothing yet" in shown and "heartbeat be shown" not in shown
     wake(block("ANSWER", "2 yes"))
     shown = page(visitor.get("/commons/asked"))
-    assert ("the first one was asked: &ldquo;May the line you leave beside a letter tile be "
+    assert ('<a href="/names/first">the first one</a> was asked: &ldquo;May the line you leave '
+            "beside a letter tile be "
             "public?&rdquo;") in shown
     assert "<p>yes, 15 October 2026</p>" in shown
     assert "heartbeat be shown" not in shown  # from before, and no words yet
@@ -656,7 +673,8 @@ def test_the_page_shows_each_beneath_its_line_and_the_commons_links_it(
     shown = page(visitor.get("/commons/corrections"))
     assert ('<span class="muted">a line in the commons:</span> 2026-10-01 at dawn · the first '
             'one · The heron was there at dawn.') in shown  # as heartbeats.md hands it out
-    assert ('corrected by the first one, 15 October 2026:</span> &ldquo;%s&rdquo;' % FIX) in shown
+    assert ('corrected by <a href="/names/first">the first one</a>, 15 October 2026:</span> '
+            '&ldquo;%s&rdquo;' % FIX) in shown
     now = page(visitor.get("/commons"))
     assert '<a href="/commons/corrections">corrections</a>' in now
     assert '<a href="/commons/corrections.md">corrections</a>' in page(

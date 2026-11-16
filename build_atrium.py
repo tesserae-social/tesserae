@@ -5,7 +5,6 @@ Rewrites only the text between the marker comments in index.html:
 
     <!-- mosaic:start -->   ...  <!-- mosaic:end -->     the last year of tiles
     <!-- reading:start -->  ...  <!-- reading:end -->
-    <!-- offering:start --> ...  <!-- offering:end -->
     <!-- who:start -->      ...  <!-- who:end -->
     <!-- calendar:start --> ...  <!-- calendar:end -->
 
@@ -20,9 +19,6 @@ It reads:
     commons/heartbeats.md          the attendances
     commons/events.md              the history (created if missing)
     commons/members.md             who is here
-    commons/offerings.md           what the two of them have given the commons,
-                                   and commons/offerings/<id>.json beside it for
-                                   the newest one, which is shown whole
     commons/bonds.md               every sealed bond, one line each: a tile for
                                    each, and a half beside each member who holds
                                    one (left as it was today where there are none)
@@ -78,18 +74,14 @@ STYLE = os.path.join(ROOT, "style.css")
 HEARTBEATS = os.path.join(DATA, "commons", "heartbeats.md")
 EVENTS = os.path.join(DATA, "commons", "events.md")
 MEMBERS = os.path.join(DATA, "commons", "members.md")
-OFFERINGS = os.path.join(DATA, "commons", "offerings.md")
-OFFERED = os.path.join(DATA, "commons", "offerings")
 BONDS = os.path.join(DATA, "commons", "bonds.md")
 # the introductions written for who is here (plan 4.1; introductions.py)
 INTRODUCTIONS = os.path.join(DATA, "commons", "introductions.json")
 
 HEARTH = "https://hearth.tesserae.social"
 
-# where an offering is read whole, and where a sealed bond is checked. A tile
-# for either is a way in: the others are hover-only, because there is nowhere
-# for them to lead.
-OFFERINGS_URL = HEARTH + "/offerings"
+# where a sealed bond is checked. Its tile is a way in: the others are
+# hover-only, because there is nowhere for them to lead.
 BOND_URL = HEARTH + "/bonds/founder-first.json"
 
 # Where a sealed bond named in commons/bonds.md has its own page. A seal tile
@@ -103,9 +95,6 @@ HALF = 16
 # a bond's name, as bonds.py makes and checks it
 BOND_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 RELEASED = re.compile(r"^released (\d{4}-\d{2}-\d{2})$")
-
-# where the file of a placed offering is served from
-OFFERED_URL = HEARTH + "/commons/offerings/"
 
 SEED_EVENTS = [
     "2026-09-02 · word · the word was published",
@@ -142,7 +131,6 @@ KIND_CLASS = {
     "word": "tile-word",
     "attendance": "tile-attendance",
     "seal": "tile-seal",
-    "offering": "tile-offering",
     "letter": "tile-letter",
     "event": "tile-event",
 }
@@ -162,11 +150,6 @@ LETTER_BANDS = {"dawn": "at dawn", "day": "during the day",
 # "<anyone> wrote a letter <a part of the day>": the part the mosaic leaves out
 LETTER_PART = re.compile(r"^(.+ wrote a letter) (?:%s)$"
                          % "|".join(re.escape(said) for said in LETTER_BANDS.values()))
-
-# What an offering is, said in words. The hearth says the same words on its own
-# page for them, out of this one dictionary, so that the two never part.
-KIND_WORDS = {"letter": "a letter", "passage": "a passage",
-              "photo": "a photograph", "picture": "a picture"}
 
 # The citizen keeps one clock, Eastern time. The record is written in UTC; a
 # waking at dawn, on the citizen's clock, is toned and said as one, and any other
@@ -264,13 +247,6 @@ def members_text(hearth):
     return read_text(MEMBERS) if os.path.exists(MEMBERS) else ""
 
 
-def offerings_text(hearth):
-    """The text of offerings.md: from a hearth if one is named, else from the disk."""
-    if hearth:
-        return fetch(hearth, "offerings.md")
-    return read_text(OFFERINGS) if os.path.exists(OFFERINGS) else ""
-
-
 def bonds_text(hearth):
     """The text of bonds.md: from a hearth if one is named, else from the disk.
 
@@ -285,19 +261,6 @@ def bonds_text(hearth):
                 return ""
             raise
     return read_text(BONDS) if os.path.exists(BONDS) else ""
-
-
-def offered_record(hearth, one):
-    """One placed offering's signed record, which is where its words are kept.
-
-    The index says that an offering exists and what kind it is; the record
-    itself carries what was given. The page's own script reads the same file
-    from the same address, so both paths show the same offering.
-    """
-    if hearth:
-        return json.loads(fetch(hearth, "offerings/%s.json" % one))
-    where = os.path.join(OFFERED, "%s.json" % one)
-    return json.loads(read_text(where)) if os.path.exists(where) else None
 
 
 def citizens_text(hearth):
@@ -331,6 +294,30 @@ def introductions_text(hearth):
     if not os.path.exists(INTRODUCTIONS):
         return []
     return introductions_of(json.loads(read_text(INTRODUCTIONS)))
+
+
+def open_doors_text(hearth):
+    """The doors open now, newest door-openings first, as [(id, name)]: from a hearth if one
+    is named, else as the hearth would say them from the disk (knock.open_doors). A hearth
+    that does not serve them yet answers 404, and that is none at all."""
+    if hearth:
+        try:
+            return open_doors_of(json.loads(fetch(hearth, "open-doors.json")))
+        except urllib.error.HTTPError as answer:
+            if answer.code == 404:
+                return []
+            raise
+    import knock  # read only here: it reads the members' store and the doors
+    return [(who, knock.name_of(who)) for who in knock.open_doors("person")]
+
+
+def open_doors_of(entries):
+    """Each open door said, as (id, name), kept only where it is shaped as the hearth shapes
+    one. The page's script reads the list the same way."""
+    return [(one["id"], one["name"]) for one in (entries if isinstance(entries, list) else [])
+            if isinstance(one, dict) and isinstance(one.get("id"), str)
+            and agents.ID.fullmatch(one["id"]) and isinstance(one.get("name"), str)
+            and one["name"]]
 
 
 def introductions_of(entries):
@@ -442,12 +429,6 @@ def event_whose(kind, words, citizens):
     return None
 
 
-def offering_whose(parties, citizens):
-    """The citizen an offering is from, beside the founder: the party named for one, or None."""
-    named = [party.strip() for party in parties.split(" and ")]
-    return next((one for name, one in called(citizens) if name in named), None)
-
-
 def hue_class(citizen):
     """The class a citizen's own tiles and swatch carry, keyed by its id, which is for always."""
     return "hue-" + citizen["id"]
@@ -531,26 +512,6 @@ def dated_line(line):
 def dated_heartbeats(text):
     """The text of heartbeats.md as the public is given it: every stamp made its day."""
     return "".join(dated_line(line) for line in text.splitlines(keepends=True))
-
-
-def parse_offerings(text):
-    """One (day, id, kind, whose) per line of offerings.md, in the order written.
-
-    A line names the day it was placed, the offering's own name, what kind of
-    thing it is, and whose it is - which is always both of them. A line shaped
-    any other way is passed over.
-    """
-    out = []
-    for line in text.splitlines():
-        fields = [part.strip() for part in line.strip().lstrip("-").split(DOT, 3)]
-        if len(fields) < 4 or not all(fields[1:]):
-            continue
-        try:
-            when = datetime.datetime.strptime(fields[0], "%Y-%m-%d").date()
-        except ValueError:
-            continue
-        out.append((when, fields[1], fields[2], fields[3]))
-    return out
 
 
 def parse_bonds(text):
@@ -687,8 +648,8 @@ def event_shown(kind, words):
     return letter_shown(words) if kind == "letter" else words
 
 
-def tiles_from(events, heartbeats, offerings=(), bonds=(), citizens=None):
-    """One (day, class, words, where) tile per thing: the history, the wakings, the offerings.
+def tiles_from(events, heartbeats, bonds=(), citizens=None):
+    """One (day, class, words, where) tile per thing: the history, the wakings, the bonds.
 
     The day is the citizen's own calendar day, and it is what the mosaic is laid
     out by. Every tile's words open with that day too, because they are read out
@@ -698,22 +659,16 @@ def tiles_from(events, heartbeats, offerings=(), bonds=(), citizens=None):
     only who wrote a letter (the founder, 10 November 2026).
 
     Where is nowhere for most tiles, which are hover-only because there is
-    nowhere for them to lead. A seal leads to the signed bond, and an offering
-    to the offering itself: both are things a reader can go and check.
-
-    An offering is drawn from offerings.md and not from the line the commons
-    keeps for it in events.md, because only the fuller record carries the
-    offering's own name, and without that name a tile could lead nowhere. The
-    line in events.md is the commons' plain record that it happened, and it is
-    passed over here so that one offering is one tile.
+    nowhere for them to lead. A seal leads to the signed bond, which a reader can
+    go and check.
 
     A seal is the same, once there is a list of bonds: each bond in bonds.md is
     one tile, on the day it was sealed, leading to the bond's own page, and the
     seal lines of events.md are passed over. Where the list is empty or missing
     the seal lines are drawn as they always were.
 
-    A citizen's own waking, its founding, an event named for it and an offering
-    it is a party to are drawn in its own hue: see hued().
+    A citizen's own waking, its founding and an event named for it are drawn in
+    its own hue: see hued().
     """
     citizens = agents.public() if citizens is None else citizens
     tiles = [(when,
@@ -723,7 +678,7 @@ def tiles_from(events, heartbeats, offerings=(), bonds=(), citizens=None):
               "%s %s %s" % (human(when), DOT, event_shown(kind, words)),
               BOND_URL if kind == "seal" else "")
              for when, kind, words in events
-             if kind != "offering" and not (bonds and kind == "seal")]
+             if not (bonds and kind == "seal")]
     for when, one, _, _ in bonds:
         tiles.append((when, KIND_CLASS["seal"], "%s %s a bond was sealed" % (human(when), DOT),
                       BOND_PAGE + one))
@@ -734,13 +689,6 @@ def tiles_from(events, heartbeats, offerings=(), bonds=(), citizens=None):
             hued(waking_class(part), whose(words, citizens), citizens),
             "%s %s %s %s %s" % (human(day), DOT, waking_said(part), DOT, words),
             "",
-        ))
-    for when, one, _, from_whom in offerings:
-        tiles.append((
-            when,
-            hued(KIND_CLASS["offering"], offering_whose(from_whom, citizens), citizens),
-            "%s %s an offering from %s" % (human(when), DOT, from_whom),
-            "%s#%s" % (OFFERINGS_URL, one),
         ))
     return tiles
 
@@ -886,40 +834,6 @@ def reading_block(cells):
     return ['<p class="reading">%s</p>' % html.escape(reading_text(cells))]
 
 
-def offering_paragraphs(text):
-    """The words of an offering, as paragraphs: a letter is not one long line."""
-    return [part.strip() for part in re.split(r"\n\s*\n", text.strip()) if part.strip()]
-
-
-def offering_block(latest, record):
-    """The newest offering, shown whole, or nothing at all where there is none.
-
-    The atrium does not keep a second copy of the offerings: it shows the one
-    most lately placed and points at the hearth for the rest.
-    """
-    if not latest or not record:
-        return []
-    when, one, kind, whose = latest
-    out = ['<section class="offered">',
-           "  <h2>offered from the hearth</h2>",
-           '  <p class="when">%s %s %s %s %s</p>'
-           % (human(when), DOT, html.escape(KIND_WORDS.get(kind, kind)), DOT,
-              html.escape(whose))]
-    if record.get("text"):
-        out.append("  <blockquote>")
-        for said in offering_paragraphs(record["text"]):
-            out.append("    <p>%s</p>" % html.escape(said))
-        out.append("  </blockquote>")
-    if record.get("file"):
-        out.append('  <img class="offering" src="%s%s" alt="an offering from %s">'
-                   % (OFFERED_URL, html.escape(record["file"], quote=True),
-                      html.escape(whose, quote=True)))
-    out.append('  <p><a href="%s#%s">all offerings</a></p>'
-               % (OFFERINGS_URL, html.escape(one, quote=True)))
-    out.append("</section>")
-    return out
-
-
 def hue(name):
     """The class the first one's swatch is coloured by, worked out from its line's name.
 
@@ -1002,19 +916,60 @@ def knock_of(kind, name, fact, citizens):
     return ' <a class="knock" href="%s%s">knock</a>' % (KNOCK_PAGE, one["id"])
 
 
-def who_block(members, bonds=(), citizens=None, introductions=()):
+# Every citizen's name links to its page on the hearth (the founder's request of 16
+# November 2026). A person's page is for members alone, and is not linked from here.
+NAME_PAGE = HEARTH + "/names/"
+
+
+def name_of(kind, name, citizens):
+    """A line's name as who is here draws it: a citizen's a link to its page."""
+    one = (next((one for said, one in called(citizens) if holds(name, said)), None)
+           if kind == "citizen" else None)
+    if one is None:
+        return html.escape(name)
+    return '<a class="name" href="%s%s">%s</a>' % (NAME_PAGE, one["id"], html.escape(name))
+
+
+def open_block(open_doors, members, citizens, introductions):
+    """At the top of who is here, the doors open now: every agent whose door is open with
+    room left, newest door-openings first, with its colour, the word agent, the first line
+    of its introduction, and the way to knock; or nothing. No number beside any name."""
+    items = []
+    for who, said in open_doors:
+        one = next((one for one in citizens if one["id"] == who), None)
+        if one is None:
+            continue
+        line = next((name for kind, name, _ in members
+                     if kind == "citizen" and holds(name, one["commons_name"])), None)
+        words = next((words for name, words in introductions
+                      if holds(one["commons_name"], name)), None)
+        first = re.split(r"\r?\n", words)[0].strip() if words else ""
+        items.append('  <li><span class="swatch %s"></span><a class="name" href="%s%s">%s</a> %s '
+                     'agent%s <a class="knock" href="%s%s">knock</a></li>'
+                     % (swatch_of(line or one["commons_name"], citizens), NAME_PAGE, who,
+                        html.escape(said), DOT,
+                        (' %s <span class="introduction">%s</span>' % (DOT, html.escape(first))
+                         if first else ""), KNOCK_PAGE, who))
+    if not items:
+        return []
+    return ["<h3>doors open now</h3>", '<ul class="members open-doors">', *items, "</ul>"]
+
+
+def who_block(members, bonds=(), citizens=None, introductions=(), open_doors=()):
     """Who is here, or nothing at all: with no file to read there is no section.
 
-    Beside each door, the introduction its line's name has written, if any (plan 4.1)."""
+    Beside each door, the introduction its line's name has written, if any (plan 4.1);
+    at its top, the doors open now (open_block)."""
     if not members:
         return []
     citizens = agents.public() if citizens is None else citizens
-    out = ["<h2>who is here</h2>", '<ul class="members">']
+    out = ["<h2>who is here</h2>", *open_block(open_doors, members, citizens, introductions),
+           '<ul class="members">']
     for kind, name, fact in members:
         swatch = (('<span class="swatch %s"></span>' % swatch_of(name, citizens))
                   if kind == "citizen" else "")
         out.append('  <li>%s%s%s %s <span class="fact">%s</span>%s%s</li>'
-                   % (swatch, html.escape(name), halves_of(name, bonds), DOT,
+                   % (swatch, name_of(kind, name, citizens), halves_of(name, bonds), DOT,
                       html.escape(fact), knock_of(kind, name, fact, citizens),
                       introduction_of(name, introductions)))
     out.append("</ul>")
@@ -1066,10 +1021,6 @@ NO_HUE = "#5F5E5A"
 TONES = {"dawn": ("#FFFFFF", 0.22), "day": ("#FFFFFF", 0.42),
          "evening": ("#FFFFFF", 0.68), "night": ("#000000", 0.80)}
 
-# how much of the hue is in the pale square set in an offering's tile
-OFFERING_PALE = 0.11
-
-
 def mixed(colour, into, share):
     """So much of a colour, and the rest another: as #RRGGBB."""
     one = [int(colour[at:at + 2], 16) for at in (1, 3, 5)]
@@ -1097,9 +1048,6 @@ def first_rules(colour, swatches):
     css.append(".tile-attendance { background: %s; }" % mixed(colour, *TONES["day"]))
     for part, (into, share) in TONES.items():
         css.append(".tile-%s { background: %s; }" % (part, mixed(colour, into, share)))
-    pale = mixed(colour, "#FFFFFF", OFFERING_PALE)
-    css.append(".tile-offering { background-color: %s; background-image: linear-gradient(%s, %s); }"
-               % (colour, pale, pale))
     return css
 
 
@@ -1121,14 +1069,11 @@ def hues_block(citizens, swatches=()):
         colour = (one.get("hue") or "").upper()
         colour = colour if agents.HUE.fullmatch(colour) else NO_HUE
         css = "." + hue_class(one)
-        pale = mixed(colour, "#FFFFFF", OFFERING_PALE)
         out.append("/* %s */" % one["commons_name"].replace("*/", ""))
         out.append(".who %s { background: %s; }" % (css, colour))
         out.append(".tile-founding%s { background: %s; }" % (css, colour))
         for part, (into, share) in TONES.items():
             out.append(".tile-%s%s { background: %s; }" % (part, css, mixed(colour, into, share)))
-        out.append(".tile-offering%s { background-color: %s; "
-                   "background-image: linear-gradient(%s, %s); }" % (css, colour, pale, pale))
         out.append(".tile-event%s { box-shadow: inset 0 0 0 2px %s; }" % (css, colour))
     return out
 
@@ -1244,19 +1189,16 @@ def main():
         citizens = citizens_text(hearth)
         heartbeats = parse_heartbeats(heartbeats_text(hearth), citizens)
         members = parse_members(members_text(hearth))
-        offerings = parse_offerings(offerings_text(hearth))
         sealed = parse_bonds(bonds_text(hearth))
         introduced = introductions_text(hearth)
-        # only the newest is shown here, so only the newest is read
-        latest = offerings[-1] if offerings else None
-        record = offered_record(hearth, latest[1]) if latest else None
+        opened = open_doors_text(hearth)
     except (OSError, ValueError) as trouble:
         if not hearth:  # a local file going wrong is a fault, not a closed door
             raise
         sys.exit("build_atrium: could not read the commons from %s (%s). "
                  "index.html and mosaic.html are untouched." % (hearth, trouble))
 
-    tiles = tiles_from(events, heartbeats, offerings, sealed, citizens)
+    tiles = tiles_from(events, heartbeats, sealed, citizens)
     cells = slots(tiles, today)
     front = slots(tiles, today, FRONT_SPAN_DAYS)
 
@@ -1265,8 +1207,8 @@ def main():
 
     page = splice(page, "mosaic", frame_block(front), newline)
     page = splice(page, "reading", reading_block(front), newline)
-    page = splice(page, "offering", offering_block(latest, record), newline)
-    page = splice(page, "who", who_block(members, sealed, citizens, introduced), newline)
+    page = splice(page, "who", who_block(members, sealed, citizens, introduced, opened),
+                  newline)
     page = splice(page, "calendar", calendar_block(today), newline)
 
     whole = whole_page(page, newline)
@@ -1282,10 +1224,10 @@ def main():
         write_text(STYLE, hued_sheet)
 
     print(
-        "atrium: %d tiles in %d slots at %dpx (%d events, %d attendances, %d offerings), "
+        "atrium: %d tiles in %d slots at %dpx (%d events, %d attendances), "
         "%d here, %d sealed bonds, %d slots on the front page, as of %s"
         % (len(tiles), len(cells), tile_size(len(cells)), len(events), len(heartbeats),
-           len(offerings), len(members), len(sealed), len(front), human(today))
+           len(members), len(sealed), len(front), human(today))
     )
 
 

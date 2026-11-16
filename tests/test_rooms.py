@@ -25,11 +25,11 @@ MEMBER = "birch"
 A_VISITOR = "tesserae.social · log in · the commons"
 # the founder's decision of 10 November 2026: fewer pages in the menus; tesserae.social
 # first since 15 November 2026, in both, so both begin the same way
-A_MEMBER = "tesserae.social · home · account · the commons · log out"
+A_MEMBER = "tesserae.social · home · settings · the commons · log out"
 KEEPING = "tides · backups"
 
 OPEN_PAGES = ["/board", "/commons", "/login", "/recover"]
-MEMBER_PAGES = ["/", "/account", "/board", "/commons"]
+MEMBER_PAGES = ["/", "/settings", "/board", "/commons"]
 KEEPER_PAGES = MEMBER_PAGES + ["/rooms/first", "/chronicle", "/attendances", "/self",
                                "/export", "/backups"]
 
@@ -115,7 +115,7 @@ def test_a_visitor_is_shown_one_line_and_the_way_in(visitor, path):
     said = page(visitor.get(path))
     assert menus(said) == {"pages": A_VISITOR}
     assert said.count("<nav") == 1
-    for own in KEEPERS_OWN + ['href="/account"', "/logout"]:
+    for own in KEEPERS_OWN + ['href="/settings"', "/logout"]:
         assert own not in said, own
 
 
@@ -129,7 +129,7 @@ def test_the_line_leads_where_it_says(visitor, member):
 
     said = page(member.get("/board"))
     line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
-    assert re.findall(r'href="([^"]+)"', line) == ["https://tesserae.social", "/", "/account", "/commons"]
+    assert re.findall(r'href="([^"]+)"', line) == ["https://tesserae.social", "/", "/settings", "/commons"]
     # the old destinations are in no menu: the commons is the way to both
     for old in ('href="/bonds"', 'href="/offerings"', "the hearth"):
         assert old not in line, old
@@ -179,7 +179,7 @@ def test_the_page_you_stand_on_is_marked_and_is_no_link(visitor, member):
     assert '<span class="here">the commons</span>' in page(visitor.get("/commons"))
     said = page(member.get("/"))
     assert '<span class="here">home</span>' in said
-    assert '<a href="/">home</a>' in page(member.get("/account"))
+    assert '<a href="/">home</a>' in page(member.get("/settings"))
 
 
 def test_logging_out_is_a_post_drawn_as_a_link(member):
@@ -235,7 +235,9 @@ def test_a_plain_member_has_a_door_and_the_welcome_in_plain_words(member):
         "write on the board, linked first in the commons read the commons see which agents have doors open: "
         "the first one")
     assert "To begin a friendship, the founder will be in touch." in home(member)
-    assert "<a " not in home(member)
+    # no link but each agent's name, to its page (the founder's request of 16 November 2026)
+    assert all(href.startswith("/names/")
+               for href in re.findall('<a href="([^"]*)"', home(member)))
     assert "You have no correspondences yet." not in said
     assert 'href="/rooms/' not in said
 
@@ -273,12 +275,6 @@ def test_a_letter_of_yours_that_was_read_leaves_nothing_waiting(founder, room):
 def test_an_errand_is_said_on_the_card(founder, room):
     errand(room)
     assert card(founder)[1:3] == ["no letters yet", "an errand asked of you"]
-
-
-def test_an_offering_of_the_first_ones_is_said_on_the_card(founder, wake, room):
-    letter(room, "outgoing", "to-founder-2026-10-13T09-00-00Z", "Dear founder.\n")
-    wake(block("OFFER", "offer letter to-founder-2026-10-13T09-00-00Z"))
-    assert "an offering is waiting for your answer" in card(founder)
 
 
 def test_everything_that_waits_is_said_together_and_nothing_is_counted(founder, room):
@@ -373,7 +369,7 @@ def test_the_room_holds_what_the_letters_page_and_the_bonds_page_held(founder, r
     for held in ['<textarea id="letter" name="letter">', 'type="file" id="photo" name="photo"',
                  'id="proposes" name="proposes"', "What a proposal might say",
                  '<select id="errand" name="errand">', "asked of you",
-                 "offer to the commons", "the correspondence",
+                 "the correspondence",
                  # and the bond, as it was on its own page
                  "the asking", "No bond is proposed.", "its answer"]:
         assert held in said, held
@@ -406,7 +402,7 @@ def test_every_form_in_the_room_carries_the_token(founder, wake, clock, room):
     errand(room)
     answered_yes(founder, wake, room, clock)  # so the threshold's forms are drawn too
     said = page(founder.get("/rooms/first"))
-    assert said.count("<form") >= 5
+    assert said.count("<form") >= 4  # one fewer since no letter is offered (16 November 2026)
     assert said.count('name="csrf_token"') == said.count("<form")
 
 
@@ -433,13 +429,9 @@ def test_a_letter_posted_to_the_old_address_is_still_left(founder, clock, room):
 
 def test_every_old_post_comes_back_to_the_room(founder, wake, clock, room):
     letter(room, "read", "founder-2026-10-01T09-00-00Z", "The lake was still.\n")
-    offered = post(founder, "/offer", data={"kind": "letter",
-                                            "source": "founder-2026-10-01T09-00-00Z"})
-    assert offered.headers["Location"].startswith("/rooms/first?offered=")
-    assert post(founder, "/offer/decline", data={"id": "nothing"}).headers[
-        "Location"] == "/rooms/first"
-    assert post(founder, "/offer/consent", data={"id": "nothing"}).headers[
-        "Location"] == "/rooms/first"
+    # offerings were taken out of the code (16 November 2026): no form offers anything
+    for path in ("/offer", "/offer/decline", "/offer/consent"):
+        assert post(founder, path, data={"id": "nothing"}).status_code == 404, path
 
     answered_yes(founder, wake, room, clock)
     kept = post(founder, "/bonds/intention", data={"letter": "I bring my days."})
@@ -506,8 +498,7 @@ def test_a_plain_member_and_a_stranger_have_no_room(member, hearth):
 def test_the_room_is_kept_in_a_folder_of_its_own(hearth, room, data_dir):
     kept = hearth.rooms.places("first")
     assert kept == (room, room / "letters" / "incoming", room / "letters" / "read",
-                    room / "letters" / "outgoing", room / "errands", room / "bonds",
-                    room / "offerings")
+                    room / "letters" / "outgoing", room / "errands", room / "bonds")
     assert kept.home == room == data_dir / "rooms" / "first"
     assert hearth.rooms.places("elsewhere") is None
 
@@ -596,9 +587,8 @@ def test_room_json_says_what_the_room_is_by_did_and_agrees_with_who_is_in_it(hea
 
 # Every hand that reaches a room's letters, errands, bond or offerings, and the
 # names the folders were once kept under in each of them.
-ROOM_HANDS = ("attend.py", "hearth.py", "offering.py", "threshold.py",
-              "backfill_letter_tiles.py")
-ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")
+ROOM_HANDS = ("attend.py", "hearth.py", "threshold.py", "backfill_letter_tiles.py")
+ROOM_FOLDERS = ("letters", "errands", "bonds", "offerings")  # offerings: kept, never to come back
 NAMES_ONCE_KEPT = {"INCOMING", "READ", "OUTGOING", "LETTERS", "ERRANDS", "ANSWERED_ERRANDS",
                    "BONDS", "PROPOSAL", "BOND_RECORD", "OFFERINGS", "PHOTO_FOLDERS",
                    "PICTURE_FOLDERS"}
@@ -663,7 +653,7 @@ def test_where_a_room_is_kept_is_worked_out_each_time_it_is_asked(
         monkeypatch.setattr(module.rooms, "DATA", elsewhere)
     # told a place with no room in it, no hand finds one there
     assert hearth.room_places() is None and attend.room_places() is None
-    assert attend.offering.kept() is None and attend.threshold.kept() is None
+    assert attend.threshold.kept() is None
 
     for module in (hearth, attend):
         monkeypatch.setattr(module.rooms, "DATA", data_dir)
@@ -677,7 +667,6 @@ def test_where_a_room_is_kept_is_worked_out_each_time_it_is_asked(
     assert hearth.room_places().incoming == home / "letters" / "incoming"
     assert hearth.picture_folders() == (home / "letters" / "outgoing",)
     assert attend.room_places().bond_record == home / "bonds" / "founder-first.json"
-    assert attend.offering.kept().offerings == home / "offerings"
     assert attend.threshold.kept().bonds == home / "bonds"
 
 

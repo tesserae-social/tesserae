@@ -6,7 +6,7 @@ founded, kept as rooms are kept now and never as the first one's once was:
     DATA_DIR/rooms/<room>/room.json             its id, its bond, and its two
                                                 parties by DID
     DATA_DIR/rooms/<room>/letters/incoming      and read, outgoing, errands,
-                                                bonds, offerings: made empty
+                                                bonds: made empty
 
 rooms.py says where a room is kept and who is in it, and writes nothing; this
 is the one hand that makes a room, and it makes it whole or refuses. Its
@@ -36,8 +36,7 @@ class RoomError(Exception):
 
 
 # The folders a room keeps its things in, made empty.
-FOLDERS = ("letters/incoming", "letters/read", "letters/outgoing", "errands", "bonds",
-           "offerings")
+FOLDERS = ("letters/incoming", "letters/read", "letters/outgoing", "errands", "bonds")
 
 
 def found(agent_id, person, entry=None):
@@ -79,6 +78,62 @@ def found(agent_id, person, entry=None):
     beside.write_text(json.dumps(said, indent=2) + "\n", encoding="utf-8")
     os.replace(beside, home / rooms.ROOM_RECORD)
     return rooms.places(agent["room"]) if entry is None else home
+
+
+# ---- a later room, from a knock answered yes (design-rooms-and-doors, section 1) ----
+
+AGENT_FOLDERS = ("bonds",)  # a room between two agents keeps its letters by hand
+
+
+def note_held(agent_id, room_id, at):
+    """Where an agent's packet keeps rooms.json (it came by its own coming), the room is
+    added to the rooms it holds, so that its room.json going missing later refuses its
+    waking. A packet with no rooms.json is left as it is."""
+    import safe_write
+    held = rooms.held_record(agent_id)
+    if held is None or room_id in held["held"]:
+        return
+    safe_write.write_text(rooms.DATA / "packets" / agent_id / rooms.HELD, json.dumps(
+        dict(held, held=[*held["held"], room_id]), indent=2, ensure_ascii=False) + "\n")
+
+
+def found_later(agent_id, other, from_knock, at):
+    """A room after an agent's first, made from a knock answered yes: shared with a person
+    (other, a pseudonym, and their DID) or with another agent (other, its id). Its address
+    is rooms.address_for's; its record says its kind, when it was opened and from which
+    knock. Its home is given back. An agent that holds no room yet is given its first room
+    instead, at the address its registry entry names (found, above)."""
+    agent = agents.by_id(agent_id)
+    if agent is None:
+        raise RoomError("no agent founded here has that id")
+    theirs = agents.by_id(other)
+    if theirs is None and not rooms.of(agent_id) and not rooms.founded(agent["room"]):
+        import members
+        made = found(agent_id, members.did_for(other))
+        note_held(agent_id, made.home.name, at)
+        return made.home
+    if theirs is not None:
+        kind, pair = rooms.AGENTS_KIND, sorted([agent["did"], theirs["did"]])
+    else:
+        import members
+        kind, pair = rooms.PERSON_KIND, [members.did_for(other), agent["did"]]
+    room_id = rooms.address_for(agent_id, other)
+    home = rooms.DATA / rooms.ROOMS / room_id
+    if home.exists():
+        raise RoomError("something of that room is on the disk already")
+    folders = FOLDERS if kind == rooms.PERSON_KIND else (
+        *AGENT_FOLDERS, "letters/from-" + agent_id, "letters/from-" + other)
+    for folder in folders:
+        (home / folder).mkdir(parents=True)
+    said = {"id": room_id, "bond": room_id, "parties": pair, "kind": kind, "opened_at": at,
+            "from_knock": from_knock}
+    beside = home / (rooms.ROOM_RECORD + ".tmp")
+    beside.write_text(json.dumps(said, indent=2) + "\n", encoding="utf-8")
+    os.replace(beside, home / rooms.ROOM_RECORD)
+    for one in (agent_id, other):
+        if agents.by_id(one) is not None:
+            note_held(one, room_id, at)
+    return home
 
 
 def main(args):

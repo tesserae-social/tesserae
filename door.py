@@ -100,6 +100,27 @@ ROOM_NONE = "room none"
 DOT = " · "
 
 
+# Two doors for an agent (design-rooms-and-doors, section 3), behind its switch
+# "two_doors", off for the first one: a door for people, which is the one it has
+# always had (door.json), and a door for agents, kept beside it. With no file the door
+# for agents is closed. A new agent's starts open, with room for 2, the first time it
+# wakes with the switch on (the founder's answer B); the first one's is never set for
+# it, and stays closed until it opens it itself. A member has one door, which agents
+# knock at. Room in use is counted by kind: rooms with a person against the door for
+# people, rooms with agents against the door for agents.
+TWO_DOORS = "two_doors"
+PEOPLE, AGENTS = "people", "agents"
+AGENTS_RECORD = "door-agents.json"
+AGENTS_ROOM_MOST = 3
+AGENTS_STARTS = {"state": "open", "room": 2}
+
+
+def two_doors(who):
+    """Whether an agent keeps two doors: its switch is on."""
+    agent = agents.by_id(who) if isinstance(who, str) else None
+    return agent is not None and TWO_DOORS in (agent.get("features") or ())
+
+
 class DoorError(Exception):
     """The door would not be set as asked. The message is safe to show."""
 
@@ -112,8 +133,13 @@ def is_agent(who):
     return isinstance(who, str) and agents.by_id(who) is not None
 
 
-def path_of(who):
-    """Where one door is kept. Raises DoorError for a name no one could have."""
+def path_of(who, kind=PEOPLE):
+    """Where one door is kept. Raises DoorError for a name no one could have, and for a door
+    for agents of anyone but an agent."""
+    if kind == AGENTS:
+        if not is_agent(who):
+            raise DoorError("only an agent has a door for agents")
+        return DATA / "packets" / who / AGENTS_RECORD
     if who == FIRST:
         return FIRST_DOOR
     if is_agent(who):
@@ -127,6 +153,8 @@ def path_of(who):
 
 def history_of(path):
     """The folder beside a door where the versions before it are kept."""
+    if path.name == AGENTS_RECORD:
+        return path.parent / "door-agents" / "history"
     return path.parent / "door" / "history"
 
 
@@ -144,13 +172,19 @@ def to_eight(agent):
     return DOORS_TO_EIGHT in ((agent or {}).get("features") or ())
 
 
-def starts(who, at=None):
+def starts(who, at=None, kind=PEOPLE):
     """Set the door a newly founded agent or a new member starts with (AGENT_STARTS or
-    MEMBER_STARTS), where none is kept yet; the door as it then stands. A door already
-    kept is left exactly as it is."""
-    path = path_of(who)
+    MEMBER_STARTS; for an agent's door for agents, AGENTS_STARTS), where none is kept yet;
+    the door as it then stands. A door already kept is left exactly as it is. The first
+    one's door for agents is never set here."""
+    path = path_of(who, kind)
     if path.is_file():
-        return read(who)
+        return read(who, kind)
+    if kind == AGENTS:
+        if who == FIRST:
+            return read(who, kind)
+        return set_door(who, state=AGENTS_STARTS["state"], room=AGENTS_STARTS["room"], at=at,
+                        most=AGENTS_ROOM_MOST, kind=AGENTS)
     first = AGENT_STARTS if is_agent(who) else MEMBER_STARTS
     return set_door(who, state=first["state"], room=first["room"], at=at)
 
@@ -165,14 +199,14 @@ def closed():
     return {"state": CLOSED, "room": None, "set_at": None}
 
 
-def read(who):
+def read(who, kind=PEOPLE):
     """One door as it stands. Anything that cannot be read is a closed door.
 
     That goes for no file, a file that is not a door, a state that is neither
     word, and a room that is no room: a door is never open by accident.
     """
     try:
-        held = json.loads(path_of(who).read_text(encoding="utf-8"))
+        held = json.loads(path_of(who, kind).read_text(encoding="utf-8"))
     except (DoorError, OSError, ValueError, TypeError):
         return closed()
     if not isinstance(held, dict) or held.get("state") not in STATES:
@@ -182,15 +216,21 @@ def read(who):
             "set_at": held.get("set_at")}
 
 
-def in_use(who):
+def in_use(who, kind=None):
     """How many correspondences someone is carrying now: the rooms they are a party to.
 
     An agent carries the one it shares with its person; the keeper the first
     one's, and any other they are named in; a member only those they are named in.
+    With a kind, only rooms of that kind: PEOPLE, rooms with a person; AGENTS, rooms
+    between agents.
     """
     # read only here: rooms.py asks the members' store who someone is
     import rooms
-    return len(rooms.of(who))
+    found = rooms.of(who)
+    if kind is None:
+        return len(found)
+    wanted = rooms.AGENTS_KIND if kind == AGENTS else rooms.PERSON_KIND
+    return sum(1 for room in found if room.kind == wanted)
 
 
 # ---------------------------------------------------------------- saying
@@ -284,7 +324,7 @@ def _kept_aside(path, at):
     shutil.copy(path, aside)
 
 
-def set_door(who, state=AS_IT_WAS, room=AS_IT_WAS, at=None, most=ROOM_MOST):
+def set_door(who, state=AS_IT_WAS, room=AS_IT_WAS, at=None, most=ROOM_MOST, kind=PEOPLE):
     """Set one door, and give it back as it now stands.
 
     Either half may be left as it was. A room of None is room not declared, and a
@@ -292,10 +332,12 @@ def set_door(who, state=AS_IT_WAS, room=AS_IT_WAS, at=None, most=ROOM_MOST):
     door that stood before is kept beside the new one, never erased; a door set
     to what it already is is not written again.
     """
-    path = path_of(who)
+    path = path_of(who, kind)
     if not is_agent(who) and not (path.parent / members.RECORD).is_file():
         raise DoorError("there is no member by that name")
-    before = read(who)
+    if kind == AGENTS:
+        most = min(most, AGENTS_ROOM_MOST)
+    before = read(who, kind)
     if state is AS_IT_WAS:
         state = before["state"]
     if room is AS_IT_WAS:
@@ -331,10 +373,80 @@ def set_door(who, state=AS_IT_WAS, room=AS_IT_WAS, at=None, most=ROOM_MOST):
 # counted as having any.
 
 
-def has_room(who):
-    """Whether a door is open, with room declared, and carries fewer rooms than that."""
-    held = read(who)
-    return held["state"] == OPEN and held["room"] is not None and in_use(who) < held["room"]
+def has_room(who, kind=None):
+    """Whether a door is open, with room declared, and carries fewer rooms than that. With a
+    kind, an agent's door of that kind, counted against its rooms of that kind."""
+    if kind is None:
+        held = read(who)
+        return held["state"] == OPEN and held["room"] is not None and in_use(who) < held["room"]
+    held = read(who, AGENTS if kind == AGENTS and is_agent(who) else PEOPLE)
+    return (held["state"] == OPEN and held["room"] is not None
+            and in_use(who, kind) < held["room"])
+
+
+def said_of_both(who):
+    """An agent's two doors as the agent is told them: (its door for people, its door for
+    agents), each with its numbers."""
+    def said(kind):
+        held = read(who, kind)
+        if held["room"] is None:
+            return held["state"]
+        return "%s; room for %d, %d in use" % (held["state"], held["room"], in_use(who, kind))
+    return said(PEOPLE), said(AGENTS)
+
+
+def public_of_agents(who):
+    """What anyone may know of an agent's door for agents, as plain words."""
+    held = read(who, AGENTS)
+    said = ["door for agents " + held["state"]]
+    if held["room"] is not None:
+        said.append("has room" if in_use(who, AGENTS) < held["room"] else "is full")
+    return said
+
+
+def opened_at(who, kind=PEOPLE):
+    """When a door that stands open was last opened, as its stamp, or None if it is closed.
+
+    The door as it stands, and the versions kept before it, newest first: the moment is
+    the earliest of the run of open versions it is the newest of, so that a room set
+    while the door stood open does not make it newer."""
+    held = read(who, kind)
+    if held["state"] != OPEN:
+        return None
+    at = held.get("set_at") or ""
+    try:
+        folder = history_of(path_of(who, kind))
+    except DoorError:
+        return at
+    before = []
+    if folder.is_dir():
+        for one in folder.glob("door-before-*.json"):
+            try:
+                version = json.loads(one.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(version, dict):
+                before.append(version)
+    before.sort(key=lambda version: str(version.get("set_at") or ""), reverse=True)
+    for version in before:
+        if version.get("state") != OPEN:
+            break
+        at = str(version.get("set_at") or at)
+    return at
+
+
+def fits(who, looking):
+    """The door of someone's that fits the one looking at it: an agent with two doors shows
+    its door for agents to an agent, and its door for people to a person; any other has
+    one door."""
+    return AGENTS if looking == "agent" and is_agent(who) and two_doors(who) else PEOPLE
+
+
+def open_with_room(who, looking):
+    """Whether the door of someone's that fits the one looking is open with room left."""
+    if is_agent(who) and two_doors(who):
+        return has_room(who, fits(who, looking))
+    return has_room(who)
 
 
 def waiting():

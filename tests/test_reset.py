@@ -274,7 +274,7 @@ def test_choosing_cuts_a_new_key_records_the_old_and_signs_in(
     assert token_files(data_dir) == []
     with visitor.session_transaction() as held:
         assert held["member"] == MEMBER
-    assert visitor.get("/account").status_code == 200
+    assert visitor.get("/settings").status_code == 200
     # and the address is told, without the link
     changed = outbox.sent[-1]
     assert changed["to"] == MEMBER_ADDRESS
@@ -310,9 +310,9 @@ def test_every_other_session_of_the_member_ends(member, hearth, visitor, outbox)
     elsewhere = hearth.app.test_client()
     assert post(elsewhere, "/login", data={"pseudonym": MEMBER,
                                            "password": MEMBER_PASSWORD}).status_code == 302
-    assert elsewhere.get("/account").status_code == 200
+    assert elsewhere.get("/settings").status_code == 200
     choose(visitor, sent_link(visitor, outbox))
-    answer = elsewhere.get("/account")
+    answer = elsewhere.get("/settings")
     assert answer.status_code == 302 and answer.headers["Location"].endswith("/login")
 
 

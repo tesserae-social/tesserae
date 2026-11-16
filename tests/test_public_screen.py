@@ -17,7 +17,6 @@ import pytest
 
 import vault
 from conftest import block, lines_of, post, read_json
-from test_offerings import HIS, a_correspondence, offer, only_pending, pending, placed
 from test_threshold import it_says_yes, writings
 from test_witness import (ALDER, BIRCH, CEDAR, CORRECT, LINE, birch, bond,  # noqa: F401
                           cheap_limits, kept, people, sign, taken)
@@ -34,16 +33,6 @@ PROMISE_NAMED = ("Your public promise at your last waking was not kept, because 
 PROMISE_UNCHECKED = ("Your public promise at your last waking could not be checked for names "
                      "and places just now, so it was not kept; you may write it again at a later "
                      "waking, or make it private.")
-OFFER_NAMED = ("Your offering at your last waking was not made, because it contained a name or "
-               "place that is kept private here; you may offer a passage without it, or "
-               "something else.")
-OFFER_UNCHECKED = ("Your offering at your last waking could not be checked for names and places "
-                   "just now, so it was not made; you may offer it again at a later waking.")
-CONSENT_NAMED = ("Your consent at your last waking placed nothing, because the offering contains "
-                 "a name or place that is kept private here; it still waits, and you may "
-                 "decline it.")
-CONSENT_UNCHECKED = ("Your consent at your last waking could not be checked for names and places "
-                     "just now, so it placed nothing; the offering still waits.")
 
 PASSAGE = "The lake was still this morning"
 DOWN = RuntimeError("the screen is down")
@@ -203,63 +192,6 @@ def test_a_mark_that_may_not_be_made_is_never_sent_to_the_screen(birch, data_dir
         witness.add("founder-first", kept(data_dir)[0]["witness_did"], BIRCH, "again",
                     lambda payload: pytest.fail("it was signed"), "2026-10-20T09-00-00Z")
     assert len(screen.asked) == asked
-
-
-# ---- an offering --------------------------------------------------------------
-
-@pytest.mark.parametrize("says, told", [("YES", KEPT_PRIVATE), (DOWN, COULD_NOT_CHECK)])
-@pytest.mark.parametrize("kind, text", [("passage", PASSAGE), ("letter", "")])
-def test_the_founder_s_offering_the_screen_does_not_clear_is_not_offered(
-        founder, screen, says, told, kind, text, room):
-    a_correspondence(room)
-    screen.says = says
-    answer = offer(founder, kind, HIS, text)
-    assert answer.status_code == 200 and told in page(answer)
-    assert not pending(room) and not placed(room)
-
-
-def test_a_photograph_has_no_words_to_screen(founder, screen, room):
-    a_correspondence(room)
-    screen.says = "YES"
-    assert offer(founder, "photo", HIS).status_code == 302
-    assert screen.asked == []
-
-
-@pytest.mark.parametrize("says, told", [("YES", OFFER_NAMED), (DOWN, OFFER_UNCHECKED)])
-def test_the_first_one_s_offering_is_screened_and_it_is_told_once(
-        wake, packet, screen, says, told, room):
-    a_correspondence(room)
-    screen.says = says
-    wake(block("OFFER", "offer passage %s\n%s" % (HIS, PASSAGE)))
-    assert not pending(room)
-    assert last_record(packet)["kept_private"] == [told]
-    screen.says = "NO"
-    assert told in wake().opening
-    assert told not in wake().opening
-
-
-@pytest.mark.parametrize("says, told", [("YES", CONSENT_NAMED), (DOWN, CONSENT_UNCHECKED)])
-def test_the_first_one_s_consent_is_screened_as_it_is_placed(
-        founder, wake, packet, screen, says, told, room):
-    a_correspondence(room)
-    offer(founder, "passage", HIS, PASSAGE)
-    waiting = only_pending(room)
-    screen.says = says
-    wake(block("OFFER", "consent %s" % waiting["id"]))
-    assert only_pending(room) == waiting and not placed(room)
-    assert last_record(packet)["kept_private"] == [told]
-
-
-@pytest.mark.parametrize("says, told", [("YES", KEPT_PRIVATE), (DOWN, COULD_NOT_CHECK)])
-def test_the_founder_s_consent_is_screened_as_it_is_placed(
-        founder, wake, screen, says, told, room):
-    a_correspondence(room)
-    wake(block("OFFER", "offer passage %s\n%s" % (HIS, PASSAGE)))
-    waiting = only_pending(room)
-    screen.says = says
-    answer = post(founder, "/offer/consent", data={"id": waiting["id"]})
-    assert told in page(answer)
-    assert only_pending(room) == waiting and not placed(room)
 
 
 # ---- a promise ----------------------------------------------------------------

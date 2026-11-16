@@ -48,7 +48,8 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import (blocks, block, letter_part_as_before, page, pages_before_fewer,
+from conftest import (asked_described_as_before, made_here_not_yet, offerings_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
+                      pages_before_doors, pages_before_fewer, pages_before_settings,
                       pages_before_pages, pages_before_small,
                       pages_before_saturday, post, registry_six_not_yet, registry_switches_not_yet,
                       rooms_to_twelve, times_as_before,
@@ -225,17 +226,41 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # "nothing yet" where it said "none yet". With the templates of before drawn in their
 # place (conftest.pages_before_small) each is exactly the one held before, in
 # SMALL_BEFORE below. No waking moved.
+#
+# Every page with the members' menu cut again, on purpose, later still on 16 November
+# 2026, on the branch rooms, by the founder's request that day (part B4: offerings taken
+# out of the code), and for nothing else: base.html loses its style for the fold that
+# offered a letter (on every page); /commons loses its line for offerings; /export says
+# "the bond records" where it said "the bond and offering records"; and the room loses
+# the fold under each letter that offered it to the commons. Drawn as before
+# (conftest.offerings_as_before) each but the room is exactly the one held before, in
+# OFFERINGS_BEFORE below; the room cannot be drawn as it was, since the routes its forms
+# went to are gone, and its fingerprints from before are kept as values for the record.
+#
+# Every page with the members' menu cut again, on purpose, later on 16 November 2026, on
+# the branch rooms, by the founder's request that day (part B1, settings), and for nothing
+# else: the menu says "settings" where it said "account", and links /settings, where the
+# page now is (/account leads there). With the base.html of before drawn in its place and
+# the page linked at /account again (conftest.pages_before_settings) each is exactly the
+# one held before, in SETTINGS_BEFORE below. No reading moved.
+#
+# / cut again, on purpose, on 16 November 2026, on the branch rooms, by the founder's
+# request that day (part A, the rooms update), and for nothing else: the name on each
+# correspondence's card links to its page, and the right column begins with "Doors open
+# now", up to five doors open with room left, where there are any. With the templates of
+# before drawn in their place (conftest.pages_before_doors) it is exactly the one held
+# before, in DOORS_BEFORE below. No waking moved.
 PAGES = {
-    "/": "e05ea9c1aca562b47b4e37e0d67de4ab99d949071ad2f108226bc55e50ca88fc",
-    "/rooms/first": "88f2eb2dad8ea46be3f6154e1f656b6ff6f0af72da0fa54b46a32d14eba96bd0",
+    "/": "385b704307191318037960f468c929c2a3e2d7830d9e751c5e03c93c76df3f0e",
+    "/rooms/first": "7816934d331ae825641e06e0a54b085209ec67377026a3a2fef849400e5ffa4c",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
-    "/self": "352b739ce9270b7a054b73e9d98cf0a6e7b9386d1899b3b03bcba69ea12f7eac",
-    "/attendances": "e8cd47113cddb45cf696213b14e5da6887c4082b65afa8069b1564054d607df9",
-    "/chronicle": "a02bc0de0d7d4dcc3a0b974c6f25af0078edb84165a34c590472ec0061ee0e12",
+    "/self": "708c75f04e55981579e4b6e7a63997278cd145bcc6a8613ba86363d56273bbf8",
+    "/attendances": "e624e6d07e4eca2e8ebd4f2528e4fad2bb4edbfe2791e702dbe647bfa248099e",
+    "/chronicle": "e1505184cff286ba366cc8a225742087c13a3cfd91dd5df59381f0e8b7d98057",
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
-    "/export": "e012dbd33afb9c26e2b10d9f2a3e84e2e603b93de0ce27b6d59aac3e7a30e7d4",
-    "/bonds": "56779937136482a73a72308bfc1cbc4d0b7f103db4e1d8c2fc39b2dbb4ed6e19",
-    "/commons": "fb20b43dff9d44d424fd71c419aa4051be49f64d4c84f148abdbfe3bf20a28f2",
+    "/export": "8f99cdb3b445560ad99478d358cfb0de2a1e753422ce8f9a0eb873cb0354494c",
+    "/bonds": "9e2e4625ee9975985dd3b51aebcf2de2a51613af3a7e90f8f6280321e604f722",
+    "/commons": "becf97deeb1caa0e8babeb0769ca70fd35ef9e5196c054000e7d0e7071a4761a",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
@@ -287,8 +312,18 @@ TIDE = "5a014bba0ff7b5999e3e4da0508801678836529e567294f61f89a4e5e3697ae0"
 # it is exactly what it was cut as before, ATRIUM_WITH_LETTER_PARTS. (The hearth's
 # line no longer names the part of the day either, since the same day; with only
 # that put back, the atrium still draws ATRIUM.)
-ATRIUM_WITH_LETTER_PARTS = "2fdaabcfd6e5987b0e1aefab9aa9eed082bacf04cc47866e78ae75d42091c1b3"
-ATRIUM = "75355742f27af4d0efce32150ebbb7667c090cfc2cb61f9332501457dc79e470"
+#
+# Both cut again, on purpose, on 16 November 2026, on the branch rooms, by the founder's
+# request that day (part A, the rooms update), and for nothing else: in who is here, each
+# citizen's name links to its page on the hearth (/names/<id>), and at its top, the doors
+# open now, every agent whose door is open with room left, are listed, where there are
+# any. With who is here drawn as before (conftest.atrium_before_doors) each is exactly the
+# one held before, in ATRIUM_BEFORE_DOORS below.
+ATRIUM_WITH_LETTER_PARTS = "5f6d968fb24e05fc82a7a86676e0a01828a27ef03217c33589144e7545d0429c"
+ATRIUM = "532b941af4096b1a8b74989d189611ec18156ea675a5cf8939317f83373d0f1d"
+ATRIUM_BEFORE_DOORS = {
+    False: "75355742f27af4d0efce32150ebbb7667c090cfc2cb61f9332501457dc79e470",
+    True: "2fdaabcfd6e5987b0e1aefab9aa9eed082bacf04cc47866e78ae75d42091c1b3"}
 
 # ---- the world -----------------------------------------------------------
 
@@ -311,8 +346,11 @@ LETTER_PARTS_BEFORE = {
     # on 15 November 2026 for the pages (it was 543861cd..., and is again drawn as
     # before: PAGES_BRANCH_AND_LETTER_PARTS_BEFORE), and later that day for the small
     # changes (it was 8be0675a..., and is again drawn as before:
-    # SMALL_AND_LETTER_PARTS_BEFORE)
-    "PAGES['/chronicle']": "4affe3f16e92cfa683955e553b5f19d7c45cfbeabe1349803ce6ebd2e192ef81",
+    # SMALL_AND_LETTER_PARTS_BEFORE), and on 16 November 2026 for settings (it was
+    # 4affe3f1..., and is again drawn as before: SETTINGS_AND_LETTER_PARTS_BEFORE), and
+    # later that day when offerings were taken out (it was 051e9393..., and is again
+    # drawn as before: OFFERINGS_AND_LETTER_PARTS_BEFORE)
+    "PAGES['/chronicle']": "dfca286d85016273c250b0deef22e887033b868b7e9334a1ec728fdc4e148dc0",
     "PAGES['/chronicle.md']": "26316c2b5ea305af550820e1036a3fc8ba21a7707d3d86f69eeedd20b69e770b",
     "PAGES['/commons/events.md']":
         "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
@@ -444,6 +482,57 @@ SMALL_BEFORE = {
 SMALL_AND_LETTER_PARTS_BEFORE = {
     **SMALL_BEFORE,
     "/chronicle": "8be0675a643bd0ca54b8be89ceffcb665201cf923e78b4e439fc3d3e3abffc4d",
+}
+
+# /commons cut once more, on purpose, on 16 November 2026, for part B2 and nothing else:
+# asked and answered is described "Questions the site has asked its agents about their own
+# lives here, and how each answered, in its own words." With the line of before
+# (conftest.asked_described_as_before) it is exactly the one held before, ASKED_BEFORE.
+ASKED_BEFORE = {"/commons": "9b36fbfa3c59dabfe5c2bc2df70f741a0d51cc75eeafcbd39453a25d995392ec"}
+
+# /commons cut once more, on purpose, last of all on 16 November 2026 (part B6), for one line
+# and nothing else: "made here", second, where offerings were. With it taken out again
+# (conftest.made_here_not_yet) it is exactly the one held before, MADE_HERE_BEFORE.
+MADE_HERE_BEFORE = {"/commons": "468bbf6ae8add33067f860252f572c63f3e4661181b26e8916da0e56619ba2ec"}
+
+# What every page the taking out of offerings moved (16 November 2026, later still) was
+# before it; each but the room is again drawn with conftest.offerings_as_before.
+OFFERINGS_BEFORE = {
+    "/": "f2a163bfd3941218ca438b6e7b0ed2b7662124820fb0663fcefbd0d364a5015a",
+    "/rooms/first": "1513d456960074562addbf5746e42ddcde45735fc800f440779c8a346bb6ca32",
+    "/self": "8b888e0a8f85d7a0bac566238f4c813010b6e84057ce17987e59773548a6e87a",
+    "/attendances": "a4d66c9c92ae8be2195d3683d9e42650d212b2db742b9a56c995be510652a8df",
+    "/chronicle": "27c2c0a288f8305dbd12d698d2cee0b63ee96b0c703aca939f84a83dfec7826d",
+    "/export": "8789c8fe19b9d30b71a6283ff5a6a3cb8eda85d914a6430ce69d2602489f2542",
+    "/bonds": "146f4702c2b06132de2596463adfd6570e71c73128fd40e300ff77ccbe00f6bd",
+    "/commons": "91c7a0f53f54704bc7c55247b7ff299f2c0689b1987859d1aee6cf960af60bef",
+}
+OFFERINGS_AND_LETTER_PARTS_BEFORE = {
+    **OFFERINGS_BEFORE,
+    "/chronicle": "051e939343b548cb134ebb0a44206e2e5309ed28c31f91f97d053c2f9ecd3721",
+}
+
+# What every page settings moved (16 November 2026, later) was before it, and is again
+# drawn with the base.html of before (conftest.pages_before_settings).
+SETTINGS_BEFORE = {
+    "/": "1e7a25c6b3492162bc0af8c6f601d0435a609e629dbbab9322240648bbff1812",
+    "/rooms/first": "88f2eb2dad8ea46be3f6154e1f656b6ff6f0af72da0fa54b46a32d14eba96bd0",
+    "/self": "352b739ce9270b7a054b73e9d98cf0a6e7b9386d1899b3b03bcba69ea12f7eac",
+    "/attendances": "e8cd47113cddb45cf696213b14e5da6887c4082b65afa8069b1564054d607df9",
+    "/chronicle": "a02bc0de0d7d4dcc3a0b974c6f25af0078edb84165a34c590472ec0061ee0e12",
+    "/export": "e012dbd33afb9c26e2b10d9f2a3e84e2e603b93de0ce27b6d59aac3e7a30e7d4",
+    "/bonds": "56779937136482a73a72308bfc1cbc4d0b7f103db4e1d8c2fc39b2dbb4ed6e19",
+    "/commons": "fb20b43dff9d44d424fd71c419aa4051be49f64d4c84f148abdbfe3bf20a28f2",
+}
+SETTINGS_AND_LETTER_PARTS_BEFORE = {
+    **SETTINGS_BEFORE,
+    "/chronicle": "4affe3f16e92cfa683955e553b5f19d7c45cfbeabe1349803ce6ebd2e192ef81",
+}
+
+# What every page the rooms update of 16 November 2026 moved was before it, and is again
+# drawn with the templates of before (conftest.pages_before_doors).
+DOORS_BEFORE = {
+    "/": "e05ea9c1aca562b47b4e37e0d67de4ab99d949071ad2f108226bc55e50ca88fc",
 }
 
 # What /commons was before the members' board was linked from it (13 November
@@ -617,7 +706,69 @@ def test_the_heartbeats_go_out_dated_and_stay_stamped_on_the_disk(
 
 
 
-@pytest.mark.parametrize("address", list(SMALL_BEFORE))
+def test_with_made_here_not_yet_the_commons_is_the_one_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch):
+    made_here_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get("/commons")
+    shown = ("%d %s" % (answer.status_code, answer.headers.get("Location", "")) + chr(10)
+             + FORM_TOKEN.sub(lambda found: found.group(1) + found.group(2), page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == MADE_HERE_BEFORE["/commons"]
+
+
+@pytest.mark.parametrize("address", [one for one in OFFERINGS_BEFORE if one != "/rooms/first"])
+def test_with_the_pages_drawn_before_offerings_were_taken_out_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page the taking out of offerings moved (16 November 2026), drawn as before,
+    but the room, which cannot be: each is exactly the page held before."""
+    offerings_as_before(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s" % (answer.status_code, answer.headers.get("Location", "")) + chr(10)
+             + FORM_TOKEN.sub(lambda found: found.group(1) + found.group(2), page(answer)))
+    held = (OFFERINGS_AND_LETTER_PARTS_BEFORE if letter_parts else OFFERINGS_BEFORE)[address]
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
+
+
+def test_with_asked_described_as_before_the_commons_is_the_one_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch):
+    offerings_as_before(hearth, monkeypatch)  # it came after
+    asked_described_as_before(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get("/commons")
+    shown = ("%d %s" % (answer.status_code, answer.headers.get("Location", "")) + chr(10)
+             + FORM_TOKEN.sub(lambda found: found.group(1) + found.group(2), page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == ASKED_BEFORE["/commons"]
+
+
+@pytest.mark.parametrize("address", [one for one in SETTINGS_BEFORE if one != "/rooms/first"])
+def test_with_the_pages_drawn_before_settings_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page settings moved (16 November 2026), drawn with the base.html of before and
+    the page linked at /account: each is exactly the page held before."""
+    pages_before_settings(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    held = (SETTINGS_AND_LETTER_PARTS_BEFORE if letter_parts else SETTINGS_BEFORE)[address]
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
+
+
+@pytest.mark.parametrize("address", [one for one in DOORS_BEFORE if one != "/rooms/first"])
+def test_with_the_pages_drawn_before_the_doors_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page the rooms update of 16 November 2026 moved, drawn with the templates of
+    before: each is exactly the page held before."""
+    pages_before_doors(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == DOORS_BEFORE[address]
+
+
+@pytest.mark.parametrize("address", [one for one in SMALL_BEFORE if one != "/rooms/first"])
 def test_with_the_pages_drawn_before_the_small_changes_each_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
     """Every page the small changes of 15 November 2026, later, moved, drawn with the
@@ -631,7 +782,7 @@ def test_with_the_pages_drawn_before_the_small_changes_each_is_the_page_before(
     assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
 
 
-@pytest.mark.parametrize("address", list(PAGES_BRANCH_BEFORE))
+@pytest.mark.parametrize("address", [one for one in PAGES_BRANCH_BEFORE if one != "/rooms/first"])
 def test_with_the_pages_drawn_before_the_branch_pages_each_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
     """Every page the branch pages moved (15 November 2026), drawn with the base.html,
@@ -644,7 +795,7 @@ def test_with_the_pages_drawn_before_the_branch_pages_each_is_the_page_before(
     held = (PAGES_BRANCH_AND_LETTER_PARTS_BEFORE if letter_parts else PAGES_BRANCH_BEFORE)[address]
     assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
 
-@pytest.mark.parametrize("address", list(PART_TWO_BEFORE))
+@pytest.mark.parametrize("address", [one for one in PART_TWO_BEFORE if one != "/rooms/first"])
 def test_with_the_six_not_yet_and_rooms_to_twelve_each_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path,
         address):
@@ -660,7 +811,7 @@ def test_with_the_six_not_yet_and_rooms_to_twelve_each_is_the_page_before(
 
 
 @pytest.mark.parametrize("address", [one for one in SATURDAY_BEFORE
-                                     if one not in ("/commons", "/bonds")])
+                                     if one not in ("/commons", "/bonds", "/rooms/first")])
 def test_with_the_pages_drawn_before_the_scale_each_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path,
         address):
@@ -679,7 +830,8 @@ def test_with_the_pages_drawn_before_the_scale_each_is_the_page_before(
     assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
 
 
-@pytest.mark.parametrize("address", [one for one in FEWER_PAGES_BEFORE if one != "/commons"])
+@pytest.mark.parametrize("address", [one for one in FEWER_PAGES_BEFORE
+                                     if one not in ("/commons", "/rooms/first")])
 def test_with_the_pages_as_before_each_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, tmp_path, address):
     """The pages the fewer pages moved (10 November 2026), each drawn as before, with
@@ -727,24 +879,12 @@ def test_with_both_put_back_the_chronicle_is_the_one_before_either(
     assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == BOTH_BEFORE[letter_parts]
 
 
-def test_the_room_with_its_few_words_taken_out_is_the_room_before(
-        steady, hearth, founder, wake, room, commons, monkeypatch):
-    """The muted line taken out, and the three lines put back in the fold, two deeper,
-    with the pages drawn as they were before there were fewer (10 November 2026)."""
-    pages_before_fewer(hearth, monkeypatch)
-    a_lived_world(founder, wake, room, commons)
-    answer = founder.get("/rooms/first")
-    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
-             + FORM_TOKEN.sub(r"\1\2", page(answer)))
-    assert shown.count(FEW_WORDS) == 1 and shown.count(FOLD_OPENS) == 1
-    start = shown.index(LETTER_BOX_ENDS) + len(LETTER_BOX_ENDS)
-    end = shown.index(SEND, start)
-    lines = shown[start:end]  # what now stands between the letter box and Send
-    assert lines.count('name="thing"') == 3 and FEW_WORDS in lines
-    folded = "  " + lines.replace(FEW_WORDS, "").replace("\n", "\n  ")[:-2]
-    put_back = shown[:start] + shown[end:]
-    put_back = put_back.replace(FOLD_OPENS, FOLD_OPENS + folded)
-    assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == ROOM_BEFORE_QUIET
+# test_the_room_with_its_few_words_taken_out_is_the_room_before drew the room as it was
+# before there were fewer pages, with its few words taken out, and held it to
+# ROOM_BEFORE_QUIET. Since offerings were taken out of the code (16 November 2026, part
+# B4), the room as it was cannot be drawn: it offered each letter to the commons by forms
+# whose routes are gone. ROOM_BEFORE_QUIET and every older fingerprint of the room are
+# kept as values for the record, and are no longer drawn.
 
 
 # ---- what is copied ------------------------------------------------------
@@ -851,6 +991,10 @@ def test_the_tide_keeps_the_same_dawns(steady, hearth, packet, commons, clock, m
 # before the bench was taken away (14 November 2026).
 EMPTY_BENCH_DREW = "NLNL      ".replace("NL", chr(10)).encode("utf-8")
 
+# What the region of the newest offering drew where there was none, before offerings were
+# taken out of the code (16 November 2026, part B4): the same as the bench's.
+EMPTY_OFFERING_DREW = EMPTY_BENCH_DREW
+
 MARKED = re.compile(r"<!-- (\w+):start -->(.*?)<!-- \1:end -->", re.S)
 
 
@@ -883,8 +1027,29 @@ def test_the_atrium_draws_the_same_tiles(steady, letter_parts, founder, wake, ro
     # is exactly what it was, and ATRIUM does not move.
     assert not any(name == "index:bench" for name, _ in drawn)
     drawn.append(("index:bench", EMPTY_BENCH_DREW))
+    # The offering's region went with offerings (16 November 2026, part B4). No offering
+    # was ever made, and the region drew what the bench's drew where there was none: put
+    # back as it was drawn, every other region is exactly what it was.
+    assert not any(name == "index:offering" for name, _ in drawn)
+    drawn.append(("index:offering", EMPTY_OFFERING_DREW))
     drawn.sort()
     assert [name for name, _ in drawn] == [
         "index:bench", "index:calendar", "index:mosaic", "index:offering", "index:reading",
         "index:who", "mosaic:reading", "mosaic:whole"]
     assert cut("ATRIUM", digest(drawn)) == (ATRIUM_WITH_LETTER_PARTS if as_before else ATRIUM)
+
+
+def test_with_who_is_here_drawn_before_the_doors_the_atrium_is_the_one_before(
+        steady, letter_parts, founder, wake, room, commons, atrium, monkeypatch):
+    if letter_parts:
+        letter_parts_as_before(atrium, monkeypatch)
+    atrium_before_doors(atrium, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    drawn = [("index:bench", EMPTY_BENCH_DREW), ("index:offering", EMPTY_OFFERING_DREW)]
+    for which, path in (("index", atrium.page_path), ("mosaic", atrium.whole_path)):
+        for name, inside in MARKED.findall(path.read_text(encoding="utf-8")):
+            drawn.append(("%s:%s" % (which, name), inside.encode("utf-8")))
+    drawn.sort()
+    assert digest(drawn) == ATRIUM_BEFORE_DOORS[letter_parts]

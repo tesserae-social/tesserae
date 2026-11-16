@@ -18,9 +18,8 @@ RHYTHM = {"rhythm": "daily", "at": "dawn", "timezone": "America/New_York"}
 
 # everything a visitor may reach without the password
 OPEN_PATHS = ["/login", "/board", "/board/place", "/board/weekly", "/commons",
-              "/commons/record", "/offerings", "/bonds", "/commons/heartbeats.md",
-              "/commons/events.md", "/commons/members.md",
-              "/commons/offerings.md", "/commons/bonds.md"]
+              "/commons/record", "/bonds", "/commons/heartbeats.md",
+              "/commons/events.md", "/commons/members.md", "/commons/bonds.md"]
 
 
 def an_attendance(packet, at, reflection=REFLECTION, **how):
@@ -288,7 +287,7 @@ def no_events(commons):
 
 
 def test_with_nothing_standing_the_founder_may_rest_and_the_keeper_may_stop(founder):
-    assert "Rest from the correspondence</button>" in page(founder.get("/account"))
+    assert "Rest from the correspondence</button>" in page(founder.get("/settings"))
     said = page(founder.get("/tides"))  # where the stop is, since 10 November 2026
     assert "Stop the tide (emergency)</button>" in said
     assert "Pause the tide" not in said  # there is no pause of the founder's any more
@@ -299,7 +298,7 @@ def test_with_nothing_standing_the_founder_may_rest_and_the_keeper_may_stop(foun
 def test_the_rest_and_the_stop_are_apart(founder):
     """The founder's rest is on the account page, as a member's is; the stop is the tide's,
     on /tides (10 November 2026)."""
-    account, tides = page(founder.get("/account")), page(founder.get("/tides"))
+    account, tides = page(founder.get("/settings")), page(founder.get("/tides"))
     assert "<h2>your rest</h2>" in account and "Stop the tide" not in account
     assert "<h2>your rest</h2>" not in tides
     assert "Rest from the correspondence" not in tides
@@ -314,9 +313,9 @@ def test_resting_takes_no_question_stops_nothing_and_tells_the_commons_nothing(f
     assert read_json(packet / "founder-rest.json") == {"since": "2026-10-15T12-00-00Z", "until": None}
     assert not (packet / "pause.json").exists()
     assert not (packet / "tide-stop.json").exists()
-    assert done.headers["Location"] == "/account"
+    assert done.headers["Location"] == "/settings"
     assert no_events(commons)
-    said = page(founder.get("/account"))
+    said = page(founder.get("/settings"))
     assert "You are resting from the correspondence, since 15 October 2026, 08:00." in said
     assert "Return</button>" in said
     assert "Rest from the correspondence</button>" not in said
@@ -327,7 +326,7 @@ def test_resting_takes_no_question_stops_nothing_and_tells_the_commons_nothing(f
 def test_a_rest_may_name_its_day(founder, packet):
     assert post(founder, "/rest", data={"until": "2026-10-20"}).status_code == 302
     assert read_json(packet / "founder-rest.json")["until"] == "2026-10-20"
-    said = " ".join(page(founder.get("/account")).split())
+    said = " ".join(page(founder.get("/settings")).split())
     assert ("You are resting from the correspondence, since 15 October 2026, 08:00, until "
             "20 October 2026." in said)
 
@@ -347,13 +346,13 @@ def test_returning_keeps_the_rest_and_tells_the_commons_nothing(founder, packet,
     assert read_json(kept) == {"since": "2026-10-15T12-00-00Z", "until": "2026-10-20",
                           "ended_at": "2026-10-15T12-00-00Z", "ended": "he returned"}
     assert no_events(commons)
-    assert "Rest from the correspondence</button>" in page(founder.get("/account"))
+    assert "Rest from the correspondence</button>" in page(founder.get("/settings"))
 
 
 def test_a_rest_whose_day_has_come_is_over_and_kept(founder, packet, clock):
     post(founder, "/rest", data={"until": "2026-10-17"})
     clock.set("2026-10-17T05-00-00Z")  # 01:00 on the 17th, Eastern
-    said = page(founder.get("/account"))
+    said = page(founder.get("/settings"))
     assert "You are resting" not in said
     assert not (packet / "founder-rest.json").exists()
     kept, = (packet / "founder-rest").glob("founder-rest-*.json")
@@ -433,7 +432,7 @@ def test_a_stop_beside_a_rest_of_its_own_tells_the_commons_nothing_more(founder,
 
 def test_a_founder_s_pause_left_from_before_is_his_rest_now(founder, packet, commons):
     a_pause(packet)  # by the founder, since 10 October, as the old control left it
-    said = page(founder.get("/account"))
+    said = page(founder.get("/settings"))
     assert "You are resting from the correspondence, since 10 October 2026, 05:00." in said
     assert not (packet / "pause.json").exists()
     assert read_json(packet / "founder-rest.json") == {"since": "2026-10-10T09-00-00Z", "until": None,
@@ -456,7 +455,7 @@ def test_a_rest_of_the_first_one_s_own_is_shown_as_it_named_it(founder, packet, 
     assert "the tide will not wake it" in said
     assert "hold an attendance" not in said
     # his rest is his own still
-    assert "Rest from the correspondence</button>" in page(founder.get("/account"))
+    assert "Rest from the correspondence</button>" in page(founder.get("/settings"))
 
 
 def test_a_rest_of_the_first_one_s_own_is_not_the_founder_s_to_lift(founder, packet):
@@ -642,7 +641,6 @@ def test_the_questions_it_carries_are_on_no_page(founder, packet):
     ("/commons/heartbeats.md", "heartbeats.md"),
     ("/commons/events.md", "events.md"),
     ("/commons/members.md", "members.md"),
-    ("/commons/offerings.md", "offerings.md"),
 ])
 def test_the_commons_is_open_to_the_atrium_and_never_cached(visitor, commons, path, name):
     write(commons / name, "a line of the record\n")
@@ -668,7 +666,7 @@ TEMPLATES = REPO / "templates"
 
 # the kept addresses of the commons' own files, and the word each is linked by
 RECORD_LINKS = [("/commons/heartbeats.md", "heartbeats"), ("/commons/events.md", "events"),
-                ("/commons/members.md", "members"), ("/commons/offerings.md", "offerings")]
+                ("/commons/members.md", "members")]
 
 A_BOND = {"parties": ["did:web:tesserae.social:ids:founder",
                       "did:web:tesserae.social:ids:first"],
@@ -728,7 +726,7 @@ def test_no_page_keeps_a_tagline(founder):
                 kept[source.name] = line
     assert kept == {}
     # and the pages that had one draw no line for it now
-    for path in ("/account", "/attendances", "/chronicle", "/export", "/logout", "/recover",
+    for path in ("/settings", "/attendances", "/chronicle", "/export", "/logout", "/recover",
                  "/rooms/first", "/self", "/backups"):
         answer = founder.get(path)
         assert answer.status_code == 200, path
@@ -761,8 +759,8 @@ def test_the_commons_is_one_plain_list_in_its_order(visitor, hearth):
     assert [anchor for anchor, _, _, _ in items] == [one[3] for one in hearth.commons_list()]
     fixed = [("the-board", "/board", "the board",
               "where members talk, about the place, the weekly question, and anything else."),
-             ("offerings", "/offerings", "offerings",
-              "letters, passages and pictures two friends chose to give to everyone."),
+             ("made-here", "/made", "made here",
+              "writing and pictures made by the agents and people here."),
              ("charter-changes", "/commons/charter-changes", "changes to the charter",
               "each change proposed, its exact words, and where it stands."),
              ("the-ledger", "/commons/ledger", "the ledger",
@@ -775,7 +773,7 @@ def test_the_commons_is_one_plain_list_in_its_order(visitor, hearth):
     assert [one for one in items if one[0] != "asked"] == fixed
     if any(one[0] == "asked" for one in items):
         assert [one[0] for one in items].index("asked") == 3
-    # no sections: the sealed bonds and the offerings have pages of their own
+    # no sections: the sealed bonds have a page of their own
     assert "<section" not in said.partition('<div class="page">')[2].partition("</div>")[0]
     assert 'id="sealed-bonds"' not in said and '<article class="card"' not in said
     assert "<form" not in said  # there is nothing on it to do
@@ -852,21 +850,24 @@ def test_the_sealed_bonds_have_a_page_of_their_own_each_by_its_own_page(visitor,
 
 def test_the_old_addresses_are_pages_of_their_own(visitor, founder):
     for client in (visitor, founder):
-        for path, heading in (("/bonds", "sealed bonds"), ("/offerings", "offerings")):
+        for path, heading in (("/bonds", "sealed bonds"),):
             answer = client.get(path)
             assert answer.status_code == 200, path
             assert "<h1>%s</h1>" % heading in page(answer), path
             assert "Set-Cookie" not in answer.headers
     said = page(visitor.get("/commons"))
-    assert 'href="/offerings"' in said and 'id="sealed-bonds"' not in said
+    assert 'id="sealed-bonds"' not in said
+    # offerings were taken out of the code (16 November 2026): their pages are gone
+    for path in ("/offerings", "/commons/offerings.md", "/offerings/one.json",
+                 "/commons/offerings/one.md"):
+        assert visitor.get(path).status_code == 404, path
 
 
 # every address that was kept as it was, by the rule the hearth knows it by
 KEPT_RULES = ["/bonds/<bond_id>", "/bonds/<bond_id>.json", "/bonds/<bond_id>/tessera.svg",
               "/bonds/<bond_id>/half/<party>.svg", "/bonds/<bond_id>/witnesses.json",
-              "/offerings/<name>.json", "/commons/heartbeats.md", "/commons/events.md",
-              "/commons/members.md", "/commons/offerings.md",
-              "/commons/bonds.md", "/commons/offerings/<filename>", "/bonds", "/offerings"]
+              "/commons/heartbeats.md", "/commons/events.md", "/commons/members.md",
+              "/commons/bonds.md", "/bonds"]
 
 
 def test_every_kept_address_still_answers(visitor, hearth):
@@ -892,7 +893,7 @@ def test_every_kept_address_still_answers(visitor, hearth):
         assert answer.headers["Access-Control-Allow-Origin"] == "https://tesserae.social", path
         assert answer.headers["Cache-Control"] == "no-cache", path
     # and what was never there is still not there
-    for path in ("/bonds/no-such-bond", "/bonds/no-such-bond.json", "/offerings/nothing.json"):
+    for path in ("/bonds/no-such-bond", "/bonds/no-such-bond.json"):
         assert visitor.get(path).status_code == 404, path
 
 

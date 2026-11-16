@@ -138,7 +138,7 @@ def test_no_address_is_kept_for_a_name_no_one_has_or_could_have(hearth):
 
 def test_the_keeper_and_a_member_are_each_asked_for_an_address(founder, member):
     for client in (founder, member):
-        text = page(client.get("/account"))
+        text = page(client.get("/settings"))
         # it says, truly, what the address is used for: a link, and the emails that stop
         assert ("Add an email address. For a password link, and a short email when something "
                 "is waiting for you, which you can stop.") in " ".join(text.split())
@@ -157,7 +157,7 @@ def test_asking_sends_a_link_to_the_address_and_keeps_only_its_hash(
     assert link not in kept.name and kept.name.startswith("confirm-")
     assert read_json(kept)["address"] == KEPT and read_json(kept)["name"] == FOUNDER_NAME
     assert not (data_dir / "members" / FOUNDER_NAME / "email.json").exists()  # not until confirmed
-    assert "it lasts a day" in page(founder.get("/account"))
+    assert "it lasts a day" in page(founder.get("/settings"))
 
 
 def test_the_link_opens_a_button_and_the_button_confirms(hearth, founder, outbox, data_dir):
@@ -171,7 +171,7 @@ def test_the_link_opens_a_button_and_the_button_confirms(hearth, founder, outbox
     assert answer.status_code == 200 and escape(CONFIRMED) in page(answer)
     held = read_json(data_dir / "members" / FOUNDER_NAME / "email.json")
     assert held["address"] == KEPT and held["confirmed_at"] == "2026-10-15T12:00:00Z"
-    text = page(founder.get("/account"))
+    text = page(founder.get("/settings"))
     assert "Your email address is %s, confirmed on 15 October 2026." % MASKED in text
     assert KEPT not in text.lower() and "Change it" in text
 
@@ -319,7 +319,7 @@ def test_no_page_shows_the_address(hearth, founder, member, visitor, outbox):
         for address in plain:
             text = client.get(address).get_data(as_text=True).lower()
             assert KEPT not in text, address
-            if client is founder and address == "/account":
+            if client is founder and address == "/settings":
                 continue  # its owner's own page, where it is shown partly hidden
             assert "@example.org" not in text and MASKED.lower() not in text, address
 
@@ -331,26 +331,26 @@ MASKED = "s•••@example.org"
 
 def test_the_owner_sees_their_confirmed_address_partly_hidden(founder, member, outbox):
     confirmed(founder, outbox)
-    text = page(founder.get("/account"))
+    text = page(founder.get("/settings"))
     assert "Your email address is %s, confirmed on" % MASKED in text
     assert KEPT not in text.lower()
-    assert MASKED not in page(member.get("/account")) and "@example.org" not in page(
-        member.get("/account"))
+    assert MASKED not in page(member.get("/settings")) and "@example.org" not in page(
+        member.get("/settings"))
 
 
 def test_an_address_not_yet_confirmed_is_not_shown_in_any_form(founder, outbox):
     ask(founder)
-    text = page(founder.get("/account"))
+    text = page(founder.get("/settings"))
     assert "@example.org" not in text and MASKED not in text
 
 
 def test_a_changed_address_is_shown_partly_hidden_once_confirmed(founder, outbox):
     confirmed(founder, outbox)
     ask(founder, OTHER)
-    text = page(founder.get("/account"))
+    text = page(founder.get("/settings"))
     assert MASKED in text and "@example.net" not in text  # the new one is not yet kept
     confirm(founder, link_in(outbox.sent[-2]))
-    text = page(founder.get("/account"))
+    text = page(founder.get("/settings"))
     assert "a•••@example.net" in text and OTHER not in text and MASKED not in text
 
 

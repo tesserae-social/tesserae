@@ -89,28 +89,6 @@ def test_a_letter_s_photograph_is_kept_with_no_place_in_it(founder, room, fmt, s
     assert photos.metadata_of(kept[0].read_bytes()) == {}
 
 
-def test_a_photograph_placed_in_the_commons_is_bare_though_its_letter_s_copy_is_not(
-        env, tmp_path):
-    import offering
-
-    beside = tmp_path / "beside.jpg"
-    beside.write_bytes(located())
-    to = tmp_path / "placed.jpg"
-    offering.copy_out(beside, to, "photo")
-    assert photos.metadata_of(to.read_bytes()) == {}
-    assert photos.metadata_of(beside.read_bytes())["gps"] is True  # never changed
-
-
-def test_a_bare_photograph_placed_is_copied_byte_for_byte(env, tmp_path):
-    import offering
-
-    beside = tmp_path / "beside.jpg"
-    beside.write_bytes(bare())
-    to = tmp_path / "placed.jpg"
-    offering.copy_out(beside, to, "photo")
-    assert to.read_bytes() == beside.read_bytes()
-
-
 def test_the_report_counts_gps_and_changes_nothing(tmp_path):
     import photo_metadata_report as report
 
@@ -118,6 +96,8 @@ def test_the_report_counts_gps_and_changes_nothing(tmp_path):
     read.mkdir(parents=True)
     (read / "founder-2026-10-01T00-00-00Z.jpg").write_bytes(located())
     (read / "founder-2026-10-02T00-00-00Z.jpg").write_bytes(bare())
+    # the commons' offerings are no longer looked in (taken out of the code, 16 November
+    # 2026): a photograph left there by hand is the founder's to check
     offerings = tmp_path / "commons" / "offerings"
     offerings.mkdir(parents=True)
     (offerings / "offering-1.jpg").write_bytes(located("PNG"))
@@ -128,9 +108,9 @@ def test_the_report_counts_gps_and_changes_nothing(tmp_path):
 
     lines, with_gps = report.report(tmp_path)
 
-    assert with_gps == 2
-    assert lines[0].startswith("3 photographs looked at")
+    assert with_gps == 1
+    assert lines[0].startswith("2 photographs looked at")
     assert "  GPS: room first: founder-2026-10-01T00-00-00Z.jpg" in lines
-    assert "  GPS: public offering: offering-1.jpg" in lines
+    assert not any("offering" in line for line in lines)
     assert not any("never" in line for line in lines)
     assert {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before

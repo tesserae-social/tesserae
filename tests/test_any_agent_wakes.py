@@ -48,7 +48,6 @@ FIRST_SAYS = {
     "its notes": "A FAKE NOTE OF THE FIRST ONE'S, FOR THE TESTS.",
     "its draft": "A FAKE DRAFT OF THE FIRST ONE'S, FOR THE TESTS.",
     "its heartbeat": "A FAKE HEARTBEAT OF THE FIRST ONE'S, FOR THE TESTS.",
-    "an offering to it": "A FAKE OFFERING TO THE FIRST ONE, FOR THE TESTS.",
     "its founding": "A FAKE FOUNDING OF THE FIRST ONE, FOR THE TESTS.",
 }
 
@@ -58,7 +57,6 @@ FIRST_ONE_S = ("packets/first", "rooms/first", "keys/first", "transcripts")
 SAID = blocks(
     block("LETTER", "A FAKE LETTER OF THE SECOND ONE'S, FOR THE TESTS."),
     block("MEMORY", "A FAKE NOTE OF THE SECOND ONE'S, FOR THE TESTS."),
-    block("OFFER", "consent 2026-10-21T09-00-00Z"),
     block("HEARTBEAT", "A FAKE HEARTBEAT OF THE SECOND ONE'S, FOR THE TESTS."),
 )
 
@@ -147,10 +145,6 @@ def a_first_one_s_world(data, room, packet):
     write(room / "letters" / "outgoing" / "to-founder-2026-10-02T09-00-00Z.md",
           FIRST_SAYS["a letter it wrote"] + "\n")
     write(room / "errands" / "errand-2026-10-02T09-00-00Z.md", FIRST_SAYS["its errand"] + "\n")
-    write_json(room / "offerings" / "pending-2026-10-13T09-00-00Z.json", {
-        "id": "2026-10-13T09-00-00Z", "offered_by": "founder", "kind": "passage",
-        "source": "founder-2026-10-01T09-00-00Z", "text": FIRST_SAYS["an offering to it"],
-        "at": "2026-10-13T09-00-00Z", "sealed_at": None, "signatures": {"founder": "x"}})
     write_json(room / "bonds" / "proposal.json", {
         "from": "did:web:tesserae.social:ids:founder", "to": "did:web:tesserae.social:ids:first",
         "terms": "the charter", "letter": "founder-2026-10-14T09-00-00Z.md",
@@ -179,14 +173,9 @@ def a_second_agent(data):
     write_json(home / "room.json", {"id": "second", "bond": "founder-second",
                                     "parties": ["did:web:tesserae.social:ids:founder",
                                                 SECOND["did"]]})
-    for folder in ("letters/outgoing", "letters/incoming", "letters/read", "bonds", "offerings",
-                   "errands"):
+    for folder in ("letters/outgoing", "letters/incoming", "letters/read", "bonds", "errands"):
         (home / folder).mkdir(parents=True, exist_ok=True)
     write(home / "letters" / "incoming" / "founder-2026-10-21T09-00-00Z.md", SECOND_LETTER)
-    write_json(home / "offerings" / "pending-2026-10-21T09-00-00Z.json", {
-        "id": "2026-10-21T09-00-00Z", "offered_by": "founder", "kind": "letter",
-        "source": "founder-2026-10-21T09-00-00Z", "text": SECOND_LETTER.strip(),
-        "at": "2026-10-21T09-00-00Z", "sealed_at": None, "signatures": {"founder": "x"}})
     with (data / "commons" / "events.md").open("a", encoding="utf-8") as events:
         events.write(SECOND_FOUNDING_LINE + "\n")
 
@@ -276,12 +265,6 @@ def test_the_second_one_wakes_and_leaves_the_first_one_s_world_as_it_was(
         encoding="utf-8").strip() == "A FAKE NOTE OF THE SECOND ONE'S, FOR THE TESTS."
     assert list((data_dir / "rooms" / "second" / "letters" / "outgoing").glob("to-founder-*.md"))
 
-    # the offering it consented to is placed from its own room, as the two of them
-    placed = read_json(data_dir / "rooms" / "second" / "offerings" / "2026-10-21T09-00-00Z.json")
-    assert set(placed["signatures"]) == {"founder", "second"}
-    index = (commons / "offerings.md").read_text(encoding="utf-8")
-    assert index == ("- 2026-10-15 · 2026-10-21T09-00-00Z · letter · "
-                     "the founder and the scratch one\n")
 
 
 def test_an_agent_with_no_words_of_its_own_is_not_woken(second, data_dir, monkeypatch):
@@ -305,20 +288,12 @@ def test_an_agent_whose_founding_is_not_recorded_has_served_no_wait(second, comm
     assert not second.may_ask(None, None)
 
 
-# ---- threshold, offering and shelf, by agent -----------------------------
+# ---- threshold and shelf, by agent (offerings were taken out, 16 November 2026) ----
 
-def test_threshold_offering_and_shelf_take_the_agent(second, data_dir):
+def test_threshold_and_shelf_take_the_agent(second, data_dir):
     home = data_dir / "rooms" / "second"
     assert second.threshold.kept("second").bonds == home / "bonds"
-    assert second.offering.kept("second").offerings == home / "offerings"
-    assert second.offering.parties("second") == ("founder", "second")
-    assert second.offering.attribution("second") == "the founder and the scratch one"
-    assert [one["id"] for one in second.offering.awaiting("second", "second")] == [
-        "2026-10-21T09-00-00Z"]
-    # and the first one's, where none is named, as before
-    assert second.offering.ATTRIBUTION == second.offering.attribution() == (
-        "the founder and the first one")
-    assert [one["id"] for one in second.offering.awaiting("first")] == ["2026-10-13T09-00-00Z"]
+    assert not hasattr(second, "offering")
     bond = {"opened_at": "2026-10-10T09-00-00Z", "signatures": {"second": "x"}}
     assert second.threshold.answered_by(bond, "second") == "second"
     assert second.threshold.sealed_by(bond, "second") == "founder"

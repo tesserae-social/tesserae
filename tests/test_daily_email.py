@@ -174,13 +174,13 @@ def test_an_email_that_does_not_go_is_told_again_next_time(hearth, kept, room, o
 # ---- the choice, and the stop link ------------------------------------------
 
 def test_daily_until_chosen_and_chosen_on_the_account_page(hearth, kept):
-    said = page(kept.get("/account"))
+    said = page(kept.get("/settings"))
     assert "emails when something is waiting" in said
     assert re.search(r'value="daily"\s+checked', said)
     answer = post(kept, "/account/emails", data={"every": "weekly"})
     assert "Saved." in page(answer)
     assert hearth.members.emails_of(FOUNDER_NAME) == "weekly"
-    assert re.search(r'value="weekly"\s+checked', page(kept.get("/account")))
+    assert re.search(r'value="weekly"\s+checked', page(kept.get("/settings")))
     answer = post(kept, "/account/emails", data={"every": "hourly"})
     assert "Choose daily, weekly or never." in page(answer)
     assert hearth.members.emails_of(FOUNDER_NAME) == "weekly"
@@ -264,7 +264,7 @@ def test_the_email_thread_is_set_going_once(hearth, monkeypatch):
 def test_the_choices_read_as_the_founder_wrote_them(hearth, kept):
     assert list(hearth.EMAIL_CHOICES.values()) == [
         "Daily, when something is waiting", "Weekly at most", "Never"]
-    said = " ".join(page(kept.get("/account")).split())
+    said = " ".join(page(kept.get("/settings")).split())
     for words in hearth.EMAIL_CHOICES.values():
         assert words in said
 

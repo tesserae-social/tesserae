@@ -12,7 +12,7 @@
   <ul class="lines">
     {% for one in shown %}
     <li><span class="muted">{{ one.where }}:</span> {{ one.line }}
-      <br><span class="muted">corrected by {{ one.who }}, {{ one.day }}:</span> &ldquo;{{ one.words }}&rdquo;</li>
+      <br><span class="muted">corrected by {% set href = name_href(one.who) %}{% if href %}<a href="{{ href }}">{{ one.who }}</a>{% else %}{{ one.who }}{% endif %}, {{ one.day }}:</span> &ldquo;{{ one.words }}&rdquo;</li>
     {% endfor %}
   </ul>
   {% else %}

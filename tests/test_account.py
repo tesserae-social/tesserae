@@ -76,7 +76,7 @@ def keeper(people):
 
 
 def change(client, current, password=NEW_PASSWORD, again=None, **how):
-    return post(client, "/account", data={
+    return post(client, "/settings", data={
         "current_password": current, "password": password,
         "password_again": password if again is None else again}, **how)
 
@@ -104,7 +104,7 @@ def still_member(client, name):
 # ---- the page ------------------------------------------------------------
 
 def test_the_page_asks_for_the_current_password_and_the_new_one_twice(member):
-    text = page(member.get("/account"))
+    text = page(member.get("/settings"))
     for field in ('name="current_password"', 'name="password"', 'name="password_again"'):
         assert field in text, field
     assert "Your key stays the same" in text
@@ -112,15 +112,15 @@ def test_the_page_asks_for_the_current_password_and_the_new_one_twice(member):
 
 
 def test_the_account_form_carries_the_token(member):
-    assert f'name="csrf_token" value="{token(member)}"' in page(member.get("/account"))
+    assert f'name="csrf_token" value="{token(member)}"' in page(member.get("/settings"))
 
 
 def test_the_keeper_has_an_account_page_too(keeper):
-    assert keeper.get("/account").status_code == 200
+    assert keeper.get("/settings").status_code == 200
 
 
 def test_visitors_are_sent_to_login(visitor, people):
-    assert to_login(visitor.get("/account"))
+    assert to_login(visitor.get("/settings"))
     assert to_login(change(visitor, KEEPER_PASSWORD))
 
 
@@ -129,7 +129,7 @@ def test_an_old_founder_session_is_sent_to_login(people, hearth, data_dir):
     old = hearth.app.test_client()
     with old.session_transaction() as held:
         held["founder"] = True
-    assert to_login(old.get("/account"))
+    assert to_login(old.get("/settings"))
     assert to_login(change(old, KEEPER_PASSWORD))
     assert record_of(data_dir, KEEPER) == before
 
@@ -137,20 +137,39 @@ def test_an_old_founder_session_is_sent_to_login(people, hearth, data_dir):
 # ---- the nav -------------------------------------------------------------
 
 def test_the_nav_names_the_account_to_a_member(member):
-    assert '<a href="/account">account</a>' in page(member.get("/"))
+    assert '<a href="/settings">settings</a>' in page(member.get("/"))
+
+
+def test_the_old_address_leads_to_settings(member):
+    """/account is /settings since 16 November 2026; its old address leads there."""
+    answer = member.get("/account?introduction_saved=1")
+    assert answer.status_code == 302
+    assert answer.headers["Location"].endswith("/settings?introduction_saved=1")
+
+
+def test_settings_is_decluttered(member):
+    """The founder's request of 16 November 2026: no field for how one writes, the
+    introduction edited on one's own name page, and the email and the password together
+    under one fold, "signing in", at the foot."""
+    said = page(member.get("/settings"))
+    assert "how you write" not in said and 'name="writing"' not in said
+    assert 'id="introduction-words"' not in said
+    assert '<summary>signing in</summary>' in said
+    folded = said.partition("<summary>signing in</summary>")[2]
+    assert 'id="password"' in folded and said.index("signing in") > said.index("your rest")
 
 
 def test_the_nav_names_the_account_to_the_keeper(keeper):
     text = page(keeper.get("/rooms/first"))
-    assert '<a href="/account">account</a>' in text and 'href="/export"' in text
+    assert '<a href="/settings">settings</a>' in text and 'href="/export"' in text
 
 
 def test_the_nav_does_not_name_it_to_a_visitor(visitor):
-    assert 'href="/account"' not in page(visitor.get("/commons"))
+    assert 'href="/settings"' not in page(visitor.get("/commons"))
 
 
 def test_on_the_account_page_the_nav_marks_it_as_here(member):
-    assert '<span class="here">account</span>' in page(member.get("/account"))
+    assert '<span class="here">settings</span>' in page(member.get("/settings"))
 
 
 # ---- changing ------------------------------------------------------------
@@ -184,7 +203,7 @@ def test_this_session_stays_signed_in_by_the_new_seal(member, data_dir):
     assert "your correspondences" in page(member.get("/"))
     with member.session_transaction() as held:
         assert held["seal"] == vault.fingerprint(record_of(data_dir, MEMBER)["vault"])
-    assert member.get("/account").status_code == 200
+    assert member.get("/settings").status_code == 200
 
 
 def test_the_token_is_cut_afresh_and_the_new_one_works(member):
@@ -328,7 +347,7 @@ def test_another_name_s_count_is_not_touched(member, people):
 
 def test_a_change_without_the_token_is_refused(member, data_dir):
     before = record_of(data_dir, MEMBER)
-    answer = member.post("/account", data={
+    answer = member.post("/settings", data={
         "current_password": MEMBER_PASSWORD, "password": NEW_PASSWORD,
         "password_again": NEW_PASSWORD})
     assert answer.status_code == 400 and CSRF_REFUSAL in page(answer)

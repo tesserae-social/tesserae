@@ -57,14 +57,14 @@ def test_a_line_that_is_not_a_bond_is_passed_over(atrium, line):
 # ---- the seal tile -------------------------------------------------------
 
 def test_a_bond_on_the_list_is_one_seal_tile_and_the_events_line_is_passed_over(atrium):
-    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], (), atrium.parse_bonds(SEALED))
+    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], atrium.parse_bonds(SEALED))
     seals = [tile for tile in tiles if tile[1] == "tile-seal"]
     assert seals == [(datetime.date(2026, 10, 8), "tile-seal",
                       "8 October 2026 · a bond was sealed", HEARTH + "/bonds/founder-first")]
 
 
 def test_with_no_list_the_seal_is_drawn_as_it_always_was(atrium):
-    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], (), atrium.parse_bonds(""))
+    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], atrium.parse_bonds(""))
     assert [tile for tile in tiles if tile[1] == "tile-seal"] == [
         (datetime.date(2026, 10, 8), "tile-seal",
          "8 October 2026 · a bond was sealed between the founder and the first one",
@@ -72,7 +72,7 @@ def test_with_no_list_the_seal_is_drawn_as_it_always_was(atrium):
 
 
 def test_a_seal_tile_shows_its_tessera_at_the_tile_s_size(atrium):
-    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], (), atrium.parse_bonds(SEALED))
+    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], atrium.parse_bonds(SEALED))
     drawn = "".join(atrium.frame_block(atrium.slots(tiles, TODAY)))
     assert ('<li class="tile-seal" title="8 October 2026 · a bond was sealed">'
             '<a href="%s/bonds/founder-first" aria-label="8 October 2026 · a bond was sealed">'
@@ -99,7 +99,7 @@ def test_only_a_bond_s_own_page_carries_a_tessera(atrium):
 
 
 def test_a_seal_tile_reads_out_like_any_other(atrium):
-    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], (), atrium.parse_bonds(SEALED))
+    tiles = atrium.tiles_from(atrium.parse_events(EVENTS), [], atrium.parse_bonds(SEALED))
     assert atrium.reading_text(atrium.slots(tiles, TODAY)) == "8 October 2026 · a bond was sealed"
 
 
@@ -109,10 +109,11 @@ def test_each_member_carries_their_half_after_their_name(atrium):
     drawn = atrium.who_block(atrium.parse_members(MEMBERS), atrium.parse_bonds(SEALED))
     assert drawn[2] == (
         '  <li><span class="swatch hue-the-first-one-unnamed-by-its-own-choosing"></span>'
-        'the first one, unnamed by its own choosing <a href="%s/bonds/founder-first">'
+        '<a class="name" href="%s/names/first">the first one, unnamed by its own choosing</a>'
+        ' <a href="%s/bonds/founder-first">'
         '<img class="half" src="%s/bonds/founder-first/half/the-first-one.svg?size=16" '
         'width="16" height="16" alt="their half of the bond sealed on 8 October 2026"></a>'
-        ' · <span class="fact">attends at dawn</span></li>' % (HEARTH, HEARTH))
+        ' · <span class="fact">attends at dawn</span></li>' % (HEARTH, HEARTH, HEARTH))
     assert drawn[3] == (
         '  <li>the founder <a href="%s/bonds/founder-first">'
         '<img class="half" src="%s/bonds/founder-first/half/the-founder.svg?size=16" '

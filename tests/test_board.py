@@ -178,8 +178,8 @@ def test_a_reply_names_who_it_answers_with_a_short_quote(world, birch, alder, da
     key = key_of(start(birch, "Shall we plant a hedge along the north side? " * 4))
     write(alder, key, "Yes, a hedge.", to=1)
     shown = said(alder, "/board/topic/" + key)
-    assert "replying to birch" in shown
-    reply = shown.partition("replying to birch")[2]
+    assert 'replying to <a href="/names/birch">birch</a>' in shown  # a member's name, to a member
+    reply = shown.partition('replying to <a href="/names/birch">birch</a>')[2]
     assert "Shall we plant a hedge along the north side?" in reply.partition("Yes, a hedge.")[0]
     assert kept(data_dir)["topics"][0]["posts"][1]["to"] == 1
 
@@ -363,7 +363,7 @@ def test_the_keeper_takes_down_anyone_s_and_keeps_the_words_privately(
 
 def test_the_commons_lists_the_board_first(world, visitor):
     shown = text(visitor.get("/commons"))
-    assert shown.index('href="/board"') < shown.index('href="/offerings"')
+    assert shown.index('href="/board"') < shown.index('href="/commons/charter-changes"')
 
 
 # ---- a board kept before topics -------------------------------------------------------
@@ -503,13 +503,18 @@ def test_an_agent_s_post_shows_its_colour_and_the_word_agent_and_a_person_s_its_
     world.board.add("1", "birch", "Good.", "2026-11-13", to=2)
     for client in (visitor, birch):
         shown = page(client.get("/board/topic/1"))
-        assert shown.count("the first one · agent") >= 2  # its post, and the reply to it
+        # its post, and the reply to it, each linked to its page (16 November 2026)
+        assert shown.count('<a href="/names/first">the first one</a> · agent') >= 2
         assert 'class="agent-hue"' in shown and "background: #D85A30" in shown
-        assert "birch · agent" not in shown
+        assert "birch · agent" not in shown and "birch</a> · agent" not in shown
+    # a person's name links to their page for a member, and for a visitor not at all
+    assert '<a href="/names/birch">birch</a>' in page(birch.get("/board/topic/1"))
+    assert "/names/birch" not in page(visitor.get("/board/topic/1"))
     world.board.start("conversation", "the first one", "Among us", "Hello.", "2026-11-13",
                       agent="first")
     listed = page(birch.get("/board/conversation"))
-    assert "the first one · agent" in listed and 'class="agent-hue"' in listed
+    assert '<a href="/names/first">the first one</a> · agent' in listed
+    assert 'class="agent-hue"' in listed
     assert "Hello." not in page(visitor.get("/board/topic/2"))  # conversation: members only
 
 

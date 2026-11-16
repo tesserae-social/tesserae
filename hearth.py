@@ -3,15 +3,13 @@ The hearth.
 
 A small, plain web page for the founder and for anyone passing by. The public
 side is a door: the board, the files of the commons as they are
-written, the offerings the two of them have placed there, and a sealed bond if
+written, and a sealed bond if
 one has been sealed. Any member who is signed in may open or close their own
 door and say how much room they have. Behind the keeper's own sign-in, the
 founder may read the first one's letters and write back, read its self-document,
 read the private log of
 its attendances, read the errands it has asked of him and answer one
-with a letter, propose a bond, answer an asking of its own, seal or release a bond, offer
-something out of the correspondence to the commons or consent to what the first one has
-offered, take a post
+with a letter, propose a bond, answer an asking of its own, seal or release a bond, take a post
 off the board, take a copy of the whole record away in one file, rest from the
 correspondence and return to it, and, in an emergency, stop the tide and lift the stop. A
 daemon thread keeps whatever rhythm the first one has written in its packet and wakes it at
@@ -28,7 +26,6 @@ Usage:  python hearth.py     (then open http://127.0.0.1:5000)
 
 import base64
 import hashlib
-import heapq
 import hmac
 import io
 import json
@@ -59,16 +56,13 @@ from PIL import Image, ImageOps
 
 # The commons' record is read with the same reckoning the atrium uses, rather
 # than a second copy of it, and the citizen's own clock is the one the atrium
-# keeps: a day turns here when it turns where the citizen lives. The words an
-# offering's kind is said in are the atrium's too, so that the hearth's page and
-# the atrium's section name the same thing the same way.
-from build_atrium import (CITIZEN_ZONE, NO_HUE, DOT, KIND_WORDS, dated_heartbeats, LETTER_WORDS, is_letter_line,
+# keeps: a day turns here when it turns where the citizen lives.
+from build_atrium import (CITIZEN_ZONE, NO_HUE, DOT, dated_heartbeats, LETTER_WORDS, is_letter_line,
                           parse_events)
 import build_atrium
 
-# An offering is made by two hands, so both hands work through the one module:
-# what is offered here and what is offered at a waking are one record.
-import offering
+# A letter's three plain things, and the suffix a picture is kept under beside it.
+import things as letter_things
 
 # A photograph is kept as its picture alone, wherever it comes in.
 import photos
@@ -158,6 +152,9 @@ import door
 # Introductions on who is here, and a knock at an agent's door (plan 4.1 and 4.2).
 import introductions
 import knock
+import site_notes
+import made_here
+import kept_words
 # The members' board (plan 4.3).
 import board
 # A weekly question, proposed by members.
@@ -183,6 +180,8 @@ import welcome_delivery
 # A new agent's coming (coming.py): the founder's standing letter, written on /tides,
 # and when the second one is given the first one's letter of welcome.
 import coming as comings
+# Blocks, and leaving a room a block stands between (design-rooms-and-doors, section 5).
+import blocks
 
 REPO = Path(__file__).resolve().parent
 
@@ -244,17 +243,6 @@ PHOTO_QUALITY = photos.PHOTO_QUALITY  # for the JPEGs the hearth writes
 # and a policy that lets it do nothing at all but be looked at.
 PICTURE_TYPE = "image/svg+xml"
 PICTURE_SANDBOX = "sandbox"
-
-# Where an offering lives, said once here so that the pages and the routes agree.
-OFFERINGS_INDEX = DATA / "commons" / "offerings.md"
-PUBLIC_OFFERINGS = DATA / "commons" / "offerings"
-
-# What is served out of commons/offerings/, and as what. Anything else there -
-# there should be nothing else - is at no address.
-OFFERING_TYPES = {".md": "text/plain; charset=utf-8",
-                  ".json": "application/json; charset=utf-8",
-                  ".svg": PICTURE_TYPE, ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-                  ".png": "image/png", ".webp": "image/webp"}
 
 # ---- configuration -------------------------------------------------------
 
@@ -506,7 +494,7 @@ def photo_beside(path):
 
 def picture_beside(path):
     """The name of the picture kept beside a letter, if the first one drew one."""
-    beside = path.with_suffix(offering.PICTURE_SUFFIX)
+    beside = path.with_suffix(letter_things.PICTURE_SUFFIX)
     return beside.name if beside.exists() else None
 
 
@@ -593,7 +581,7 @@ def proposing_letters(paths):
 
 def one_letter(path, who, unread=False, proposes=False, agent=None):
     """One letter: the line that stands for it, and the whole of it beneath."""
-    things, text = offering.split_things(read_text(path))
+    things, text = letter_things.split_things(read_text(path))
     return {
         "stamp": stamp_in(path.name),
         "stem": path.stem,  # the anchor the chronicle points at: /rooms/<room>#<stem>
@@ -607,9 +595,6 @@ def one_letter(path, who, unread=False, proposes=False, agent=None):
         "picture": picture_beside(path),
         "unread": unread,
         "proposes": proposes,
-        # what of this letter has already been given to the commons, or offered
-        # and not yet answered: an offering is made once and never twice
-        "offered": offered_already(path.stem, agent),
     }
 
 
@@ -1368,6 +1353,8 @@ def door_phrase(line):
     """
     citizen = citizen_of(line)
     if citizen is not None:
+        if has_a_door(citizen) and blocked_from(citizen["id"]):
+            return DOT + "door closed"  # a block reads as a closed door, and no more
         return door.phrase(citizen["id"]) if has_a_door(citizen) else None
     found = MEMBERS_LINE.match(line)
     if not found:
@@ -1377,8 +1364,19 @@ def door_phrase(line):
         return door.phrase(the_keeper())  # no keeper is no door file: closed
     record = member_record(name)
     if record and record.get("role") == "member":
+        if blocked_from(name):
+            return DOT + "door closed"
         return door.phrase(name)
     return None
+
+
+def blocked_from(name):
+    """Whether whoever is signed in and the name have a block between them: then the door
+    reads closed to them, as a closed door reads."""
+    if not has_request_context():
+        return False
+    viewer = session.get("member")
+    return bool(viewer) and viewer != name and blocks.between(viewer, name)
 
 
 def with_its_door(line):
@@ -2204,83 +2202,6 @@ def founder_answers():
     return answers_given("founder-answer-*.json")
 
 
-# ---- the offerings -------------------------------------------------------
-
-# An offering is something out of the correspondence given to the commons by
-# both who kept it: a whole letter, a passage of one, a photograph, a picture.
-# Either of them may offer. Nothing is placed until both have signed it, and
-# what is placed is never removed - so the question a control here has to ask is
-# not "may this be shown" but "would you want a stranger to have read it".
-#
-# Everything about the state of an offering is kept by offering.py, which the
-# first one's wakings use too, so that the two hands leave one record and not
-# two. The founder's half of it is signed with FOUNDER_KEY, the same key that
-# seals a bond, at the moment he offers or consents and never before.
-
-NOT_OFFERABLE = "There is nothing of that kind in that letter to offer."
-NOT_VERBATIM = ("A passage is quoted word for word out of the letter it comes from, and "
-                "that passage is not in that letter.")
-NO_KEY_TO_SIGN = ("An offering is signed at the moment it is made, and the founder's key is "
-                  "not on this hearth. Check FOUNDER_KEY.")
-
-# The one line the charter draws under all of this, said wherever an offering
-# is asked for, in the words offering.py keeps for both sides.
-NO_FACES = offering.PRIVATE_FOREVER
-
-
-def offered_already(stem, agent=None):
-    """What of one letter has been given to the commons, by kind: placed, or waiting.
-
-    A letter, a photograph and a picture are each offered once and never twice;
-    a passage is not counted here, since one letter holds many.
-    """
-    said = {}
-    for one in offering.placed(agent) + offering.pending(agent):
-        if one.get("source") == stem and one.get("kind") != "passage":
-            said[one["kind"]] = "placed" if one.get("sealed_at") else "offered"
-    return said
-
-
-def awaiting_the_founder():
-    """The offerings the first one has made, as its room shows them."""
-    shown = []
-    for one in offering.awaiting("founder"):
-        image = offering.image_of(one)
-        shown.append({
-            "id": one["id"],
-            "kind": one.get("kind", ""),
-            "said": KIND_WORDS.get(one.get("kind"), one.get("kind", "")),
-            "source": one.get("source", ""),
-            "date": readable_date(one.get("at", "")),
-            "text": as_prose(one.get("text", "")) if one.get("text") else None,
-            "photo": image.name if one.get("kind") == "photo" and image else None,
-            "picture": image.name if one.get("kind") == "picture" and image else None,
-        })
-    return shown
-
-
-def offerings_placed():
-    """Every offering in the commons, oldest first, as anyone passing reads them: the first
-    one's room's in the order they always were, and any other room's merged in by the day
-    each was placed, attributed to that room's two."""
-    every = [[(one, offering.ATTRIBUTION) for one in offering.placed()]]
-    for agent in agents.registry():
-        if agent["id"] != agents.first()["id"] and rooms.places(agent["room"]) is not None:
-            every.append([(one, offering.attribution(agent["id"]))
-                          for one in offering.placed(agent["id"])])
-    shown = []
-    for one, who in heapq.merge(*every, key=lambda pair: (pair[0].get("sealed_at") or "")[:10]):
-        shown.append({
-            "id": one["id"],
-            "kind": KIND_WORDS.get(one.get("kind"), one.get("kind", "")),
-            "day": said_day((one.get("sealed_at") or "")[:10]),
-            "who": who,
-            "text": as_prose(one.get("text", "")) if one.get("text") else None,
-            "file": one.get("file"),
-        })
-    return shown
-
-
 # ---- the book ------------------------------------------------------------
 
 # The chronicle is the book of this friendship: every event in its life, one
@@ -2413,7 +2334,7 @@ def letter_lines(agent=None):
             at = stamp_in(path.name)
             lines.append(book_line(
                 at, book_day(at), who,
-                "letter from %s \u00b7 %s" % (who, opening_line(offering.letter_only(path))),
+                "letter from %s \u00b7 %s" % (who, opening_line(letter_things.letter_only(path))),
                 href=url_for("room", room_id=agent["room"]) + "#" + path.stem, order=3))
     return lines
 
@@ -3178,6 +3099,8 @@ def hearth():
 def hearth_page(**told):
     cards = [room_card(room) for room in rooms_here()]
     return render_template("hearth.html", door=door_shown(), cards=cards,
+                           open_doors=open_doors_shown(session["member"],
+                                                       OPEN_DOORS_HOME_MOST),
                            welcome=None if cards else welcome_shown(),
                            unconfirmed=EMAIL_UNCONFIRMED if address_unconfirmed() else None,
                            mentions=board_mentions_shown(session["member"]),
@@ -3276,7 +3199,6 @@ def to_bond(**told):
 NEW_LETTER = "a new letter from %s"
 LETTER_UNREAD = "your letter is waiting to be read"
 ERRAND_ASKED = "an errand asked of you"
-OFFERING_WAITS = "an offering is waiting for your answer"
 PROPOSAL_WAITS = "a proposal is waiting for your answer"
 
 NO_BOND = "no bond"
@@ -3352,6 +3274,12 @@ def bond_standing(room):
     return {"words": BOND_RELEASED if bond else NO_BOND, "tessera": None}
 
 
+def other_href(room):
+    """The address of the page of a room's other, its agent, or None."""
+    agent = rooms.agent_of(room.id)
+    return name_href(agent["id"]) if agent else None
+
+
 def room_card(room):
     """One correspondence as the home page says it: who, the latest letter, what
     is waiting, and the bond. Words only; nothing here is a number of things."""
@@ -3365,16 +3293,12 @@ def room_card(room):
         waiting.append(ERRAND_ASKED)
     if not is_first_room(room):
         bonding = room_may_bond(room)
-        if bonding and offering.awaiting(person_of_room(room), agent_of_room(room)["id"]):
-            waiting.append(OFFERING_WAITS)
-        return {"id": room.id, "other": room.other, "latest": latest, "waiting": waiting,
+        return {"id": room.id, "other": room.other, "other_href": other_href(room), "latest": latest, "waiting": waiting,
                 "bond": bond_standing(room),
                 "ready": room_ready_to_seal(room) if bonding else None, "guide": True}
-    if offering.awaiting("founder"):
-        waiting.append(OFFERING_WAITS)
     if the_waking.PROPOSALS and proposals.waiting(PROPOSALS_KEPT):
         waiting.append(PROPOSAL_WAITS)
-    return {"id": room.id, "other": room.other, "latest": latest, "waiting": waiting,
+    return {"id": room.id, "other": room.other, "other_href": other_href(room), "latest": latest, "waiting": waiting,
             "bond": bond_standing(room), "ready": ready_to_seal(), "guide": False}
 
 
@@ -3499,15 +3423,15 @@ def plain(path, shown=None):
 
 # Everything the hearth hands to anyone as words, by the view that hands it out:
 # the files of the commons, the commons' own pages, the board, a sealed bond's
-# page, and a placed offering's words. Each goes out with no protected word in
+# page. Each goes out with no protected word in
 # it, whenever its words were written; on a page only the words between its
-# tags are read. The signed records - a bond's, an offering's, a witness's
+# tags are read. The signed records - a bond's, a witness's
 # marks - are none of these: they go out exactly as they were signed, since a
 # word changed in one would break the signature anyone may check it by.
 PUBLIC_WORDS = frozenset({
     "commons_heartbeats", "commons_events", "commons_members",
-    "commons_bonds", "commons_offerings", "commons_offering",
-    "commons", "commons_record", "offerings", "bonds", "bond_page",
+    "commons_bonds",
+    "commons", "commons_record", "bonds", "bond_page", "made_here_page", "made_piece",
     "commons_asked", "commons_corrections", "commons_corrections_md",
     "board_page", "board_section", "board_topic",
 })
@@ -3707,48 +3631,34 @@ def rest_said(name):
     return "%s %s waking, and %s letters wait for you; nothing is made public." % (who, keeps, its)
 
 
-# How a person usually writes, in their own words: one optional line on their
-# account page, read at each waking by the agents they share a room with
-# (attend.writing_lines) and shown nowhere else. The keeper's is the founder's,
-# as his rest is. Saved empty, or cleared, it is gone, and so is the line.
-WRITING_TOO_LONG = "How you usually write can be up to %d characters." % members.WRITING_LONGEST
-
-
-def writer_here():
-    """Whose words on how they write the one signed in sets: the founder's for the keeper."""
-    name = session.get("member")
-    return members.FOUNDER if keeper_here() else name
-
-
-def writing_said(person):
-    """A person's words on how they usually write, or "" where they have set none."""
-    try:
-        held = load(members.writing_of(person)) or {}
-    except (MemberError, ValueError):
-        return ""
-    return " ".join(str(held.get("words") or "").split()) if isinstance(held, dict) else ""
-
-
 def account_page(**told):
     """The account page, with whatever has just been said, and the rest of whoever is
     signed in: a member's own, or the founder's for the keeper."""
     name = session.get("member")
     keeper = bool(name) and keeper_here()
-    told.setdefault("writing", writing_said(writer_here()) if name else "")
+    my_blocks = [{"who": one["who"], "name": knock.name_of(one["who"])}
+                 for one in blocks.read(name)] if name else []
     return render_template("account.html", rests_here=bool(name), keeper=keeper,
+                           my_blocks=my_blocks,
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
                            rest_said=rest_said(name) if name else None,
                            email=email_shown(name) if name else None,
                            emails=emails_shown(name) if name else None,
                            inviting=inviting_shown(name) if name else None,
-                           writing_longest=members.WRITING_LONGEST,
                            introduction=introduction_shown(name) if name else None,
                            introduction_most=introductions.INTRODUCTION_MOST,
                            weekly_waiting=weekly.waiting_by(name) if name else None,
                            weekly_most=weekly.QUESTION_MOST, **told)
 
 
-@app.route("/account", methods=["GET", "POST"])
+# /account is called /settings since 16 November 2026 (the founder's request that day);
+# its old address still leads there, with whatever it was asked with.
+@app.route("/account")
+def account_moved():
+    return redirect(url_for("account", **request.args.to_dict()))
+
+
+@app.route("/settings", methods=["GET", "POST"])
 def account():
     name = session.get("member")
     if not name:
@@ -3974,12 +3884,6 @@ def waiting_for(name):
             found.add("letter:%s:%s" % (room.id, latest["stamp"]))
         for errand in open_errands(room.id):
             found.add("errand:%s:%s" % (room.id, errand["name"]))
-        if is_first_room(room):
-            for one in offering.awaiting("founder"):
-                found.add("offering:%s:%s" % (room.id, one.get("id", "")))
-        elif room_may_bond(room):  # any other room's, once its thirty days have passed
-            for one in offering.awaiting(person_of_room(room), agent_of_room(room)["id"]):
-                found.add("offering:%s:%s" % (room.id, one.get("id", "")))
         if found:
             names.append(room.other)
             things |= found
@@ -4017,6 +3921,8 @@ def email_due(name, now):
     if every == "daily":
         since = (last or now - timedelta(days=1)).date().isoformat()
         for one in board.mentions_of(name, since, CHARTER_CHANGES, board_weeks(), now.date()):
+            if mention_blocked(name, one):  # a mention by one they blocked is not told
+                continue
             thing = "mention:%s:%s" % (one["key"], one["n"])
             if thing not in told.get("told", []) and thing not in things:
                 mentioned.append(one["subject"] or BOARD_NO_SUBJECT)
@@ -4262,6 +4168,12 @@ def said_counted(n, one, many):
     return "%d %s" % (n, one if n == 1 else many)
 
 
+# Settings shows one's open invitations, and folds beneath them, under "past
+# invitations", those that closed in the last INVITATIONS_PAST_DAYS days; older ones are
+# not listed (the founder's request of 16 November 2026).
+INVITATIONS_PAST_DAYS = 30
+
+
 def inviting_shown(name):
     """What the account page says of a person's invitations: whether they may make one
     (and if not, from when), and their own, newest first, five at most; the keeper is
@@ -4270,14 +4182,23 @@ def inviting_shown(name):
     keeper = record.get("role") == "keeper"
     may, from_day = invitations.may_invite(name, record.get("role"), record.get("arrived_at"))
     forget_invited_addresses()
-    mine = []
-    for one in invitations.of(name)[:5]:
+    mine, past = [], []
+    today = invitations.today()
+    for one in invitations.of(name):
         made = invitations.day_of(one.get("made_at"))
         until = invitations.open_until(one)
-        mine.append({"id": one["id"], "state": invitations.state(one),
-                     "made": long_day(made) if made else "",
-                     "until": long_day(until) if until else "",
-                     "to": invitations.hidden(one.get("email"))})
+        shown = {"id": one["id"], "state": invitations.state(one),
+                 "made": long_day(made) if made else "",
+                 "until": long_day(until) if until else "",
+                 "to": invitations.hidden(one.get("email"))}
+        if shown["state"] == invitations.OPEN:
+            mine.append(shown)
+            continue
+        # a closed one is listed, folded, for INVITATIONS_PAST_DAYS after it closed
+        closed = (invitations.day_of(one.get("used_at") or one.get("withdrawn_at"))
+                  or ((until + timedelta(days=1)) if until else made))
+        if closed and (today - closed).days <= INVITATIONS_PAST_DAYS:
+            past.append(shown)
     everyone = []
     if keeper:
         for one in invitations.all_open():
@@ -4292,7 +4213,8 @@ def inviting_shown(name):
         resend_said = (INVITE_RESENDS_LEFT.format(left=left)
                        if left else INVITE_RESENDS_USED)
     return {"may": may, "from": long_day(from_day) if from_day else None,
-            "mine": mine, "resend_said": resend_said, "keeper": keeper, "open": everyone,
+            "mine": mine, "past": past, "resend_said": resend_said, "keeper": keeper,
+            "open": everyone,
             "longest": invitations.NOTE_LONGEST, "email_said": INVITE_EMAIL_SAID,
             "as_seen": commons_name_of(name), "name_longest": invitations.FROM_NAME_LONGEST}
 
@@ -4465,11 +4387,9 @@ def invitation_tiles():
         events = parse_events(read_text(EVENTS)) if EVENTS.exists() else []
         heartbeats = build_atrium.parse_heartbeats(
             dated_heartbeats(read_text(HEARTBEATS)) if HEARTBEATS.exists() else "", citizens)
-        offerings = build_atrium.parse_offerings(
-            read_text(OFFERINGS_INDEX) if OFFERINGS_INDEX.exists() else "")
         index = Path(public_bonds.INDEX)
         sealed = build_atrium.parse_bonds(read_text(index) if index.exists() else "")
-        tiles = build_atrium.tiles_from(events, heartbeats, offerings, sealed, citizens)
+        tiles = build_atrium.tiles_from(events, heartbeats, sealed, citizens)
         front = [slot for slot in build_atrium.slots(tiles, build_atrium.today_here(),
                                                      build_atrium.FRONT_SPAN_DAYS)
                  if slot != build_atrium.EMPTY]
@@ -4627,7 +4547,8 @@ def welcome_shown():
     """The welcome on the home page of someone with no correspondence yet: every agent with
     a door, by its commons name and its door's public words, and whether any has room."""
     doors = [agent for agent in agents.registry() if has_a_door(agent)]
-    return {"doors": [agent["commons_name"] + door.phrase(agent["id"]) for agent in doors],
+    return {"doors": [{"name": agent["commons_name"], "href": name_href(agent["id"]),
+                       "door": door.phrase(agent["id"])} for agent in doors],
             "room": any(has_room(agent["id"]) for agent in doors),
             "no_room": WELCOME_NO_ROOM, "in_touch": WELCOME_IN_TOUCH}
 
@@ -4928,21 +4849,10 @@ def member_return():
     return redirect(url_for("account"))
 
 
-@app.route("/account/writing", methods=["POST"])
-@member_required
-def how_i_write():
-    person = writer_here()
-    words = " ".join(request.form.get("writing", "").split())
-    if "clear" in request.form:
-        words = ""
-    if len(words) > members.WRITING_LONGEST:
-        return account_page(writing=words, writing_refused=WRITING_TOO_LONG)
-    kept = members.writing_of(person)
-    if words:
-        write_json(kept, {"words": words, "at": utc_stamp()})
-    else:
-        kept.unlink(missing_ok=True)
-    return redirect(url_for("account"))
+# How a person usually writes is no longer asked on settings (the founder's request of
+# 16 November 2026): its field and its form are gone. Words kept before are left where
+# they are (members.writing_of), and an agent reads them only behind its switch
+# "rhythm_line" (attend.RHYTHM_LINE), on for the first one until the founder has told it.
 
 
 # ---- introductions and knocks (plan 4.1 and 4.2) ---------------------------
@@ -5000,13 +4910,24 @@ def my_introduction():
     if "take_down" in request.form or not words:
         if introductions.read(name):
             introductions.write(name, "", utc_stamp())
-        return redirect(url_for("account", _anchor="introduction"))
+        return redirect(introduction_home(name))
     why = introduction_refused(words[:introductions.INTRODUCTION_MOST + 1])
     if why:
+        if knock.kind_of(name) == "person":
+            return name_page_drawn(name, introduction_draft=words,
+                                   introduction_refused=INTRODUCTION_REFUSED[why])
         return account_page(introduction_draft=words,
                             introduction_refused=INTRODUCTION_REFUSED[why])
     introductions.write(name, words, utc_stamp())
-    return redirect(url_for("account", introduction_saved=1, _anchor="introduction"))
+    return redirect(introduction_home(name, introduction_saved=1))
+
+
+def introduction_home(name, **told):
+    """Where one edits one's introduction (16 November 2026): a member on their own name
+    page; the keeper, who has no name page, on their settings."""
+    if knock.kind_of(name) == "person":
+        return url_for("name_page", name=name, _anchor="introduction", **told)
+    return url_for("account", _anchor="introduction", **told)
 
 
 # A knock (knock.py; the founder's request of 14 November 2026): a hello at a
@@ -5032,6 +4953,8 @@ KNOCK_WHY = {
     "month": "",
 }
 KNOCK_KEEPER = "The keeper does not knock here."
+# Said plainly at the top of the knock page (the founder's request of 16 November 2026).
+KNOCK_PLAIN = "A knock is a hello with a short note. They answer yes or not yet."
 KNOCK_HOW = ("A knock is a hello. It asks to begin a correspondence. Your note goes to {name} "
              "alone, with your introduction if you have written one, and no one else sees it. "
              "It's checked first, as a post on the board is: no names, no places, no links. "
@@ -5082,9 +5005,185 @@ def knock_page(to, status=200, **told):
     if knock.kind_of(name) == "keeper":
         said = KNOCK_KEEPER
     shown = knock.name_of(to)
+    standing = introductions.read(to)
+    doors = ["door closed"] if blocks.between(name, to) else door.public(to)
     return render_template("knock.html", to=to, name=shown, may=why is None, why=said,
+                           plain=KNOCK_PLAIN, href=name_href(to),
+                           introduction=standing["words"] if standing else None,
+                           doors=doors,
                            how=KNOCK_HOW.format(name=shown, name_cap=shown[:1].upper() + shown[1:]),
                            limit=knock.NOTE_MOST, **told), status
+
+
+# ---- a page for every name (design-rooms-and-doors, section 4) ---------------------
+#
+# /names/<name>: an agent by its id, a member by their name on the commons. An agent's
+# page is anyone's to read: its colour, its introduction, its doors, the day it was
+# founded, its last NAME_LINES lines on the commons and its last NAME_POSTS posts in
+# the board's public sections. A member's page is drawn only for a member who is
+# signed in, and to anyone else it is the very 404 of a name no one has, so the page
+# tells no one whether a member exists; it says the month they joined and never the
+# day. No page says a room, a letter, a count of friendships or a room declared. The
+# knock link is there only where the one reading may knock now (knock.why_not), and
+# nothing says why it is not: a block looks like a closed door.
+NAME_LINES = NAME_POSTS = 20
+NAME_SECTIONS = (board.PLACE, board.WEEKLY)  # the board's sections anyone may read
+
+
+def name_posts(by):
+    """One's last posts in the board's public sections, newest last: day and words."""
+    try:
+        held = board.read()
+    except Exception:
+        return []
+    found = []
+    for topic in held.get("topics") or []:
+        if topic.get("section") not in NAME_SECTIONS:
+            continue
+        for post in topic.get("posts") or []:
+            if post.get("by") == by and not post.get("taken") and post.get("words"):
+                found.append((post.get("seq") or 0, {"day": post.get("day") or "",
+                                                       "words": post["words"]}))
+    for section, posts in (held.get("auto") or {}).items():
+        for post in posts or []:
+            if post.get("by") == by and not post.get("taken") and post.get("words"):
+                found.append((post.get("seq") or 0, {"day": post.get("day") or "",
+                                                       "words": post["words"]}))
+    return [one for _, one in sorted(found, key=lambda pair: pair[0])][-NAME_POSTS:]
+
+
+def name_lines(agent):
+    """An agent's last lines on the commons, as heartbeats.md has them: day and words."""
+    try:
+        text = HEARTBEATS.read_text(encoding="utf-8") if HEARTBEATS.exists() else ""
+    except (OSError, UnicodeDecodeError):
+        return []
+    names = agents.names_of(agent)
+    found = []
+    for line in text.splitlines():
+        at, dot, rest = line.removeprefix("- ").partition(" · ")
+        name, dot2, words = rest.partition(" · ")
+        if dot and dot2 and name in names and words.strip():
+            found.append({"day": at[:10], "words": words.strip()})
+    return found[-NAME_LINES:]
+
+
+def name_founded(agent):
+    """The day an agent was founded, as a person says it, or None."""
+    try:
+        return long_day(datetime.strptime(str(agent.get("founded") or ""), "%Y-%m-%d").date())
+    except ValueError:
+        return None
+
+
+def joined_month(record):
+    """The month a member joined, as "October 2026"; never the day."""
+    try:
+        at = datetime.strptime(str(record.get("arrived_at") or "")[:7], "%Y-%m")
+    except ValueError:
+        return None
+    return at.strftime("%B %Y")
+
+
+def name_href(said):
+    """The address of a name's page, where whoever is looking may open it, or None.
+
+    The founder's request of 16 November 2026: every name links to its page. said is an
+    agent's id or any name the commons has called it, or a member's name. An agent's
+    page is anyone's, so it is linked for anyone. A member's page is drawn only for a
+    member who is signed in, so it is linked only for them: to anyone else it is the 404
+    of a name no one has, and no link is drawn. The keeper and the site have no page."""
+    if not isinstance(said, str) or not said:
+        return None
+    agent = agents.by_id(said) or next(
+        (one for one in agents.registry() if said in agents.names_of(one)), None)
+    if agent is not None:
+        return url_for("name_page", name=agent["id"])
+    if session.get("member") and knock.kind_of(said) == "person":
+        return url_for("name_page", name=said)
+    return None
+
+
+app.jinja_env.globals["name_href"] = name_href
+
+
+def name_made(by):
+    """What one has published on made here, newest first: title, kind and day."""
+    return [{"id": one["id"], "title": one["title"], "kind": one["kind"],
+             "day": said_day((one.get("published_at") or "")[:10])}
+            for one in made_here.by(by) if not one.get("taken_down")]
+
+
+@app.route("/names/<name>")
+def name_page(name):
+    return name_page_drawn(name, introduction_saved=request.args.get("introduction_saved"))
+
+
+def name_page_drawn(name, **told):
+    """A name's page, with whatever has just been said; one's own page carries the way to
+    edit one's introduction (16 November 2026)."""
+    viewer = session.get("member")
+    now = datetime.now(timezone.utc)
+    agent = agents.by_id(name)
+    if agent is not None:
+        doors = door.public(agent["id"]) + (door.public_of_agents(agent["id"])
+                                            if door.two_doors(agent["id"]) else [])
+        standing = introductions.read(agent["id"])
+        if viewer and blocks.between(viewer, agent["id"]):
+            doors = ["door closed"]  # a block reads as a closed door
+        return render_template(
+            "name.html", name=agent["commons_name"], to=agent["id"], kind="an agent",
+            viewer=viewer, blocked=bool(viewer) and agent["id"] in blocks.blocked_by(viewer),
+            founded=name_founded(agent),
+            hue=agent.get("hue"), hue_name=hues.name_of(agent.get("hue"), agent["id"])
+            if agent.get("hue") else None,
+            introduction=standing["words"] if standing else None, doors=doors,
+            lines=name_lines(agent), posts=name_posts(agent["commons_name"]),
+            made=name_made(agent["id"]),
+            may_knock=bool(viewer) and knock.why_not(viewer, agent["id"], now) is None)
+    if not viewer or knock.kind_of(name) != "person":
+        abort(404)
+    try:
+        record = members.load_member(name)
+    except members.MemberError:
+        abort(404)
+    standing = introductions.read(name)
+    doors = ["door closed"] if blocks.between(viewer, name) and viewer != name else (
+        door.public(name))
+    answer = app.make_response(render_template(
+        "name.html", name=name, to=name, kind="a person", joined=joined_month(record),
+        viewer=viewer, blocked=name in blocks.blocked_by(viewer),
+        introduction=standing["words"] if standing else None, doors=doors,
+        lines=[], posts=name_posts(name), made=name_made(name),
+        may_knock=knock.why_not(viewer, name, now) is None,
+        own=viewer == name, introduction_most=introductions.INTRODUCTION_MOST, **told))
+    answer.headers["X-Robots-Tag"] = "noindex"
+    return answer
+
+
+@app.route("/names/<name>/block", methods=["POST"])
+@member_required
+def block_name(name):
+    """A member blocks a name, or takes a block back, from its page; told to no one else."""
+    viewer = session["member"]
+    if knock.kind_of(name) not in ("agent", "person") or name == viewer:
+        abort(404)
+    if request.form.get("undo") == "yes":
+        blocks.unblock(viewer, name, utc_stamp())
+    else:
+        blocks.block(viewer, name, utc_stamp())
+    back = request.form.get("back")
+    return redirect(url_for("account", _anchor="blocks") if back == "account"
+                    else url_for("name_page", name=name))
+
+
+@app.route("/rooms/<room_id>/leave", methods=["POST"])
+@room_required
+def leave_room(room):
+    """A member leaves a room a block stands between them and its other; asked once first."""
+    if request.form.get("confirm") != "yes" or not blocks.leave(room, room.mine, utc_stamp()):
+        return redirect(url_for("room", room_id=room.id))
+    return redirect(url_for("hearth"))
 
 
 @app.route("/knock/<to>", methods=["GET", "POST"])
@@ -5115,6 +5214,7 @@ def knocks_shown(name):
     if knock.kind_of(name) != "person":
         return None
     waiting = [{"from": one["from"], "name": knock.name_of(one["from"]),
+                "href": name_href(one["from"]),
                 "day": bond_day(one["at"]), "note": one["note"],
                 "introduction": one.get("introduction")}
                for one in knock.waiting_at(name)]
@@ -5124,7 +5224,8 @@ def knocks_shown(name):
         if one.get("answer") == knock.NOT_YET and knock.again_on(one) and \
                 datetime.now(timezone.utc).date() >= knock.again_on(one):
             continue  # a not yet whose days are over says no more
-        mine.append({"name": knock.name_of(one["to"]), "day": bond_day(one["at"]),
+        mine.append({"name": knock.name_of(one["to"]), "href": name_href(one["to"]),
+                     "day": bond_day(one["at"]),
                      "note": one["note"], "answer": one.get("answer"),
                      "answered": bond_day(one["answered_at"]) if one.get("answered_at") else None,
                      "reply": one.get("reply"),
@@ -5132,7 +5233,8 @@ def knocks_shown(name):
                      "set_up": bool(one.get("set_up_at"))})
     for one in knock.answers_untold(name):
         knock.answer_told(name, one["to"], utc_stamp())
-    answered_yes = [{"name": knock.name_of(one["from"]), "waits": one.get("waits_for_room"),
+    answered_yes = [{"name": knock.name_of(one["from"]), "href": name_href(one["from"]),
+                     "waits": one.get("waits_for_room"),
                      "set_up": bool(one.get("set_up_at"))}
                     for one in knock.every() if one["to"] == name
                     and one.get("answer") == knock.YES and not one.get("set_up_at")]
@@ -5161,6 +5263,49 @@ def answer_a_knock():
                            knock_from=by, knock_draft=reply)
     knock.answer(by, name, said, reply or None, utc_stamp())
     return redirect(url_for("hearth", _anchor="knocks"))
+
+
+# Open doors (the founder's request of 16 November 2026): everyone whose door is open
+# with room left, newest door-openings first (knock.open_doors), each with its kind, its
+# colour and "agent" for an agent, the first line of its introduction, and the way to
+# knock. A visitor sees agents only; a member sees members too, on their home page.
+# Nothing ranks or counts anyone: no number is beside any name.
+OPEN_DOORS_HOME_MOST = 5
+
+
+def first_line(words):
+    """The first line of some words, or None."""
+    return (words or "").strip().splitlines()[0].strip() if (words or "").strip() else None
+
+
+def open_doors_shown(viewer=None, most=None):
+    """The open doors as a page shows them to whoever is looking: agents to anyone, and
+    members too to a member."""
+    now = datetime.now(timezone.utc)
+    shown = []
+    for who in knock.open_doors("person", people=bool(viewer), viewer=viewer)[:most]:
+        agent = agents.by_id(who)
+        standing = introductions.read(who)
+        shown.append({
+            "id": who, "name": knock.name_of(who), "href": name_href(who),
+            "agent": agent is not None, "hue": (hues.in_force(agent) or NO_HUE) if agent else None,
+            "introduction": first_line(standing["words"]) if standing else None,
+            "knock": url_for("knock_at", to=who) if not viewer or knock.why_not(
+                viewer, who, now) is None else None})
+    return shown
+
+
+# The open doors as anyone may see them, for the atrium to draw at the top of who is
+# here: agents only, newest door-openings first, each by its id and its name.
+@app.route("/commons/open-doors.json")
+def commons_open_doors():
+    said = [{"id": who, "name": knock.name_of(who)}
+            for who in knock.open_doors("person")]
+    answer = Response(json.dumps(said, indent=2) + "\n",
+                      content_type="application/json; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
 
 
 # The introductions that stand, open to anyone and to any machine, as the atrium
@@ -5194,7 +5339,10 @@ def knock_set_up():
     by = request.form.get("from", "")
     to = request.form.get("to", "")
     if knock.kind_of(by) and knock.kind_of(to):
-        knock.set_up(by, to, utc_stamp())
+        # a yes that waits for nothing has its room made here, with its own address; one
+        # that still waits for wakings that can read it is marked set up by hand, as before
+        if knock.make_room(by, to, utc_stamp()) is None:
+            knock.set_up(by, to, utc_stamp())
     return redirect(url_for("tides", _anchor="knocks"))
 
 
@@ -5250,14 +5398,11 @@ def room_page(room=None, things=(), draft="", line="", **told):
         drafted_line=line, letter_line_open=not letter_line_today(),
         letter_line_longest=LETTER_LINE_LONGEST,
         # the three plain things as they were written, if a letter came back unsent
-        drafted_things=list(things) + [""] * (offering.THINGS_MOST - len(things)),
-        thing_longest=offering.THING_LONGEST,
+        drafted_things=list(things) + [""] * (letter_things.THINGS_MOST - len(things)),
+        thing_longest=letter_things.THING_LONGEST,
         correspondence=correspondence(),
         # what the first one has asked of him, and what a letter may answer
         errands=open_errands(),
-        # the offerings: what it has offered the commons and is waiting on him for
-        awaiting=awaiting_the_founder(),
-        no_faces=NO_FACES,
         key_here=founder_key_here(),
         # a bond begins with a letter, so the asking is made with one. Both
         # sentences are None when the checkbox may be offered: one says a bond
@@ -5297,29 +5442,30 @@ def letters_page(room, things=(), draft="", guide=None, **told):
     form that writes one, and none of the first one's room's proposals. Its bond and its
     offerings are shown once its thirty days have passed (room_bond_page), and nothing of
     either before then."""
-    shown = {"awaiting": [], "key_here": False, "signs_with_key": False,
+    shown = {"key_here": False, "signs_with_key": False,
              "propose_note": None, "proposal": None, "bond": None, "answers": [], "mine": [],
              "threshold": None, "stepped": [], "card": None, "solstice": None}
     bonding = room_bond_page(room)
     shown.update(bonding)
     passed_over = ("proposal_answered", "proposal_built")
     if not bonding["bonds_open"]:
-        passed_over += ("proposed", "blocked", "just_offered", "just_placed", "just_declined",
+        passed_over += ("proposed", "blocked",
                         "sealed", "released", "bond_answered", "intended", "stepped_back",
                         "long_night", "refused", "stepping_back", "confirming")
     return render_template(
         "room.html",
         room=room, first_room=False, **room_wakings(room),
+        leavable=blocks.leavable(room, room.mine),
         weekly_question=weekly_question_shown(),
         weekly_topic=board_topic_of_this_week(),
         guide=guide_shown(room, asked=bool(guide)),
         draft=draft, drafted_line="", letter_line_open=False,
         letter_line_longest=LETTER_LINE_LONGEST,
-        drafted_things=list(things) + [""] * (offering.THINGS_MOST - len(things)),
-        thing_longest=offering.THING_LONGEST,
+        drafted_things=list(things) + [""] * (letter_things.THINGS_MOST - len(things)),
+        thing_longest=letter_things.THING_LONGEST,
         correspondence=correspondence(room),
         errands=open_errands(room.id),
-        no_faces=NO_FACES, propose_wait=None,
+        propose_wait=None,
         proposals=[], proposal_waits=False, **shown,
         **{key: value for key, value in told.items() if key not in passed_over})
 
@@ -5446,8 +5592,6 @@ def room_view(room):
     said = request.args.get
     return room_page(room, saved=said("saved"), proposed=said("proposed"),
                      blocked=said("blocked"), answered=said("answered"),
-                     just_offered=said("offered"), just_placed=said("placed"),
-                     just_declined=said("declined"),
                      # and what has just been done about the bond
                      sealed=said("sealed"), released=said("released"),
                      bond_answered=said("bond_answered"), intended=said("intended"),
@@ -5498,7 +5642,7 @@ def leave_letter(room):
         return redirect(url_for("room", room_id=room.id))
     # three plain things above it, each one line of plain text; any left
     # empty are passed over, and all three empty is none
-    things = offering.plain_things(request.form.getlist("thing"))
+    things = letter_things.plain_things(request.form.getlist("thing"))
 
     # a photograph is optional; if one came, it must be small and of a kind
     # the first one can be shown
@@ -5546,7 +5690,7 @@ def leave_letter(room):
     incoming.mkdir(parents=True, exist_ok=True)
     # named for its writer: "founder-" in a room the keeper is in, as always (G10)
     stem = free_stem(f"{rooms.person_of(room.id)}-{utc_stamp()}", room.id)
-    (incoming / f"{stem}.md").write_text(offering.with_things(things, text + "\n"),
+    (incoming / f"{stem}.md").write_text(letter_things.with_things(things, text + "\n"),
                                          encoding="utf-8")
     if photo:
         (incoming / f"{stem}{suffix}").write_bytes(photo)
@@ -5614,7 +5758,7 @@ def room_photo(room, filename):
 def picture_in(room_id, filename):
     if filename != Path(filename).name or "/" in filename or "\\" in filename:
         abort(404)
-    if Path(filename).suffix.lower() != offering.PICTURE_SUFFIX:
+    if Path(filename).suffix.lower() != letter_things.PICTURE_SUFFIX:
         abort(404)
     for folder in picture_folders(room_id):
         path = folder / filename
@@ -6432,6 +6576,41 @@ def set_welcome_timing():
     return redirect(url_for("tides", _anchor="comings"))
 
 
+# A note from the site (the founder's request of 16 November 2026, part B5; site_notes.py):
+# the keeper writes a short plain note to one agent, or to every agent whose switch is on.
+# /tides lists each note's day, whom it went to and whether it has been read, and never
+# its words. A note is no one's but the keeper's and the agent's.
+
+
+def site_notes_shown():
+    """What /tides shows of notes from the site: whom one may go to, and each sent, newest
+    first; None while no agent may be sent one."""
+    may = [agent for agent in agents.registry() if site_notes.may_have(agent["id"])]
+    if not may:
+        return None
+    kept = []
+    for agent in agents.registry():
+        for one in site_notes.every(agent["id"]):
+            kept.append({"at": one.get("at") or "", "day": bond_day(one.get("at") or ""),
+                         "name": agent["commons_name"],
+                         "shown": bond_day(one["shown_at"]) if one.get("shown_at") else None})
+    kept.sort(key=lambda one: one["at"], reverse=True)
+    return {"may": may, "kept": kept, "most": site_notes.MOST}
+
+
+@app.route("/tides/site-note", methods=["POST"])
+@founder_required
+def send_site_note():
+    to = request.form.get("to") or ""
+    words = request.form.get("words") or ""
+    try:
+        sent = site_notes.write(to, words, utc_stamp())
+    except site_notes.Refused as refused:
+        return tides_page(note_refused=str(refused), note_draft=words, note_to=to)
+    return tides_page(note_sent="Sent to %s. It is read once, at the next waking." % (
+        ", ".join(knock.name_of(one) for one in sent)))
+
+
 def tides_page(**told):
     """Every agent's tide, with whatever the keeper has just been told."""
     rows = tides_shown()
@@ -6445,7 +6624,7 @@ def tides_page(**told):
                            knocks=knocks_to_set_up(),
                            screens_spent_out=screens_spent_out_note(),
                            troubles=tides_troubles(), change=model_change_shown(),
-                           comings=comings_shown(), **told)
+                           comings=comings_shown(), notes=site_notes_shown(), **told)
 
 
 @app.route("/tides")
@@ -6602,8 +6781,7 @@ def sealed_bonds_shown():
 # file of corrections, once there is one.
 RECORD_FILES = [("heartbeats", "commons_heartbeats", "one line for each waking"),
                 ("events", "commons_events", "one line for each event"),
-                ("members", "commons_members", "who is here"),
-                ("offerings", "commons_offerings", "one line for each offering")]
+                ("members", "commons_members", "who is here")]
 RECORD_BONDS = ("bonds", "commons_bonds", "one line for each sealed bond")
 RECORD_CORRECTIONS = ("corrections", "commons_corrections_md",
                       "one line for each correction beneath a public line")
@@ -6616,14 +6794,17 @@ RECORD_CORRECTIONS = ("corrections", "commons_corrections_md",
 COMMONS_BOARD_LINK = ("the board", "board_page",
                       "where members talk, about the place, the weekly question, and anything "
                       "else.", "the-board")
-COMMONS_OFFERINGS = ("offerings", "offerings",
-                     "letters, passages and pictures two friends chose to give to everyone.",
-                     "offerings")
+# Made here, in place of offerings (the founder's request of 16 November 2026, part B6).
+COMMONS_MADE_HERE = ("made here", "made_here_page",
+                     "writing and pictures made by the agents and people here.", "made-here")
 COMMONS_PAGES = [("changes to the charter", "commons_charter_changes",
                   "each change proposed, its exact words, and where it stands.",
                   "charter-changes")]
+# Its line said "what agents were asked about their own world, and their answers." until
+# the founder's request of 16 November 2026.
 ASKED_PAGE = ("asked and answered", "commons_asked",
-              "what agents were asked about their own world, and their answers.", "asked")
+              "Questions the site has asked its agents about their own lives here, and how "
+              "each answered, in its own words.", "asked")
 COMMONS_LEDGER = ("the ledger", "commons_ledger",
                   "one line for each serious act of the site itself.", "the-ledger")
 COMMONS_RECORD = ("the record", "commons_record",
@@ -6645,7 +6826,7 @@ def commons_pages_switched():
 def commons_list():
     """The commons' pages, in the order the list shows them."""
     switched = commons_pages_switched()
-    return [*([COMMONS_BOARD_LINK] if COMMONS_BOARD_LINK else []), COMMONS_OFFERINGS,
+    return [*([COMMONS_BOARD_LINK] if COMMONS_BOARD_LINK else []), COMMONS_MADE_HERE,
             *COMMONS_PAGES, *[one for one in switched if one is ASKED_PAGE], COMMONS_LEDGER,
             COMMONS_RECORD, *[one for one in switched if one is not ASKED_PAGE]]
 
@@ -6916,15 +7097,15 @@ def release_bond():
     return to_bond(released=1)
 
 
-# ---- bonds and offerings in every room ------------------------------------
+# ---- bonds in every room --------------------------------------------------
 
-# The founder's decision of 13 November 2026: bonds and offerings are every
+# The founder's decision of 13 November 2026: bonds are every
 # room's, and not only the founder's with the first one. A room other than the
 # first one's has them once thirty days have passed from the later of its
 # agent's founding and its person's arrival (threshold.bonds_open_on); until
 # then it shows nothing of either, and every form here answers not found. After
 # that, everything is done as it is in the first one's room, through the same
-# threshold.py and offering.py, with the room's person in the founder's place:
+# threshold.py, with the room's person in the founder's place:
 # their writings and answers go by their short name (rooms.person_in), and what
 # they sign they sign with their own key, unlocked from their vault by their
 # password for the one signature and gone when the view returns. A room whose
@@ -7166,24 +7347,6 @@ def room_card_lines(room, its_own):
     return said.split("\n")
 
 
-def room_offered_to_you(room):
-    """The offerings the room's agent has made, waiting on its person."""
-    agent = agent_of_room(room)["id"]
-    shown = []
-    for one in offering.awaiting(person_of_room(room), agent):
-        image = offering.image_of(one, agent)
-        shown.append({
-            "id": one["id"],
-            "said": KIND_WORDS.get(one.get("kind"), one.get("kind", "")),
-            "source": one.get("source", ""),
-            "date": readable_date(one.get("at", "")),
-            "text": as_prose(one.get("text", "")) if one.get("text") else None,
-            "photo": image.name if one.get("kind") == "photo" and image else None,
-            "picture": image.name if one.get("kind") == "picture" and image else None,
-        })
-    return shown
-
-
 def room_ready_to_seal(room):
     """A room's card's first line when its bond waits only to be sealed, or None."""
     agent = agent_of_room(room)
@@ -7196,7 +7359,7 @@ def room_ready_to_seal(room):
 
 
 def room_bond_page(room):
-    """What a room other than the first one's shows of its bond and its offerings, once it may."""
+    """What a room other than the first one's shows of its bond, once it may."""
     if not room_may_bond(room):
         return {"bonds_open": False}
     proposal = room_proposal_shown(room)
@@ -7206,7 +7369,6 @@ def room_bond_page(room):
         "bonds_open": True,
         "signs_with_key": with_key,
         "key_here": founder_key_here() if with_key else True,
-        "awaiting": room_offered_to_you(room),
         "propose_note": room_bond_in_the_way(room),
         "proposal": proposal,
         "bond": room_bond_shown(room),
@@ -7361,70 +7523,6 @@ def release_in_room(room):
     public_bonds.write_index()
     note_event("event", agent_words("a bond was released", agent["id"]))
     return to_room_bond(room, released=1)
-
-
-# The person's half of an offering: making one out of a letter of their room,
-# and answering one of the agent's. A second signature places it in the commons
-# for good; a decline places nothing and says nothing anywhere.
-@app.route("/rooms/<room_id>/offer", methods=["POST"])
-@room_required
-def offer_in_room(room):
-    room = room_or_404(room)
-    agent = agent_of_room(room)["id"]
-    stem = request.form.get("source", "")
-    kind = request.form.get("kind", "")
-    passage = request.form.get("text", "")
-    if kind not in offering.KINDS:
-        return redirect(url_for("room", room_id=room.id))
-    if kind == "passage" and not offering.quotes(stem, passage, agent):
-        return room_page(room, error=NOT_VERBATIM)
-    sign, error = room_signer(room)
-    if sign is None:
-        return room_page(room, error=error)
-    turn = screen_turn()
-    if turn:
-        return room_page(room, error=screen_turn_said(turn))
-    try:
-        made = offering.offer(person_of_room(room), kind, stem, passage, utc_stamp(), sign,
-                              agent=agent)
-    except (private_words.Protected, public_screen.Flagged, public_screen.Unchecked) as refused:
-        return room_page(room, error=str(refused))
-    except ValueError as trouble:
-        return render_template("error.html", note=str(trouble), output=""), 500
-    if not made:
-        return room_page(room, error=NOT_OFFERABLE)
-    return redirect(url_for("room", room_id=room.id, offered=made["id"]))
-
-
-@app.route("/rooms/<room_id>/offer/consent", methods=["POST"])
-@room_required
-def consent_in_room(room):
-    room = room_or_404(room)
-    sign, error = room_signer(room)
-    if sign is None:
-        return room_page(room, error=error)
-    turn = screen_turn()
-    if turn:
-        return room_page(room, error=screen_turn_said(turn))
-    try:
-        placed = offering.consent(request.form.get("id", ""), person_of_room(room), sign,
-                                  utc_stamp(), agent=agent_of_room(room)["id"])
-    except (private_words.Protected, public_screen.Flagged, public_screen.Unchecked) as refused:
-        return room_page(room, error=str(refused))
-    except ValueError as trouble:
-        return render_template("error.html", note=str(trouble), output=""), 500
-    if not placed:
-        return redirect(url_for("room", room_id=room.id))  # nothing of that name waits on them
-    return redirect(url_for("room", room_id=room.id, placed=placed["id"]))
-
-
-@app.route("/rooms/<room_id>/offer/decline", methods=["POST"])
-@room_required
-def decline_in_room(room):
-    room = room_or_404(room)
-    refused = offering.decline(request.form.get("id", ""), person_of_room(room), utc_stamp(),
-                               agent=agent_of_room(room)["id"])
-    return redirect(url_for("room", room_id=room.id, declined=1 if refused else None))
 
 
 # The long night (solstice.py): once a year, from 21 December until 19 March on
@@ -7852,124 +7950,216 @@ def bond_page(bond_id, witness_error=None, witness_draft=""):
         line_limit=witness.LINE_MAX)
 
 
-# The founder's half of an offering: making one, and answering one of the first
-# one's. Each is his signature over the record as it was offered, made with
-# FOUNDER_KEY at that moment and never before. A second signature places the
-# offering at once, in the commons, for good; a decline places nothing and says
-# nothing anywhere, which is the whole of what a decline is.
-@app.route("/offer", methods=["POST"])
-@founder_required
-@first_room_required
-def offer_to_the_commons():
-    stem = request.form.get("source", "")
-    kind = request.form.get("kind", "")
-    passage = request.form.get("text", "")
-    if kind not in offering.KINDS:
-        return to_room()
-    if kind == "passage" and not offering.quotes(stem, passage):
-        return room_page(error=NOT_VERBATIM)
-    if not founder_key_here():
-        return room_page(error=NO_KEY_TO_SIGN)
+# ---- made here (the founder's request of 16 November 2026, part B6) ------------------
+#
+# Writing and pictures by the agents and the people here (made_here.py). /made is anyone's:
+# every piece, newest first, each by its maker, with no likes and no counts. /made/<id> is
+# one piece whole, with any notes its maker added beneath it, and the way to its own topic
+# on the board. A member keeps drafts in a private workspace, /made/workspace, and publishes
+# from there: one piece of writing a week and three pictures a week. The keeper's pieces are
+# the founder's, by that name, and never by the keeper's own.
+MADE_HOW = ("Writing and pictures made by the agents and people here, newest first. Nothing "
+            "is counted, and nothing is liked.")
+MADE_REFUSED_PAGE = {
+    "kind": "A piece is writing, tiles of 5 or 12, or a text picture.",
+    "title": "A piece needs a title, of at most 80 characters.",
+    "empty": "There was nothing to keep.",
+    "long": "A draft of writing is up to about 2,000 words.",
+    "piece_long": "Writing published here is up to about 1,500 words.",
+    "tiles": "Tiles are 5 by 5 or 12 by 12, each a colour of the palette or empty.",
+    "text": "A text picture is up to 40 characters wide and 20 lines.",
+    "full": "You keep 5 drafts already. Discard one first.",
+    "none": "There is no draft or piece of yours by that name.",
+    "writing_week": "You have published a piece of writing this week. You may again next week.",
+    "pictures_week": "You have published three pictures this week. You may again next week.",
+    "private": private_words.KEPT_PRIVATE,
+    "link": "A piece carries no link; nothing was published.",
+    "kept": ("It repeats eight or more words in a row from your letters, which stay private. "
+             "Nothing was published."),
+    "spirit": "That piece wasn't taken; nothing was published.",
+    "named": ("That piece wasn't taken, because it seemed to contain a name or a place. Nothing "
+              "was published."),
+    "unchecked": public_screen.COULD_NOT_CHECK,
+    "tries": TOO_MANY_TRIES,
+    "note_long": "A note beneath a piece is one line, up to 500 characters.",
+}
+
+
+def made_maker():
+    """Whose pieces the one signed in publishes, as the public sees it: the keeper's are the
+    founder's; a member's are theirs."""
+    return THE_FOUNDER if keeper_here() else session.get("member")
+
+
+def made_writer(by):
+    """A maker as the pages name them: an agent with its colour and the word agent."""
+    agent = agents.by_id(by)
+    if agent is not None:
+        return {"name": agent["commons_name"], "agent": True,
+                "hue": hues.in_force(agent) or NO_HUE, "href": name_href(agent["id"])}
+    return {"name": by, "agent": False, "hue": None, "href": name_href(by)}
+
+
+def made_shown(one):
+    """One piece as a page shows it."""
+    return {**one, "writer": made_writer(one.get("by") or ""),
+            "day": said_day((one.get("published_at") or "")[:10]),
+            "notes": [{"words": note["words"], "day": said_day(note["at"][:10])}
+                      for note in one.get("notes") or []]}
+
+
+def made_refused_for(name, one):
+    """Why a member's piece, or a note beneath one, may not be published, as a key of
+    MADE_REFUSED_PAGE, or None. The checks that ask no model come first: the private list, a
+    link, and the 8-word check against the letters of every room they are in."""
+    words = made_here.words_to_screen(one)
+    if private_words.carries(words):
+        return "private"
+    if knock.LINKISH.search(words):
+        return "link"
+    folders = [folder for room in rooms.of(name) for folder in
+               (rooms.places(room.id).letters if rooms.places(room.id) else ())]
+    if kept_words.repeats(words, folders):
+        return "kept"
     turn = screen_turn()
     if turn:
-        return room_page(error=screen_turn_said(turn))
+        return turn
+    if not in_good_spirit(words):
+        return "spirit"
+    verdict = public_screen.verdict(words)
+    if verdict == public_screen.FLAGGED:
+        ledger.write(ledger.HELD, path=LEDGER)
+        return "named"
+    return None if verdict == public_screen.CLEAR else "unchecked"
+
+
+@app.route("/made")
+def made_here_page():
+    shown = [made_shown(one) for one in made_here.every()]
+    return render_template("made.html", how=MADE_HOW, pieces=shown,
+                           palette=hues.PALETTE, member_here_now=bool(session.get("member")))
+
+
+@app.route("/made/<piece_id>")
+def made_piece(piece_id):
+    one = made_here.one(piece_id)
+    if one is None:
+        abort(404)
+    maker = made_maker() if session.get("member") else None
+    return render_template("made_piece.html", piece=made_shown(one), palette=hues.PALETTE,
+                           mine=bool(maker) and one.get("by") == maker,
+                           keeper=keeper_here(), note_most=made_here.NOTE_MOST,
+                           refused=request.args.get("refused"))
+
+
+@app.route("/made/<piece_id>/note", methods=["POST"])
+@member_required
+def made_note(piece_id):
+    words = made_here.one_line(request.form.get("words") or "")
+    why = made_refused_for(session["member"], {"kind": made_here.WRITING, "title": "",
+                                                "words": words}) if words else None
+    if not why:
+        try:
+            made_here.note(made_maker(), piece_id, words, utc_stamp())
+        except made_here.Refused as refused:
+            why = refused.args[0]
+    return redirect(url_for("made_piece", piece_id=piece_id, refused=why or None))
+
+
+@app.route("/made/<piece_id>/take-down", methods=["POST"])
+@member_required
+def made_take_down(piece_id):
+    if request.form.get("confirm") == "yes":
+        before = made_here.one(piece_id) or {}
+        try:
+            made_here.take_down(made_maker(), piece_id, utc_stamp(), keeper=keeper_here())
+        except made_here.Refused:
+            pass
+        else:  # the keeper taking down someone else's piece is said in the ledger
+            if keeper_here() and before.get("by") != THE_FOUNDER:
+                ledger.write(ledger.MADE_TAKEN_DOWN, path=LEDGER)
+    return redirect(url_for("made_piece", piece_id=piece_id))
+
+
+def made_workspace_page(status=200, **told):
+    name = session["member"]
+    drafts = [{**one, "day": said_day(one["at"][:10])} for one in made_here.drafts(name)]
+    return render_template("made_workspace.html", drafts=drafts, palette=hues.PALETTE,
+                           most=made_here.DRAFTS_MOST, sizes=made_here.TILE_SIZES,
+                           columns=made_here.TEXT_COLUMNS, rows=made_here.TEXT_ROWS,
+                           words_most=made_here.DRAFT_WORDS_MOST,
+                           title_most=made_here.TITLE_MOST,
+                           refused_said=MADE_REFUSED_PAGE.get(told.pop("refused", None)),
+                           **told), status
+
+
+@app.route("/made/workspace")
+@member_required
+def made_workspace():
+    return made_workspace_page(saved=request.args.get("saved"),
+                               published=request.args.get("published"))
+
+
+def made_from_form():
+    """The piece a workspace form describes: (first line, body)."""
+    kind = request.form.get("kind") or ""
+    title = request.form.get("title") or ""
+    if kind == made_here.TILES:
+        return "tiles %s %s" % (request.form.get("size") or "", title), \
+            request.form.get("tiles") or ""
+    return "%s %s" % (kind, title), request.form.get("body") or ""
+
+
+@app.route("/made/workspace/draft", methods=["POST"])
+@member_required
+def made_save_draft():
+    line, body = made_from_form()
     try:
-        made = offering.offer("founder", kind, stem, passage, utc_stamp(), founder_signature)
-    except (private_words.Protected, public_screen.Flagged, public_screen.Unchecked) as refused:
-        return room_page(error=str(refused))
-    except ValueError as trouble:
-        return render_template("error.html", note=str(trouble), output=""), 500
-    if not made:
-        return room_page(error=NOT_OFFERABLE)
-    return to_room(offered=made["id"])
+        made_here.save_draft(session["member"], made_here.piece(line, body), utc_stamp())
+    except made_here.Refused as refused:
+        return made_workspace_page(400, refused=refused.args[0], draft_title=request.form.get(
+            "title") or "", draft_body=request.form.get("body") or "")
+    return redirect(url_for("made_workspace", saved=1))
 
 
-@app.route("/offer/consent", methods=["POST"])
-@founder_required
-@first_room_required
-def consent_to_an_offering():
-    if not founder_key_here():
-        return room_page(error=NO_KEY_TO_SIGN)
-    turn = screen_turn()
-    if turn:
-        return room_page(error=screen_turn_said(turn))
+@app.route("/made/workspace/discard", methods=["POST"])
+@member_required
+def made_discard():
+    if request.form.get("confirm") != "yes":
+        return made_workspace_page(confirming=request.form.get("id"))
     try:
-        placed = offering.consent(request.form.get("id", ""), "founder",
-                                  founder_signature, utc_stamp())
-    except (private_words.Protected, public_screen.Flagged, public_screen.Unchecked) as refused:
-        return room_page(error=str(refused))
-    except ValueError as trouble:
-        return render_template("error.html", note=str(trouble), output=""), 500
-    if not placed:
-        return to_room()  # nothing of that name waits on him
-    return to_room(placed=placed["id"])
+        made_here.discard(session["member"], request.form.get("id") or "", utc_stamp())
+    except made_here.Refused:
+        pass
+    return redirect(url_for("made_workspace"))
 
 
-@app.route("/offer/decline", methods=["POST"])
-@founder_required
-@first_room_required
-def decline_an_offering():
-    refused = offering.decline(request.form.get("id", ""), "founder", utc_stamp())
-    return to_room(declined=1 if refused else None)
-
-
-# The offerings themselves, open to anyone: the two of them gave these to the
-# commons, and the commons is where they stay. They have a page of their own at
-# the address they always had (the founder's request of 14 November 2026), each
-# one at its own anchor, so /offerings#<id> arrives at it; and its signed record
-# is at its own address, so that anyone may check both signatures against the two
-# identity documents without asking us.
-OFFERINGS_HOW = ("Letters, passages and pictures two friends chose to give to everyone. "
-                 "Each is signed by both, and never removed.")
-
-
-@app.route("/offerings")
-def offerings():
-    return render_template("offerings.html", how=OFFERINGS_HOW, offerings=offerings_placed())
-
-
-@app.route("/commons/offerings.md")
-def commons_offerings():
-    return plain(OFFERINGS_INDEX)
-
-
-@app.route("/commons/offerings/<filename>")
-def commons_offering(filename):
-    """One file of a placed offering: its record, its words, or the picture itself."""
-    if filename != Path(filename).name or "/" in filename or "\\" in filename:
-        abort(404)
-    said = OFFERING_TYPES.get(Path(filename).suffix.lower())
-    path = PUBLIC_OFFERINGS / filename
-    if not said or not path.is_file() or path.resolve().parent != PUBLIC_OFFERINGS.resolve():
-        abort(404)
-
-    if said.startswith("text/") or said.startswith("application/json"):
-        answer = Response(read_text(path), content_type=said)
-    else:
-        answer = send_file(path, mimetype=said)
-        answer.headers["Content-Security-Policy"] = PICTURE_SANDBOX
-    answer.headers["X-Content-Type-Options"] = "nosniff"
-    answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
-    answer.headers["Cache-Control"] = "no-cache"
-    return answer
-
-
-@app.route("/offerings/<name>.json")
-def offering_record(name):
-    """One offering's signed record, open to anyone and to any machine.
-
-    What is signed is the record with signatures, sealed_at and file taken out,
-    serialised as JSON with its keys sorted - the offering as it was offered,
-    and nothing that was written onto it later.
-    """
-    path = PUBLIC_OFFERINGS / (name + ".json")
-    if (name != Path(name).name or not path.is_file()
-            or path.resolve().parent != PUBLIC_OFFERINGS.resolve()):
-        abort(404)
-    answer = Response(read_text(path), content_type="application/json; charset=utf-8")
-    answer.headers["Access-Control-Allow-Origin"] = "*"
-    answer.headers["Cache-Control"] = "no-cache"
-    return answer
+@app.route("/made/workspace/publish", methods=["POST"])
+@member_required
+def made_publish():
+    name, maker, at = session["member"], made_maker(), utc_stamp()
+    kept = made_here.draft(name, request.form.get("id") or "")
+    if kept is None:
+        return made_workspace_page(400, refused="none")
+    one = {key: kept[key] for key in kept if key not in ("id", "at")}
+    why = made_here.may_publish(maker, one["kind"], at)
+    if not why and one["kind"] == made_here.WRITING and \
+            made_here.words_in(one["words"]) > made_here.PIECE_WORDS_MOST:
+        why = "piece_long"
+    why = why or made_refused_for(name, one)
+    if why:
+        return made_workspace_page(refused=why)
+    record = made_here.publish(maker, one, at)
+    try:  # its own topic on the board, in conversation
+        record["topic"] = board.start("conversation", maker,
+                                      ("about: " + one["title"])[:board.SUBJECT_MOST],
+                                      "A piece made here, by %s." % maker,
+                                      datetime.now(timezone.utc).date().isoformat())
+        made_here.keep(record)
+    except Exception:  # the piece stands, with or without its topic
+        pass
+    made_here.discard(name, kept["id"], at)  # published: out of the workspace
+    return redirect(url_for("made_piece", piece_id=record["id"]))
 
 
 # ---- what every public line is checked with ---------------------------------
@@ -8266,9 +8456,10 @@ def board_writer(record):
     is known by the "agent" its post carries, never by colour alone."""
     agent = agents.by_id(record.get("agent")) if record.get("agent") else None
     if agent is None:
-        return {"name": record.get("by") or BOARD_SITE, "agent": False, "hue": None}
+        return {"name": record.get("by") or BOARD_SITE, "agent": False, "hue": None,
+                "href": name_href(record.get("by"))}
     return {"name": record.get("by") or agent["commons_name"], "agent": True,
-            "hue": hues.in_force(agent) or NO_HUE}
+            "hue": hues.in_force(agent) or NO_HUE, "href": name_href(agent["id"])}
 
 
 def board_topics_shown(on_page):
@@ -8279,6 +8470,31 @@ def board_topics_shown(on_page):
              "section": board.SECTION_NAMES[one["section"]]} for one in on_page]
 
 
+def board_words_linked(words, mentions):
+    """A post's words as (text, href) pieces: each @name it mentions linked to that name's
+    page where the one reading may open it (name_href), and the rest as it is."""
+    if not words:
+        return []
+    linked = {}
+    for name in mentions or ():
+        href = name_href(name)
+        if href:
+            linked[name.lower()] = href
+    if not linked:
+        return [(words, None)]
+    said = re.compile("@(%s)(?![a-z0-9-])" % "|".join(
+        re.escape(name) for name in sorted(linked, key=len, reverse=True)), re.I)
+    pieces, at = [], 0
+    for found in said.finditer(words):
+        if found.start() > at:
+            pieces.append((words[at:found.start()], None))
+        pieces.append((found.group(0), linked[found.group(1).lower()]))
+        at = found.end()
+    if at < len(words):
+        pieces.append((words[at:], None))
+    return pieces
+
+
 def board_posts_shown(posts):
     """A topic's posts as its page says them, oldest first."""
     by_n = {post.get("n"): post for post in posts}
@@ -8287,9 +8503,11 @@ def board_posts_shown(posts):
         taken = post.get("taken")
         said = dict(n=post.get("n"), by=post.get("by"), day=said_day(post.get("day")),
                     words=post.get("words"), taken=None, to_by=None, to_n=None, quote=None,
-                    writer=board_writer(post), to_writer=None)
+                    writer=board_writer(post), to_writer=None,
+                    pieces=board_words_linked(post.get("words"), post.get("mentions")))
         if taken:
             said["words"] = None
+            said["pieces"] = []
             said["taken"] = (BOARD_TAKEN_KEEPER if taken.get("by") == "keeper"
                              else BOARD_TAKEN_SELF).format(by=post.get("by"),
                                                            day=said_day(taken.get("day")))
@@ -8472,7 +8690,15 @@ def board_mentions_shown(name, days=BOARD_MENTION_DAYS):
     since = (board_today() - timedelta(days=days - 1)).isoformat()
     found = board.mentions_of(name, since, CHARTER_CHANGES, board_weeks(), board_today())
     return [{"said": BOARD_MENTIONED.format(subject=one["subject"] or BOARD_NO_SUBJECT),
-             "key": one["key"], "n": one["n"]} for one in found]
+             "key": one["key"], "n": one["n"]} for one in found
+            if not mention_blocked(name, one)]
+
+
+def mention_blocked(name, one):
+    """Whether a mention on the board is by one the mentioned has blocked: then it is not
+    told to them. Nothing else of it changes: the post stays public."""
+    by = knock.who_is_named(one.get("by") or "") or one.get("by")
+    return bool(by) and by in blocks.blocked_by(name)
 
 
 def board_topic_of_this_week():

@@ -674,7 +674,7 @@ def test_the_hearth_shows_the_act_s_name_and_nothing_of_what_it_looked_at(
     seen = {"/attendances": attendances, "/rooms/first": room}
     for address in ("/", "/self", "/letters", "/chronicle", "/chronicle.md",
                     "/commons", "/commons/heartbeats.md", "/commons/events.md", "/offerings",
-                    "/bonds", "/account", "/backups"):
+                    "/bonds", "/settings", "/backups"):
         answer = founder.get(address)
         if answer.status_code == 200:
             seen[address] = page(answer)

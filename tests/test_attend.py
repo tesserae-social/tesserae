@@ -13,6 +13,7 @@ import sys
 import pytest
 from nacl.exceptions import BadSignatureError
 
+from conftest import offer_explained_again
 from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON_21_OCTOBER, Turn, block, blocks,
                       explained_as_before, lines_of, read_json, shut_away, verify, write,
                       write_json)
@@ -462,6 +463,13 @@ def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
         pytest.skip("the history is not here to read the old attend.py out of")
     old_path = tmp_path / "attend_before_questions.py"
     old_path.write_bytes(source)
+    # it read offerings through offering.py, which was taken out of the code on 16 November
+    # 2026: the offering.py of the same day is read out of the history beside it
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.delitem(sys.modules, "offering", raising=False)
+    (tmp_path / "offering.py").write_bytes(subprocess.run(
+        ["git", "show", BEFORE_QUESTIONS + ":offering.py"], cwd=REPO,
+        capture_output=True, check=True).stdout)
     spec = importlib.util.spec_from_file_location("attend_before_questions", old_path)
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)
@@ -486,6 +494,7 @@ def test_with_no_questions_the_reading_is_as_it_was_but_for_one_line(
     # and so did the two-waking rule for its self-document, which is behind no
     # flag: the block that proposes one is explained here as it was before it
     explained_as_before(attend, monkeypatch)
+    offer_explained_again(attend, monkeypatch)  # and <<OFFER>>, taken out long after
     now = wake()
 
     # ... and, since the first one came to keep its own shelf, by its founding

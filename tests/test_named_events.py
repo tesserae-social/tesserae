@@ -1,8 +1,8 @@
 """Lines of the record named for an agent, read before any is written.
 
 Stage 6a-i of the work that lets the tide wake more than one agent (the stage 6
-proposal, 27 October 2026). From 6a-ii on, a pause, a stop, a release, an
-offering and a seal will carry the commons name of the agent they are for,
+proposal, 27 October 2026). From 6a-ii on, a pause, a stop, a release and a seal
+will carry the commons name of the agent they are for,
 first, with a middot after it:
 
     2026-11-02 · event · the first one · the tide paused
@@ -10,8 +10,8 @@ first, with a middot after it:
 Here the readers learn that shape: agents.named(), and each agent's book
 (hearth.commons_lines). In 6a-ii the writers name the agent too
 (agents.event_words): attend.py at a rest of its own and at a release, the
-hearth at a stop, its lifting and a rest ended, and offering.py at a placing. A
-seal names both parties in its words already, so nothing goes before them. The
+hearth at a stop, its lifting and a rest ended. (An offering's line was named
+too, until offerings were taken out of the code on 16 November 2026.) A seal names both parties in its words already, so nothing goes before them. The
 word, a founding, the founder's letters and the bench are never named. The
 first one's reading is the reading it was, held by READING_NOW; the tide's
 fingerprint was cut again for its three named lines.
@@ -44,7 +44,6 @@ RECORD = ("2026-09-02 · word · the word was published\n"
           "2026-10-20 · founding · the scratch one was founded\n"
           "2026-11-02 · event · the first one · the tide paused\n"
           "2026-11-03 · event · the scratch one · the tide paused\n"
-          "2026-11-04 · offering · the scratch one · an offering was placed\n"
           "2026-11-05 · event · the first one · the tide resumed\n")
 
 
@@ -84,7 +83,6 @@ def test_every_shape_of_line_is_read(hearth, two):
         ("2026-10-20", "founding", None),
         ("2026-11-02", "event", ("first", "the tide paused")),
         ("2026-11-03", "event", ("second", "the tide paused")),
-        ("2026-11-04", "offering", ("second", "an offering was placed")),
         ("2026-11-05", "event", ("first", "the tide resumed")),
     ]
 
@@ -121,7 +119,7 @@ def test_a_seal_is_read_only_as_a_seal(two):
                   "a bond was made between the founder and the scratch one",
                   "the bond with the scratch one"):
         assert agents.named("seal", words) is None, words
-    for kind in ("event", "offering", "word", "founding", "letter"):
+    for kind in ("event", "offering", "word", "founding", "letter"):  # offering: no longer named
         assert agents.named(kind, "a bond was sealed between the founder and the scratch one") \
             is None
 
@@ -187,9 +185,8 @@ def test_a_renamed_agents_old_lines_stay_its_own(hearth, commons, monkeypatch, t
     assert (found["id"], rest) == ("second", "the tide paused")
     assert book(hearth, "second") == [("2026-10-20", "the scratch one was founded"),
                                       ("2026-11-03", "the tide paused"),
-                                      ("2026-11-04", "an offering was placed"),
                                       ("2026-11-06", "the tide resumed")]
-    assert not {"2026-11-03", "2026-11-04", "2026-11-06"} & {day for day, _ in book(hearth)}
+    assert not {"2026-11-03", "2026-11-06"} & {day for day, _ in book(hearth)}
 
 
 def test_formerly_is_a_list_of_names(monkeypatch, tmp_path):
@@ -234,8 +231,7 @@ def test_the_first_ones_book_has_no_other_agents_lines(hearth, commons, two):
 def test_another_agents_book_has_its_own_lines_and_its_founding(hearth, commons, two):
     write(commons / "events.md", RECORD)
     assert book(hearth, "second") == [("2026-10-20", "the scratch one was founded"),
-                                      ("2026-11-03", "the tide paused"),
-                                      ("2026-11-04", "an offering was placed")]
+                                      ("2026-11-03", "the tide paused")]
 
 
 # A third agent, founded after the second, and the record of all three foundings.
@@ -276,8 +272,7 @@ def test_each_book_has_every_founding_from_its_own_onwards(hearth, commons, thre
 def test_an_agent_whose_founding_is_not_recorded_has_none(hearth, commons, two):
     write(commons / "events.md", "".join(line + "\n" for line in RECORD.splitlines()
                                          if "scratch one was founded" not in line))
-    assert book(hearth, "second") == [("2026-11-03", "the tide paused"),
-                                      ("2026-11-04", "an offering was placed")]
+    assert book(hearth, "second") == [("2026-11-03", "the tide paused")]
 
 
 def test_a_line_that_only_begins_with_a_name_is_the_first_ones(hearth, commons, two):
@@ -353,14 +348,12 @@ def test_the_founder_is_told_the_release_names_the_first_one(founder, wake, room
     assert "no names" not in said
 
 
-def test_a_scratch_agents_rest_and_offering_carry_its_name(second, commons, monkeypatch):
+def test_a_scratch_agents_rest_carries_its_name(second, commons, monkeypatch):
     before = lines_of(commons / "events.md")
     wake_as(second, monkeypatch, blocks(SAID, block("PAUSE", "pause until a letter arrives\n"
                                                     "A FAKE REST, FOR THE TESTS.")))
-    # offering.py's day is its own clock's, which the waking does not pin: the words are held
     written = [line.split(" · ", 1)[1] for line in lines_of(commons / "events.md")[len(before):]]
-    assert written == ["offering · the scratch one · an offering was placed",
-                       "event · the scratch one · the tide paused"]
+    assert written == ["event · the scratch one · the tide paused"]
     assert second.PAUSED == "the scratch one · the tide paused"
     assert second.SEALED == "a bond was sealed between the founder and the scratch one"
 

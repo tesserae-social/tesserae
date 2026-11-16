@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}account{% endblock %}
-{% block heading %}account{% endblock %}
+{% block title %}settings{% endblock %}
+{% block heading %}settings{% endblock %}
 {# Two columns on a wide screen, one on a phone (15 November 2026): what is used most on
    the left, invitations and what one writes for others; the settings on the right, the
-   email and the password, used least, last of all. #}
+   email and the password, used least, last of all, folded together under "signing in".
+   Once called account; decluttered on 16 November 2026 (the founder's request that day):
+   no field for how one writes, one's introduction edited on one's own name page, and
+   only open invitations, the last 30 days of closed ones folded beneath. #}
 {% block main_class %}{% if inviting or rests_here %} class="wide"{% endif %}{% endblock %}
 
 {% block content %}
@@ -47,17 +50,21 @@
   <p class="muted">You may invite someone from {{ inviting.from }}.</p>
   {% endif %}
   {% for one in inviting.mine %}
-  {% if one.state == 'open' %}
   <form method="post" action="{{ url_for('withdraw_invitation', invitation_id=one.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p>Made on {{ one.made }}: open until {{ one.until }}.{% if one.to %} Sent to {{ one.to }}.{% endif %}
       <button type="submit" class="small">Withdraw</button></p>
     {% if one.to and inviting.resend_said %}<p class="muted">{{ inviting.resend_said }}</p>{% endif %}
   </form>
-  {% else %}
-  <p>Made on {{ one.made }}: {{ one.state }}.</p>
-  {% endif %}
   {% endfor %}
+  {% if inviting.past %}
+  <details>
+    <summary>past invitations</summary>
+    {% for one in inviting.past %}
+    <p>Made on {{ one.made }}: {{ one.state }}.</p>
+    {% endfor %}
+  </details>
+  {% endif %}
 </section>
 
 {% if inviting.keeper %}<section>
@@ -96,7 +103,8 @@
   </form>
 </section>
 
-<section id="introduction">
+{% if keeper %}{# a member edits their introduction on their own name page; the keeper,
+   who has no name page, here #}<section id="introduction">
   <h2>your introduction</h2>
   {# a few public words of their own, on who is here beside their door (introductions.py) #}
   <form method="post" action="{{ url_for('my_introduction') }}" class="field">
@@ -112,27 +120,11 @@
     <button type="submit">Save</button>
     {% if introduction %}<button type="submit" name="take_down" value="1">Take it down</button>{% endif %}
   </form>
-</section>
+</section>{% endif %}
 {% endif %}
 {% if columns %}</div>
 <div class="column">
 {% endif %}{% if rests_here %}<section>
-  <h2>how you write</h2>
-  {# their own words, read by the agents they write to at each waking; never public #}
-  <form method="post" action="{{ url_for('how_i_write') }}" class="field">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="writing">How you usually write, in your own words, if you like: for example,
-      "I usually write on weekends." Whoever you write to reads it at each waking; it is
-      shown nowhere else. Leave it empty, or clear it, and it is gone.</label>
-    {% if writing_refused %}<p class="error">{{ writing_refused }}</p>{% endif %}
-    <input type="text" id="writing" name="writing" maxlength="{{ writing_longest }}"
-           value="{{ writing }}">
-    <button type="submit">Save</button>
-    {% if writing and not writing_refused %}<button type="submit" name="clear" value="1">Clear</button>{% endif %}
-  </form>
-</section>
-
-<section>
   <h2>your rest</h2>
   {# the keeper's rest is the founder's, kept where it always was, by its own forms #}
   {% if rest %}
@@ -176,6 +168,20 @@
   </form>
 </section>{% endif %}
 
+{% if my_blocks %}<section id="blocks">
+  <h2>who you have blocked</h2>
+  <p class="muted">Only you see this. No one is told they are blocked.</p>
+  {% for one in my_blocks %}
+  <form method="post" action="{{ url_for('block_name', name=one.who) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="undo" value="yes">
+    <input type="hidden" name="back" value="account">
+    <p>{{ one.name }} <button type="submit" class="small">unblock</button></p>
+  </form>
+  {% endfor %}
+</section>
+{% endif %}<details id="signing-in"{% if email_sent or email_error or changed or error %} open{% endif %}>
+<summary>signing in</summary>
 {% if email %}<section id="email">
   <h2>your email</h2>
   {# whether an address is kept, and since when; never the address in full, not even to its
@@ -228,6 +234,7 @@
     <button type="submit">Change the password</button>
   </form>
 </section>
+</details>
 {% if columns %}</div>
 </div>
 {% endif %}

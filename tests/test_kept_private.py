@@ -1,8 +1,8 @@
 """What is public and signed is held to the private list before it is signed.
 
 A signature is never changed, and so a protected word in something public and
-signed could never be taken out of it again: an offering's words, a witness's
-line and its correction, and a promise made public are refused instead, in one
+signed could never be taken out of it again: a witness's line and its correction,
+and a promise made public are refused instead, in one
 plain sentence, with nothing signed and nothing kept. The first one is told
 once, at its next waking, in words that never say the word. A private promise
 is never read for them. The names here are made up, as in test_private_words.py.
@@ -14,8 +14,6 @@ import pytest
 
 import vault
 from conftest import block, page, post, read_json, write
-from test_offerings import (HIS, HERS, a_correspondence, offer, only_pending, pending,
-                            placed)
 from test_threshold import it_says_yes, writings
 from test_witness import (CORRECT, LINE, birch, bond, cheap_limits, kept,  # noqa: F401
                           people, sign, taken)
@@ -25,12 +23,6 @@ KEPT_PRIVATE = ("Nothing was signed: this would be public, and it contains a nam
 PROMISE_TOLD = ("Your public promise at your last waking was not kept, because it contained a "
                 "name or place that is kept private here; you may write it again without it, "
                 "or make it private.")
-OFFER_TOLD = ("Your offering at your last waking was not made, because it contained a name or "
-              "place that is kept private here; you may offer a passage without it, or "
-              "something else.")
-CONSENT_TOLD = ("Your consent at your last waking placed nothing, because the offering contains "
-                "a name or place that is kept private here; it still waits, and you may "
-                "decline it.")
 
 # His letter says "The lake was still this morning": here the lake is a protected place.
 LAKE = "Quillon => the founder\nthe lake\n"
@@ -66,73 +58,10 @@ def test_with_no_list_nothing_is_refused(attend):
 
 
 def test_the_sentence_never_says_a_word(attend):
-    for said in (KEPT_PRIVATE, PROMISE_TOLD, OFFER_TOLD, CONSENT_TOLD):
+    for said in (KEPT_PRIVATE, PROMISE_TOLD):
         assert "Quillon" not in said and "lake" not in said
     assert attend.private_words.KEPT_PRIVATE == KEPT_PRIVATE
-    assert (attend.PROMISE_KEPT_PRIVATE, attend.OFFER_KEPT_PRIVATE,
-            attend.CONSENT_KEPT_PRIVATE) == (PROMISE_TOLD, OFFER_TOLD, CONSENT_TOLD)
-
-
-# ---- an offering --------------------------------------------------------------
-
-@pytest.mark.parametrize("kind, text", [("passage", PASSAGE), ("letter", "")])
-def test_the_founder_s_offering_with_a_protected_word_is_refused_unsigned(
-        founder, lake, kind, text, room):
-    a_correspondence(room)
-    answer = offer(founder, kind, HIS, text)
-    assert answer.status_code == 200
-    assert KEPT_PRIVATE in page(answer)
-    assert not pending(room) and not placed(room)
-
-
-def test_an_offering_with_no_protected_word_is_offered_as_before(founder, lake, room):
-    a_correspondence(room)
-    assert offer(founder, "letter", HERS).status_code == 302
-    assert offer(founder, "photo", HIS).status_code == 302
-    assert len(pending(room)) == 2
-
-
-def test_the_first_one_s_offering_is_refused_and_it_is_told_once(wake, packet, commons, lake,
-                                                                 room):
-    a_correspondence(room)
-    wake(block("OFFER", "offer passage %s\n%s" % (HIS, PASSAGE)))
-    assert not pending(room) and not placed(room)
-    assert not (commons / "offerings.md").exists()
-    record = last_record(packet)
-    assert record["acted"] == [] and record["kept_private"] == [OFFER_TOLD]
-    assert OFFER_TOLD in wake().shown
-    assert OFFER_TOLD not in wake().shown
-
-
-def test_a_consent_to_an_offering_that_carries_a_word_now_listed_places_nothing(
-        founder, wake, packet, commons, data_dir, room):
-    a_correspondence(room)
-    offer(founder, "passage", HIS, PASSAGE)  # offered before the word was on the list
-    waiting = only_pending(room)
-    write(data_dir / "private-words.txt", LAKE)
-    wake(block("OFFER", "consent %s" % waiting["id"]))
-    assert only_pending(room) == waiting  # still waiting, with his signature alone
-    assert not placed(room) and not (commons / "offerings.md").exists()
-    assert last_record(packet)["kept_private"] == [CONSENT_TOLD]
-    assert CONSENT_TOLD in wake().shown
-
-
-def test_the_founder_s_consent_is_refused_the_same_way(founder, wake, data_dir, room):
-    a_correspondence(room)
-    wake(block("OFFER", "offer passage %s\n%s" % (HIS, PASSAGE)))
-    waiting = only_pending(room)
-    write(data_dir / "private-words.txt", LAKE)
-    answer = post(founder, "/offer/consent", data={"id": waiting["id"]})
-    assert KEPT_PRIVATE in page(answer)
-    assert only_pending(room) == waiting and not placed(room)
-
-
-def test_the_module_signs_nothing_it_refuses(attend, lake, room):
-    a_correspondence(room)
-    with pytest.raises(attend.private_words.Protected):
-        attend.offering.offer("founder", "passage", HIS, PASSAGE, "2026-10-20T09-00-00Z",
-                              lambda payload: pytest.fail("it was signed"))
-    assert not pending(room)
+    assert attend.PROMISE_KEPT_PRIVATE == PROMISE_TOLD
 
 
 # ---- a witness's line, and its correction -------------------------------------

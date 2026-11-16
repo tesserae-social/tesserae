@@ -214,7 +214,7 @@ def test_the_keeper_is_unlimited_through_3_september_2027_and_then_as_any_member
 def test_a_new_member_is_told_from_when_and_shown_no_form(hearth, pinned):
     arrive(hearth, MEMBER, MEMBER_PASSWORD, datetime(2026, 10, 1, 15, tzinfo=timezone.utc))
     client = signed_in(hearth, MEMBER, MEMBER_PASSWORD)
-    said = page(client.get("/account"))
+    said = page(client.get("/settings"))
     assert "<h2>invite someone</h2>" in said
     assert "You may invite someone from 31 October 2026." in said
     assert 'name="note"' not in said
@@ -225,7 +225,7 @@ def test_a_new_member_is_told_from_when_and_shown_no_form(hearth, pinned):
 # ---- making one -------------------------------------------------------------------
 
 def test_the_form_says_what_was_approved(member):
-    said = page(member.get("/account"))
+    said = page(member.get("/settings"))
     assert INVITE_SAID in plain(said)
     assert '<label for="note">your note</label>' in said
     assert 'maxlength="500"' in said and "Make the invitation" in said
@@ -254,7 +254,7 @@ def test_the_link_is_shown_once_and_kept_only_as_its_hash(member, data_dir):
     assert kept["token"] == hashlib.sha256(link.encode()).hexdigest()
     assert kept["by"] == MEMBER and kept["note"] == NOTE.replace("\r\n", "\n")
     assert kept["open_until"] == "2026-10-29" and kept["used_by"] is None
-    again = page(member.get("/account"))
+    again = page(member.get("/settings"))
     assert link not in again
     assert "Made on 15 October 2026: open until 29 October 2026." in plain(again)
     # one in thirty days: the form is gone
@@ -264,15 +264,18 @@ def test_the_link_is_shown_once_and_kept_only_as_its_hash(member, data_dir):
 def test_the_inviter_is_told_only_how_each_stands(hearth, member, keeper, data_dir, pinned):
     used = made_link(member)
     assert join(hearth.app.test_client(), used).status_code == 302
-    said = plain(page(member.get("/account")))
+    said = plain(page(member.get("/settings")))
     assert "Made on 15 October 2026: used." in said
     assert NEWCOMER not in said
     pinned.set(datetime(2026, 11, 20, 15, tzinfo=timezone.utc))
     made_link(member)
     pinned.set(datetime(2026, 12, 25, 15, tzinfo=timezone.utc))
-    said = plain(page(member.get("/account")))
+    said = plain(page(member.get("/settings")))
+    # closed ones folded under "past invitations" for 30 days, and older ones not listed
+    # (the founder's request of 16 November 2026)
+    assert "past invitations" in said
     assert "Made on 20 November 2026: expired." in said
-    assert "Made on 15 October 2026: used." in said
+    assert "Made on 15 October 2026: used." not in said
 
 
 # ---- withdrawing --------------------------------------------------------------------
@@ -287,7 +290,7 @@ def test_its_inviter_may_withdraw_it_and_it_does_not_use_up_the_month(member, da
     assert withdraw(member, one["id"]).status_code == 302
     [one] = files(data_dir)
     assert one["withdrawn_by"] == MEMBER and one["withdrawn_at"]
-    said = plain(page(member.get("/account")))
+    said = plain(page(member.get("/settings")))
     assert "Made on 15 October 2026: withdrawn." in said
     assert INVITE_SAID in said
     answer = member.get("/invitation/" + link)
@@ -297,14 +300,14 @@ def test_its_inviter_may_withdraw_it_and_it_does_not_use_up_the_month(member, da
 def test_the_keeper_sees_every_open_one_without_its_note_and_may_withdraw_it(
         hearth, member, keeper, data_dir):
     made_link(member)
-    said = page(keeper.get("/account"))
+    said = page(keeper.get("/settings"))
     assert "<h2>open invitations</h2>" in said
     assert "Made by birch on 15 October 2026, open until 29 October 2026." in plain(said)
     assert "I think you" not in said
     [one] = files(data_dir)
     withdraw(keeper, one["id"])
     assert files(data_dir)[0]["withdrawn_by"] == FOUNDER_NAME
-    assert "No invitations are open." in page(keeper.get("/account"))
+    assert "No invitations are open." in page(keeper.get("/settings"))
 
 
 def test_no_other_member_may_withdraw_it_and_none_once_used(hearth, member, data_dir, pinned):
@@ -312,7 +315,7 @@ def test_no_other_member_may_withdraw_it_and_none_once_used(hearth, member, data
     arrive(hearth, OTHER, OTHER_PASSWORD, datetime(2026, 9, 1, tzinfo=timezone.utc))
     other = signed_in(hearth, OTHER, OTHER_PASSWORD)
     [one] = files(data_dir)
-    assert "open invitations" not in page(other.get("/account"))
+    assert "open invitations" not in page(other.get("/settings"))
     withdraw(other, one["id"])
     assert files(data_dir)[0]["withdrawn_at"] is None
     join(hearth.app.test_client(), link)
@@ -477,7 +480,7 @@ def test_joining_makes_a_member_vouched_by_the_inviter_with_no_words(
     assert sent["to"] == NEW_ADDRESS and sent["subject"] == "Confirm your email address for Tesserae"
     [words] = words_given
     home = page(client.get("/"))
-    for place in [home, page(client.get("/account")), sent["text"]] + \
+    for place in [home, page(client.get("/settings")), sent["text"]] + \
             [path.read_text(encoding="utf-8", errors="replace")
              for path in data_dir.rglob("*") if path.is_file() and path.suffix in (".json", ".md")]:
         assert str(words) not in place
@@ -600,12 +603,12 @@ def test_the_founder_s_home_is_as_it_was(keeper):
 # ---- /account for a member without twelve words ---------------------------------
 
 def test_a_member_s_account_says_nothing_of_twelve_words_and_the_keeper_s_does(member, keeper):
-    said = plain(page(member.get("/account")))
+    said = plain(page(member.get("/settings")))
     assert ("Your key stays the same; only the password that seals it changes. Anywhere else "
             "you are logged in will be logged out.") in said
     assert "twelve words" not in said
     assert ("Your key stays the same; only the password that seals it changes, and your twelve "
-            "words still open it.") in plain(page(keeper.get("/account")))
+            "words still open it.") in plain(page(keeper.get("/settings")))
 
 
 # ---- kept out --------------------------------------------------------------------------
@@ -764,7 +767,7 @@ def emailed_link(sent):
 
 
 def test_the_form_offers_an_address_beside_the_note(member):
-    said = page(member.get("/account"))
+    said = page(member.get("/settings"))
     assert EMAIL_SAID in plain(said)
     assert '<label for="invite_address">their email address (optional)</label>' in said
     assert 'name="address"' in said and "Make the invitation" in said
@@ -801,11 +804,11 @@ def test_an_emailed_invitation_says_the_approved_words_and_nothing_more(
     assert hearth.app.test_client().get("/invitation/" + link).status_code == 200
     # its inviter sees the address partly hidden, and only in their own list
     assert ("Made on 15 October 2026: open until 29 October 2026. Sent to %s."
-            % INVITED_HIDDEN) in plain(page(member.get("/account")))
+            % INVITED_HIDDEN) in plain(page(member.get("/settings")))
     log = (data_dir / "mail.log").read_text(encoding="utf-8")
     assert log.rstrip().endswith("invitation · sent") and INVITED_KEPT not in log
     # one in thirty days, as by a link
-    assert "You may invite someone from 14 November 2026." in page(member.get("/account"))
+    assert "You may invite someone from 14 November 2026." in page(member.get("/settings"))
 
 
 def test_the_founder_s_is_from_his_commons_name_and_never_a_title(hearth, keeper, reader, outbox):
@@ -868,7 +871,7 @@ def test_an_email_that_could_not_go_makes_nothing(member, reader, outbox, data_d
     said = plain(page(invite_by_email(member)))
     assert "The email couldn't be sent, so no invitation was made." in said
     assert files(data_dir) == []
-    assert INVITE_SAID in plain(page(member.get("/account")))  # the month is not used up
+    assert INVITE_SAID in plain(page(member.get("/settings")))  # the month is not used up
 
 
 def test_the_address_is_forgotten_once_withdrawn(member, reader, outbox, data_dir):
@@ -877,7 +880,7 @@ def test_the_address_is_forgotten_once_withdrawn(member, reader, outbox, data_di
     withdraw(member, one["id"])
     [one] = files(data_dir)
     assert one["email"] is None and INVITED_KEPT not in json.dumps(one)
-    said = plain(page(member.get("/account")))
+    said = plain(page(member.get("/settings")))
     assert "Made on 15 October 2026: withdrawn." in said and INVITED_HIDDEN not in said
 
 
@@ -905,7 +908,7 @@ def test_the_address_is_forgotten_once_used_and_counts_as_confirmed(
     assert UNCONFIRMED not in html.unescape(page(client.get("/")))
     [one] = files(data_dir)
     assert one["email"] is None and one["used_by"] == NEWCOMER
-    assert INVITED_HIDDEN not in page(member.get("/account"))
+    assert INVITED_HIDDEN not in page(member.get("/settings"))
 
 
 def test_a_changed_address_is_confirmed_by_the_usual_link(hearth, member, reader, outbox,
@@ -952,11 +955,11 @@ def invite_from(client, from_name, note=NOTE, address=""):
 
 
 def test_the_form_offers_the_name_filled_in_with_their_commons_name(member, keeper):
-    said = page(member.get("/account"))
+    said = page(member.get("/settings"))
     assert """<label for="from_name">Your name, as they'll see it</label>""" in said
     assert re.search(r'<input type="text" id="from_name" name="from_name" maxlength="40"\s+'
                      r'required value="birch">', said)
-    assert 'value="the founder"' in page(keeper.get("/account"))
+    assert 'value="the founder"' in page(keeper.get("/settings"))
 
 
 def test_an_emailed_one_is_from_the_name_chosen_in_one_screened_try(
@@ -1028,8 +1031,8 @@ def test_the_name_is_forgotten_with_the_address_and_who_invited_whom_is_kept(
         hearth, member, keeper, reader, outbox, data_dir, pinned):
     invite_from(member, CHOSEN, address=INVITED)
     [one] = files(data_dir)
-    assert "Made by birch on" in plain(page(keeper.get("/account")))  # by commons name
-    assert CHOSEN not in page(keeper.get("/account"))
+    assert "Made by birch on" in plain(page(keeper.get("/settings")))  # by commons name
+    assert CHOSEN not in page(keeper.get("/settings"))
     withdraw(member, one["id"])
     [one] = files(data_dir)
     assert one["from_name"] is None and one["email"] is None and one["by"] == MEMBER
@@ -1184,18 +1187,18 @@ def test_a_link_withdrawn_or_one_the_keeper_withdrew_never_counts(hearth, clock,
 
 def test_the_account_says_so_beside_an_open_emailed_one(hearth, member, outbox, reader):
     invite_by_email(member)
-    said = plain(page(member.get("/account")))
+    said = plain(page(member.get("/settings")))
     assert RESENDS_LEFT.format(left=2) in said
     emailed_and_withdrawn(hearth)
-    assert RESENDS_LEFT.format(left=1) in plain(page(member.get("/account")))
+    assert RESENDS_LEFT.format(left=1) in plain(page(member.get("/settings")))
     emailed_and_withdrawn(hearth)
-    said = plain(page(member.get("/account")))
+    said = plain(page(member.get("/settings")))
     assert RESENDS_USED in said and "You have" not in said
 
 
 def test_nothing_is_said_beside_a_link_or_for_the_keeper(hearth, member, keeper, outbox, reader):
     made_link(member)
-    assert "withdraw an emailed" not in plain(page(member.get("/account")))
+    assert "withdraw an emailed" not in plain(page(member.get("/settings")))
     invite_by_email(keeper)
-    said = plain(page(keeper.get("/account")))
+    said = plain(page(keeper.get("/settings")))
     assert "emailed invitation" not in said

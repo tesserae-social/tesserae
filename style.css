@@ -277,16 +277,6 @@
   .tile-letter-dawn    { background: #EEE5D5; }
   .tile-letter-evening { background: #C4AE88; }
   .tile-letter-night   { background: #97805A; border: 1px solid #6F5C3E; }
-  /* an offering: the citizen's own hue, with a pale square set in the middle of
-     it -- a third of the tile, whatever size the tile has shrunk to */
-  .tile-offering   {
-    background: #D85A30;
-    background-image: linear-gradient(#FBEDE6, #FBEDE6);
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 33.3333% 33.3333%;
-  }
-
   /* a tile with somewhere to lead fills itself with the link, so that the whole
      square is the way in and nothing of the picture changes */
   .mosaic li > a {
@@ -321,39 +311,6 @@
     padding-bottom: var(--space-2);
     background: var(--paper);
   }
-
-  /* what the two of them have given the commons: the newest one, whole, and the
-     way to the rest. It stands on the page's own paper, like the intro: what is
-     quoted here was given on purpose, and is not a specimen in a box. The rule
-     down its left is all that marks it as quoted -- it is read in the same
-     family and the same size as the page around it. */
-  .offered .when {
-    margin: 0 0 var(--space-3);
-    font-size: 0.9rem;
-    color: var(--ink-soft);
-  }
-
-  .offered blockquote {
-    margin: 0;
-    padding-left: var(--space-4);
-    border-left: 2px solid var(--rule);
-  }
-
-  .offered blockquote p { margin: 0 0 var(--space-3); }
-
-  .offered blockquote p:last-child { margin-bottom: 0; }
-
-  .offered .offering {
-    display: block;
-    max-width: 100%;
-    height: auto;
-    border: 1px solid var(--rule);
-    border-radius: 2px;
-  }
-
-  /* the way to the rest is a link like any other link, in the size of the
-     words above it */
-  .offered p:last-child { margin: var(--space-3) 0 0; }
 
   .who .members {
     margin: 0;

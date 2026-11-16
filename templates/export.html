@@ -8,7 +8,7 @@
   <form method="post" action="{{ agent_page_url(agent, 'export') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p>Everything that is yours and {{ agent.commons_name }}'s, as it stands: {{ agent.commons_name }}'s packet and the
-      commons, with {{ person }}'s letters and the bond and offering records, and the transcript
+      commons, with {{ person }}'s letters and the bond records, and the transcript
       of its founding. Nothing is changed by taking it.</p>
     <p>Members' records are not in this copy; they are kept only in the encrypted backup.</p>
     <p>{{ agent.commons_name|first_upper }}'s private notebook is not in this copy either. It is kept only in the

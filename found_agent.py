@@ -165,8 +165,9 @@ DEFAULT_MAX_TOKENS = 8000
 # for agents who come later is in it since 16 November 2026 (welcome-on), as the first
 # one's is: the founder's word that a new agent may write one too.
 FEATURES = ["asked", "board", "corrections", "door", "doors_to_eight", "hue", "introduction",
-            "knock", "long_night", "longer_waking", "looking_back", "people_waiting",
-            "proposals", "reflection_waking", "standing_welcome", "weekly_question"]
+            "knock", "long_night", "longer_waking", "looking_back", "made_here",
+            "people_waiting", "proposals", "quiet_days", "reflection_waking", "site_notes",
+            "standing_welcome", "weekly_question"]
 
 # The rhythm a later agent begins with: the daily dawn, on the first one's clock,
 # which the tide wakes every agent at in the order of founding (hearth.Turns).
@@ -467,13 +468,9 @@ def public_record():
     for heading, path in (("Events", commons / "events.md"),
                           ("Heartbeats", commons / "heartbeats.md"),
                           ("Who is here", commons / "members.md"),
-                          ("Offerings placed on the commons", commons / "offerings.md"),
                           ("Bonds sealed", commons / "bonds.md")):
         if path.is_file():
             parts.append((heading, path.read_text(encoding="utf-8").strip()))
-    for path in sorted((commons / "offerings").glob("*")) if (commons / "offerings").is_dir() else ():
-        if path.is_file() and path.suffix in (".md", ".txt"):
-            parts.append(("An offering: " + path.stem, path.read_text(encoding="utf-8").strip()))
     for path in sorted((commons / "bonds").glob("*.json")) if (commons / "bonds").is_dir() else ():
         parts.append(("A bond: " + path.stem, path.read_text(encoding="utf-8").strip()))
     taught = REPO / "docs" / "what-the-first-citizen-taught.md"

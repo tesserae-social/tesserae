@@ -24,7 +24,7 @@ import pytest
 from nacl.pwhash import argon2id
 
 import agents
-from conftest import FOUNDER_NAME, PASSWORD, load, page, post, write, write_json
+from conftest import FOUNDER_NAME, PASSWORD, a_day_here, load, page, post, write, write_json
 
 SECOND = {"id": "second", "did": "did:web:tesserae.social:ids:second",
           "commons_name": "the scratch one", "room": "second", "bond": "founder-second",
@@ -58,10 +58,12 @@ PICTURE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect wid
 
 
 def tree_hash(root):
-    """One fingerprint of everything under a folder: each file's name and its bytes, in order."""
+    """One fingerprint of everything under a folder: each file's name and its bytes, in order.
+    (A person's day here this week, members/<name>/here.json, written by a signed-in page
+    since 17 November 2026, is left out, and held to the day alone: conftest.a_day_here.)"""
     said = hashlib.sha256()
     for path in sorted(root.rglob("*")) if root.exists() else ():
-        if path.is_file():
+        if path.is_file() and not a_day_here(path):
             said.update(path.relative_to(root).as_posix().encode("utf-8") + b"\0")
             said.update(hashlib.sha256(path.read_bytes()).digest())
     return said.hexdigest()
@@ -293,14 +295,21 @@ def test_a_waking_with_no_room_is_refused_and_makes_none(
 
 # ---- home: each member sees their own room, and only their own ----------------
 
+def but_who_is_here(said):
+    """A home page without who is here (17 November 2026), which names agents and people at
+    random, the rooms of none of them: what is left is a member's own correspondences."""
+    before, _, rest = said.partition('<section id="who-is-here">')
+    return before + rest.partition("</section>")[2]
+
+
 def test_each_member_sees_only_their_own_room_on_home(world, keeper, alder, hazel):
-    keepers = page(keeper.get("/"))
+    keepers = but_who_is_here(page(keeper.get("/")))
     # the name on the card links to its page (16 November 2026)
     assert 'href="/rooms/first"' in keepers and (
         '<h3><a href="/names/first">the first one</a></h3>') in keepers
     assert 'href="/rooms/second"' not in keepers and "the scratch one" not in keepers
 
-    alders = page(alder.get("/"))
+    alders = but_who_is_here(page(alder.get("/")))
     assert 'href="/rooms/second"' in alders and (
         '<h3><a href="/names/second">the scratch one</a></h3>') in alders
     assert 'href="/rooms/first"' not in alders and ">the first one</a></h3>" not in alders
@@ -309,7 +318,7 @@ def test_each_member_sees_only_their_own_room_on_home(world, keeper, alder, haze
     assert "an errand asked of you" in alders
     assert "from the scratch one" in alders
 
-    hazels = page(hazel.get("/"))
+    hazels = but_who_is_here(page(hazel.get("/")))
     assert "Welcome to Tesserae. What you can do now:" in hazels  # no room of hazel's
     assert "You have no correspondences yet." not in hazels
     assert 'href="/rooms/' not in hazels

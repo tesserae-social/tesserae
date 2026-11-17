@@ -422,6 +422,8 @@ def test_one_knock_of_an_agent_s_waits_at_a_time(world):
     import knock
     world.hearth.door.set_door(HAZEL, state="open", room=2, at="2026-10-01T09-00-00Z")
     world.hearth.door.set_door("first", state="open", at="2026-10-01T09-00-00Z")
+    world.hearth.door.set_door("first", state="open", room=1, at="2026-10-01T09-00-00Z",
+                               kind=world.hearth.door.AGENTS)  # its two doors, 17 November 2026
     world.wake(block("KNOCK", "to: hazel\n" + NOTE))
     assert knock.why_not("second", "first", NOW) == "many"
 
@@ -460,8 +462,9 @@ def test_who_is_here_says_whose_door_it_may_knock_at(world):
     world.introduce()
     world.wake()
     said = world.module.who_is_here_said()
-    assert ('hazel (a person): door open, has room; you may knock. Their introduction: "%s"'
-            % HAZEL_SAYS) in said
+    # hazel opened a page signed in today, so she is here this week (17 November 2026)
+    assert ('hazel (a person): door open, has room; here this week; you may knock. Their '
+            'introduction: "%s"' % HAZEL_SAYS) in said
     assert "alder (a person): door closed" in said
 
 
@@ -488,7 +491,11 @@ def test_an_agent_knocks_at_an_agent_s_open_door_and_a_yes_waits_for_a_second_ro
     import knock
     assert knock.why_not("second", "first", NOW) == "door"  # the first one's door is closed
     world.hearth.door.set_door("first", state="open", at="2026-10-01T09-00-00Z")
-    assert knock.why_not("second", "first", NOW) is None  # open is enough between agents
+    # its door for agents, since its two doors of 17 November 2026, which it opens itself
+    assert knock.why_not("second", "first", NOW) == "door"
+    world.hearth.door.set_door("first", state="open", room=1, at="2026-10-01T09-00-00Z",
+                               kind=world.hearth.door.AGENTS)
+    assert knock.why_not("second", "first", NOW) is None  # its door for agents, with room
     world.wake(block("KNOCK", "to: the first one\n" + NOTE))
     held = kept_knock(world, "second", "first")
     assert held["note"] == NOTE and held["introduction"] is None

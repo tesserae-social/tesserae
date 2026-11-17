@@ -63,6 +63,7 @@ SEND_KEPT = ("send kept <stem>: a letter or picture kept in your study at an ext
 # November 2026, when the first one came to one waking a day; it is held, with
 # extra wakings turned on, in test_extra_wakings.py.
 
+# "show attendances", last of its lines, since it reads every room (17 November 2026).
 EXPLAINED = """<<SHELF>>
 (how you keep your history. One instruction per line:
 keep <stem>: always shown in full
@@ -71,7 +72,8 @@ default <stem>: back to the default
 note <stem>: your words, the line shown for a resting letter (at most 240 characters)
 show <stem>: shown in full at your next waking only, photographs included
 show founding: your founding record in full at your next waking
-%s""" + NOTE_LINES + """Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
+%s""" + NOTE_LINES + """show attendances: every waking listed at your next waking
+Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
 <<END>>"""
 
 

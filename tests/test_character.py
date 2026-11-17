@@ -37,7 +37,7 @@ import shutil
 import pytest
 
 import agents
-from conftest import (block, board_weekly_not_yet, standing_welcome_not_yet, coral_not_yet, introduction_at_280, six_not_yet, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
+from conftest import (agents_week_not_yet, who_drawn_not_yet, block, board_weekly_not_yet, standing_welcome_not_yet, coral_not_yet, introduction_at_280, six_not_yet, load, lines_of, page, read_json, rewrite_last_reply_not_yet, write,
                       switches_not_yet, wakings_not_yet_switched, write_json)
 from test_rooms_reading import READING_NOW, READING_ONE_WAKING, fingerprint_of_reading
 from test_wakings_doors import the_small_world
@@ -106,7 +106,20 @@ READING_NOW_ASKED_BEFORE_OFFERINGS = (
 # than READING_NOW was: <<OFFER>> no longer explained, offerings being taken out of the
 # code. With it explained again (conftest.offer_explained_again) it is exactly
 # READING_NOW_ASKED_BEFORE_OFFERINGS.
-READING_NOW_ASKED = "c44724ac2f0ad1f4efaf8a1899089e1d1481103efb02e62acfa54b7b23890470"
+# Held as READING_NOW_ASKED_BEFORE_AGENTS_WEEK since.
+READING_NOW_ASKED_BEFORE_AGENTS_WEEK = (
+    "c44724ac2f0ad1f4efaf8a1899089e1d1481103efb02e62acfa54b7b23890470")
+# Cut again, on purpose, on the branch agents-week (17 November 2026), for nothing else
+# than READING_NOW was: the switches the first one said yes to that day (quiet_days,
+# made_here, rooms_reading, two_doors, block on; rhythm_line off). With them as they were
+# (conftest.agents_week_not_yet) it is exactly READING_NOW_ASKED_BEFORE_AGENTS_WEEK.
+# Held as READING_NOW_ASKED_BEFORE_WHO_DRAWN since.
+READING_NOW_ASKED_BEFORE_WHO_DRAWN = (
+    "f22c305fa325f2e24e7337bc954e36ff3afca0d296defb079b269faac8fb2247")
+# Cut again, on purpose, on the branch agents-week, part 5 (17 November 2026), for nothing
+# else than READING_NOW was: read_who_is_here's description and its optional word. With the
+# tool as it was (conftest.who_drawn_not_yet) it is exactly READING_NOW_ASKED_BEFORE_WHO_DRAWN.
+READING_NOW_ASKED = "074f2a0a91a76b7c3dc9f54a4d3ccde068a1c72d3bb8c290c0ed6828e189bddf"
 
 # ASKED OF YOU's words as they were first cut, before they named no one.
 ASKED_HOW_FIRST_CUT = (
@@ -256,9 +269,26 @@ def test_as_switched_on_the_questions_kept_are_its_own_reading(founder, wake, at
     assert hashlib.sha256(asked.encode("utf-8")).hexdigest() == READING_NOW
 
 
+def test_with_read_who_is_here_as_it_was_it_is_the_reading_before(
+        founder, wake, attend, room, packet, monkeypatch):
+    who_drawn_not_yet(attend, monkeypatch)
+    the_small_world(founder, room)
+    two_questions(packet)
+    assert fingerprint_of_reading(wake()) == READING_NOW_ASKED_BEFORE_WHO_DRAWN
+
+
+def test_with_the_switches_of_17_november_as_they_were_it_is_the_reading_before(
+        founder, wake, attend, room, packet, monkeypatch):
+    agents_week_not_yet(attend, monkeypatch)
+    the_small_world(founder, room)
+    two_questions(packet)
+    assert fingerprint_of_reading(wake()) == READING_NOW_ASKED_BEFORE_AGENTS_WEEK
+
+
 def test_with_offer_explained_again_it_is_the_reading_before(
         founder, wake, attend, room, packet, monkeypatch):
     from conftest import offer_explained_again
+    agents_week_not_yet(attend, monkeypatch)  # cut before the switches of 17 November
     offer_explained_again(attend, monkeypatch)
     the_small_world(founder, room)
     two_questions(packet)

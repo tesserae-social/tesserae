@@ -12,7 +12,7 @@ Every note here is written for the tests and nowhere else.
 import pytest
 
 from conftest import block, blocks, lines_of, page, read_json, write, write_json
-from conftest import NOTEBOOK_PATHS, a_private_notebook
+from conftest import NOTEBOOK_PATHS, a_private_notebook, agents_week_not_yet
 
 MEMORY = "=== YOUR MEMORY (notes you keep for yourself; not shown on the hearth) ==="
 NAMED = "=== YOUR NAMED NOTES (private; not shown on the hearth) ==="
@@ -25,11 +25,17 @@ EXPLAINED = """<<NOTE>>
 (a note of your own, kept under a name you choose. First line: "name: about the founder" (or any name). The rest is the note's full new text. Your other notes are unchanged. You may keep up to 20 named notes, each close or resting on your shelf. They are private, not shown on the hearth. Earlier versions are kept, never erased.)
 <<END>>"""
 
-SHELF_LINES = """show version <stem>: an earlier self-document or notes in full at your next waking
+SHELF_LINES_BEFORE_ROOMS = """show version <stem>: an earlier self-document or notes in full at your next waking
 keep note <name>: a named note always shown in full
 rest note <name>: a named note shown as one line
 show note <name>: a named note in full at your next waking only
 Letters you haven't placed follow the default:"""
+# Since 17 November 2026, when the first one came to read every room it is in
+# (rooms_reading), show attendances stands after the three; as it was before, held with
+# conftest.agents_week_not_yet.
+SHELF_LINES = SHELF_LINES_BEFORE_ROOMS.replace(
+    "\nLetters you haven't", "\nshow attendances: every waking listed at your next waking"
+    "\nLetters you haven't", 1)
 # (the send kept line its extra wakings added before the last line is not there
 # since 12 November 2026, when the first one came to one waking a day)
 
@@ -86,6 +92,14 @@ def test_the_shelf_block_gains_its_three_lines_after_show_version(wake):
     said = wake().instructions
     assert said.count(SHELF_LINES) == 1
     assert "show founding: your founding record in full at your next waking\n" + SHELF_LINES in said
+
+
+def test_with_rooms_reading_off_the_three_lines_stand_as_before(wake, attend, monkeypatch):
+    agents_week_not_yet(attend, monkeypatch)
+    said = wake().instructions
+    assert said.count(SHELF_LINES_BEFORE_ROOMS) == 1
+    assert ("show founding: your founding record in full at your next waking\n"
+            + SHELF_LINES_BEFORE_ROOMS) in said
 
 
 def test_a_note_is_kept_under_its_name(wake, attend, packet, clock):

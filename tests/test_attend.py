@@ -13,14 +13,16 @@ import sys
 import pytest
 from nacl.exceptions import BadSignatureError
 
-from conftest import offer_explained_again
+from conftest import agents_week_not_yet, offer_explained_again
 from conftest import (FOUNDING_TRANSCRIPT, REPO, SWITCHED_ON_21_OCTOBER, Turn, block, blocks,
                       explained_as_before, lines_of, read_json, shut_away, verify, write,
                       write_json)
 from conftest import heartbeat_not_yet_public, note_example_as_now, rhythm_clock_as_now
 from conftest import notebook_unexplained, wakings_not_yet_switched
 
-SECTIONS = [
+# As the sections stood until 17 November 2026, when the first one came to read every room
+# it is in (rooms_reading): held again with conftest.agents_week_not_yet.
+SECTIONS_BEFORE_ROOMS = [
     "=== WHAT HAS HAPPENED ===",
     "=== YOUR SELF-DOCUMENT (packets/first/self.md) ===",
     "=== YOUR MEMORY",
@@ -33,6 +35,16 @@ SECTIONS = [
     "=== LETTERS FROM THE FOUNDER YOU HAVE ALREADY READ ===",
     "=== YOUR STUDY",
     "=== LETTERS THAT HAVE ARRIVED SINCE YOUR LAST WAKING ===",
+]
+# Since then its letters stand in its room with the founder, what has arrived among them,
+# and the study after the room.
+SECTIONS = [
+    *SECTIONS_BEFORE_ROOMS[:8],
+    "=== YOUR ROOM WITH THE FOUNDER (/rooms/first) ===",
+    "--- letters you have written ---",
+    "--- letters from the founder you have already read ---",
+    "--- letters that have arrived since your last waking ---",
+    "=== YOUR STUDY",
 ]
 
 
@@ -101,6 +113,14 @@ def test_the_sections_come_in_order(wake):
     opening = wake().opening
     at = [opening.find(section) for section in SECTIONS]
     assert all(place >= 0 for place in at), dict(zip(SECTIONS, at))
+    assert at == sorted(at)
+
+
+def test_with_rooms_reading_off_the_sections_come_in_their_old_order(wake, attend, monkeypatch):
+    agents_week_not_yet(attend, monkeypatch)
+    opening = wake().opening
+    at = [opening.find(section) for section in SECTIONS_BEFORE_ROOMS]
+    assert all(place >= 0 for place in at), dict(zip(SECTIONS_BEFORE_ROOMS, at))
     assert at == sorted(at)
 
 
@@ -399,7 +419,7 @@ def test_the_list_is_read_directly_after_the_count_of_wakings(wake, packet, atte
                          "Who reads the commons?"]
     assert said[4] == attend.WOKEN_BY_FOUNDER
     assert turn.opening.index("Who reads the commons?") < turn.opening.index(
-        "=== LETTERS YOU HAVE WRITTEN ===")
+        "--- letters you have written ---")  # in its room, since 17 November 2026
 
 
 def test_no_list_is_one_line_directly_after_the_count_of_wakings(wake, attend):

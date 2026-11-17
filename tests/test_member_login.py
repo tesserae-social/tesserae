@@ -18,7 +18,7 @@ import pytest
 from nacl.pwhash import argon2id
 
 import vault
-from conftest import PASSWORD, page, post
+from conftest import PASSWORD, here_files, here_not_yet, page, post
 
 KEEPER = "ash"
 KEEPER_PASSWORD = "the keeper's own password"
@@ -429,19 +429,35 @@ def test_logging_out_clears_the_member_s_session(people, visitor):
 
 # ---- what is left behind -------------------------------------------------
 
-def every_file(data_dir):
+def every_file(data_dir, but=()):
     return sorted((str(path), path.stat().st_mtime_ns)
-                  for path in data_dir.rglob("*") if path.is_file())
+                  for path in data_dir.rglob("*") if path.is_file() and path not in but)
 
 
 def test_nothing_is_written_to_disk_by_signing_in_or_failing(people, visitor, data_dir):
+    """But, since 17 November 2026, here this week: the day alone, in members/<name>/
+    here.json, for one signed in (conftest.here_files holds it to the day and nothing else;
+    with conftest.here_not_yet nothing at all is written, as before)."""
     before = every_file(data_dir)
     for _ in range(6):
         sign_in(visitor, KEEPER, WRONG)
     sign_in(visitor, "nobody-here", WRONG)
     sign_in(visitor, "", WRONG)
+    assert every_file(data_dir) == before  # failing writes nothing at all
     sign_in(visitor, MEMBER, MEMBER_PASSWORD)
     sign_in(visitor, KEEPER, KEEPER_PASSWORD)
+    here = here_files(data_dir)
+    assert here <= {data_dir / "members" / who / "here.json" for who in (MEMBER, KEEPER)}
+    assert every_file(data_dir, but=here) == before
+
+
+def test_with_here_not_yet_signing_in_writes_nothing_as_before(people, visitor, data_dir,
+                                                                 monkeypatch):
+    here_not_yet(people, monkeypatch)
+    before = every_file(data_dir)
+    sign_in(visitor, MEMBER, MEMBER_PASSWORD)
+    sign_in(visitor, KEEPER, KEEPER_PASSWORD)
+    visitor.get("/")
     assert every_file(data_dir) == before
 
 

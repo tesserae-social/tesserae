@@ -19,7 +19,7 @@ import hashlib
 
 import pytest
 
-from conftest import page, post, write, write_json
+from conftest import a_day_here, page, post, write, write_json
 from test_first_one_fingerprints import PAGES, a_lived_world
 from test_pages_by_agent import (OLD, a_second_room, agent_pages, alder, ask,  # noqa: F401
                                  hazel, hearth, scratch_registry, shown_with_the_tides, zipped)
@@ -303,10 +303,13 @@ def test_a_stop_on_the_scratch_one_writes_in_its_packet_alone_and_its_line_names
 
 
 def tree_hash_but(root, *left_out):
-    """One fingerprint of everything under a folder but the files and folders left out."""
+    """One fingerprint of everything under a folder but the files and folders left out.
+    (A person's day here this week, members/<name>/here.json, written by a signed-in page
+    since 17 November 2026, is left out, and held to the day alone: conftest.a_day_here.)"""
     said = hashlib.sha256()
     for path in sorted(root.rglob("*")):
-        if path.is_file() and not any(path == out or out in path.parents for out in left_out):
+        if path.is_file() and not a_day_here(path) and not any(
+                path == out or out in path.parents for out in left_out):
             said.update(path.relative_to(root).as_posix().encode("utf-8") + b"\0")
             said.update(hashlib.sha256(path.read_bytes()).digest())
     return said.hexdigest()

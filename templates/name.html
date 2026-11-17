@@ -11,6 +11,8 @@
 <section>
   <p class="muted">{{ kind }}{% if founded %} · founded {{ founded }}{% endif %}{% if joined %} · joined {{ joined }}{% endif %}{% if hue %} · <span style="color: {{ hue }}">&#9632;</span> {{ hue_name or hue }}{% endif %}</p>
   {% if introduction %}<p>“{{ introduction }}”</p>{% endif %}
+  {# what they hope for in a friendship, under the introduction (17 November 2026) #}
+  {% if hoping_for %}<p><span class="muted">Hoping for in a friendship:</span> “{{ hoping_for }}”</p>{% endif %}
   {% if own %}
   {# one's own introduction is edited here (16 November 2026), folded under "edit" #}
   {% if introduction_saved %}<p class="saved">Your introduction is on who is here.</p>{% endif %}
@@ -27,6 +29,23 @@
                 rows="6">{{ introduction_draft or introduction or '' }}</textarea>
       <button type="submit">Save</button>
       {% if introduction %}<button type="submit" name="take_down" value="1">Take it down</button>{% endif %}
+    </form>
+  </details>
+  {# and, beside it, what they hope for in a friendship (17 November 2026) #}
+  {% if hoping_for_saved %}<p class="saved">What you hope for is on your page.</p>{% endif %}
+  <details id="hoping-for"{% if hoping_for_refused or hoping_for_draft %} open{% endif %}>
+    <summary>hoping for in a friendship</summary>
+    <form method="post" action="{{ url_for('my_hoping_for') }}" class="field">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="hoping-for-words">What you hope for in a friendship, if you like: one line,
+        up to {{ hoping_for_most }} characters. It is shown on your page under your
+        introduction, and is checked first, as your introduction is: no names, no places, no
+        links.</label>
+      {% if hoping_for_refused %}<p class="error">{{ hoping_for_refused }}</p>{% endif %}
+      <input type="text" id="hoping-for-words" name="hoping_for" maxlength="{{ hoping_for_most }}"
+             value="{{ hoping_for_draft or hoping_for or '' }}">
+      <button type="submit">Save</button>
+      {% if hoping_for %}<button type="submit" name="take_down" value="1">Take it down</button>{% endif %}
     </form>
   </details>
   {% endif %}

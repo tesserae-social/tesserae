@@ -127,7 +127,7 @@ def test_a_coming_through_every_step(found, data_dir, monkeypatch, tmp_path):
     assert entry["transcript"] == record["transcript"] and entry["founded"] == "2026-10-15"
     deployed(found, data_dir, monkeypatch, tmp_path)
     done = found.run(ID, "finish")
-    assert "door: open, room for 4" in done["added"]
+    assert "door: open, room for 8" in done["added"]
     assert not any(one.startswith("members.md: member") for one in done["added"])
     members_md = (data_dir / "commons" / "members.md").read_text(encoding="utf-8")
     assert "citizen · " + NAME in members_md and "member ·" not in members_md

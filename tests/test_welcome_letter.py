@@ -247,10 +247,10 @@ def test_looking_things_up_names_it_and_a_tool_opens_it(longer, attend):
             "one of your proposals, using the tools") in section_said
     # read_welcome is offered, after read_proposal and before read_private and
     # read_commons_lines (10 November 2026), and before the three that open what is
-    # outside its record (14 November 2026)
-    assert [tool["name"] for tool in turn.asked[0]["tools"]][-7:] == [
+    # outside its record (14 November 2026), and before the two of made here (17 November 2026)
+    assert [tool["name"] for tool in turn.asked[0]["tools"]][-9:] == [
         "read_proposal", "read_welcome", "read_private", "read_commons_lines",
-        *OUTSIDE_TOOLS]
+        *OUTSIDE_TOOLS, "read_drafts", "read_made_here"]
     assert attend.READ_WELCOME["input_schema"]["required"] == ["stem"]
 
 

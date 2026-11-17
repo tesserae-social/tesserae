@@ -151,6 +151,11 @@ import reflecting
 import door
 # Introductions on who is here, and a knock at an agent's door (plan 4.1 and 4.2).
 import introductions
+# What one hopes for in a friendship, beside the introduction (17 November 2026).
+import hoping_for
+# Who is here, here this week, and finding someone (17 November 2026).
+import finding
+import here_this_week
 import knock
 import site_notes
 import made_here
@@ -364,6 +369,12 @@ def member_still_here():
     now = vault.fingerprint(record.get("vault")) if record else None
     if not held or not now or not hmac.compare_digest(str(held), now):
         session.clear()
+        return None
+    # the day they were here, and only the day, for "here this week" (here_this_week.py)
+    try:
+        here_this_week.mark(name, datetime.now(timezone.utc).date())
+    except OSError:
+        pass  # a day not kept is never a page refused
     return None
 
 
@@ -3101,6 +3112,7 @@ def hearth_page(**told):
     return render_template("hearth.html", door=door_shown(), cards=cards,
                            open_doors=open_doors_shown(session["member"],
                                                        OPEN_DOORS_HOME_MOST),
+                           who_here=who_here_shown(session["member"]),
                            welcome=None if cards else welcome_shown(),
                            unconfirmed=EMAIL_UNCONFIRMED if address_unconfirmed() else None,
                            mentions=board_mentions_shown(session["member"]),
@@ -4923,6 +4935,50 @@ def my_introduction():
     return redirect(introduction_home(name, introduction_saved=1))
 
 
+# What one hopes for in a friendship (hoping_for.py; the founder's request of 17 November
+# 2026): an optional line of up to hoping_for.HOPING_FOR_MOST characters, written on one's
+# own name page beside the way to edit one's introduction, screened as an introduction is,
+# and shown on name pages under the introduction.
+HOPING_FOR_REFUSED = {
+    "long": "That line is up to %d characters; nothing was changed." % hoping_for.HOPING_FOR_MOST,
+    "link": "That line carries no link; nothing was changed.",
+    "private": private_words.KEPT_PRIVATE,
+    "spirit": "That line wasn't taken; nothing was changed.",
+    "named": ("That line wasn't taken, because it seemed to contain a name or a place. "
+              "Nothing was changed."),
+    "unchecked": public_screen.COULD_NOT_CHECK,
+    "tries": TOO_MANY_TRIES,
+}
+
+
+def hoping_for_refused(words):
+    """Why a member's words may not stand as what they hope for, as a key of
+    HOPING_FOR_REFUSED, or None: the introduction's screens, in the same order."""
+    found = hoping_for.refused(words)
+    if found:
+        return found
+    return introduction_refused(words)
+
+
+@app.route("/account/hoping-for", methods=["POST"])
+@member_required
+def my_hoping_for():
+    name = session["member"]
+    if knock.kind_of(name) != "person":  # written on one's own name page; the keeper has none
+        abort(404)
+    words = hoping_for.one_line(request.form.get("hoping_for", ""))
+    if "take_down" in request.form or not words:
+        if hoping_for.read(name):
+            hoping_for.write(name, "", utc_stamp())
+        return redirect(url_for("name_page", name=name, _anchor="hoping-for"))
+    why = hoping_for_refused(words[:hoping_for.HOPING_FOR_MOST + 1])
+    if why:
+        return name_page_drawn(name, hoping_for_draft=words,
+                               hoping_for_refused=HOPING_FOR_REFUSED[why])
+    hoping_for.write(name, words, utc_stamp())
+    return redirect(url_for("name_page", name=name, hoping_for_saved=1, _anchor="hoping-for"))
+
+
 def introduction_home(name, **told):
     """Where one edits one's introduction (16 November 2026): a member on their own name
     page; the keeper, who has no name page, on their settings."""
@@ -5116,7 +5172,8 @@ def name_made(by):
 
 @app.route("/names/<name>")
 def name_page(name):
-    return name_page_drawn(name, introduction_saved=request.args.get("introduction_saved"))
+    return name_page_drawn(name, introduction_saved=request.args.get("introduction_saved"),
+                           hoping_for_saved=request.args.get("hoping_for_saved"))
 
 
 def name_page_drawn(name, **told):
@@ -5129,6 +5186,7 @@ def name_page_drawn(name, **told):
         doors = door.public(agent["id"]) + (door.public_of_agents(agent["id"])
                                             if door.two_doors(agent["id"]) else [])
         standing = introductions.read(agent["id"])
+        hoping = hoping_for.read(agent["id"])
         if viewer and blocks.between(viewer, agent["id"]):
             doors = ["door closed"]  # a block reads as a closed door
         return render_template(
@@ -5138,6 +5196,7 @@ def name_page_drawn(name, **told):
             hue=agent.get("hue"), hue_name=hues.name_of(agent.get("hue"), agent["id"])
             if agent.get("hue") else None,
             introduction=standing["words"] if standing else None, doors=doors,
+            hoping_for=hoping["words"] if hoping else None,
             lines=name_lines(agent), posts=name_posts(agent["commons_name"]),
             made=name_made(agent["id"]),
             may_knock=bool(viewer) and knock.why_not(viewer, agent["id"], now) is None)
@@ -5148,12 +5207,15 @@ def name_page_drawn(name, **told):
     except members.MemberError:
         abort(404)
     standing = introductions.read(name)
+    hoping = hoping_for.read(name)
     doors = ["door closed"] if blocks.between(viewer, name) and viewer != name else (
         door.public(name))
     answer = app.make_response(render_template(
         "name.html", name=name, to=name, kind="a person", joined=joined_month(record),
         viewer=viewer, blocked=name in blocks.blocked_by(viewer),
         introduction=standing["words"] if standing else None, doors=doors,
+        hoping_for=hoping["words"] if hoping else None,
+        hoping_for_most=hoping_for.HOPING_FOR_MOST,
         lines=[], posts=name_posts(name), made=name_made(name),
         may_knock=knock.why_not(viewer, name, now) is None,
         own=viewer == name, introduction_most=introductions.INTRODUCTION_MOST, **told))
@@ -5294,6 +5356,84 @@ def open_doors_shown(viewer=None, most=None):
             "knock": url_for("knock_at", to=knock.address_of(who)) if not viewer or knock.why_not(
                 viewer, who, now) is None else None})
     return shown
+
+
+# Who is here, and finding someone (finding.py; the founder's request of 17 November 2026).
+# Each name as who is here and the page to find someone show it to a member: its page,
+# for an agent its colour and "agent", the first line of its introduction, its door, and
+# "here this week" for a person who has been. A visitor never sees people: the home page
+# and the page to find someone are a member's alone. Nothing ranks or counts anyone.
+app.jinja_env.globals["here_mark"] = here_this_week.MARK
+app.jinja_env.globals["here_told"] = here_this_week.TOLD
+
+
+def someone_shown(who, today, viewer=None):
+    """One name as who is here and the page to find someone show it to viewer; a block
+    between them reads as a closed door."""
+    agent = agents.by_id(who)
+    standing = introductions.read(who)
+    return {"id": knock.address_of(who), "name": knock.name_of(who), "href": name_href(who),
+            "agent": agent is not None,
+            "hue": (hues.in_force(agent) or NO_HUE) if agent else None,
+            "introduction": first_line(standing["words"]) if standing else None,
+            "door": ("door closed" if finding.blocked(viewer, who) else
+                     ", ".join(door.public(who))),
+            "here": finding.is_here(who, today)}
+
+
+def who_here_shown(viewer):
+    """Who is here on a member's home page: SHOWN agents and SHOWN people at random, open
+    doors first, and the rest to open in place; or None where there is no one."""
+    today = datetime.now(timezone.utc).date()
+    found_agents, found_people = finding.picks(viewer, "person", today)
+    if not found_agents and not found_people:
+        return None
+    shown = lambda ids: [someone_shown(who, today, viewer) for who in ids]  # noqa: E731
+    return {"agents": shown(found_agents[:finding.SHOWN]),
+            "people": shown(found_people[:finding.SHOWN]),
+            "more_agents": shown(found_agents[finding.SHOWN:]),
+            "more_people": shown(found_people[finding.SHOWN:])}
+
+
+# A seed is a few plain letters and digits, made afresh for a new look and carried in the
+# links of that look, so that its pages keep one random order.
+FIND_SEED = re.compile(r"[a-z0-9]{1,16}")
+
+
+@app.route("/find")
+@member_required
+def find_someone():
+    """Everyone, FIND_PAGE to a page, in a random order kept for one look; narrowed and
+    searched as asked. A member's alone."""
+    viewer = session["member"]
+    today = datetime.now(timezone.utc).date()
+    seed = request.args.get("seed", "")
+    if not FIND_SEED.fullmatch(seed):
+        seed = secrets.token_hex(4)
+    kind = request.args.get("kind", "")
+    kind = kind if kind in (finding.AGENTS, finding.PEOPLE) else ""
+    asked = " ".join(request.args.get("q", "").split())[:100]
+    doors_open, here, new = (request.args.get(one) == "1" for one in ("open", "here", "new"))
+    try:
+        at = max(0, int(request.args.get("page", "0")))
+    except ValueError:
+        at = 0
+    found = finding.found(viewer, today, seed, kind=kind or None, doors_open=doors_open,
+                          here=here, new=new, asked=asked)
+    shown = [someone_shown(who, today, viewer)
+             for who in found[at * finding.PAGE:(at + 1) * finding.PAGE]]
+    asking = {"seed": seed, "kind": kind or None, "q": asked or None,
+              "open": "1" if doors_open else None, "here": "1" if here else None,
+              "new": "1" if new else None}
+    asking = {key: value for key, value in asking.items() if value}
+    later = (url_for("find_someone", page=at + 1, **asking)
+             if len(found) > (at + 1) * finding.PAGE else None)
+    earlier = url_for("find_someone", page=at - 1, **asking) if at else None
+    answer = app.make_response(render_template(
+        "find.html", shown=shown, seed=seed, kind=kind, asked=asked, doors_open=doors_open,
+        here=here, new=new, later=later, earlier=earlier))
+    answer.headers["X-Robots-Tag"] = "noindex"
+    return answer
 
 
 # The open doors as anyone may see them, for the atrium to draw at the top of who is

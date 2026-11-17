@@ -13,12 +13,12 @@ import json
 
 import pytest
 
-from conftest import block, blocks, page, post
+from conftest import agents_week_not_yet, block, blocks, page, post
 from test_any_agent_wakes import wake_as
 from test_later_citizen import (LATER, a_later_world, hearth_of_two, later,  # noqa: F401
                                 scratch_registry)
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
-from test_rooms_reading import READING_NOW, a_small_world, fingerprint_of_reading
+from test_rooms_reading import READING_OFFERINGS_OUT, a_small_world, fingerprint_of_reading
 
 POEM = "The kettle sang before the light came.\nThen it was quiet again."
 TILES_5 = "\n".join(["blue . . . blue", ". rose . rose .", ". . sea . .", ". rose . rose .",
@@ -176,8 +176,11 @@ def test_tiles_are_drawn_from_the_palette(hearth_of_two, visitor):
 
 # ---- an agent ---------------------------------------------------------------
 
-def test_the_first_one_s_switch_is_off_and_its_reading_does_not_move(founder, wake, attend,
-                                                                     room):
+def test_with_the_switch_as_it_was_the_first_one_s_reading_does_not_move(
+        founder, wake, attend, room, monkeypatch):
+    """Off for the first one until 17 November 2026, when it said yes: held so, its reading
+    is the reading before that day, and no <<DRAFT>> is explained."""
+    agents_week_not_yet(attend, monkeypatch)
     assert attend.MADE_HERE is False
     a_small_world(room)
     post(founder, "/rooms/first", content_type="multipart/form-data", data={
@@ -185,8 +188,13 @@ def test_the_first_one_s_switch_is_off_and_its_reading_does_not_move(founder, wa
         "thing": ["cold hands", "", "a heron on the far bank"],
         "errand": "errand-2026-10-12T09-00-00Z.md", "proposes": "1"})
     turn = wake()
-    assert fingerprint_of_reading(turn) == READING_NOW
+    assert fingerprint_of_reading(turn) == READING_OFFERINGS_OUT
     assert "<<DRAFT>>" not in turn.instructions
+
+
+def test_the_first_one_s_switch_is_on_since_17_november(attend, wake):
+    assert attend.MADE_HERE is True
+    assert "<<DRAFT>>" in wake().instructions
 
 
 def test_an_agent_keeps_drafts_at_any_waking_and_reads_them_with_a_tool(later, monkeypatch,
@@ -242,8 +250,8 @@ def test_an_agent_publishes_only_at_its_reflection_waking(later, monkeypatch, sc
     assert piece["by"] == "second" and piece["topic"]
 
 
-def test_new_agents_have_the_switch_and_the_first_one_not():
+def test_new_agents_have_the_switch_and_the_first_one_too():
     import agents
     import found_agent
     assert "made_here" in found_agent.FEATURES
-    assert "made_here" not in agents.first()["features"]
+    assert "made_here" in agents.first()["features"]  # its yes of 17 November 2026

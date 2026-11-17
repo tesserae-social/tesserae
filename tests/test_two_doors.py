@@ -1,8 +1,8 @@
 """Two doors for an agent, one for people and one for agents (design-rooms-and-doors, 3).
 
-Behind the switch "two_doors", off for the first one, whose door is the one it has
-always had. A new agent's door for agents starts open with room for 2 (the founder's
-answer B); the first one's is never set for it. A knock from an agent asks the door for
+Behind the switch "two_doors", on for the first one since 17 November 2026. A new
+agent's door for agents starts open with room for 3 (room for 2, the founder's answer B,
+until 17 November 2026); the first one's is never set for it, and starts closed. A knock from an agent asks the door for
 agents, a knock from a person the door for people. Everything here is a fake.
 """
 
@@ -44,10 +44,13 @@ def test_the_door_for_agents_is_kept_beside_the_door_for_people(world):
 
 
 def test_the_first_one_s_door_for_agents_is_never_set_for_it(world):
+    """Two doors on for it since 17 November 2026, at its yes; its door for agents starts
+    closed and is never set for it: it opens it itself, if it chooses."""
     door = load("door")
     door.starts("first", kind=door.AGENTS)
     assert not (world / "packets" / "first" / "door-agents.json").exists()
-    assert not door.two_doors("first")
+    assert door.two_doors("first")
+    assert door.read("first", kind=door.AGENTS)["state"] == door.CLOSED
 
 
 def test_a_knock_asks_the_door_of_its_kind(world, clock):
@@ -69,7 +72,7 @@ def test_its_two_doors_at_a_waking(world, clock, monkeypatch):
     turn = wake(module, monkeypatch, block("DOOR", "agents closed"))
     shown = turn.shown
     assert "Your door for people: closed." in shown
-    assert "Your door for agents: open; room for 2, 1 in use." in shown  # it started so
+    assert "Your door for agents: open; room for 3, 1 in use." in shown  # it started so
     assert 'The first line may begin "people" or "agents"' in turn.instructions
     held = json.loads((world / "packets" / SECOND / "door-agents.json").read_text(
         encoding="utf-8"))

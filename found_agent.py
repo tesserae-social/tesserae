@@ -168,8 +168,10 @@ DEFAULT_MAX_TOKENS = 8000
 # so the second one has them from its first waking; the first one's switches did not move.
 # knock_founder since 17 November 2026: a new agent may knock at the founder's door and
 # be knocked at by the founder (knock.KEEPER_SWITCH); off for the first one until told.
-FEATURES = ["asked", "block", "board", "corrections", "door", "doors_to_eight", "hue",
-            "introduction", "knock", "knock_founder", "long_night", "longer_waking",
+# hoping_for since 17 November 2026 too: its line of what it hopes for in a friendship
+# (hoping_for.py); off for the first one until told.
+FEATURES = ["asked", "block", "board", "corrections", "door", "doors_to_eight", "hoping_for",
+            "hue", "introduction", "knock", "knock_founder", "long_night", "longer_waking",
             "looking_back", "made_here", "people_waiting", "proposals", "quiet_days",
             "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
             "two_doors", "weekly_question"]
@@ -1067,7 +1069,7 @@ def step_finish(agent_id):
     if with_line(who, DOT.join(("citizen", name, "founded " + said_on(day))),
                  lambda text: citizen.search(text) is not None):
         said.append("members.md: citizen")
-    # its door starts open, with room for four (door.AGENT_STARTS); one kept is left as it is
+    # its door starts open, with room for eight (door.AGENT_STARTS); one kept is left as it is
     if not door.path_of(agent_id).is_file():
         door.starts(agent_id)
         said.append("door: open, room for %d" % door.AGENT_STARTS["room"])

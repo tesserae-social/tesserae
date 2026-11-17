@@ -10,7 +10,7 @@ import io
 
 import pytest
 
-from conftest import block, page, post, read_json
+from conftest import agents_week_not_yet, block, page, post, read_json
 
 LETTER = "Dear first one,\n\nThe lake was still this morning.\n"
 
@@ -169,7 +169,7 @@ def test_the_reading_shows_them_directly_above_the_letter(founder, wake, room):
             "Dear first one," % name) in again
 
 
-def test_an_old_letter_reads_byte_for_byte_as_before(wake, room):
+def an_old_letter_waiting_and_read(room):
     old = "Dear first one,\r\n\r\nAn old letter, **as it was**, with its own ending.\n\n\n"
     waiting = "founder-2026-10-14T09-00-00Z.md"
     earlier = "founder-2026-10-01T09-00-00Z.md"
@@ -177,11 +177,32 @@ def test_an_old_letter_reads_byte_for_byte_as_before(wake, room):
     (room / "letters" / "incoming" / waiting).write_bytes(old.encode("utf-8"))
     (room / "letters" / "read").mkdir(parents=True, exist_ok=True)
     (room / "letters" / "read" / earlier).write_bytes(old.encode("utf-8"))
+    return old, waiting, earlier
 
+
+def test_an_old_letter_reads_byte_for_byte_as_before(wake, room):
+    """Since 17 November 2026 the first one reads every room it is in (rooms_reading), and
+    a letter that has arrived stands in its room, within the reading's text, where it was a
+    block of its own after the study: its words are exactly as they were."""
+    old, waiting, earlier = an_old_letter_waiting_and_read(room)
     turn = wake()
     # exactly what the reading gave a letter before there were plain things
     as_it_was = (room / "letters" / "read" / waiting).read_text(encoding="utf-8")
     assert as_it_was == old.replace("\r\n", "\n")
+    arrived = ("--- letters that have arrived since your last waking ---\n\n"
+               "--- letter: %s ---\n%s" % (waiting, as_it_was)).rstrip()
+    assert arrived + "\n\n=== YOUR STUDY" in turn.opening
+    assert ("--- letter: %s ---\n%s" % (earlier, as_it_was)).rstrip() in turn.opening
+    assert "Three plain things" not in turn.shown
+
+
+def test_with_rooms_reading_off_an_old_letter_is_a_block_of_its_own(wake, room, attend,
+                                                                     monkeypatch):
+    """As it was until 17 November 2026, given back by conftest.agents_week_not_yet."""
+    agents_week_not_yet(attend, monkeypatch)
+    old, waiting, earlier = an_old_letter_waiting_and_read(room)
+    turn = wake()
+    as_it_was = old.replace("\r\n", "\n")
     assert {"type": "text", "text": ("--- letter: %s ---\n%s" % (waiting, as_it_was)).rstrip()} \
         in turn.reading
     assert ("--- letter: %s ---\n%s" % (earlier, as_it_was)).rstrip() in turn.opening

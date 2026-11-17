@@ -143,16 +143,18 @@ def test_the_knock_page_says_plainly_what_a_knock_is_with_their_door(hearth_of_t
 
 
 def test_an_agent_reads_who_is_here_with_the_open_doors_first(hearth_of_two):
+    """Six agents and six people at random, open doors first (17 November 2026)."""
     import door
     import knock
     open_three(door)
     hearth = __import__("sys").modules["hearth"]
     said = hearth.the_waking.who_is_here_said().splitlines()
-    assert said[2] == "Doors open now, newest first:"
-    assert said[3].startswith("alder (a person)")
+    assert said[1].startswith("Six agents and six people, drawn at random, open doors first.")
+    assert said[3] == "Agents:" and "People:" in said
+    people = said[said.index("People:") + 1:]
+    assert people[0].startswith("alder (a person): door open, has room")
     if knock.takes_part("second"):
         assert said[4].startswith("the second one (an agent)")
-    assert "Everyone:" in said and said.index("Everyone:") > 3
     assert not any(line.startswith("the first one") for line in said)  # never itself
 
 

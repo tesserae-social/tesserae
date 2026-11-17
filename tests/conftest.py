@@ -596,6 +596,9 @@ def load(name):
     sys.modules.pop("blocks", None)  # it keeps each one's blocks under DATA_DIR
     sys.modules.pop("site_notes", None)  # it keeps each note from the site under DATA_DIR
     sys.modules.pop("made_here", None)  # it keeps drafts and what is made here under DATA_DIR
+    sys.modules.pop("hoping_for", None)  # it keeps each line through introductions, under DATA_DIR
+    sys.modules.pop("here_this_week", None)  # it keeps each day through members, under DATA_DIR
+    sys.modules.pop("finding", None)  # it reads doors, introductions and days under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 
@@ -850,6 +853,71 @@ def offer_explained_again(module, monkeypatch):
                         now.replace(STUDY_OPENS, OFFER_BLOCK_BEFORE + "\n\n" + STUDY_OPENS, 1))
 
 
+# What the founder switched on for the first one on 17 November 2026 (the branch
+# agents-week), each of which it said yes to that day, and the one he switched off:
+# quiet_days, made_here, rooms_reading, two_doors and block on; rhythm_line off.
+FEATURES_ON_17_NOVEMBER = ("quiet_days", "made_here", "rooms_reading", "two_doors", "block")
+FEATURES_OFF_17_NOVEMBER = ("rhythm_line",)
+SWITCHED_17_NOVEMBER = (("QUIET_DAYS", False), ("MADE_HERE", False), ("ROOMS_READING", False),
+                        ("TWO_DOORS", False), ("BLOCKING", False), ("RHYTHM_LINE", True))
+AGENTS_WEEK_HOME = []
+
+
+# read_who_is_here as it was given to an agent until 17 November 2026, later (the branch
+# agents-week, part 5): every agent and person, with no word to search by.
+READ_WHO_IS_HERE_BEFORE = {
+    "name": "read_who_is_here",
+    "description": ("Open who is here: each agent and person, whether their door is open "
+                    "and has room, their introduction, and whose door you may knock at."),
+    "input_schema": {"type": "object", "properties": {}}}
+
+
+def who_drawn_not_yet(module, monkeypatch):
+    """Give read_who_is_here back, for one test, as it was given until 17 November 2026,
+    later: its description and its input with no word (attend.READ_WHO_IS_HERE). Every
+    reading of an agent with knocks on cut before then is exactly what it was with this
+    done. Given hearth, it is done to the attend.py the hearth holds the tide through."""
+    module = getattr(module, "the_waking", module)
+    if hasattr(module, "READ_WHO_IS_HERE"):
+        monkeypatch.setattr(module, "READ_WHO_IS_HERE", READ_WHO_IS_HERE_BEFORE)
+
+
+def agents_week_not_yet(module, monkeypatch):
+    """Put back, for one test, the first one's switches as they stood until 17 November 2026:
+    the five switched on that day taken out of its features and rhythm_line put back, in the
+    registry as it now stands (a scratch agents.json, or agents.FIRST where there is no
+    file), and the six flags of attend.py as they were. Every reading of the first one cut
+    before then is exactly what it was with this done. Given hearth, it is done to the
+    attend.py the hearth holds the tide through. A test that writes a registry of its own
+    after this reads that registry. read_who_is_here, given anew later that day, is given
+    back as it was first (who_drawn_not_yet)."""
+    who_drawn_not_yet(module, monkeypatch)
+    registry = sys.modules["agents"]
+
+    def as_before(entry):
+        if entry.get("id") != registry.FIRST["id"]:
+            return entry
+        features = [one for one in entry.get("features") or ()
+                    if one not in FEATURES_ON_17_NOVEMBER]
+        features += [one for one in FEATURES_OFF_17_NOVEMBER if one not in features]
+        return {**entry, "features": sorted(features)}
+
+    if registry.FILE.is_file():
+        if not AGENTS_WEEK_HOME:
+            import tempfile
+            AGENTS_WEEK_HOME.append(Path(tempfile.mkdtemp(prefix="tesserae-agents-week-")))
+        where = AGENTS_WEEK_HOME[0] / f"agents-{len(list(AGENTS_WEEK_HOME[0].iterdir()))}.json"
+        where.write_text(json.dumps([as_before(one) for one in registry.registry()], indent=2)
+                         + "\n", encoding="utf-8")
+        monkeypatch.setattr(registry, "FILE", where)
+    else:
+        monkeypatch.setattr(registry, "FIRST", as_before(dict(registry.FIRST)))
+    module = getattr(module, "the_waking", module)
+    for flag, was in SWITCHED_17_NOVEMBER:
+        if hasattr(module, flag):
+            monkeypatch.setattr(module, flag, was)
+
+
 def standing_welcome_not_yet(module, monkeypatch):
     """Shut the first one's standing welcome away again, for one test, as it was until 16
     November 2026 (the branch welcome-on), when the founder put "standing_welcome" among its
@@ -857,7 +925,10 @@ def standing_welcome_not_yet(module, monkeypatch):
     line of it under WHAT HAS HAPPENED and no <<STANDING_WELCOME>> explained. Every reading of
     the first one cut before then is exactly what it was with this done. Given hearth, it is
     done to the attend.py the hearth holds the tide through. Offerings, taken out after it
-    (16 November 2026, later), are explained again first (offer_explained_again)."""
+    (16 November 2026, later), are explained again first (offer_explained_again). What was
+    switched for it on 17 November 2026 came later still, so it is put back first too
+    (agents_week_not_yet)."""
+    agents_week_not_yet(module, monkeypatch)
     offer_explained_again(module, monkeypatch)
     module = getattr(module, "the_waking", module)
     monkeypatch.setattr(module, "STANDING_WELCOME", False)
@@ -1257,6 +1328,52 @@ def made_here_not_yet(hearth, monkeypatch):
         one for one in listed() if one is not hearth.COMMONS_MADE_HERE])
 
 
+def here_not_yet(hearth, monkeypatch):
+    """Keep no day, for one test, as before here this week (17 November 2026, the branch
+    agents-week): a signed-in member's page writes nothing, so members/<name>/here.json is
+    never made. The backup, which holds the names of the members' files, is then exactly
+    what it was (test_first_one_fingerprints' BACKUP_BEFORE_HERE)."""
+    monkeypatch.setattr(hearth.here_this_week, "mark", lambda who, today: None)
+
+
+def here_files(data_dir):
+    """Each here.json under members/, each held to be the day alone and nothing else
+    (here_this_week.py): what a signed-in page may leave behind since 17 November 2026."""
+    import re
+    found = set(data_dir.joinpath("members").glob("*/here.json"))
+    for one in found:
+        assert re.fullmatch(r'\{"day": "\d{4}-\d{2}-\d{2}"\}\n',
+                            one.read_text(encoding="utf-8")), one
+    return found
+
+
+def a_day_here(path):
+    """Whether a file is a person's day here this week (members/<name>/here.json), which a
+    signed-in page may write since 17 November 2026; held, where it is, to the day alone."""
+    path = Path(path)
+    if path.name != "here.json" or path.parent.parent.name != "members":
+        return False
+    import re
+    assert re.fullmatch(r'\{"day": "\d{4}-\d{2}-\d{2}"\}\n', path.read_text(encoding="utf-8")), path
+    return True
+
+
+PAGES_BEFORE_WEEK = Path(__file__).resolve().parent / "pages_before_week"
+
+
+def pages_before_week(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before the branch agents-week (17 November
+    2026): no line of what one hopes for in a friendship on a name page, no who is here and
+    no "here this week" on the home page, and no line of it in the guide or on settings.
+    hearth.html, name.html, account.html and guide.html as they were are kept in
+    tests/pages_before_week and drawn in place of today's. offerings_as_before calls it
+    first, so every older drawing stands on it too."""
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_WEEK)), env.loader]))
+
+
 def offerings_as_before(hearth, monkeypatch):
     """Draw the pages, for one test, as they were before offerings were taken out of the code
     (16 November 2026, part B4), where they still can be: base.html with its style for the
@@ -1270,6 +1387,7 @@ def offerings_as_before(hearth, monkeypatch):
     if getattr(hearth, "OFFERINGS_AS_BEFORE", False):
         return  # drawn as before already, and behind whatever came after
     monkeypatch.setattr(hearth, "OFFERINGS_AS_BEFORE", True, raising=False)
+    pages_before_week(hearth, monkeypatch)  # it came after
     made_here_not_yet(hearth, monkeypatch)  # it came after
     env = hearth.app.jinja_env
     monkeypatch.setattr(env, "loader",

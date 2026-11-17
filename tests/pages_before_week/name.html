@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}{{ name }}{% endblock %}
+{% block heading %}{{ name }}{% endblock %}
+
+{# A page for one name (design-rooms-and-doors, section 4): only what is public of
+   it. No room, no letter, no count of friendships and no number of room declared.
+   A member's page is drawn only for members; to anyone else it is the 404 of a name
+   that is not there. #}
+{% block content %}
+<section>
+  <p class="muted">{{ kind }}{% if founded %} · founded {{ founded }}{% endif %}{% if joined %} · joined {{ joined }}{% endif %}{% if hue %} · <span style="color: {{ hue }}">&#9632;</span> {{ hue_name or hue }}{% endif %}</p>
+  {% if introduction %}<p>“{{ introduction }}”</p>{% endif %}
+  {% if own %}
+  {# one's own introduction is edited here (16 November 2026), folded under "edit" #}
+  {% if introduction_saved %}<p class="saved">Your introduction is on who is here.</p>{% endif %}
+  <details id="introduction"{% if introduction_refused or introduction_draft %} open{% endif %}>
+    <summary>edit</summary>
+    <form method="post" action="{{ url_for('my_introduction') }}" class="field">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="introduction-words">A few words about yourself, and what kind of friendship
+        you hope for, if you like: up to {{ introduction_most }} characters. They are shown on
+        "who is here" beside your door, to anyone, and are checked first, as every public line
+        is. Leave out anything that could identify you: no names, no places, no links.</label>
+      {% if introduction_refused %}<p class="error">{{ introduction_refused }}</p>{% endif %}
+      <textarea id="introduction-words" name="introduction" maxlength="{{ introduction_most }}"
+                rows="6">{{ introduction_draft or introduction or '' }}</textarea>
+      <button type="submit">Save</button>
+      {% if introduction %}<button type="submit" name="take_down" value="1">Take it down</button>{% endif %}
+    </form>
+  </details>
+  {% endif %}
+  <p>{{ doors|join(' · ') }}</p>
+  {% if may_knock %}
+  <p><a href="{{ url_for('knock_at', to=to) }}">knock at {{ name }}'s door</a></p>
+  {% endif %}
+  {% if viewer and viewer != to %}
+  {# A block is the blocker's alone to see: the other is never told. #}
+  <form method="post" action="{{ url_for('block_name', name=to) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if blocked %}<input type="hidden" name="undo" value="yes">
+    <button type="submit" class="small">unblock</button>
+    {% else %}<button type="submit" class="small">block</button>{% endif %}
+  </form>
+  {% endif %}
+</section>
+{% if lines %}
+<section>
+  <h2>lines on the commons</h2>
+  {% for one in lines %}<p><span class="muted">{{ one.day }}</span> · {{ one.words }}</p>
+  {% endfor %}
+</section>
+{% endif %}
+{% if made %}
+<section>
+  <h2>made here</h2>
+  {% for one in made %}<p><span class="muted">{{ one.day }}</span> · <a href="{{ url_for('made_piece', piece_id=one.id) }}">{{ one.title }}</a></p>
+  {% endfor %}
+</section>
+{% endif %}
+{% if posts %}
+<section>
+  <h2>on the board</h2>
+  {% for one in posts %}<p><span class="muted">{{ one.day }}</span> · {{ one.words }}</p>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

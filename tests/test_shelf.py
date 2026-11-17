@@ -14,7 +14,7 @@ import pytest
 from conftest import (FOUNDING_TRANSCRIPT, SWITCHED_ON, SWITCHED_ON_21_OCTOBER,
                       block, blocks, explained_as_before, lines_of, page, read_json, shut_away, write,
                       write_json)
-from conftest import heartbeat_not_yet_public, wakings_not_yet_switched
+from conftest import agents_week_not_yet, heartbeat_not_yet_public, wakings_not_yet_switched
 from conftest import NOTEBOOK_PATHS, NOTEBOOK_WORDS, a_private_notebook, notebook_unexplained
 from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
@@ -24,9 +24,18 @@ ARTICLE = "founder-2026-10-01T15-15-05Z"
 FOUNDERS = ["founder-2026-09-2%dT10-00-00Z" % day for day in range(1, 7)]
 OWN = ["to-founder-2026-09-2%dT11-00-00Z" % day for day in range(1, 7)]
 
-FULL_OWN = "=== LETTERS YOU HAVE WRITTEN ==="
-FULL_FOUNDERS = "=== LETTERS FROM THE FOUNDER YOU HAVE ALREADY READ ==="
-RESTING = "=== RESTING (one line each; nothing is erased) ==="
+# Since 17 November 2026 the first one reads every room it is in (rooms_reading, which it
+# said yes to that day), and its letters stand in its room with the founder, under these
+# sub-headings; its shelf works as it did. As they stood before, kept to be read again
+# with conftest.agents_week_not_yet (test_with_rooms_reading_off_the_shelf_reads_as_before):
+FULL_OWN_BEFORE_ROOMS = "=== LETTERS YOU HAVE WRITTEN ==="
+FULL_FOUNDERS_BEFORE_ROOMS = "=== LETTERS FROM THE FOUNDER YOU HAVE ALREADY READ ==="
+RESTING_BEFORE_ROOMS = "=== RESTING (one line each; nothing is erased) ==="
+ARRIVED_BEFORE_ROOMS = "=== LETTERS THAT HAVE ARRIVED"
+FULL_OWN = "--- letters you have written ---"
+FULL_FOUNDERS = "--- letters from the founder you have already read ---"
+RESTING = "--- resting ---"
+ARRIVED = "--- letters that have arrived since your last waking ---"
 FOUNDING = "=== YOUR FOUNDING RECORD ==="
 FOUNDING_RESTS = "Your founding record rests. Ask for it with show founding."
 
@@ -43,7 +52,7 @@ SEND_KEPT = ("send kept <stem>: a letter or picture kept in your study at an ext
 # November 2026, when the first one came to one waking a day; it is held, with
 # extra wakings turned on, in test_extra_wakings.py.
 
-EXPLAINED = """<<SHELF>>
+EXPLAINED_BEFORE_ROOMS = """<<SHELF>>
 (how you keep your history. One instruction per line:
 keep <stem>: always shown in full
 rest <stem>: shown as one line
@@ -53,6 +62,10 @@ show <stem>: shown in full at your next waking only, photographs included
 show founding: your founding record in full at your next waking
 """ + NOTE_LINES + """Letters you haven't placed follow the default: the founder's last four letters and your own last four are shown in full; older ones rest. Nothing is ever erased. Your shelf is private.)
 <<END>>"""
+# With every room read, one line more: its wakings past the last thirty are one line,
+# and it may ask for them all.
+SHOW_ATTENDANCES = "show attendances: every waking listed at your next waking\n"
+EXPLAINED = EXPLAINED_BEFORE_ROOMS.replace(NOTE_LINES, NOTE_LINES + SHOW_ATTENDANCES, 1)
 
 
 def words_for(stem):
@@ -92,8 +105,10 @@ def six_each_way(room):
 
 
 def section(turn, heading):
-    """One section of the reading: what stands under its heading."""
-    return turn.shown.split(heading + "\n", 1)[1].split("\n\n=== ", 1)[0]
+    """One section of the reading: what stands under its heading, up to the next heading,
+    or, within a room, the next of the room's own sub-headings."""
+    under = turn.shown.split(heading + "\n", 1)[1].split("\n\n=== ", 1)[0]
+    return under.split("\n\n--- letters ", 1)[0].split("\n\n" + RESTING, 1)[0]
 
 
 def in_full(turn, stem):
@@ -176,6 +191,27 @@ def test_the_block_is_explained_exactly(wake, attend, monkeypatch):
     said = wake().instructions
     assert EXPLAINED in said
     assert said.index("<<QUESTIONS>>") < said.index("<<SHELF>>") < said.index("<<LETTER>>")
+
+
+def test_with_rooms_reading_off_the_shelf_reads_as_before(wake, attend, monkeypatch, room):
+    """The layout of 16 November 2026 and before, given back by agents_week_not_yet: one
+    section for each kind of letter, one RESTING section, and the block without show
+    attendances. The shelf is the same shelf either way."""
+    agents_week_not_yet(attend, monkeypatch)
+    six_each_way(room)
+    turn = wake()
+    shown = turn.shown
+    assert FULL_OWN not in shown and RESTING not in shown and ARRIVED not in shown
+    assert (shown.index(FULL_OWN_BEFORE_ROOMS) < shown.index(FULL_FOUNDERS_BEFORE_ROOMS)
+            < shown.index(RESTING_BEFORE_ROOMS) < shown.index("=== YOUR STUDY")
+            < shown.index(ARRIVED_BEFORE_ROOMS) < shown.index("=== HOW TO ACT"))
+    assert ([line.split(" · ")[0] for line in section(turn, RESTING_BEFORE_ROOMS).splitlines()]
+            == [FOUNDERS[0], OWN[0], FOUNDERS[1], OWN[1]])
+    own_in_full = section(turn, FULL_OWN_BEFORE_ROOMS)
+    assert [stem for stem in OWN if words_for(stem) in own_in_full] == OWN[2:]
+    explained = EXPLAINED_BEFORE_ROOMS.replace(SHOW_FOUNDING, SHOW_FOUNDING + SHOW_VERSION, 1)
+    assert explained in turn.instructions
+    assert SHOW_ATTENDANCES not in turn.instructions
 
 
 # ---- keep, rest, note, show ----------------------------------------------
@@ -452,9 +488,9 @@ def test_a_resting_photograph_is_withheld_then_shown_on_request(wake, attend, ro
             + "\n(a photograph came with this letter; you saw it when you first read it)"
             ) in shown.shown
     # and everything after the photograph is still there, in its order
-    assert shown.shown.index(RESTING) < shown.shown.index("=== YOUR STUDY") \
-        < shown.shown.index("=== LETTERS THAT HAVE ARRIVED") \
-        < shown.shown.index("=== HOW TO ACT")
+    # (with every room read, what has arrived stands in its room, before the study)
+    assert shown.shown.index(RESTING) < shown.shown.index(ARRIVED) \
+        < shown.shown.index("=== YOUR STUDY") < shown.shown.index("=== HOW TO ACT")
 
     assert wake().photos == []  # once
 
@@ -641,7 +677,20 @@ def many(words, of="word"):
     return " ".join([of] * words)
 
 
-def test_past_fifteen_thousand_words_in_full_it_is_told_so_as_a_fact(wake, clock, room):
+def budget_out_of_the_way(attend, monkeypatch, most=None):
+    """With every room read, a room shows at most ROOM_BUDGET words of letters in full and
+    rests its oldest past that (held in test_room_aware_waking.py); a reading's backstop is
+    READING_MOST_ROOMS. Here the room's budget is set out of the way, so that the nudge and
+    the backstop are seen as they work, and the backstop is set where the test says."""
+    assert attend.ROOM_BUDGET == 3000 and attend.READING_MOST_ROOMS == 40000
+    monkeypatch.setattr(attend, "ROOM_BUDGET", 10 ** 9)
+    if most is not None:
+        monkeypatch.setattr(attend, "READING_MOST_ROOMS", most)
+
+
+def test_past_fifteen_thousand_words_in_full_it_is_told_so_as_a_fact(wake, clock, room, attend,
+                                                                      monkeypatch):
+    budget_out_of_the_way(attend, monkeypatch)
     six_each_way(room)
     for stem in FOUNDERS[2:]:
         from_founder(room, stem, many(3700))
@@ -667,6 +716,8 @@ def test_past_fifteen_thousand_words_in_full_it_is_told_so_as_a_fact(wake, clock
 
 def test_the_nudge_is_said_even_where_nothing_rests(wake, room):
     from_founder(room, FOUNDERS[0], many(15001))
+    # kept, or the room's budget would rest it (and its line say so)
+    wake(block("SHELF", "keep %s" % FOUNDERS[0]))
     assert section(wake(), RESTING).splitlines() == [
         "(no letters rest)",
         "Your reading now holds about 15,000 words of letters in full. Past a certain size, "
@@ -674,8 +725,10 @@ def test_the_nudge_is_said_even_where_nothing_rests(wake, room):
         "stay close."]
 
 
-def test_a_reading_too_large_rests_its_oldest_letters_and_says_which(wake, packet, attend, room):
+def test_a_reading_too_large_rests_its_oldest_letters_and_says_which(wake, packet, attend, room,
+                                                                     monkeypatch):
     assert attend.READING_MOST == 150000
+    budget_out_of_the_way(attend, monkeypatch, attend.READING_MOST)
     for stem in FOUNDERS[:4]:
         from_founder(room, stem, words_for(stem) + " " + many(30000))
     for stem in OWN[:4]:
@@ -702,6 +755,7 @@ def test_a_reading_too_large_rests_its_oldest_letters_and_says_which(wake, packe
 
 def test_an_arrived_letter_is_never_rested_by_the_backstop(wake, attend, monkeypatch, room):
     monkeypatch.setattr(attend, "READING_MOST", 2500)
+    budget_out_of_the_way(attend, monkeypatch, 2500)
     from_founder(room, FOUNDERS[0], words_for(FOUNDERS[0]) + " " + many(1000))
     new = "founder-2026-10-14T18-00-00Z"
     arrived(room, new, words_for(new) + " " + many(5000))
@@ -837,6 +891,7 @@ LEFT = "214091832f354fef41632520298163e6f22196cda1b556f7ea4565e9045affcf"
 def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
         steady, wake, attend, packet, data_dir, monkeypatch, room):
     """But for the block explained, and the founding record's one line."""
+    agents_week_not_yet(attend, monkeypatch)  # one section of letters then, not a room
     wakings_not_yet_switched(attend, monkeypatch)  # no reflection waking then
     heartbeat_not_yet_public(attend, monkeypatch)  # nor did it yet say its heartbeat is public
 
@@ -864,14 +919,14 @@ def test_with_fewer_than_four_letters_each_way_the_reading_is_as_it_was(
     resting_record = FOUNDING + "\n" + FOUNDING_RESTS
     whole_record = FOUNDING + "\n" + FOUNDING_TRANSCRIPT
     assert now.opening.count(resting_record) == 1 and whole_record not in now.opening
-    assert RESTING not in now.shown
+    assert RESTING_BEFORE_ROOMS not in now.shown
 
     # what arrived, and its photograph, exactly as before
     assert len(now.reading) == 4
 
     # and the instructions differ by the one block explained, and nothing else
     # (as the block stood then: the lines for its named notes, and send kept, came after)
-    explained = EXPLAINED.replace(NOTE_LINES, "", 1) + "\n\n"
+    explained = EXPLAINED_BEFORE_ROOMS.replace(NOTE_LINES, "", 1) + "\n\n"
     assert now.instructions.count(explained) == 1
     assert not (packet / "shelf.json").exists()
 

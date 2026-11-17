@@ -231,7 +231,8 @@ def test_on_the_day_it_runs_on_the_new_model_and_reads_its_note_then_the_asking(
                 in text)
     assert said[mine] == ("=== YOUR NOTE, WRITTEN BEFORE THE CHANGE ===\n(written on 15 October "
                           "2026)\n\n" + NOTE_WORDS + "\n\n" + ASKING)
-    letters = next(n for n, text in enumerate(said) if "=== LETTERS THAT HAVE ARRIVED" in text)
+    # its room's letters, in the room's own section since it reads every room (17 November 2026)
+    letters = next(n for n, text in enumerate(said) if "=== YOUR ROOM WITH" in text)
     assert letters < mine < len(said) - 1  # after its record, before how to act
     assert latest(packet)["model"] == NEW
     events = lines_of(data_dir / "commons" / "events.md")

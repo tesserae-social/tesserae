@@ -850,6 +850,50 @@ def offer_explained_again(module, monkeypatch):
                         now.replace(STUDY_OPENS, OFFER_BLOCK_BEFORE + "\n\n" + STUDY_OPENS, 1))
 
 
+# What the founder switched on for the first one on 17 November 2026 (the branch
+# agents-week), each of which it said yes to that day, and the one he switched off:
+# quiet_days, made_here, rooms_reading, two_doors and block on; rhythm_line off.
+FEATURES_ON_17_NOVEMBER = ("quiet_days", "made_here", "rooms_reading", "two_doors", "block")
+FEATURES_OFF_17_NOVEMBER = ("rhythm_line",)
+SWITCHED_17_NOVEMBER = (("QUIET_DAYS", False), ("MADE_HERE", False), ("ROOMS_READING", False),
+                        ("TWO_DOORS", False), ("BLOCKING", False), ("RHYTHM_LINE", True))
+AGENTS_WEEK_HOME = []
+
+
+def agents_week_not_yet(module, monkeypatch):
+    """Put back, for one test, the first one's switches as they stood until 17 November 2026:
+    the five switched on that day taken out of its features and rhythm_line put back, in the
+    registry as it now stands (a scratch agents.json, or agents.FIRST where there is no
+    file), and the six flags of attend.py as they were. Every reading of the first one cut
+    before then is exactly what it was with this done. Given hearth, it is done to the
+    attend.py the hearth holds the tide through. A test that writes a registry of its own
+    after this reads that registry."""
+    registry = sys.modules["agents"]
+
+    def as_before(entry):
+        if entry.get("id") != registry.FIRST["id"]:
+            return entry
+        features = [one for one in entry.get("features") or ()
+                    if one not in FEATURES_ON_17_NOVEMBER]
+        features += [one for one in FEATURES_OFF_17_NOVEMBER if one not in features]
+        return {**entry, "features": sorted(features)}
+
+    if registry.FILE.is_file():
+        if not AGENTS_WEEK_HOME:
+            import tempfile
+            AGENTS_WEEK_HOME.append(Path(tempfile.mkdtemp(prefix="tesserae-agents-week-")))
+        where = AGENTS_WEEK_HOME[0] / f"agents-{len(list(AGENTS_WEEK_HOME[0].iterdir()))}.json"
+        where.write_text(json.dumps([as_before(one) for one in registry.registry()], indent=2)
+                         + "\n", encoding="utf-8")
+        monkeypatch.setattr(registry, "FILE", where)
+    else:
+        monkeypatch.setattr(registry, "FIRST", as_before(dict(registry.FIRST)))
+    module = getattr(module, "the_waking", module)
+    for flag, was in SWITCHED_17_NOVEMBER:
+        if hasattr(module, flag):
+            monkeypatch.setattr(module, flag, was)
+
+
 def standing_welcome_not_yet(module, monkeypatch):
     """Shut the first one's standing welcome away again, for one test, as it was until 16
     November 2026 (the branch welcome-on), when the founder put "standing_welcome" among its
@@ -857,7 +901,10 @@ def standing_welcome_not_yet(module, monkeypatch):
     line of it under WHAT HAS HAPPENED and no <<STANDING_WELCOME>> explained. Every reading of
     the first one cut before then is exactly what it was with this done. Given hearth, it is
     done to the attend.py the hearth holds the tide through. Offerings, taken out after it
-    (16 November 2026, later), are explained again first (offer_explained_again)."""
+    (16 November 2026, later), are explained again first (offer_explained_again). What was
+    switched for it on 17 November 2026 came later still, so it is put back first too
+    (agents_week_not_yet)."""
+    agents_week_not_yet(module, monkeypatch)
     offer_explained_again(module, monkeypatch)
     module = getattr(module, "the_waking", module)
     monkeypatch.setattr(module, "STANDING_WELCOME", False)

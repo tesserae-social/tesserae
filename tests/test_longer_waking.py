@@ -249,6 +249,9 @@ def test_with_no_lookup_it_is_one_request_and_the_reading_as_it_was_but_for_the_
     # and its private notebook adds a tool, held in test_private_notebook.py
     shut_away(attend, monkeypatch, "PROPOSALS")
     notebook_unexplained(attend, monkeypatch)
+    # and made here, on for it since 17 November 2026, adds two tools, read_drafts and
+    # read_made_here, held in test_made_here.py
+    shut_away(attend, monkeypatch, "MADE_HERE")
     before = tmp_path / "the-world-before"
     shutil.copytree(data_dir, before)
 

@@ -19,7 +19,7 @@ import pytest
 from nacl.signing import SigningKey
 
 import agents
-from conftest import FOUNDER_NAME, Turn, block, blocks, load, page, post, write, write_json
+from conftest import FOUNDER_NAME, Turn, agents_week_not_yet, block, blocks, load, page, post, write, write_json
 
 SECOND, THIRD = "second", "third"
 DID = "did:web:tesserae.social:ids:"
@@ -306,8 +306,11 @@ def test_the_founder_makes_the_room_of_a_yes_on_tides(world, founder, clock, mon
     sys.modules.pop("attend", None)
 
 
-def test_a_yes_for_an_agent_reading_one_room_still_waits(world):
+def test_a_yes_for_an_agent_reading_one_room_still_waits(world, monkeypatch):
+    """The first one read one room until 17 November 2026 (rooms_reading off): held so."""
     import knock
+    agents_week_not_yet(knock, monkeypatch)
+    assert not knock.reads_every_room("first")
     a_member(world, "rowan2")
     a_yes("rowan2", "first")
     held = knock.read("rowan2", "first")
@@ -315,3 +318,11 @@ def test_a_yes_for_an_agent_reading_one_room_still_waits(world):
     assert knock.make_room("rowan2", "first", "2026-10-15T12-00-00Z") is None
     a_yes(SECOND, THIRD)
     assert not knock.needs_a_second_room(knock.read(SECOND, THIRD))
+
+
+def test_since_17_november_the_first_one_reads_every_room_and_a_yes_does_not_wait(world):
+    import knock
+    assert knock.reads_every_room("first")
+    a_member(world, "rowan2")
+    a_yes("rowan2", "first")
+    assert not knock.needs_a_second_room(knock.read("rowan2", "first"))

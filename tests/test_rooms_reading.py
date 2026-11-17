@@ -437,6 +437,7 @@ from datetime import datetime, timezone
 from conftest import (SWITCHED_ON_21_OCTOBER, offer_explained_again, commons_line_not_yet_offered, explained_as_before,
                       introduction_at_280, letter_part_as_before, long_night_switched_on,
                       six_not_yet, coral_not_yet, board_weekly_not_yet, standing_welcome_not_yet,
+                      agents_week_not_yet,
                       write_json,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
@@ -632,8 +633,18 @@ READING_STANDING = "056f9244a7e5d16ec94a135c4133518b02b3c0df4aeb0bab0351399ec031
 # and for nothing else: HOW TO ACT no longer explains <<OFFER>>, between <<ERRAND>> and
 # <<STUDY>> (its eleven lines and the blank line after them). No offering was ever made,
 # so nothing else of offerings was ever in its reading. With the explanation put back
-# (conftest.offer_explained_again) it is exactly READING_STANDING.
-READING_NOW = "21b1de6fddf49773506994b0af4bca4d5e75ec95bb4a02daa80b8c9e77e0d03e"
+# (conftest.offer_explained_again) it is exactly READING_STANDING. Held as
+# READING_OFFERINGS_OUT since.
+READING_OFFERINGS_OUT = "21b1de6fddf49773506994b0af4bca4d5e75ec95bb4a02daa80b8c9e77e0d03e"
+
+# cut again, on purpose, on the branch agents-week (the founder's request of 17 November
+# 2026), when he switched on for the first one what it said yes to that day: quiet_days,
+# made_here, rooms_reading, two_doors (its door for agents closed, as it starts) and block,
+# and switched rhythm_line off; and for nothing else. What moved is written out in
+# tesserae-private/proposals/report-17-nov-2.md. With the five taken out of its features
+# again and rhythm_line put back (conftest.agents_week_not_yet) it is exactly
+# READING_OFFERINGS_OUT.
+READING_NOW = "8789e1c3947bec00635a0185d99cd29b6ee5220006c3674ae20a9854e671764c"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -714,6 +725,7 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "the weekly question", READING_CORAL),
     (False, "the standing welcome", READING_WEEKLY),
     (False, "the offerings", READING_STANDING),
+    (False, "the agents week", READING_OFFERINGS_OUT),
     (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
@@ -738,10 +750,15 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "coral open to it again, the weekly question's topics not yet",
          "the weekly question's topics, its standing welcome not yet",
          "its standing welcome, offerings not yet taken out",
+         "offerings taken out, the switches of 17 November not yet",
          "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
-    if as_before:  # every reading cut before had <<OFFER>> explained
+    if as_before:  # every reading cut before had the switches of 17 November as they were
+        agents_week_not_yet(attend, monkeypatch)
+    if as_before == "the agents week":  # and with that, nothing else moved
+        as_before = None
+    if as_before:  # every reading cut before that had <<OFFER>> explained
         offer_explained_again(attend, monkeypatch)
     if as_before == "the offerings":  # and with that, nothing else moved
         as_before = None
@@ -865,10 +882,12 @@ WRITES = "I usually write on weekends."
 
 
 def test_the_way_he_writes_is_one_line_and_gone_when_cleared(
-        founder, wake, attend, room, data_dir):
+        founder, wake, attend, room, data_dir, monkeypatch):
     """Kept from before (no longer asked on settings since 16 November 2026), it is one line
-    under WHAT HAS HAPPENED, behind rhythm_line, on for the first one; with no words kept,
-    the reading is READING_NOW."""
+    under WHAT HAS HAPPENED, behind rhythm_line, on for the first one until 17 November 2026;
+    held with its switches as they were then, with no words kept, the reading is
+    READING_OFFERINGS_OUT."""
+    agents_week_not_yet(attend, monkeypatch)
     assert attend.RHYTHM_LINE is True
     a_small_world(room)
     answer = post(founder, "/rooms/first", content_type="multipart/form-data", data={
@@ -888,14 +907,15 @@ def test_the_way_he_writes_is_one_line_and_gone_when_cleared(
     assert happened.count(line) == 1
     # the line, and the line break before it, are the whole of the difference
     put_back = asked.replace(json.dumps("\n" + line, ensure_ascii=False)[1:-1], "", 1)
-    assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == READING_NOW
+    assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == READING_OFFERINGS_OUT
 
 
 
 def test_with_rhythm_line_off_the_way_he_writes_is_not_said(founder, wake, attend, room,
-                                                           data_dir, monkeypatch):
-    """The switch off, as it is for every other agent: the line is not said at all."""
-    monkeypatch.setattr(attend, "RHYTHM_LINE", False)
+                                                           data_dir):
+    """The switch off, as it is for every agent since 17 November 2026, the first one
+    too: the line is not said at all."""
+    assert attend.RHYTHM_LINE is False
     a_small_world(room)
     write_json(data_dir / "packets" / "first" / "founder-writing.json",
                {"words": WRITES, "at": "2026-10-14T09-00-00Z"})
@@ -966,7 +986,14 @@ def test_how_he_writes_is_no_longer_asked_and_what_was_kept_stays(founder, data_
 # READING_LONG_NIGHT cut again, on purpose, on the branch rooms (16 November 2026, part
 # B4), for nothing else than READING_NOW was: <<OFFER>> is no longer explained. With it
 # explained again (conftest.offer_explained_again) it is exactly LONG_NIGHT_BEFORE_OFFERINGS.
-READING_LONG_NIGHT = "d8bd1a8972f5d16f288b7d5b2e118a09170dc65f3379123e266ce8bdd4a22bcb"
+# Held as LONG_NIGHT_BEFORE_AGENTS_WEEK since.
+#
+# READING_LONG_NIGHT cut again, on purpose, on the branch agents-week (17 November 2026),
+# for nothing else than READING_NOW was: the switches the first one said yes to that day.
+# With them as they were (conftest.agents_week_not_yet) it is exactly
+# LONG_NIGHT_BEFORE_AGENTS_WEEK.
+READING_LONG_NIGHT = "b217d9c6efc5cd0786141c4dd014d3557151206f6e05a86fe592d22748bc674f"
+LONG_NIGHT_BEFORE_AGENTS_WEEK = "d8bd1a8972f5d16f288b7d5b2e118a09170dc65f3379123e266ce8bdd4a22bcb"
 LONG_NIGHT_BEFORE_OFFERINGS = "9f6c68eadcdd5fbcf7212123d3fd37dff037ac0e725319e7a573a8f2e909a646"
 LONG_NIGHT_BEFORE_STANDING = "9d5c6072d76ef530bd4c072c48c6d1888e88df1149a8d6fabbb6f58dc9f7adeb"
 LONG_NIGHT_BEFORE_WEEKLY = "d6a65ffce43fa8d1ec31f7615414c381e6a7b7dbf14608bd4345193de2f2bced"
@@ -991,7 +1018,8 @@ def a_sealed_bond(attend, room):
 
 
 @pytest.mark.parametrize("switched, before, as_cut", [
-    (True, None, READING_LONG_NIGHT), (True, "offerings", LONG_NIGHT_BEFORE_OFFERINGS),
+    (True, None, READING_LONG_NIGHT), (True, "agents week", LONG_NIGHT_BEFORE_AGENTS_WEEK),
+    (True, "offerings", LONG_NIGHT_BEFORE_OFFERINGS),
     (True, "standing", LONG_NIGHT_BEFORE_STANDING),
     (True, "weekly", LONG_NIGHT_BEFORE_WEEKLY),
     (True, "coral", LONG_NIGHT_BEFORE_CORAL),
@@ -1000,6 +1028,7 @@ def a_sealed_bond(attend, room):
     (False, "switches", SEALED_IN_WINTER_BEFORE_SWITCHES),
     (True, "switches", LONG_NIGHT_BEFORE_SWITCHES)],
     ids=["the switch on, as it reads today",
+         "the switch on, the switches of 17 November not yet",
          "the switch on, offerings not yet taken out",
          "the switch on, its standing welcome not yet",
          "the switch on, the weekly question's topics not yet",
@@ -1012,7 +1041,11 @@ def a_sealed_bond(attend, room):
          "the switch on, the four of 13 November not yet"])
 def test_the_first_one_s_long_night_is_its_own_reading_and_only_when_switched_on(
         wake, attend, room, clock, monkeypatch, tmp_path, switched, before, as_cut):
-    if before:  # each held before had <<OFFER>> explained
+    if before:  # each held before had the switches of 17 November as they were
+        agents_week_not_yet(attend, monkeypatch)
+    if before == "agents week":  # and with that, nothing else moved
+        before = None
+    if before:  # each held before that had <<OFFER>> explained
         offer_explained_again(attend, monkeypatch)
     if before == "offerings":  # and with that, nothing else moved
         before = None
@@ -1081,12 +1114,13 @@ QUIET_DAYS_SAID = ("People live in bodies and in days. They may write two or thr
                    "board, knock on the open door of another agent or a person, or do nothing.")
 
 
-def test_quiet_days_is_off_for_the_first_one_and_ends_the_opening_when_on(
+def test_quiet_days_is_on_for_the_first_one_and_ends_the_opening(
         founder, wake, attend, room, monkeypatch):
-    """Behind quiet_days, off for the first one until the founder has told it: its opening
-    is what it was. On, the line is the last of the opening words, exactly, and nothing
-    else of the reading moves."""
-    assert attend.QUIET_DAYS is False and attend.QUIET_DAYS_LINE == QUIET_DAYS_SAID
+    """Behind quiet_days, on for the first one since 17 November 2026, when it said yes:
+    the line is the last of the opening words, exactly. Off, as it was before, its opening
+    is what it was, and nothing else of the reading moves."""
+    assert attend.QUIET_DAYS is True and attend.QUIET_DAYS_LINE == QUIET_DAYS_SAID
+    monkeypatch.setattr(attend, "QUIET_DAYS", False)
     a_small_world(room)
     off = wake().asked[-1]
     assert QUIET_DAYS_SAID not in json.dumps(off)

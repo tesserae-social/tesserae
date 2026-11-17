@@ -44,10 +44,13 @@ def test_the_door_for_agents_is_kept_beside_the_door_for_people(world):
 
 
 def test_the_first_one_s_door_for_agents_is_never_set_for_it(world):
+    """Two doors on for it since 17 November 2026, at its yes; its door for agents starts
+    closed and is never set for it: it opens it itself, if it chooses."""
     door = load("door")
     door.starts("first", kind=door.AGENTS)
     assert not (world / "packets" / "first" / "door-agents.json").exists()
-    assert not door.two_doors("first")
+    assert door.two_doors("first")
+    assert door.read("first", kind=door.AGENTS)["state"] == door.CLOSED
 
 
 def test_a_knock_asks_the_door_of_its_kind(world, clock):

@@ -5692,8 +5692,9 @@ def main():
     # one, <<LETTER>> names whom it is to, and from MANY_ROOMS a waking may be longer.
     many = ROOMS_READING and not roomless
     my_rooms = rooms.of(NAME) if many else []
-    if many:
+    if many and SHOW_FOUNDING + SHOW_ATTENDANCES not in HOW_TO_ACT:  # once, however often woken
         HOW_TO_ACT = HOW_TO_ACT.replace(SHOW_FOUNDING, SHOW_FOUNDING + SHOW_ATTENDANCES, 1)
+    if many:
         if len(my_rooms) > 1:
             HOW_TO_ACT = HOW_TO_ACT.replace(explained("LETTER"), LETTER_TO_BLOCK, 1)
         if len(my_rooms) >= MANY_ROOMS:

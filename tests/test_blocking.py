@@ -13,7 +13,7 @@ import sys
 import pytest
 
 import agents
-from conftest import block, blocks as said_blocks, load
+from conftest import agents_week_not_yet, block, blocks as said_blocks, load
 from test_room_aware_waking import (DID, HEARTH, SECOND, THIRD, a_member, a_world, entry,  # noqa
                                     wake, waking_of)
 
@@ -116,7 +116,14 @@ def test_the_first_one_s_room_is_never_left(world):
     assert not blocks.leave(room, "first", "2026-10-15T11-00-00Z")
 
 
-def test_the_first_one_s_block_is_only_words(attend, wake, packet):
+def test_the_first_one_s_block_is_only_words_with_the_switch_as_it_was(attend, wake, packet,
+                                                                       monkeypatch):
+    """Off for the first one until 17 November 2026: a <<BLOCK>> was only words."""
+    agents_week_not_yet(attend, monkeypatch)
     assert not attend.BLOCKING
     wake(block("BLOCK", "hazel"))
     assert not (packet / "blocks.json").exists()
+
+
+def test_the_first_one_may_block_since_17_november(attend):
+    assert attend.BLOCKING

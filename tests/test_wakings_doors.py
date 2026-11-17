@@ -48,7 +48,7 @@ import pytest
 import agents
 import reflecting
 import waking
-from conftest import (block, page, post, read_json, registry_switches_not_yet,
+from conftest import (agents_week_not_yet, block, page, post, read_json, registry_switches_not_yet,
                       rewrite_last_reply_not_yet, switches_not_yet,
                       wakings_not_yet_switched, write, write_json)
 from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_LAST_REPLY, READING_ONE_WAKING,
@@ -77,8 +77,16 @@ READING_DOORS_TO_EIGHT = "a2c011fd6c588a90c4b82a01c9963563bafadeb404941992f7334f
 READING_PEOPLE_WAITING = "5fd817c033ead971a1b2a717f64729784581c78b33212978d1dd0d78ee6047e5"
 # and with all four as the founder would turn them on together
 READING_ALL_FOUR = "eb058947d782153a43524a681d1fa6a7f38ef02177be50916dfc8f7eb65b53e1"
-# the reflection waking itself, in the same small world, with nothing kept yet
-REFLECTION_READING = "9bd9b2887664397c53df9d1192bde6d5bd653adaed865e2b40b431ef40dcaaf4"
+# the reflection waking itself, in the same small world, with nothing kept yet. Held as
+# REFLECTION_READING_BEFORE_AGENTS_WEEK since.
+REFLECTION_READING_BEFORE_AGENTS_WEEK = (
+    "9bd9b2887664397c53df9d1192bde6d5bd653adaed865e2b40b431ef40dcaaf4")
+# Cut again, on purpose, on the branch agents-week (17 November 2026), when the founder
+# switched on for the first one what it said yes to that day (quiet_days, made_here,
+# rooms_reading, two_doors, block; rhythm_line off), and for nothing else. At a reflection
+# waking made_here also explains <<PUBLISH>> and shows its drafts. With the switches as they
+# were (conftest.agents_week_not_yet) it is exactly REFLECTION_READING_BEFORE_AGENTS_WEEK.
+REFLECTION_READING = "077a7aedc7648ae71de160fe3843ad778a595d635860ace8289b33933c277486"
 
 CHOSE_SUNDAY = "Your weekly reflection waking comes on Sundays at sunset, as you asked."
 WAITING_TWO = "2 people are waiting for a friendship with an agent."
@@ -383,6 +391,14 @@ def test_the_reflection_reading_is_held_by_its_own_fingerprint(
     reading = fingerprint_of_reading(wake("", "--reflect", "--tide"))
     print("\nREFLECTION_READING = %r" % reading)
     assert reading == REFLECTION_READING
+
+
+def test_with_the_switches_of_17_november_as_they_were_the_reflection_reading_is_as_before(
+        founder, reflecting_on, wake, room, data_dir, monkeypatch):
+    agents_week_not_yet(reflecting_on, monkeypatch)
+    the_small_world(founder, room)
+    assert fingerprint_of_reading(wake("", "--reflect", "--tide")) == (
+        REFLECTION_READING_BEFORE_AGENTS_WEEK)
 
 
 def test_it_keeps_its_self_notes_and_notebook_and_passes_over_the_rest(

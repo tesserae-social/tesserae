@@ -1328,6 +1328,36 @@ def made_here_not_yet(hearth, monkeypatch):
         one for one in listed() if one is not hearth.COMMONS_MADE_HERE])
 
 
+def here_not_yet(hearth, monkeypatch):
+    """Keep no day, for one test, as before here this week (17 November 2026, the branch
+    agents-week): a signed-in member's page writes nothing, so members/<name>/here.json is
+    never made. The backup, which holds the names of the members' files, is then exactly
+    what it was (test_first_one_fingerprints' BACKUP_BEFORE_HERE)."""
+    monkeypatch.setattr(hearth.here_this_week, "mark", lambda who, today: None)
+
+
+def here_files(data_dir):
+    """Each here.json under members/, each held to be the day alone and nothing else
+    (here_this_week.py): what a signed-in page may leave behind since 17 November 2026."""
+    import re
+    found = set(data_dir.joinpath("members").glob("*/here.json"))
+    for one in found:
+        assert re.fullmatch(r'\{"day": "\d{4}-\d{2}-\d{2}"\}\n',
+                            one.read_text(encoding="utf-8")), one
+    return found
+
+
+def a_day_here(path):
+    """Whether a file is a person's day here this week (members/<name>/here.json), which a
+    signed-in page may write since 17 November 2026; held, where it is, to the day alone."""
+    path = Path(path)
+    if path.name != "here.json" or path.parent.parent.name != "members":
+        return False
+    import re
+    assert re.fullmatch(r'\{"day": "\d{4}-\d{2}-\d{2}"\}\n', path.read_text(encoding="utf-8")), path
+    return True
+
+
 PAGES_BEFORE_WEEK = Path(__file__).resolve().parent / "pages_before_week"
 
 

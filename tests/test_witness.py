@@ -23,7 +23,7 @@ from nacl.pwhash import argon2id
 from nacl.signing import SigningKey
 
 import vault
-from conftest import REPO, lines_of, page, post, read_json, verify, write_json
+from conftest import REPO, here_files, lines_of, page, post, read_json, verify, write_json
 
 from test_bond_page import FIRST_DID, FOUNDER_DID, a_bond, released
 
@@ -204,7 +204,10 @@ def test_the_key_is_kept_nowhere_once_the_mark_is_signed(birch, people, data_dir
     before = {path for path in data_dir.rglob("*") if path.is_file()}
     sign(birch)
     after = {path for path in data_dir.rglob("*") if path.is_file()}
-    assert after - before == {data_dir / "bonds" / "witnesses" / (BOND + ".json")}
+    # and, since 17 November 2026, a day here this week, the day alone (conftest.here_files;
+    # not written with conftest.here_not_yet)
+    assert after - before - here_files(data_dir) == {
+        data_dir / "bonds" / "witnesses" / (BOND + ".json")}
     with birch.session_transaction() as held:
         assert set(held) == {"member", "role", "seal", "csrf_token", "_permanent"}
     seed = vault.unlock(people.members.load_member(BIRCH)["vault"], BIRCH_PASSWORD)

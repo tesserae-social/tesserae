@@ -51,7 +51,7 @@ from nacl.signing import SigningKey
 from conftest import (asked_described_as_before, made_here_not_yet, offerings_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
                       pages_before_doors, pages_before_fewer, pages_before_settings,
                       pages_before_pages, pages_before_small,
-                      pages_before_saturday, post, registry_six_not_yet, registry_switches_not_yet,
+                      pages_before_saturday, pages_before_week, here_not_yet, post, registry_six_not_yet, registry_switches_not_yet,
                       rooms_to_twelve, times_as_before,
                       wakings_not_yet_switched, write, site_bookkeeping, write_json)
 from test_rooms_reading import ERRAND, a_small_world, fingerprint_of_files
@@ -250,8 +250,15 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # now", up to five doors open with room left, where there are any. With the templates of
 # before drawn in their place (conftest.pages_before_doors) it is exactly the one held
 # before, in DOORS_BEFORE below. No waking moved.
+#
+# / cut again, on purpose, on 17 November 2026, on the branch agents-week, by the founder's
+# request that day (part 5, who is here), and for nothing else: the right column holds "Who
+# is here", the agents (here the first one alone, so the order is the same every run) with
+# its line "find someone". With the templates of before drawn in their place
+# (conftest.pages_before_week) it is exactly the one held before, in WEEK_BEFORE below. No
+# waking moved.
 PAGES = {
-    "/": "385b704307191318037960f468c929c2a3e2d7830d9e751c5e03c93c76df3f0e",
+    "/": "03bdcae88a19a1f5b12e2e47f169aee7982a042ef1aff4c1e297e74de47fa38d",
     "/rooms/first": "7816934d331ae825641e06e0a54b085209ec67377026a3a2fef849400e5ffa4c",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
     "/self": "708c75f04e55981579e4b6e7a63997278cd145bcc6a8613ba86363d56273bbf8",
@@ -280,7 +287,15 @@ EXPORT = "196d3e7f146b0d112a1ead44c3d9f0964d58a1b1b9ddb5603bfa15c5b6c12401"
 # The backup, as the disk keeps it, rooms/ and all. (In the old packet layout,
 # gone since stage 5c, it was
 # 5ad8f218604b455f5d8bbfaffd33aec2265616ff2ff5a32516121a157bca29ba.)
-BACKUP = "9d415deb5d8e51101412cb694eb2a4f88ef694f35b8268dd5d79a620652891f0"
+# Cut again, on purpose, on 17 November 2026, on the branch agents-week (part 5, here this
+# week), and for nothing else: the founder's pages, opened signed in, keep the day in
+# members/<founder>/here.json, and the backup holds the names of the members' files. With
+# no day kept (conftest.here_not_yet) it is exactly the one held before, in
+# BACKUP_BEFORE_HERE below, as the hearth writes now and with the letter line as before.
+BACKUP = "9a9a16aabf5706400c07ef880ac0a7aeeccc6a31e6466db5a1032216c6ddb3a8"
+BACKUP_BEFORE_HERE = {
+    False: "9d415deb5d8e51101412cb694eb2a4f88ef694f35b8268dd5d79a620652891f0",
+    True: "2d11a8951cc184f967b95858ef7dfae7e944190e08714d60b82d5db5d283e39a"}
 
 # The tide over its few dawns: tide.log, what it ran, and the events it wrote.
 # Cut again on 27 October 2026, in stage 6a-ii, when the lines an agent's tide
@@ -355,7 +370,9 @@ LETTER_PARTS_BEFORE = {
     "PAGES['/commons/events.md']":
         "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
     "EXPORT": "a0ca127f859230513ba5baa6497936c2036efeff5a7ac9c4ae240955986ed94b",
-    "BACKUP": "2d11a8951cc184f967b95858ef7dfae7e944190e08714d60b82d5db5d283e39a",
+    # cut again on 17 November 2026 for here this week (it was 2d11a895..., and is again
+    # with no day kept: BACKUP_BEFORE_HERE[True])
+    "BACKUP": "94f4503a1207d7cad79b897887aff241d6cdc07f722facb40dffdd3cfe2d8d46",
 }
 
 # What each page the times moved was before 10 November 2026, and is again with the
@@ -533,6 +550,12 @@ SETTINGS_AND_LETTER_PARTS_BEFORE = {
 # drawn with the templates of before (conftest.pages_before_doors).
 DOORS_BEFORE = {
     "/": "e05ea9c1aca562b47b4e37e0d67de4ab99d949071ad2f108226bc55e50ca88fc",
+}
+
+# What / was before who is here (17 November 2026, the branch agents-week), and is again
+# drawn with the templates of before (conftest.pages_before_week).
+WEEK_BEFORE = {
+    "/": "385b704307191318037960f468c929c2a3e2d7830d9e751c5e03c93c76df3f0e",
 }
 
 # What /commons was before the members' board was linked from it (13 November
@@ -909,6 +932,38 @@ def test_the_backup_holds_the_same_things(steady, letter_parts, founder, wake, r
             else:
                 held.append((member.name, bundle.extractfile(member).read()))
     assert cut("BACKUP", digest(held)) == fingerprint_held("BACKUP", BACKUP, letter_parts)
+
+
+def backup_held(hearth):
+    held = []
+    with tarfile.open(fileobj=io.BytesIO(hearth.backup_archive()), mode="r:gz") as bundle:
+        for member in bundle.getmembers():
+            if member.name.startswith("members/"):
+                held.append((member.name, b""))
+            else:
+                held.append((member.name, bundle.extractfile(member).read()))
+    return digest(held)
+
+
+def test_with_no_day_kept_the_backup_is_the_one_before(steady, letter_parts, founder, wake,
+                                                       room, commons, hearth, monkeypatch):
+    """Before here this week (17 November 2026): no members/<name>/here.json."""
+    here_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    assert backup_held(hearth) == BACKUP_BEFORE_HERE[letter_parts]
+
+
+@pytest.mark.parametrize("address", list(WEEK_BEFORE))
+def test_with_the_pages_drawn_before_the_week_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page who is here moved (17 November 2026), drawn with the templates of before:
+    each is exactly the page held before."""
+    pages_before_week(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == WEEK_BEFORE[address]
 
 
 # ---- the tide ------------------------------------------------------------

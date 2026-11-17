@@ -24,7 +24,7 @@ import shutil
 import pytest
 
 import agents
-from conftest import lines_of, load, page, post, read_json, write_json
+from conftest import a_day_here, lines_of, load, page, post, read_json, write_json
 from test_first_one_fingerprints import PAGES, a_lived_world, fixed_keys
 from test_keeper_view import NEVER, a_planted_record, content
 from test_pages_by_agent import HELD, SECOND, shown, shown_with_the_tides
@@ -87,9 +87,11 @@ def stop_every(founder, reason, agents_asked=None):
 
 
 def tree(root):
-    """Every file under a folder, by its path, with its bytes."""
+    """Every file under a folder, by its path, with its bytes.
+    (A person's day here this week, members/<name>/here.json, written by a signed-in page
+    since 17 November 2026, is left out, and held to the day alone: conftest.a_day_here.)"""
     return {path.relative_to(root).as_posix(): path.read_bytes()
-            for path in sorted(root.rglob("*")) if path.is_file()}
+            for path in sorted(root.rglob("*")) if path.is_file() and not a_day_here(path)}
 
 
 # ---- 1. the page is the keeper's alone -------------------------------------------

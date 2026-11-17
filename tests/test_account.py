@@ -11,7 +11,7 @@ from markupsafe import escape
 from nacl.pwhash import argon2id
 
 import vault
-from conftest import page, post, read_json, token
+from conftest import here_files, page, post, read_json, token
 
 KEEPER = "ash"
 KEEPER_PASSWORD = "the keeper's own password"
@@ -357,8 +357,12 @@ def test_a_change_without_the_token_is_refused(member, data_dir):
 # ---- what is left behind -------------------------------------------------
 
 def every_file(data_dir):
+    """Every file but here this week's (17 November 2026): the day alone, written once a
+    day for one signed in, held so by conftest.here_files (and not written at all with
+    conftest.here_not_yet)."""
+    here = here_files(data_dir)
     return {str(path): path.stat().st_mtime_ns
-            for path in data_dir.rglob("*") if path.is_file()}
+            for path in data_dir.rglob("*") if path.is_file() and path not in here}
 
 
 def test_nothing_is_written_but_the_member_s_record(member, data_dir):

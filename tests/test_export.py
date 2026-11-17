@@ -6,7 +6,7 @@ import io
 import shutil
 import zipfile
 
-from conftest import lines_of, page, post, write, write_json
+from conftest import here_files, lines_of, page, post, write, write_json
 
 SENTENCE = ("Everything that is yours and the first one's, as it stands: the first one's "
             "packet and the commons, with the founder's letters and the bond records, and "
@@ -228,7 +228,9 @@ def test_the_copy_is_handed_out_and_never_written_into_the_record(founder, packe
             in answer.headers["Content-Disposition"])
 
     after = {path for path in data_dir.rglob("*") if path.is_file()}
-    assert after - before == {packet / "exports.log"}  # the line, and no zip anywhere
+    # the line, and no zip anywhere; and, since 17 November 2026, the founder's day here
+    # this week, the day alone (conftest.here_files; not written with conftest.here_not_yet)
+    assert after - before - here_files(data_dir) == {packet / "exports.log"}
     assert not list(data_dir.rglob("*.zip"))
 
 

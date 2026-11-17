@@ -6166,15 +6166,18 @@ def main():
         return shelf.line(stem, hand, letter_words(path), shelved["notes"].get(stem),
                           hand == "founder" and photo_beside(path), here(), FROM_THE_OTHER)
 
-    def room_parts(forced):
+    def room_parts(forced, nudge):
         """Each room's section, in order: its heading, its line on keeping rooms apart, its
-        letters written and read, what rests, and what has arrived, photographs and all."""
+        letters written and read, what rests, and what has arrived, photographs and all.
+        What the backstop rests in a room is said in that room's resting part; the nudge,
+        which is of the whole reading, once, in the first room's."""
         parts = []
         for view in room_views:
             room = view["room"]
             rests, over = room_rested[room.id]
-            rests = rests | {stem for stem in forced
-                             if stem in {one.stem for one in view["written"] + view["read"]}}
+            backstopped = [stem for stem in shelf.oldest_first(forced)
+                           if stem in {one.stem for one in view["written"] + view["read"]}]
+            rests = rests | set(backstopped)
             parts.append(ROOM_HEADING.format(name=room.other.upper(), id=room.id) + "\n"
                          + ROOM_APART)
             parts += section(ROOM_WRITTEN, kept(
@@ -6191,8 +6194,11 @@ def main():
                      for stem in shelf.oldest_first(rests)]
             if over:
                 lines.append(ROOM_OVER.format(n=ROOM_BUDGET, stems=", ".join(over)))
-            if lines:
-                parts.append(ROOM_RESTING + "\n" + "\n".join(lines))
+            under = [*([nudge] if nudge and view is room_views[0] else []),
+                     *([BACKSTOP.format(stems=", ".join(backstopped))] if backstopped else [])]
+            if lines or under:
+                parts.append(ROOM_RESTING + "\n" + "\n".join([*(lines or [NOTHING_RESTS]),
+                                                               *under]))
             parts.append(ROOM_ARRIVED + ("" if view["arrived"] else "\n" + ROOM_NONE_ARRIVED))
             for one, photo in view["arrived"]:
                 said = f"--- letter: {one.name} ---\n{as_read(one)}".rstrip()
@@ -6221,10 +6227,16 @@ def main():
         """
         rests = resting | forced
         in_full = [p for p in [*written, *already_read] if p.stem not in rests]
+        # with every room read, the letters in full and arrived are every room's
+        in_full_rooms = [one for view in room_views for one in [*view["written"], *view["read"]]
+                         if one.stem not in rests]
+        new_in = [*(p for p, _ in incoming),
+                  *(one for view in room_views for one, _ in view["arrived"])]
         under = []
-        held = sum(words_in(as_read(p)) for p in [*in_full, *(p for p, _ in incoming)])
-        if not season and held > NUDGE_PAST:
-            under.append(NUDGE.format(n=round(held, -2)))
+        held = sum(words_in(as_read(p)) for p in [*in_full, *in_full_rooms, *new_in])
+        nudge = NUDGE.format(n=round(held, -2)) if not season and held > NUDGE_PAST else None
+        if nudge:
+            under.append(nudge)
         if forced:
             under.append(BACKSTOP.format(stems=", ".join(shelf.oldest_first(forced))))
         lines = [resting_line(stem) for stem in shelf.oldest_first(rests)]
@@ -6255,7 +6267,7 @@ def main():
             + ((founding or "(none found)") if founding_shown else FOUNDING_RESTS),
             "=== YOUR ATTENDANCES SO FAR ===\n" + attendances_said(),
             *bond_notes,
-            *(room_parts(forced) if many else [] if roomless else [  # no room, no letters
+            *(room_parts(forced, nudge) if many else [] if roomless else [  # no room, no letters
                 *section("=== LETTERS YOU HAVE WRITTEN ===",
                          kept([p for p in written if p.stem not in rests], "your letter",
                               none=ALL_RESTING if written else "(none yet)")),

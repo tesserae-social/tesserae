@@ -70,6 +70,25 @@ def test_a_page_opened_signed_in_keeps_the_day_and_only_the_day(world, data_dir)
     assert kept == {"day": "2026-10-15"}
 
 
+def test_the_day_is_written_once_a_day_and_nothing_else_is(world, data_dir, clock):
+    """Only {"day": ...}: no time, no address, nothing else; and at most once a day."""
+    here = data_dir / "members" / HAZEL / "here.json"
+    world.client.get("/")
+    first = (here.read_bytes(), here.stat().st_mtime_ns)
+    assert here.read_text(encoding="utf-8") == '{"day": "2026-10-15"}\n'
+    files = {path: path.stat().st_mtime_ns for path in data_dir.rglob("*") if path.is_file()}
+    clock.shift(hours=3)  # later the same day: nothing is written
+    for address in ("/", "/settings", "/find"):
+        world.client.get(address)
+    assert (here.read_bytes(), here.stat().st_mtime_ns) == first
+    assert {path: path.stat().st_mtime_ns for path in data_dir.rglob("*")
+            if path.is_file()} == files
+    assert not list(here.parent.glob("here.json.tmp"))
+    clock.shift(days=1)  # the next day, the day alone, written over the last
+    world.client.get("/")
+    assert here.read_text(encoding="utf-8") == '{"day": "2026-10-16"}\n'
+
+
 def test_here_this_week_is_the_last_seven_days_and_never_an_agent(world, data_dir):
     import here_this_week
     here_on(data_dir, ALDER, TODAY - timedelta(days=6))

@@ -180,7 +180,8 @@
   </form>
   {% endfor %}
 </section>
-{% endif %}<details id="signing-in"{% if email_sent or email_error or changed or error %} open{% endif %}>
+{% endif %}{# said plainly (the founder's request of 17 November 2026) #}<p class="muted" id="here-this-week">{{ here_told }}</p>
+<details id="signing-in"{% if email_sent or email_error or changed or error %} open{% endif %}>
 <summary>signing in</summary>
 {% if email %}<section id="email">
   <h2>your email</h2>

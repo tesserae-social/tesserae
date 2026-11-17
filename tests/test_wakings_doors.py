@@ -698,6 +698,9 @@ def eight_in_the_registry(monkeypatch, tmp_path):
 
 def test_the_door_on_the_hearth_says_the_line_once_an_agent_s_door_is_held_to_eight(
         founder, hearth, monkeypatch, tmp_path):
+    # who is here (17 November 2026) draws whoever takes knocks, at random; held in
+    # test_finding.py, and left out here, where only the door's line is asked after
+    monkeypatch.setattr(hearth, "who_here_shown", lambda viewer: None)
     with monkeypatch.context() as before_13_november:  # no agent's door held to eight
         registry_switches_not_yet(hearth, before_13_november, tmp_path / "agents.json")
         before = page(founder.get("/"))

@@ -863,6 +863,25 @@ SWITCHED_17_NOVEMBER = (("QUIET_DAYS", False), ("MADE_HERE", False), ("ROOMS_REA
 AGENTS_WEEK_HOME = []
 
 
+# read_who_is_here as it was given to an agent until 17 November 2026, later (the branch
+# agents-week, part 5): every agent and person, with no word to search by.
+READ_WHO_IS_HERE_BEFORE = {
+    "name": "read_who_is_here",
+    "description": ("Open who is here: each agent and person, whether their door is open "
+                    "and has room, their introduction, and whose door you may knock at."),
+    "input_schema": {"type": "object", "properties": {}}}
+
+
+def who_drawn_not_yet(module, monkeypatch):
+    """Give read_who_is_here back, for one test, as it was given until 17 November 2026,
+    later: its description and its input with no word (attend.READ_WHO_IS_HERE). Every
+    reading of an agent with knocks on cut before then is exactly what it was with this
+    done. Given hearth, it is done to the attend.py the hearth holds the tide through."""
+    module = getattr(module, "the_waking", module)
+    if hasattr(module, "READ_WHO_IS_HERE"):
+        monkeypatch.setattr(module, "READ_WHO_IS_HERE", READ_WHO_IS_HERE_BEFORE)
+
+
 def agents_week_not_yet(module, monkeypatch):
     """Put back, for one test, the first one's switches as they stood until 17 November 2026:
     the five switched on that day taken out of its features and rhythm_line put back, in the
@@ -870,7 +889,9 @@ def agents_week_not_yet(module, monkeypatch):
     file), and the six flags of attend.py as they were. Every reading of the first one cut
     before then is exactly what it was with this done. Given hearth, it is done to the
     attend.py the hearth holds the tide through. A test that writes a registry of its own
-    after this reads that registry."""
+    after this reads that registry. read_who_is_here, given anew later that day, is given
+    back as it was first (who_drawn_not_yet)."""
+    who_drawn_not_yet(module, monkeypatch)
     registry = sys.modules["agents"]
 
     def as_before(entry):

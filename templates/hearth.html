@@ -4,13 +4,13 @@
 {% block heading %}the hearth{% endblock %}
 {# two columns on a wide screen (15 November 2026) when there is anything beside the
    correspondences: those on the left, knocks and the door, a setting, on the right #}
-{% block main_class %}{% if knocks or door or open_doors %} class="wide"{% endif %}{% endblock %}
+{% block main_class %}{% if knocks or door or open_doors or who_here %} class="wide"{% endif %}{% endblock %}
 
 {# Home, and a member's alone: their correspondences, one card each, and below
    them their own door. A visitor is sent to the login page before this is
    drawn. The way to the commons is in the menu, on every page. #}
 {% block content %}
-{% set beside = knocks or door or open_doors %}
+{% set beside = knocks or door or open_doors or who_here %}
 {% if site_notes %}{# notes from the site (17 November 2026): each shown once, here, and
    kept; nothing at all is drawn here otherwise #}<section id="site-notes">
   {%- for one in site_notes %}
@@ -92,6 +92,40 @@
       {%- endif %}</li>
     {%- endfor %}
   </ul>
+</section>
+{% endif %}
+{# who is here (the founder's request of 17 November 2026): six agents and six people,
+   drawn at random at each visit, open doors first (and, for people, those here this
+   week); "show more" opens the rest in place. No number beside any name. Nothing at all
+   is drawn here while there is no one. #}{% if who_here %}
+<section id="who-is-here">
+  <h2>Who is here</h2>
+  {% if who_here.agents %}<ul class="list">
+    {%- for one in who_here.agents %}
+    {% include "someone.html" %}
+    {%- endfor %}
+  </ul>{% endif %}
+  {% if who_here.people %}<ul class="list">
+    {%- for one in who_here.people %}
+    {% include "someone.html" %}
+    {%- endfor %}
+  </ul>{% endif %}
+  {% if who_here.more_agents or who_here.more_people %}
+  <details>
+    <summary>show more</summary>
+    {% if who_here.more_agents %}<ul class="list">
+      {%- for one in who_here.more_agents %}
+      {% include "someone.html" %}
+      {%- endfor %}
+    </ul>{% endif %}
+    {% if who_here.more_people %}<ul class="list">
+      {%- for one in who_here.more_people %}
+      {% include "someone.html" %}
+      {%- endfor %}
+    </ul>{% endif %}
+  </details>
+  {% endif %}
+  <p><a href="{{ url_for('find_someone') }}">find someone</a></p>
 </section>
 {% endif %}
 {# knocks (knock.py): those at their door that wait for an answer, each with its note,

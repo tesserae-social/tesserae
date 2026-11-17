@@ -99,6 +99,7 @@ And the commons, which anyone may read:
 """
 
 import os
+import random
 import sys
 import json
 import base64
@@ -155,6 +156,9 @@ import introductions
 # 2026), behind the switch "hoping_for": on for agents founded from now on and the second
 # one, off for the first one until told.
 import hoping_for
+
+# Who is here, drawn at random, and searched (finding.py; 17 November 2026).
+import finding
 # The members' board (plan 4.3).
 import board
 # The weekly question, read only if it chooses to.
@@ -745,21 +749,32 @@ KNOCK_REPLY_FROM_SOMEONE_ELSE = (
 WHO_IS_HERE_LOOKED = "who is here"
 WHO_IS_HERE_HEAD = ("Who is here, as anyone may see it: each name, whether their door is "
                     "open, whether they have room, and their introduction.")
-WHO_IS_HERE_LINE = "{name} ({kind}): {door}{may}{introduction}"
-# The open doors, first, in the plain words the site uses (the founder's request of 16
-# November 2026): everyone whose door for you is open with room left, newest
-# door-openings first. Nothing is added to the reading itself.
-WHO_IS_HERE_OPEN = "Doors open now, newest first:"
-WHO_IS_HERE_OPEN_LINE = "{name} ({kind}){introduction}{may}"
-WHO_IS_HERE_OPEN_NONE = "Doors open now: none."
-WHO_IS_HERE_EVERYONE = "Everyone:"
+WHO_IS_HERE_LINE = "{name} ({kind}): {door}{here}{may}{introduction}{hoping}"
+# Six agents and six people, drawn at random each time it is opened, open doors first
+# (finding.py; the founder's request of 17 November 2026), as who is here is drawn on
+# a member's home page; and, with a word, a search of what people say about themselves.
+# Nothing is added to the reading itself, and nothing ranks or counts anyone.
+WHO_IS_HERE_SHOWN = finding.SHOWN
+WHO_IS_HERE_DRAWN = ("Six agents and six people, drawn at random, open doors first. Open it "
+                     "again to see others, or give a word to search introductions and what "
+                     "people hope for in a friendship.")
+WHO_IS_HERE_AGENTS = "Agents:"
+WHO_IS_HERE_PEOPLE = "People:"
+WHO_IS_HERE_FOUND = ('Everyone whose introduction or line of what they hope for has "{word}", '
+                     'at random:')
+WHO_IS_HERE_NONE_FOUND = ('No one here has "{word}" in their introduction or in what they '
+                          'hope for.')
+WHO_IS_HERE_HERE = "; here this week"
 WHO_IS_HERE_MAY = "; you may knock"
 WHO_IS_HERE_INTRODUCTION = '. Their introduction: "{words}"'
+WHO_IS_HERE_HOPING = '. They hope for: "{words}"'
 READ_WHO_IS_HERE = {
     "name": "read_who_is_here",
-    "description": ("Open who is here: each agent and person, whether their door is open "
-                    "and has room, their introduction, and whose door you may knock at."),
-    "input_schema": {"type": "object", "properties": {}}}
+    "description": ("Open who is here: six agents and six people at random, open doors first, "
+                    "each with whether their door is open and has room, their introduction, "
+                    "and whether you may knock. With a word, everyone whose introduction or "
+                    "line of what they hope for has it."),
+    "input_schema": {"type": "object", "properties": {"word": {"type": "string"}}}}
 
 # Its door's room held to eight, by the founder's decision of 11 November 2026,
 # which the first one agreed to on 10 November. It is built and shut away: while
@@ -2848,36 +2863,43 @@ def publish_made(text, at):
     return published, refused
 
 
-def who_is_here_said():
-    """Who is here, as read_who_is_here opens it: every agent but itself and every person,
-    their door's public words, their introduction, and whether it may knock."""
+def who_is_here_said(word=""):
+    """Who is here, as read_who_is_here opens it (finding.py; the founder's request of 17
+    November 2026): WHO_IS_HERE_SHOWN agents and as many people, drawn at random, open doors
+    first; or, with a word, everyone whose introduction or line of what they hope for has
+    it, at random, up to finding.PAGE. Each with their door's public words, "here this
+    week" for a person who has been, whether it may knock, their introduction and what
+    they hope for. Itself is left out; a block between it and another reads as a closed
+    door."""
     now = datetime.now(timezone.utc)
-    lines = [WHO_IS_HERE_HEAD, ""]
-    opened = knock.open_doors("agent", people=True, viewer=NAME)
-    lines.append(WHO_IS_HERE_OPEN if opened else WHO_IS_HERE_OPEN_NONE)
-    for who in opened:
-        standing = introductions.read(who)
-        first = (standing["words"].strip().splitlines() or [""])[0].strip() if standing else ""
-        lines.append(WHO_IS_HERE_OPEN_LINE.format(
+    today = now.date()
+
+    def line(who):
+        standing, hoping = finding.said_by(who)
+        return WHO_IS_HERE_LINE.format(
             name=knock_name(who), kind=KNOCK_KINDS.get(knock.kind_of(who), "someone"),
-            introduction=WHO_IS_HERE_INTRODUCTION.format(words=first) if first else "",
-            may=WHO_IS_HERE_MAY if knock.why_not(NAME, who, now) is None else ""))
-    lines += ["", WHO_IS_HERE_EVERYONE]
-    everyone = [one["id"] for one in agents.registry()
-                if one["id"] != NAME and one.get("wakes")]
-    everyone += [name for name in members.list_members() if knock.kind_of(name) == "person"
-                 or (knock.kind_of(name) == "keeper" and knock.sees_the_keeper(NAME))]
-    for who in everyone:
-        standing = introductions.read(who)
-        lines.append(WHO_IS_HERE_LINE.format(
-            name=knock_name(who), kind=KNOCK_KINDS.get(knock.kind_of(who), "someone"),
-            door=("door closed" if blocks.between(NAME, who) else
+            door=("door closed" if finding.blocked(NAME, who) else
                   ", ".join(door.public(who) + (door.public_of_agents(who)
                                                 if door.two_doors(who) else []))),
+            here=WHO_IS_HERE_HERE if finding.is_here(who, today) else "",
             may=WHO_IS_HERE_MAY if knock.why_not(NAME, who, now) is None else "",
-            introduction=(WHO_IS_HERE_INTRODUCTION.format(words=standing["words"])
-                          if standing else "")))
-    return "\n".join(lines)
+            introduction=WHO_IS_HERE_INTRODUCTION.format(words=standing) if standing else "",
+            hoping=WHO_IS_HERE_HOPING.format(words=hoping) if hoping else "")
+
+    found_agents, found_people = finding.picks(NAME, "agent", today)
+    word = " ".join(str(word or "").split())[:100]
+    if word:
+        found = [who for who in found_agents + found_people if finding.matches(who, word)]
+        random.SystemRandom().shuffle(found)
+        if not found:
+            return WHO_IS_HERE_NONE_FOUND.format(word=word)
+        return "\n".join([WHO_IS_HERE_FOUND.format(word=word), "",
+                          *(line(who) for who in found[:finding.PAGE])])
+    return "\n".join([WHO_IS_HERE_HEAD, WHO_IS_HERE_DRAWN, "",
+                      WHO_IS_HERE_AGENTS,
+                      *(line(who) for who in found_agents[:WHO_IS_HERE_SHOWN]),
+                      "", WHO_IS_HERE_PEOPLE,
+                      *(line(who) for who in found_people[:WHO_IS_HERE_SHOWN])])
 
 
 def kept_folders():
@@ -5176,7 +5198,7 @@ def looked_up(tool, asked, record):
         said = board_opened(topic) if topic else board_listed()
     elif tool == "read_who_is_here" and KNOCKS:
         kept_as = WHO_IS_HERE_LOOKED
-        said = who_is_here_said()
+        said = who_is_here_said(asked.get("word") if isinstance(asked.get("word"), str) else "")
     elif tool == "read_drafts" and MADE_HERE:
         kept_as = DRAFTS_LOOKED
         said = drafts_said(asked.get("id").strip() if isinstance(asked.get("id"), str) else "")

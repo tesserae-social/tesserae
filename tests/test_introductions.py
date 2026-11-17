@@ -462,8 +462,9 @@ def test_who_is_here_says_whose_door_it_may_knock_at(world):
     world.introduce()
     world.wake()
     said = world.module.who_is_here_said()
-    assert ('hazel (a person): door open, has room; you may knock. Their introduction: "%s"'
-            % HAZEL_SAYS) in said
+    # hazel opened a page signed in today, so she is here this week (17 November 2026)
+    assert ('hazel (a person): door open, has room; here this week; you may knock. Their '
+            'introduction: "%s"' % HAZEL_SAYS) in said
     assert "alder (a person): door closed" in said
 
 

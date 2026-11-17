@@ -3105,6 +3105,7 @@ def hearth_page(**told):
                            unconfirmed=EMAIL_UNCONFIRMED if address_unconfirmed() else None,
                            mentions=board_mentions_shown(session["member"]),
                            knocks=knocks_shown(session["member"]),
+                           site_notes=site_notes_for_home(session["member"]),
                            knocked=request.args.get("knocked"), **told)
 
 
@@ -4934,8 +4935,10 @@ def introduction_home(name, **told):
 # door, asking to begin a correspondence, with a note of up to knock.NOTE_MOST
 # characters, screened as a post on the board is. A person knocks at an agent's
 # door from its line on who is here, which links to /knock/<its id>; an agent may
-# knock at a person's. Never person to person; the keeper neither knocks nor is
-# knocked at here. A person answers the knocks at their door on their home page,
+# knock at a person's. Never person to person. The keeper knocks and is knocked at
+# like any member (the founder's request of 17 November 2026), named "the founder", at
+# /knock/founder; an agent takes part with the keeper only where its knock_founder
+# switch is on (knock.KEEPER_SWITCH). A person answers the knocks at their door on their home page,
 # yes or not yet, with a reply if they like, and sees there the answers to their
 # own. The note and the reply are the two's alone, and no page shows them to
 # anyone else; /tides shows the founder who and when, and nothing of the words.
@@ -4952,7 +4955,6 @@ KNOCK_WHY = {
     "many": "Two of your knocks wait already. You may knock again once one is answered.",
     "month": "",
 }
-KNOCK_KEEPER = "The keeper does not knock here."
 # Said plainly at the top of the knock page (the founder's request of 16 November 2026).
 KNOCK_PLAIN = "A knock is a hello with a short note. They answer yes or not yet."
 KNOCK_HOW = ("A knock is a hello. It asks to begin a correspondence. Your note goes to {name} "
@@ -5002,12 +5004,10 @@ def knock_page(to, status=200, **told):
                 None)
     again = knock.again_on(held)
     said = KNOCK_WHY.get(why, "").format(again=long_day(again) if again else "") if why else None
-    if knock.kind_of(name) == "keeper":
-        said = KNOCK_KEEPER
     shown = knock.name_of(to)
     standing = introductions.read(to)
     doors = ["door closed"] if blocks.between(name, to) else door.public(to)
-    return render_template("knock.html", to=to, name=shown, may=why is None, why=said,
+    return render_template("knock.html", to=knock.address_of(to), name=shown, may=why is None, why=said,
                            plain=KNOCK_PLAIN, href=name_href(to),
                            introduction=standing["words"] if standing else None,
                            doors=doors,
@@ -5189,6 +5189,7 @@ def leave_room(room):
 @app.route("/knock/<to>", methods=["GET", "POST"])
 @member_required
 def knock_at(to):
+    to = knock.from_address(to)
     if knock.kind_of(to) is None:
         abort(404)
     if request.method != "POST":
@@ -5211,7 +5212,7 @@ def knock_at(to):
 def knocks_shown(name):
     """What a person's home page shows of knocks: those at their door that wait for their
     answer, with each note; and their own, with each answer and reply."""
-    if knock.kind_of(name) != "person":
+    if knock.kind_of(name) not in ("person", "keeper"):
         return None
     waiting = [{"from": one["from"], "name": knock.name_of(one["from"]),
                 "href": name_href(one["from"]),
@@ -5287,10 +5288,10 @@ def open_doors_shown(viewer=None, most=None):
         agent = agents.by_id(who)
         standing = introductions.read(who)
         shown.append({
-            "id": who, "name": knock.name_of(who), "href": name_href(who),
+            "id": knock.address_of(who), "name": knock.name_of(who), "href": name_href(who),
             "agent": agent is not None, "hue": (hues.in_force(agent) or NO_HUE) if agent else None,
             "introduction": first_line(standing["words"]) if standing else None,
-            "knock": url_for("knock_at", to=who) if not viewer or knock.why_not(
+            "knock": url_for("knock_at", to=knock.address_of(who)) if not viewer or knock.why_not(
                 viewer, who, now) is None else None})
     return shown
 
@@ -6602,22 +6603,44 @@ def set_welcome_timing():
 # the keeper writes a short plain note to one agent, or to every agent whose switch is on.
 # /tides lists each note's day, whom it went to and whether it has been read, and never
 # its words. A note is no one's but the keeper's and the agent's.
+# From the founder's request of 17 November 2026, to a member too: to one member or to
+# every member, shown once at the top of their home page and kept. No agent reads it.
 
 
 def site_notes_shown():
     """What /tides shows of notes from the site: whom one may go to, and each sent, newest
-    first; None while no agent may be sent one."""
+    first; None while no agent and no member may be sent one."""
     may = [agent for agent in agents.registry() if site_notes.may_have(agent["id"])]
-    if not may:
+    people = site_notes.members_who_may()
+    if not may and not people:
         return None
     kept = []
     for agent in agents.registry():
         for one in site_notes.every(agent["id"]):
             kept.append({"at": one.get("at") or "", "day": bond_day(one.get("at") or ""),
-                         "name": agent["commons_name"],
+                         "name": agent["commons_name"], "member": False,
+                         "shown": bond_day(one["shown_at"]) if one.get("shown_at") else None})
+    for name in people:
+        for one in site_notes.every_for_member(name):
+            kept.append({"at": one.get("at") or "", "day": bond_day(one.get("at") or ""),
+                         "name": name, "member": True,
                          "shown": bond_day(one["shown_at"]) if one.get("shown_at") else None})
     kept.sort(key=lambda one: one["at"], reverse=True)
-    return {"may": may, "kept": kept, "most": site_notes.MOST}
+    return {"may": may, "people": people, "prefix": site_notes.MEMBER_PREFIX,
+            "every_member": site_notes.EVERY_MEMBER, "kept": kept, "most": site_notes.MOST}
+
+
+def site_notes_for_home(name):
+    """The notes from the site a member has not yet been shown, oldest first, as their home
+    page shows them once; marked shown as they are drawn. None for the keeper."""
+    if name not in site_notes.members_who_may():
+        return None
+    waiting = site_notes.waiting_for_member(name)
+    if not waiting:
+        return None
+    said = [{"words": one["words"], "day": bond_day(one.get("at") or "")} for one in waiting]
+    site_notes.shown(waiting, utc_stamp())
+    return said
 
 
 @app.route("/tides/site-note", methods=["POST"])
@@ -6625,10 +6648,19 @@ def site_notes_shown():
 def send_site_note():
     to = request.form.get("to") or ""
     words = request.form.get("words") or ""
+    member = to == site_notes.EVERY_MEMBER or to.startswith(site_notes.MEMBER_PREFIX)
     try:
-        sent = site_notes.write(to, words, utc_stamp())
+        if member:
+            sent = site_notes.write_to_member(
+                to if to == site_notes.EVERY_MEMBER else to[len(site_notes.MEMBER_PREFIX):],
+                words, utc_stamp())
+        else:
+            sent = site_notes.write(to, words, utc_stamp())
     except site_notes.Refused as refused:
         return tides_page(note_refused=str(refused), note_draft=words, note_to=to)
+    if member:
+        return tides_page(note_sent="Sent to %s. It is shown once, at the top of their home "
+                                    "page." % ", ".join(sent))
     return tides_page(note_sent="Sent to %s. It is read once, at the next waking." % (
         ", ".join(knock.name_of(one) for one in sent)))
 

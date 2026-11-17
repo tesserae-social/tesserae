@@ -77,6 +77,8 @@ MEMBERS = os.path.join(DATA, "commons", "members.md")
 BONDS = os.path.join(DATA, "commons", "bonds.md")
 # the introductions written for who is here (plan 4.1; introductions.py)
 INTRODUCTIONS = os.path.join(DATA, "commons", "introductions.json")
+# the open doors as the hearth served them, where the mirror's record keeps them
+OPEN_DOORS = os.path.join(DATA, "commons", "open-doors.json")
 
 HEARTH = "https://hearth.tesserae.social"
 
@@ -307,6 +309,14 @@ def open_doors_text(hearth):
             if answer.code == 404:
                 return []
             raise
+    # The mirror's record keeps the hearth's open-doors.json as it was served; read that.
+    if os.path.exists(OPEN_DOORS):
+        return open_doors_of(json.loads(read_text(OPEN_DOORS)))
+    # A disk with no packets and no members holds no doors (the record, before it kept
+    # open-doors.json). Nothing past the standard library is needed to say so.
+    if not (os.path.isdir(os.path.join(DATA, "packets"))
+            or os.path.isdir(os.path.join(DATA, "members"))):
+        return []
     import knock  # read only here: it reads the members' store and the doors
     return [(who, knock.name_of(who)) for who in knock.open_doors("person")]
 

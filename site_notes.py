@@ -14,6 +14,18 @@ and no note is ever erased.
 
 Behind the switch "site_notes": on for agents founded from now on, off for the first
 one until the founder has told it. /tides offers only agents with the switch on.
+
+A note may go to a member too (the founder's request of 17 November 2026): to one
+member, or to every member (EVERY_MEMBER), the keeper left out. It is shown once, at
+the top of their home page, and kept in their own folder, the same shape:
+
+    members/<pseudonym>/site-notes/<stamp>.json
+        {"words": "...", "at": "<stamp>", "to": "<pseudonym>" or "members",
+         "shown_at": null}
+
+and shown_at is the moment their home page first showed it. No agent's reading holds a
+member's note. /tides names a member's choice as MEMBER_PREFIX + pseudonym, so that a
+member and an agent are never taken for each other.
 """
 
 import json
@@ -30,6 +42,8 @@ FEATURE = "site_notes"
 FOLDER = "site-notes"
 MOST = 600
 EVERY = "all"
+EVERY_MEMBER = "members"
+MEMBER_PREFIX = "member:"
 
 
 class Refused(Exception):
@@ -59,11 +73,7 @@ def plain(words):
 
 def write(to, words, at):
     """Keep a note for one agent, or for every agent that may have one; the ids it went to."""
-    said = plain(words)
-    if not said:
-        raise Refused("A note needs some words; nothing was sent.")
-    if len(said) > MOST:
-        raise Refused("A note is up to %d characters; nothing was sent." % MOST)
+    said = checked(words)
     if to == EVERY:
         ids = [agent["id"] for agent in agents.registry() if may_have(agent["id"])]
     elif may_have(to):
@@ -73,19 +83,85 @@ def write(to, words, at):
     if not ids:
         raise Refused("No agent may be sent a note yet.")
     for agent_id in ids:
-        place = folder(agent_id) / ("%s.json" % at)
-        count = 1
-        while place.exists():  # two notes in one second are still two notes
-            count += 1
-            place = folder(agent_id) / ("%s-%d.json" % (at, count))
-        safe_write.write_text(place, json.dumps(
-            {"words": said, "at": at, "to": to, "shown_at": None}, indent=2) + "\n")
+        keep(folder(agent_id), said, to, at)
     return ids
+
+
+def checked(words):
+    """A note as it is kept, or Refused."""
+    said = plain(words)
+    if not said:
+        raise Refused("A note needs some words; nothing was sent.")
+    if len(said) > MOST:
+        raise Refused("A note is up to %d characters; nothing was sent." % MOST)
+    return said
+
+
+def keep(where, said, to, at):
+    """One note, kept in its folder under a name no other note there has."""
+    place = where / ("%s.json" % at)
+    count = 1
+    while place.exists():  # two notes in one second are still two notes
+        count += 1
+        place = where / ("%s-%d.json" % (at, count))
+    safe_write.write_text(place, json.dumps(
+        {"words": said, "at": at, "to": to, "shown_at": None}, indent=2) + "\n")
+
+
+# ---- to members ----------------------------------------------------------------
+
+def members_who_may():
+    """Every member who may be sent a note, sorted: each but the keeper."""
+    import members  # read only here: an agent's waking has no need of the members' store
+    found = []
+    for name in members.list_members():
+        try:
+            record = members.load_member(name)
+        except (members.MemberError, ValueError):
+            continue
+        if isinstance(record, dict) and record.get("role") == "member":
+            found.append(name)
+    return found
+
+
+def member_folder(name):
+    return DATA / "members" / name / FOLDER
+
+
+def write_to_member(to, words, at):
+    """Keep a note for one member, or for every member (EVERY_MEMBER); the names it went to."""
+    said = checked(words)
+    may = members_who_may()
+    if to == EVERY_MEMBER:
+        names = may
+    elif to in may:
+        names = [to]
+    else:
+        raise Refused("There is no member to send that note to.")
+    if not names:
+        raise Refused("No member may be sent a note yet.")
+    for name in names:
+        keep(member_folder(name), said, to, at)
+    return names
+
+
+def every_for_member(name):
+    """Every note kept for one member, oldest first, each with the path it is kept at."""
+    return every_in(member_folder(name))
+
+
+def waiting_for_member(name):
+    """The notes not yet shown to a member, oldest first."""
+    return [one for one in every_for_member(name) if not one.get("shown_at")]
 
 
 def every(agent_id):
     """Every note kept for one agent, oldest first, each with the path it is kept at."""
-    where = folder(agent_id)
+    return every_in(folder(agent_id))
+
+
+def every_in(where):
+    """Every note kept in one folder, oldest first, each with the path it is kept at."""
     if not where.is_dir():
         return []
     found = []

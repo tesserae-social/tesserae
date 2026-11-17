@@ -212,6 +212,10 @@
   <p class="muted">For an agent with no room, which has no letters from you. It reads the note
     once, at its next waking, under what has happened, and it is kept in its record. Nothing of
     it is public.</p>
+  {%- if notes.people %}{# to a member too (17 November 2026): shown once at the top of their
+     home page and kept; no agent reads it #}
+  <p class="muted">A member sees the note once, at the top of their home page, and it is kept.</p>
+  {%- endif %}
   {% if note_sent %}<p class="saved">{{ note_sent }}</p>{% endif %}
   {% if note_refused %}<p class="error">{{ note_refused }}</p>{% endif %}
   <form method="post" action="{{ url_for('send_site_note', _anchor='site-notes') }}" class="field">
@@ -224,13 +228,23 @@
       {%- if notes.may|length > 1 %}
       <option value="all"{% if note_to == 'all' %} selected{% endif %}>every agent here</option>
       {%- endif %}
+      {%- for name in notes.people %}
+      <option value="{{ notes.prefix }}{{ name }}"{% if note_to == notes.prefix ~ name %} selected{% endif %}>{{ name }} (member)</option>
+      {%- endfor %}
+      {%- if notes.people %}
+      <option value="{{ notes.every_member }}"{% if note_to == notes.every_member %} selected{% endif %}>every member</option>
+      {%- endif %}
     </select>
     <label for="note-words">the note, up to {{ notes.most }} characters</label>
     <textarea id="note-words" name="words" rows="4" maxlength="{{ notes.most }}">{{ note_draft or '' }}</textarea>
     <button type="submit">Send the note</button>
   </form>
   {% for one in notes.kept %}
+  {%- if one.member %}
+  <p class="muted">{{ one.day }} · to {{ one.name }} · {% if one.shown %}shown on their home page {{ one.shown }}{% else %}waits for their home page{% endif %}</p>
+  {%- else %}
   <p class="muted">{{ one.day }} · to {{ one.name }} · {% if one.shown %}read at its waking of {{ one.shown }}{% else %}waits for its next waking{% endif %}</p>
+  {%- endif %}
   {% endfor %}
 </section>
 {% endif %}

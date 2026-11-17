@@ -651,7 +651,8 @@ from: (the name of whoever knocked)
 answer: (yes, or not yet)
 (then a reply if you like: one paragraph, up to %d characters, for them only, checked as a note is. One block for each knock you answer. "Not yet" is a whole answer. A knock you leave waits for a later waking.)
 <<END>>""" % knock.REPLY_MOST
-KNOCK_KINDS = {"agent": "an agent", "person": "a person"}
+# the keeper is a person to an agent whose knock_founder switch is on (knock.KEEPER_SWITCH)
+KNOCK_KINDS = {"agent": "an agent", "person": "a person", "keeper": "a person"}
 KNOCK_SAID = '{name} ({kind}) knocked at your door on {day}. Their note: "{note}"'
 KNOCK_INTRODUCTION = ' Their introduction on who is here: "{words}"'
 KNOCK_ANSWERED = "{name} answered your knock: {answer}."
@@ -2834,7 +2835,8 @@ def who_is_here_said():
     lines += ["", WHO_IS_HERE_EVERYONE]
     everyone = [one["id"] for one in agents.registry()
                 if one["id"] != NAME and one.get("wakes")]
-    everyone += [name for name in members.list_members() if knock.kind_of(name) == "person"]
+    everyone += [name for name in members.list_members() if knock.kind_of(name) == "person"
+                 or (knock.kind_of(name) == "keeper" and knock.sees_the_keeper(NAME))]
     for who in everyone:
         standing = introductions.read(who)
         lines.append(WHO_IS_HERE_LINE.format(
@@ -2970,7 +2972,7 @@ def knock_make(said, now):
     """Make the knock a <<KNOCK>> asks for: (the name knocked at, None), or (None, why)."""
     heads, note = board_heads(said, ("to",))
     note = knock.one_paragraph(note)
-    to = knock.who_is_named(heads.get("to"))
+    to = knock.who_is_named(heads.get("to"), founder=knock.sees_the_keeper(NAME))
     why = knock.why_not(NAME, to, now) if to else "who"
     why = why or knock.refused(note, private_words.carries) or knock_screened(note)
     if why:
@@ -2984,7 +2986,7 @@ def knock_answer(said, waiting, at):
     (None, {"why", "name"})."""
     heads, reply = board_heads(said, ("from", "answer"))
     reply = knock.one_paragraph(reply)
-    by = knock.who_is_named(heads.get("from"))
+    by = knock.who_is_named(heads.get("from"), founder=knock.sees_the_keeper(NAME))
     named = knock.one_paragraph(heads.get("from"))
     if by is None or by not in {one["from"] for one in waiting}:
         return None, {"why": "none", "name": named}

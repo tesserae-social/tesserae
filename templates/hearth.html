@@ -11,7 +11,14 @@
    drawn. The way to the commons is in the menu, on every page. #}
 {% block content %}
 {% set beside = knocks or door or open_doors %}
-{% if unconfirmed %}{# said while an address kept for them waits to be confirmed, as a new
+{% if site_notes %}{# notes from the site (17 November 2026): each shown once, here, and
+   kept; nothing at all is drawn here otherwise #}<section id="site-notes">
+  {%- for one in site_notes %}
+  <p class="saved"><strong>A note from the site</strong> · {{ one.day }}</p>
+  <p class="note" style="white-space: pre-wrap">{{ one.words }}</p>
+  {%- endfor %}
+</section>
+{% endif %}{% if unconfirmed %}{# said while an address kept for them waits to be confirmed, as a new
    member's does; nothing at all is drawn here otherwise #}<p>{{ unconfirmed }}</p>
 {% endif %}{% if mentions %}{# where they were mentioned on the board this past week (board.py);
    nothing at all is drawn here otherwise #}

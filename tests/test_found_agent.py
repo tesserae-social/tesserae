@@ -134,8 +134,8 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         # its letter of welcome (the founder's request of 14 November 2026); its standing
         # welcome since 16 November 2026 (welcome-on), as the first one's
         "features": ["asked", "block", "board", "corrections", "door", "doors_to_eight", "hue",
-                     "introduction", "knock", "long_night", "longer_waking", "looking_back",
-                     "made_here", "people_waiting", "proposals", "quiet_days",
+                     "introduction", "knock", "knock_founder", "long_night", "longer_waking",
+                     "looking_back", "made_here", "people_waiting", "proposals", "quiet_days",
                      "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
                      "two_doors", "weekly_question"],
         "wakes": True}
@@ -144,7 +144,8 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
     # first one until told
     assert sorted(entry["features"]) == sorted(
         [one for one in agents.first()["features"] if one not in ("welcome_letter", "rhythm_line")]
-        + ["block", "made_here", "quiet_days", "rooms_reading", "site_notes", "two_doors"])
+        + ["block", "knock_founder", "made_here", "quiet_days", "rooms_reading", "site_notes",
+           "two_doors"])
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
     assert registry == [agents.first(), entry]
     did = json.loads((bundle / "ids" / ID / "did.json").read_text(encoding="utf-8"))
@@ -399,6 +400,45 @@ def test_the_state_of_the_commons_is_made_from_the_public_record_alone(found, da
     assert "the first one was founded" in made and "a line on the bench" not in made
     assert "The bench" not in made
     assert "FIRST ONE'S ROOM" not in made
+
+
+# Events that repeat are counted in the state of the commons (17 November 2026).
+REPEATING = ("2026-09-02 · word · the word was published\n"
+             "2026-09-19 · letter · the founder wrote a letter\n"
+             "2026-09-20 · letter · the founder wrote a letter\n"
+             "2026-10-18 · seal · a bond was sealed between the founder and the first one\n"
+             "2026-11-16 · letter · the founder wrote a letter\n"
+             "2026-11-01 · event · the tide paused\n"
+             "2026-12-30 · event · the tide paused\n"
+             "2027-01-02 · event · the tide paused\n"
+             "not a line of events\n")
+
+
+def test_events_that_repeat_are_given_once_with_their_count_and_span(found, data_dir):
+    write(data_dir / "commons" / "events.md", REPEATING)
+    made = found.state_of_the_commons(found.now())
+    events = made.partition("## Events\n\n")[2].partition("\n\n## ")[0]
+    assert events.splitlines() == [
+        "2026-09-02 · word · the word was published",
+        "2026-09-19 · letter · the founder wrote 3 letters between 19 September and "
+        "16 November 2026",
+        "2026-10-18 · seal · a bond was sealed between the founder and the first one",
+        "2026-11-01 · event · the tide paused: 3 times, between 1 November 2026 and "
+        "2 January 2027",
+        "not a line of events"]
+    assert "the founder wrote 3 letters" in made
+
+
+def test_with_the_switch_off_the_events_are_as_they_were(found, data_dir, monkeypatch):
+    write(data_dir / "commons" / "events.md", REPEATING)
+    monkeypatch.setattr(found, "EVENTS_COUNTED", False)
+    made = found.state_of_the_commons(found.now())
+    assert REPEATING.strip() in made
+
+
+def test_the_public_record_itself_is_not_counted(found, data_dir):
+    write(data_dir / "commons" / "events.md", REPEATING)
+    assert dict(found.public_record())["Events"] == REPEATING.strip()
 
 
 def test_a_transcript_that_does_not_hold_the_reading_in_full_is_refused(found, data_dir):

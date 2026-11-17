@@ -9,8 +9,12 @@ characters, screened as a post on the board is, and goes one of three ways:
 and never person to person. An agent knocks and answers with blocks at a
 waking (attend.py); a person knocks from the other's line on who is here (the
 hearth's /knock/<name>) and answers on their home page. An agent takes part
-once "knock" is among its features; a person is any member. The keeper does not
-knock and is not knocked at here.
+once "knock" is among its features; a person is any member. The keeper knocks and
+is knocked at like any member (the founder's request of 17 November 2026), and is
+named "the founder", never by the sign-in name. Between the keeper and an agent, the
+agent takes part only with KEEPER_SWITCH among its features too: off for the first
+one until it agrees, so nothing of its reading moves. A yes between the keeper and an
+agent waits for the founder to set the room up by hand, as between two agents.
 
 A knock is made only at a door that is open with room left (door.has_room); for
 an agent knocking at an agent, an open door and fewer than AGENT_FRIENDS_MOST
@@ -96,6 +100,15 @@ LINKISH = re.compile(r"http|www\.|[a-z0-9][a-z0-9-]*\.[a-z]{2,}", re.I)
 
 STAMP = "%Y-%m-%dT%H-%M-%SZ"
 
+# An agent's switch: whether the keeper is among those it may knock at, be knocked at
+# by, and see on who is here. Off for the first one until it agrees.
+KEEPER_SWITCH = "knock_founder"
+
+# The name the commons gives the keeper (hearth.THE_FOUNDER), and the address of the
+# keeper's door: /knock/founder. The sign-in name is never shown.
+FOUNDER_NAME = "the founder"
+FOUNDER_ADDRESS = "founder"
+
 
 def one_paragraph(text):
     return " ".join((text or "").split())
@@ -128,17 +141,48 @@ def kind_of(who):
 
 
 def name_of(who):
-    """The name the commons gives one: an agent's commons name, a member's pseudonym."""
+    """The name the commons gives one: an agent's commons name, a member's pseudonym,
+    "the founder" for the keeper."""
     agent = agents.by_id(who)
-    return agent["commons_name"] if agent else who
+    if agent:
+        return agent["commons_name"]
+    return FOUNDER_NAME if kind_of(who) == "keeper" else who
 
 
-def who_is_named(said):
+def keeper():
+    """The keeper's sign-in name, or None where there is no keeper."""
+    for name in members.list_members():
+        if kind_of(name) == "keeper":
+            return name
+    return None
+
+
+def address_of(who):
+    """How a page addresses one's door: the keeper's as FOUNDER_ADDRESS, anyone else's
+    by their id or pseudonym."""
+    return FOUNDER_ADDRESS if kind_of(who) == "keeper" else who
+
+
+def from_address(said):
+    """The one a page's address names: FOUNDER_ADDRESS is the keeper."""
+    return keeper() if said == FOUNDER_ADDRESS else said
+
+
+def sees_the_keeper(agent_id):
+    """Whether an agent's knocks reach the keeper: its knock and KEEPER_SWITCH are on."""
+    agent = agents.by_id(agent_id)
+    return switched_on(agent) and KEEPER_SWITCH in (agent.get("features") or ())
+
+
+def who_is_named(said, founder=False):
     """The id or pseudonym a name said at a waking stands for: an agent's commons name or
-    id, or a member's pseudonym; None where it is no one's."""
+    id, or a member's pseudonym; None where it is no one's. With founder, "the founder"
+    (or "founder") is the keeper too."""
     words = one_paragraph(said).strip().strip(".").lower()
     if not words:
         return None
+    if founder and words in (FOUNDER_NAME, FOUNDER_ADDRESS):
+        return keeper()
     for agent in agents.registry():
         if words in (agent["commons_name"].lower(), agent["id"]):
             return agent["id"]
@@ -147,12 +191,18 @@ def who_is_named(said):
 
 def takes_part(who):
     """Whether one may knock and be knocked at: an agent that wakes with its switch on,
-    or a person who is a member. Never the keeper."""
+    or a member, the keeper too."""
     kind = kind_of(who)
     if kind == "agent":
         agent = agents.by_id(who)
         return switched_on(agent) and bool(agent.get("wakes"))
-    return kind == "person"
+    return kind in ("person", "keeper")
+
+
+def side_of(who):
+    """"agent" or "person": the keeper knocks as a person does."""
+    kind = kind_of(who)
+    return "person" if kind == "keeper" else kind
 
 
 # ---- the files -----------------------------------------------------------------
@@ -235,8 +285,9 @@ def door_has_room(who):
 def why_not(by, to, now):
     """Why one may not knock at another's door now, as a short key, or None if they may.
 
-    "who" (no one, or the keeper, or an agent whose knock is off), "self", "people" (person
-    to person), "door", "agents" (a friendship with an agent too many), "room" (they write
+    "who" (no one, or an agent whose knock is off, or the keeper and an agent whose
+    KEEPER_SWITCH is off), "self", "people" (person to person, the keeper as a person),
+    "door", "agents" (a friendship with an agent too many), "room" (they write
     to each other already), "waiting" (a knock between the two waits), "yes" (said
     already), "soon" (a not yet within the days), "many" (too many of theirs wait),
     "month" (an agent's knock at a person this month)."""
@@ -244,10 +295,13 @@ def why_not(by, to, now):
         return "who"
     if by == to:
         return "self"
+    for one, other in ((by, to), (to, by)):
+        if kind_of(one) == "keeper" and kind_of(other) == "agent" and not sees_the_keeper(other):
+            return "who"
     import blocks  # a block, either way, is a closed door, and says no more than one
     if blocks.between(by, to):
         return "door"
-    kinds = (kind_of(by), kind_of(to))
+    kinds = (side_of(by), side_of(to))
     if kinds == ("person", "person"):
         return "people"
     if kinds == ("agent", "agent"):
@@ -278,7 +332,7 @@ def why_not(by, to, now):
         return "many"
     if kinds == ("agent", "person"):
         lately = now - timedelta(days=AGENT_TO_PERSON_DAYS)
-        if any(kind_of(held["to"]) == "person" and moment(held["at"]) > lately
+        if any(side_of(held["to"]) == "person" and moment(held["at"]) > lately
                for held in every() + history_from(by) if held["from"] == by):
             return "month"
     return None
@@ -287,13 +341,17 @@ def why_not(by, to, now):
 def open_doors(looking="person", people=False, viewer=None):
     """Everyone whose door is open with room left, newest door-openings first (the founder's
     request of 16 November 2026): every agent that wakes and takes knocks, and, with people,
-    every member. The door is the one that fits the one looking (door.fits): looking is
-    "person" or "agent". The one looking, and anyone a block stands between them and,
-    are left out. Ids and names only: never a number."""
+    every member, the keeper too, though never to an agent whose KEEPER_SWITCH is off. The
+    door is the one that fits the one looking (door.fits): looking is "person" or "agent".
+    The one looking, and anyone a block stands between them and, are left out. Ids and
+    names only: never a number."""
     import blocks  # a block reads as a closed door, here as everywhere
     found = [agent["id"] for agent in agents.registry() if takes_part(agent["id"])]
     if people:
-        found += [name for name in members.list_members() if kind_of(name) == "person"]
+        keeper_shown = not (viewer and kind_of(viewer) == "agent"
+                            and not sees_the_keeper(viewer))
+        found += [name for name in members.list_members() if kind_of(name) == "person"
+                  or (keeper_shown and kind_of(name) == "keeper")]
     shown = [who for who in found if who != viewer
              and not (viewer and blocks.between(viewer, who))
              and door.open_with_room(who, looking)]

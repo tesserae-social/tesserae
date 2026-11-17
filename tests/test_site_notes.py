@@ -93,3 +93,64 @@ def test_new_agents_are_founded_with_the_switch_on():
     assert "site_notes" in found_agent.FEATURES
     import agents
     assert "site_notes" not in agents.first()["features"]
+
+
+# ---- to a member (the founder's request of 17 November 2026) --------------------
+# To one member or to every member, the keeper left out; shown once at the top of their
+# home page and kept in members/<pseudonym>/site-notes/. No agent reads it.
+
+from test_later_citizen import hearth_of_two  # noqa: E402,F401 - a fixture
+from test_rooms_for_any_agent import member_vaults  # noqa: E402,F401 - a fixture
+
+
+def test_a_member_s_note_is_shown_once_at_the_top_of_their_home_page_and_kept(
+        hearth_of_two, data_dir):
+    keeper, member = hearth_of_two["keeper"], hearth_of_two["member"]
+    said = page(keeper.get("/tides"))
+    assert 'value="member:alder"' in said and 'value="members"' in said
+    assert 'value="member:rowan"' not in said  # the keeper is not offered
+    answer = post(keeper, "/tides/site-note", data={"to": "member:alder", "words": NOTE})
+    assert "Sent to alder. It is shown once, at the top of their home page." in page(answer)
+    assert NOTE not in page(keeper.get("/tides"))  # never its words on /tides
+    assert "waits for their home page" in page(keeper.get("/tides"))
+    home = page(member.get("/"))
+    assert "A note from the site" in home and NOTE in home
+    assert home.index("A note from the site") < home.index("your correspondences")
+    assert NOTE not in page(member.get("/"))  # once
+    kept = list((data_dir / "members" / "alder" / "site-notes").glob("*.json"))
+    assert len(kept) == 1
+    held = json.loads(kept[0].read_text(encoding="utf-8"))
+    assert held["words"] == NOTE and held["to"] == "alder" and held["shown_at"]
+    assert "shown on their home page" in page(keeper.get("/tides"))
+    assert NOTE not in page(keeper.get("/"))  # the keeper's own home shows no one's note
+
+
+def test_a_note_to_every_member_goes_to_each_member_and_not_the_keeper(hearth_of_two,
+                                                                       data_dir):
+    keeper = hearth_of_two["keeper"]
+    answer = post(keeper, "/tides/site-note", data={"to": "members", "words": NOTE})
+    assert "Sent to alder." in page(answer)
+    assert list((data_dir / "members" / "alder" / "site-notes").glob("*.json"))
+    assert not (data_dir / "members" / "rowan" / "site-notes").exists()
+
+
+@pytest.mark.parametrize("to, words, why", [
+    ("member:alder", "", "needs some words"),
+    ("member:alder", "w" * 601, "up to 600"),
+    ("member:rowan", NOTE, "no member to send that note to"),
+    ("member:no-one", NOTE, "no member to send that note to"),
+])
+def test_a_member_s_note_is_refused_as_an_agent_s_is(hearth_of_two, data_dir, to, words, why):
+    answer = post(hearth_of_two["keeper"], "/tides/site-note", data={"to": to, "words": words})
+    assert why in page(answer)
+    assert not (data_dir / "members" / "alder" / "site-notes").exists()
+
+
+def test_a_member_s_note_is_in_no_agent_s_reading(later, data_dir, monkeypatch):
+    import site_notes
+    from test_room_aware_waking import a_member
+    a_member(data_dir, "hazel")
+    monkeypatch.setattr(later, "SITE_NOTES", True)
+    assert site_notes.write_to_member("hazel", NOTE, "2026-10-15T09-00-00Z") == ["hazel"]
+    assert NOTE not in wake_as(later, monkeypatch, "").shown
+    assert site_notes.waiting_for_member("hazel")

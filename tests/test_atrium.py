@@ -1726,3 +1726,62 @@ def test_a_document_s_heading_is_a_heading_and_not_a_label():
     assert rules["h2"]["letter-spacing"] == "0.06em"
     assert rules["h2"]["text-transform"] == "lowercase"
     assert rules["h2"]["font-weight"] == "400"
+
+
+
+# ---- the mirror's record ----------------------------------------------------
+# The mirror draws the atrium on a runner with the standard library alone, from
+# record/, which holds the commons pages and no members' store or doors. From
+# 16 November 2026 (rooms) build_atrium reached for knock, and through it vault
+# and mnemonic, and the mirror failed. These run it as the mirror runs it.
+
+MIRROR_RUN = (
+    "import sys, runpy; sys.modules['mnemonic'] = None; sys.argv = ['build_atrium.py']; "
+    "runpy.run_path('build_atrium.py', run_name='__main__')")
+
+
+def mirror_copy(tmp_path):
+    """A copy of what the runner checks out that build_atrium touches, and record/."""
+    import shutil
+    here = tmp_path / "checkout"
+    here.mkdir()
+    for name in ("build_atrium.py", "agents.py", "agents.json", "hues.py", "index.html",
+                 "mosaic.html", "style.css"):
+        shutil.copy(REPO / name, here / name)
+    shutil.copytree(REPO / "record", here / "record")
+    return here
+
+
+def draw_as_the_mirror(here):
+    import os
+    import subprocess
+    return subprocess.run([sys.executable, "-c", MIRROR_RUN], cwd=here,
+                          env={**os.environ, "DATA_DIR": "record"},
+                          capture_output=True, text=True, encoding="utf-8")
+
+
+def test_the_mirror_draws_the_atrium_with_the_standard_library_alone(tmp_path):
+    here = mirror_copy(tmp_path)
+    (here / "record" / "commons" / "open-doors.json").unlink(missing_ok=True)
+    done = draw_as_the_mirror(here)
+    assert done.returncode == 0, done.stdout + done.stderr
+    drawn = (here / "index.html").read_text(encoding="utf-8")
+    assert not re.search(r"^\s*<h3>doors open now</h3>\s*$", drawn, re.M)
+
+
+def test_the_mirror_draws_the_open_doors_it_kept(tmp_path):
+    here = mirror_copy(tmp_path)
+    (here / "record" / "commons" / "open-doors.json").write_text(
+        json.dumps([{"id": "first", "name": "Kept Door"}]), encoding="utf-8")
+    done = draw_as_the_mirror(here)
+    assert done.returncode == 0, done.stdout + done.stderr
+    page = (here / "index.html").read_text(encoding="utf-8")
+    assert re.search(r"^\s*<h3>doors open now</h3>\s*$", page, re.M) and "Kept Door" in page
+
+
+def test_the_mirror_keeps_the_open_doors_and_no_longer_fetches_offerings():
+    workflow = (REPO / ".github" / "workflows" / "mirror.yml").read_text(encoding="utf-8")
+    assert "/commons/open-doors.json" in workflow
+    assert "/commons/introductions.json" in workflow
+    assert 'fetch "/commons/offerings' not in workflow
+    assert "/commons/offerings.md /" not in workflow

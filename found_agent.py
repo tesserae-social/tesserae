@@ -166,10 +166,13 @@ DEFAULT_MAX_TOKENS = 8000
 # one's is: the founder's word that a new agent may write one too.
 # Two doors, the rooms in its reading and blocking are in it since 16 November 2026,
 # so the second one has them from its first waking; the first one's switches did not move.
+# knock_founder since 17 November 2026: a new agent may knock at the founder's door and
+# be knocked at by the founder (knock.KEEPER_SWITCH); off for the first one until told.
 FEATURES = ["asked", "block", "board", "corrections", "door", "doors_to_eight", "hue",
-            "introduction", "knock", "long_night", "longer_waking", "looking_back", "made_here",
-            "people_waiting", "proposals", "quiet_days", "reflection_waking", "rooms_reading",
-            "site_notes", "standing_welcome", "two_doors", "weekly_question"]
+            "introduction", "knock", "knock_founder", "long_night", "longer_waking",
+            "looking_back", "made_here", "people_waiting", "proposals", "quiet_days",
+            "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
+            "two_doors", "weekly_question"]
 
 # The rhythm a later agent begins with: the daily dawn, on the first one's clock,
 # which the tide wakes every agent at in the order of founding (hearth.Turns).
@@ -462,6 +465,65 @@ def without_welcome(text):
     return "\n".join(line for line in text.splitlines() if not WELCOME_SAID.search(line))
 
 
+# Events that repeat, counted (the founder's request of 17 November 2026): in the state
+# of the commons a newcomer reads, each event line said more than once, the same kind and
+# the same words on different days, is said once, with its count and its span, where it
+# was first said; for example "the founder wrote 48 letters between 19 September and 16
+# November 2026". Every other line is as it was. Only the state of the commons a newcomer
+# reads at its coming: the first one never reads it, and no waking's reading moves.
+# EVENTS_COUNTED is the switch: False gives back the events line by line, as before.
+EVENTS_COUNTED = True
+EVENT_LINE = re.compile(r"^(?P<bullet>- )?(?P<day>\d{4}-\d{2}-\d{2}) · (?P<rest>.+)$")
+WROTE_A = re.compile(r"^(?P<who>.+) wrote a (?P<what>letter|reply|note)$")
+
+
+def span_said(first, last):
+    """Two days as a span: "19 September and 16 November 2026", the year said once where
+    both fall in it."""
+    if first[:4] == last[:4]:
+        start = datetime.strptime(first, "%Y-%m-%d")
+        return "%d %s and %s" % (start.day, start.strftime("%B"), said_on(last))
+    return "%s and %s" % (said_on(first), said_on(last))
+
+
+def counted_line(kind, words, days):
+    """One event said many times, as one line with its count and span."""
+    span = span_said(days[0], days[-1])
+    wrote = WROTE_A.match(words)
+    if wrote:
+        words = "%s wrote %d %ss between %s" % (wrote["who"], len(days), wrote["what"], span)
+    else:
+        words = "%s: %d times, between %s" % (words, len(days), span)
+    return "%s · %s · %s" % (days[0], kind, words) if kind else "%s · %s" % (days[0], words)
+
+
+def events_counted(text):
+    """The events, each line said more than once given once, with its count and its span,
+    where it was first said; every other line as it was."""
+    lines = text.splitlines()
+    days = {}
+    for line in lines:
+        found = EVENT_LINE.match(line.strip())
+        if found:
+            days.setdefault(found["rest"], []).append(found["day"])
+    said, done = [], set()
+    for line in lines:
+        found = EVENT_LINE.match(line.strip())
+        if not found or len(days[found["rest"]]) < 2:
+            said.append(line)
+            continue
+        rest = found["rest"]
+        if rest in done:
+            continue
+        done.add(rest)
+        kind, _, words = rest.partition(" · ")
+        if not words:
+            kind, words = "", kind
+        when = sorted(days[rest])
+        said.append((found["bullet"] or "") + counted_line(kind, words, when))
+    return "\n".join(said)
+
+
 def public_record():
     """The public record, as anyone may read it: each part, by its heading, with its words,
     and no line of it that names a letter of welcome."""
@@ -492,6 +554,8 @@ def state_of_the_commons(at):
             "what anyone may read on the commons."
             % said_on(at.astimezone(ZoneInfo(CITIZEN_ZONE)).date().isoformat())]
     for heading, words in public_record():
+        if heading == "Events" and EVENTS_COUNTED:
+            words = events_counted(words)
         said += ["", "## " + heading, "", words or "(nothing yet)"]
     return "\n".join(said) + "\n"
 

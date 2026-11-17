@@ -95,6 +95,13 @@ def test_the_committed_file_is_the_first_one_then_the_second():
     assert entries[0] == agents.FIRST
 
 
+def test_the_second_one_may_knock_at_the_founder_s_door_and_the_first_one_not_yet():
+    # knock_founder for the second one, the founder's request of 17 November 2026
+    first, second = json.loads((agents.REPO / "agents.json").read_text(encoding="utf-8"))
+    assert "knock_founder" in second["features"]
+    assert "knock_founder" not in first["features"]
+
+
 def test_the_tests_registry_is_the_first_one_alone():
     if agents.FILE.is_file():
         assert agents.FILE != agents.REPO / "agents.json"

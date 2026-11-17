@@ -315,6 +315,43 @@ def test_its_waking_may_look_and_is_answered(on_gemini, monkeypatch, data_dir):
     assert record["rounds"] == 2 and record["looked_at"] == [stem]
 
 
+def test_its_raw_finish_reason_is_kept_beside_the_stop_reason(on_gemini, monkeypatch, data_dir):
+    hold(on_gemini, monkeypatch, FakeGoogle(FakeGoogle.said("<<HEARTBEAT>>\nhere\n<<END>>")))
+    record = json.loads(attendances(data_dir)[0].read_text(encoding="utf-8"))
+    assert (record["stop_reason"], record["finish_reason"]) == ("end_turn", "STOP")
+
+
+def test_its_first_waking_s_empty_reply_is_asked_for_once_more(on_gemini, monkeypatch,
+                                                                data_dir):
+    """As the second one's first waking went, 16 November 2026: four looks in one round,
+    then a reply of no words, finished of its own accord; here, one look."""
+    fake = FakeGoogle(FakeGoogle.said(None, calls=[("read_founding", {}, "g-1")]),
+                      FakeGoogle.said(None),
+                      FakeGoogle.said("<<HEARTBEAT>>\nlooked, then spoke\n<<END>>"))
+    hold(on_gemini, monkeypatch, fake)
+    assert len(fake.asked) == 3
+    last = fake.asked[2]["contents"]
+    # its empty turn is not given back: the function response, then the words, in one turn
+    assert len(last) == 3 and [c.role for c in last] == ["user", "model", "user"]
+    response, ask = last[-1].parts
+    assert response.function_response.name == "read_founding"
+    assert ask.text == on_gemini.EMPTY_REPLY_ASK
+    assert fake.asked[2]["config"].tool_config.function_calling_config.mode == "NONE"
+    record = json.loads(attendances(data_dir)[0].read_text(encoding="utf-8"))
+    assert record["empty_reply_asked_again"] is True and "empty_reply" not in record
+    assert record["heartbeat"] == "looked, then spoke"
+
+
+def test_empty_again_its_waking_is_stillness_and_says_so(on_gemini, monkeypatch, data_dir):
+    fake = FakeGoogle(FakeGoogle.said(None, calls=[("read_founding", {}, "g-1")]),
+                      FakeGoogle.said(None), FakeGoogle.said(""))
+    hold(on_gemini, monkeypatch, fake)
+    assert len(fake.asked) == 3
+    record = json.loads(attendances(data_dir)[0].read_text(encoding="utf-8"))
+    assert record["empty_reply"] is True and record["finish_reason"] == "STOP"
+    assert record["acted"] == ["looked things up"]
+
+
 @pytest.mark.parametrize("answer", [
     lambda: FakeGoogle.said(None, blocked="PROHIBITED_CONTENT"),
     lambda: FakeGoogle.said("half a", finish="SAFETY"),

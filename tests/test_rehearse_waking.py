@@ -48,9 +48,16 @@ def spare(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def rehearse(env, spare):
+def rehearse(env, spare, tmp_path, monkeypatch):
+    """rehearse_waking, choosing from a registry of the first one alone: the record held
+    here is the first one's, and the second one, in agents.json since its coming on 16
+    November 2026, has no packet in it (and is on Gemini, whose key no test holds)."""
     sys.modules.pop("rehearse_waking", None)
+    import agents
     import rehearse_waking
+    alone = tmp_path / "agents.json"
+    alone.write_text(json.dumps([agents.first()]), encoding="utf-8")
+    monkeypatch.setattr(agents, "FILE", alone)
     return rehearse_waking
 
 

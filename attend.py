@@ -1036,6 +1036,12 @@ NOT_FOUND = "Not found in your record."
 BESIDE_A_LOOK = ("At your last waking, some of what you wrote was beside a look, and was not "
                  "kept; only your last reply is carried out.")
 LOOKED_ENOUGH = "You have looked five times at this waking; this was not opened."
+# A last reply of no words at all after one or more rounds of looking is asked
+# for once more, in exactly these words, with the tools closed; empty again, the
+# waking is kept as stillness and the record says "empty_reply" (a provider's
+# quirk: the second one's first waking, on Gemini, ended so, 16 November 2026).
+EMPTY_REPLY_ASK = ("You have looked. Now write your reply, with any blocks, or write "
+                   "(stillness) if you choose to do nothing.")
 FOUNDING_LOOKED = "founding"
 LOOK_TOOLS = [
     {"name": "read_letter",
@@ -5202,8 +5208,9 @@ def usage_total(spent):
 
 def longer_waking(client, reading, record):
     """The waking as a short exchange: its last reply, what it looked at, the rounds,
-    whether a reply that asked to look also opened a block, which was not kept, and
-    what each request cost.
+    whether a reply that asked to look also opened a block, which was not kept, what
+    each request cost, and whether its last reply came empty after looking (None;
+    "asked again", once, with EMPTY_REPLY_ASK; or "empty reply", empty again).
 
     Each request is the whole exchange so far. The reading carries a cache mark
     on its last block, and the newest results carry another, so that a round
@@ -5214,10 +5221,10 @@ def longer_waking(client, reading, record):
     """
     marked = {"cache_control": {"type": "ephemeral"}}
     exchange = [{"role": "user", "content": [*reading[:-1], {**reading[-1], **marked}]}]
-    looked, used, rounds, beside, spent = [], 0, 0, False, []
+    looked, used, rounds, beside, spent, empty = [], 0, 0, False, [], None
     while True:
         rounds += 1
-        closed = used >= LOOKS_MOST
+        closed = used >= LOOKS_MOST or empty is not None
         sent = list(exchange)
         if len(sent) > 1:  # the newest results, marked for this request only
             results = sent[-1]["content"]
@@ -5236,7 +5243,16 @@ def longer_waking(client, reading, record):
         spent += usage_of(reply)
         asks = [part for part in reply.content if getattr(part, "type", None) == "tool_use"]
         if closed or getattr(reply, "stop_reason", None) != "tool_use" or not asks:
-            return reply, looked, rounds, beside, spent
+            if rounds == 1 or words_said(reply).strip():
+                return reply, looked, rounds, beside, spent, empty
+            if empty is not None:  # empty again: kept as stillness, and said in the record
+                return reply, looked, rounds, beside, spent, "empty reply"
+            # no words at all after looking: asked once more, in the same turn as the
+            # newest results (its empty turn is not sent back), with the tools closed
+            empty = "asked again"
+            exchange[-1] = {"role": "user", "content": [
+                *exchange[-1]["content"], {"type": "text", "text": EMPTY_REPLY_ASK}]}
+            continue
         # a block opened beside a look is only words, and it is told so next time
         beside = beside or any(
             found and found.group(1) != "END"
@@ -5521,6 +5537,9 @@ def reflection_waking(key):
     stop_reason = getattr(resp, "stop_reason", None)
     if stop_reason:
         record["stop_reason"] = stop_reason
+    finish_reason = getattr(resp, "finish_reason", None)
+    if isinstance(finish_reason, str):  # the provider's own word for it, where it is not Anthropic's
+        record["finish_reason"] = finish_reason
     if spent:
         record["usage"] = spent
         record["usage_total"] = usage_total(spent)
@@ -6297,11 +6316,11 @@ def main():
 
     # ---- the turn ----------------------------------------------------------
     client = counted(gemini.client(key) if PROVIDER == gemini.GEMINI else Anthropic(api_key=key))
-    looked, rounds, beside_look = [], None, False
+    looked, rounds, beside_look, empty = [], None, False, None
     try:  # a Gemini reply blocked or not finished is no reply (gemini.Stopped)
         if LONGER_WAKING:
             # a letter that has only just arrived is its own too, and may be opened
-            resp, looked, rounds, beside_look, spent = longer_waking(client, reading, {
+            resp, looked, rounds, beside_look, spent, empty = longer_waking(client, reading, {
                 "letters": {**whose, **{p.stem: (p, "founder") for p, _ in arrivals}},
                 "versions": versions, "said_of": said_of if LOOKING_BACK else {},
                 "named": named, "founding": founding,
@@ -7163,6 +7182,13 @@ def main():
     stop_reason = getattr(resp, "stop_reason", None)
     if stop_reason:  # why the reply ended, for the record only; it is read back nowhere
         record["stop_reason"] = stop_reason
+    finish_reason = getattr(resp, "finish_reason", None)
+    if isinstance(finish_reason, str):  # the provider's own word for it, where it is not Anthropic's
+        record["finish_reason"] = finish_reason
+    if empty:  # its last reply came with no words after looking, and it was asked once more
+        record["empty_reply_asked_again"] = True
+        if empty == "empty reply":  # and came empty again: kept as stillness
+            record["empty_reply"] = True
     if looked:  # which things it opened at this waking, by stem and name; read back nowhere
         record["looked_at"] = looked
     if rounds:  # how many requests the waking took, where it may take more than one

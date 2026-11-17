@@ -895,13 +895,23 @@ def six_not_yet(module, monkeypatch):
             monkeypatch.setattr(module, flag, False)
 
 
+def before_the_second_came(entries):
+    """A registry's entries as they stood before 16 November 2026, when the second one
+    came: its entry as committed in agents.json taken out (an entry a test wrote of
+    its own, even one named second, is left). Every registry drawn as it stood before
+    that day is drawn without it."""
+    committed = json.loads((REPO / "agents.json").read_text(encoding="utf-8"))
+    came = [one for one in committed if one.get("id") == "second"]
+    return [one for one in entries if one not in came]
+
+
 def registry_six_not_yet(module, monkeypatch, where, also=()):
     """Read the registry, for one test, as it stood before 14 November 2026: the six
     switched on for the first one that day taken out of its features (and any named in
     also), in a scratch agents.json at where; and six_not_yet done to attend.py. Given
     hearth, the attend.py it holds the tide through reads it too."""
     registry = sys.modules["agents"]
-    entries = [dict(one) for one in registry.registry()]
+    entries = before_the_second_came([dict(one) for one in registry.registry()])
     for entry in entries:
         if entry["id"] == registry.first()["id"]:
             entry["features"] = [one for one in entry.get("features") or ()
@@ -995,7 +1005,7 @@ def registry_switches_not_yet(module, monkeypatch, where):
     exactly what it was; with switches_not_yet done to attend.py as well, so is the
     reading. Given hearth, the attend.py it holds the tide through reads it too."""
     registry = sys.modules["agents"]
-    entries = [dict(one) for one in registry.registry()]
+    entries = before_the_second_came([dict(one) for one in registry.registry()])
     for entry in entries:
         if entry["id"] == registry.first()["id"]:
             entry["features"] = [one for one in entry.get("features") or ()

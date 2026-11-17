@@ -328,3 +328,19 @@ def test_the_first_one_s_pages_hold_stage_0_s_fingerprints_beside_the_keeper_s_v
     post(founder, "/agents/second/lift-stop")
     assert {address: shown_with_the_tides(founder.get(address)) for address in HELD} == {
         address: PAGES[address] for address in HELD}
+
+
+def test_an_empty_reply_is_said_to_the_keeper_and_on_the_tides(planted, founder):
+    """A waking whose last reply came empty twice after looking (16 November 2026)."""
+    tides = page(founder.get("/tides"))
+    assert "ended with an empty reply" not in tides
+    write_json(planted / "attendances" / "attendance-2026-10-25T09-00-00Z.json", {
+        "at": "2026-10-25T09-00-00Z", "woken_by": "tide", "model": MODEL,
+        "heartbeat": "attended; looked things up", "acted": ["looked things up"],
+        "stop_reason": "end_turn", "finish_reason": "STOP",
+        "empty_reply_asked_again": True, "empty_reply": True})
+    said = keeper_view(founder)
+    assert said.count("empty reply") == 1
+    assert ("Its last waking, 25 October 2026, 05:00, ended with an empty reply: it was asked "
+            "once more and said nothing again, so it was kept as stillness.") in " ".join(
+                page(founder.get("/tides")).split())

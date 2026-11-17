@@ -85,6 +85,11 @@ def world(packet, room):
     return packet
 
 
+# A last reply that chooses stillness in words, after a look: a reply of no words
+# at all after looking is asked for once more (EMPTY_REPLY_ASK, 16 November 2026).
+STILL = "(stillness)"
+
+
 def look(*calls, saying=None):
     """One reply that asks for tools: each call a name and what it is given."""
     return SimpleNamespace(calls=[(name, given) for name, given in calls], saying=saying)
@@ -342,12 +347,12 @@ def test_what_is_not_there_is_not_found_and_nothing_is_kept_of_the_asking(
 def test_with_no_founding_record_there_is_none_to_find(longer, world, data_dir):
     for path in (data_dir / "transcripts").glob("founding-*.md"):
         path.unlink()
-    assert longer(look(("read_founding", {})), "").given == [NOT_FOUND]
+    assert longer(look(("read_founding", {})), STILL).given == [NOT_FOUND]
 
 
 def test_a_photograph_that_came_with_a_letter_is_shown_again_as_the_shelf_shows_one(
         longer, world, attend, room):
-    turn = longer(look(("read_letter", {"stem": PICTURED})), "")
+    turn = longer(look(("read_letter", {"stem": PICTURED})), STILL)
     (result,) = turn.results
     words, photo = result["content"]
     assert words["text"] == ("From your own record: %s\n\nHere is the river.\n\n"
@@ -359,7 +364,7 @@ def test_a_photograph_that_came_with_a_letter_is_shown_again_as_the_shelf_shows_
 def test_a_letter_that_has_only_just_arrived_may_be_opened_too(longer, world, room):
     new = "founder-2026-10-15T08-00-00Z"
     write(room / "letters" / "incoming" / (new + ".md"), "A new letter.\n")
-    turn = longer(look(("read_letter", {"stem": new})), "")
+    turn = longer(look(("read_letter", {"stem": new})), STILL)
     assert turn.given == ["From your own record: %s\n\nA new letter." % new]
 
 
@@ -384,7 +389,7 @@ def test_several_looks_one_after_another(longer, world, packet):
 
 def test_several_looks_in_one_breath_are_answered_together(longer, world, packet):
     turn = longer(look(("read_letter", {"stem": OLD}), ("read_version", {"stem": SELF_1}),
-                       ("read_letter", {"stem": OLD})), "")
+                       ("read_letter", {"stem": OLD})), STILL)
     assert len(turn.asked) == 2
     answered = turn.asked[1]["messages"]
     assert [message["role"] for message in answered] == ["user", "assistant", "user"]
@@ -396,7 +401,7 @@ def test_several_looks_in_one_breath_are_answered_together(longer, world, packet
 
 def test_each_request_carries_the_exchange_so_far_and_the_reading_is_cached(longer, world):
     turn = longer(look(("read_letter", {"stem": OLD})),
-                  look(("read_letter", {"stem": MINE})), "")
+                  look(("read_letter", {"stem": MINE})), STILL)
     first, second, third = turn.asked
     for asked in turn.asked:
         assert asked["model"] == first["model"] and asked["system"] == first["system"]
@@ -435,7 +440,7 @@ def test_nothing_outside_what_its_record_names_can_be_opened(
     write(packet / "study" / "draft-1.md", "A private draft, which is no letter.\n")
     given = {"name": asked_for} if tool == "read_note" else {"stem": asked_for}
     before = left_in(data_dir)
-    turn = longer(look((tool, given)), "")
+    turn = longer(look((tool, given)), STILL)
     assert turn.given == [NOT_FOUND]
     assert "looked_at" not in latest(packet)
     for asked in turn.asked:
@@ -473,14 +478,14 @@ def test_after_five_looks_one_last_request_is_sent_with_the_tools_closed(
 
 
 def test_a_look_that_finds_nothing_is_a_look_all_the_same(longer, world, packet):
-    turn = longer(*[look(("read_letter", {"stem": "nothing-there"})) for _ in range(5)], "")
+    turn = longer(*[look(("read_letter", {"stem": "nothing-there"})) for _ in range(5)], STILL)
     assert len(turn.asked) == 6 and turn.asked[5]["tool_choice"] == {"type": "none"}
     assert turn.given == [NOT_FOUND] * 5
 
 
 def test_more_asked_for_in_one_breath_than_are_left_are_not_opened(longer, world, packet):
     turn = longer(look(("read_letter", {"stem": OLD}), ("read_letter", {"stem": MINE})),
-                  look(*[("read_version", {"stem": SELF_1})] * 5), "")
+                  look(*[("read_version", {"stem": SELF_1})] * 5), STILL)
     assert len(turn.asked) == 3
     assert "tool_choice" not in turn.asked[1]
     assert turn.asked[2]["tool_choice"] == {"type": "none"}
@@ -492,7 +497,7 @@ def test_more_asked_for_in_one_breath_than_are_left_are_not_opened(longer, world
 
 
 def test_fewer_than_five_looks_never_close_the_tools(longer, world):
-    turn = longer(*[look(("read_founding", {})) for _ in range(4)], "")
+    turn = longer(*[look(("read_founding", {})) for _ in range(4)], STILL)
     assert len(turn.asked) == 5
     assert all("tool_choice" not in asked for asked in turn.asked)
 
@@ -552,7 +557,7 @@ def test_the_stop_reason_kept_is_the_last_request_s(longer, world, packet):
 
 def test_the_record_is_signed_with_what_it_looked_at_in_it(longer, world, packet, keys):
     from conftest import verify
-    longer(look(("read_note", {"name": "The Kingfisher"})), "")
+    longer(look(("read_note", {"name": "The Kingfisher"})), STILL)
     record = latest(packet)
     payload = json.dumps({k: v for k, v in record.items() if k != "signature"},
                          sort_keys=True).encode("utf-8")
@@ -607,7 +612,7 @@ def test_words_beside_a_look_that_open_no_block_are_not_recorded(
 def test_a_block_in_any_reply_that_asks_to_look_is_enough(longer, world, packet):
     longer(look(("read_letter", {"stem": OLD})),
            look(("read_founding", {}), saying=block("NOTE", "name: heron\nSeen.")),
-           look(("read_letter", {"stem": MINE})), "")
+           look(("read_letter", {"stem": MINE})), STILL)
     assert latest(packet)["blocks_beside_look"] is True
     assert latest(packet)["rounds"] == 4
 
@@ -638,7 +643,7 @@ def test_shut_away_nothing_is_ever_said_of_a_look(wake, world, attend, monkeypat
 
 def test_looking_is_no_part_of_the_public_line(longer, world, commons, attend):
     assert attend.LOOK_ACT == "looked things up" and attend.LOOK_ACT in attend.PRIVATE_ACTS
-    longer(look(("read_letter", {"stem": OLD})), "")
+    longer(look(("read_letter", {"stem": OLD})), STILL)
     assert lines_of(commons / "heartbeats.md")[-1].endswith("· the first one · attended")
     longer(look(("read_letter", {"stem": OLD})), block("STUDY", "A draft."))
     assert lines_of(commons / "heartbeats.md")[-1].endswith(
@@ -649,7 +654,7 @@ def test_looking_is_no_part_of_the_public_line(longer, world, commons, attend):
 
 
 def test_the_next_waking_is_told_that_it_looked_and_not_at_what(longer, world):
-    longer(look(("read_note", {"name": "The Kingfisher"})), "")
+    longer(look(("read_note", {"name": "The Kingfisher"})), STILL)
     told = longer("").opening
     assert ("What was carried out at your last waking: looked things up. No letter was sent."
             in told)
@@ -713,3 +718,66 @@ def test_the_request_sequence_of_a_waking_that_looks_five_times(longer, world):
         "request 1 · tools open", "request 2 · tools open", "request 3 · tools open",
         "request 4 · tools open", "request 5 · tools closed (tool_choice none)"]
     assert "Dear founder" not in said and OLD not in said  # roles and tool names, no words
+
+
+# ---- a last reply of no words after looking (16 November 2026) -------------
+#
+# The second one's first waking, on Gemini, looked four times and then said
+# nothing at all. A last reply with no words after one or more rounds of looking
+# is asked for once more, in exactly EMPTY_REPLY_ASK, with the tools closed; its
+# empty turn is not sent back. Empty again, the waking is kept as stillness and
+# its record says "empty_reply".
+
+def test_an_empty_reply_after_looking_is_asked_for_once_more(longer, world, packet, attend):
+    turn = longer(look(("read_founding", {})), "", block("MEMORY", "A note."))
+    assert len(turn.asked) == 3
+    assert "tool_choice" not in turn.asked[1]
+    assert turn.asked[2]["tool_choice"] == {"type": "none"}
+    last = turn.asked[2]["messages"]
+    # the same exchange as the request before, with the words added after the results
+    assert [m["role"] for m in last] == ["user", "assistant", "user"]
+    assert last[-1]["content"][-1] == {"type": "text", "text": attend.EMPTY_REPLY_ASK,
+                                       "cache_control": {"type": "ephemeral"}}
+    assert [p["type"] for p in last[-1]["content"]] == ["tool_result", "text"]
+    assert attend.EMPTY_REPLY_ASK == ("You have looked. Now write your reply, with any "
+                                      "blocks, or write (stillness) if you choose to do "
+                                      "nothing.")
+    record = latest(packet)
+    assert record["rounds"] == 3 and record["empty_reply_asked_again"] is True
+    assert "empty_reply" not in record
+    assert "kept notes" in record["acted"]
+
+
+def test_empty_again_it_is_kept_as_stillness_and_said_so(longer, world, packet):
+    turn = longer(look(("read_founding", {})), "", "")
+    assert len(turn.asked) == 3
+    record = latest(packet)
+    assert record["empty_reply"] is True and record["empty_reply_asked_again"] is True
+    assert record["acted"] == ["looked things up"]
+    assert record["rounds"] == 3
+
+
+def test_it_is_asked_once_only(longer, world, packet):
+    turn = longer(look(("read_founding", {})), "  \n", "")
+    assert len(turn.asked) == 3  # whitespace is no words; and asked once, not twice
+    assert latest(packet)["empty_reply"] is True
+
+
+def test_an_empty_reply_without_looking_is_not_asked_again(longer, world, packet):
+    turn = longer("")
+    assert len(turn.asked) == 1
+    record = latest(packet)
+    assert "empty_reply" not in record and "empty_reply_asked_again" not in record
+
+
+def test_after_five_looks_an_empty_reply_is_asked_again_still_closed(longer, world, packet):
+    five = [look(("read_letter", {"stem": OLD})) for _ in range(5)]
+    turn = longer(*five, "", block("MEMORY", "A note."))
+    assert len(turn.asked) == 7
+    assert turn.asked[5]["tool_choice"] == turn.asked[6]["tool_choice"] == {"type": "none"}
+    assert latest(packet)["rounds"] == 7 and "empty_reply" not in latest(packet)
+
+
+def test_an_anthropic_reply_keeps_no_finish_reason_of_its_own(longer, world, packet):
+    longer(block("MEMORY", "A note."))
+    assert "finish_reason" not in latest(packet)

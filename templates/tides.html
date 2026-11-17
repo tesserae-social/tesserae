@@ -105,6 +105,8 @@
     <p>{{ row.welcome_held }}</p>
     {% endif %}{% if row.spent_out %}
     <p>{{ row.spent_out }}</p>
+    {% endif %}{% if row.empty_reply %}
+    <p>{{ row.empty_reply }}</p>
     {% endif %}
     {% if row.rest %}
     <p>{{ row.agent.commons_name|first_upper }} is resting, since {{ row.rest.since }}, until

@@ -6153,6 +6153,7 @@ KEEPER_ACTS = (the_waking.RHYTHM_ACT, the_waking.PAUSE_ACT, the_waking.WAKE_AGAI
 # what went wrong at a waking, by what the record says of it, and how it is said
 KEEPER_FAULTS = (
     (lambda log: log.get("stop_reason") == "max_tokens", "cut off at its length limit"),
+    (lambda log: log.get("empty_reply") is True, "empty reply"),
     (lambda log: log.get("rhythm_refused") is True, "its waking time could not be read"),
     (lambda log: log.get("door_refused") is True, "its door could not be read"),
 )
@@ -6341,8 +6342,29 @@ def tides_shown():
                                       else None),
                      # a waking refused today for its spending cap, said plainly; on a
                      # day with none, nothing, and the card is as it was
-                     "spent_out": cap_refused_today(agent["id"])})
+                     "spent_out": cap_refused_today(agent["id"]),
+                     # its last waking came back empty twice after looking, said plainly
+                     "empty_reply": last_waking_empty(agent["id"])})
     return rows
+
+
+EMPTY_REPLY_SAID = ("Its last waking, {moment}, ended with an empty reply: it was asked once "
+                    "more and said nothing again, so it was kept as stillness.")
+
+
+def last_waking_empty(of):
+    """Said on /tides where an agent's last waking ended with an empty reply (its record's
+    empty_reply, and nothing else of it read); otherwise None."""
+    for path in newest_first(packet_of(of) / ATTENDANCES.name, "*.json"):
+        try:
+            log = json.loads(read_text(path))
+        except ValueError:
+            return None
+        if not isinstance(log, dict) or log.get("empty_reply") is not True:
+            return None
+        return EMPTY_REPLY_SAID.format(
+            moment=moment_said(log.get("at")) or moment_said(path.name) or NOT_RECORDED)
+    return None
 
 
 SPENT_OUT_SAID = "Not woken at {moment}: {said}."

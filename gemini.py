@@ -162,8 +162,12 @@ class Usage:
 
 
 class Reply:
-    def __init__(self, content, stop_reason, usage):
+    """finish_reason is Gemini's own word for why it stopped (STOP, MAX_TOKENS), kept in
+    the record beside stop_reason."""
+
+    def __init__(self, content, stop_reason, usage, finish_reason=None):
         self.content, self.stop_reason, self.usage = content, stop_reason, usage
+        self.finish_reason = finish_reason
 
 
 def named(value):
@@ -258,7 +262,7 @@ class Messages:
                               % finish)
             # what came is kept, as Anthropic's is when cut off; no look is followed
             return Reply(Said([Text(words)]), "max_tokens",
-                         Usage(getattr(response, "usage_metadata", None)))
+                         Usage(getattr(response, "usage_metadata", None)), finish)
         said = Said([Text(words)])
         said.original = candidate.content
         for part in parts:
@@ -268,7 +272,7 @@ class Messages:
                 said.append(Look(given, part.function_call.name,
                                  dict(part.function_call.args or {})))
         return Reply(said, "tool_use" if len(said) > 1 else "end_turn",
-                     Usage(getattr(response, "usage_metadata", None)))
+                     Usage(getattr(response, "usage_metadata", None)), finish)
 
 
 def declared(tool, types):

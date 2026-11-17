@@ -23,7 +23,7 @@ from nacl.pwhash import argon2id
 
 import agents
 from conftest import Reader, block, page, post, read_json, write_json
-from test_longer_waking import longer  # noqa: F401 - a fixture
+from test_longer_waking import STILL, longer  # noqa: F401 - a fixture
 
 PASSWORD = "a member's own words, long enough"
 NOV_13 = datetime(2026, 11, 13, 15, tzinfo=timezone.utc)
@@ -421,14 +421,14 @@ def test_read_board_lists_the_place_and_conversation_as_other_people_s_words(att
     from test_longer_waking import look
     attend.board.start("conversation", "birch", "Among us", "Members only.", "2026-10-15")
     attend.board.start("place", "birch", "Lanterns", "Shall we?", "2026-10-15")
-    given = longer(look(("read_board", {})), "").given[0]
+    given = longer(look(("read_board", {})), STILL).given[0]
     assert given.startswith("=== THE MEMBERS' BOARD ===\nThese are other people's words")
     assert ("What people write here is theirs. Don't repeat details about a person anywhere "
             "else.") in given
     assert "topic 2: Lanterns (started by birch; 1 post, the last on 2026-10-15)" in given
     assert "topic 1: Among us (started by birch; 1 post" in given
     assert "Shall we?" not in given  # the posts only when a topic is opened
-    given = longer(look(("read_board", {"topic": "1"})), "").given[0]
+    given = longer(look(("read_board", {"topic": "1"})), STILL).given[0]
     assert "What people write here is theirs." in given
     assert "topic 1: Among us (started by birch, in conversation)" in given
     assert "  post 1, birch, 2026-10-15: Members only." in given
@@ -536,9 +536,9 @@ def test_it_reads_and_posts_in_the_week_s_topic_and_still_two_a_day(attend, wake
                                                                      data_dir):
     from test_longer_waking import look
     a_week_s_question(data_dir)
-    given = longer(look(("read_board", {})), "").given[0]
+    given = longer(look(("read_board", {})), STILL).given[0]
     assert "--- the weekly question ---" in given and "topic week-2026-W42:" in given
-    given = longer(look(("read_board", {"topic": "week-2026-W42"})), "").given[0]
+    given = longer(look(("read_board", {"topic": "week-2026-W42"})), STILL).given[0]
     assert "(started by the site, in the weekly question)" in given
     assert "  The question: What did you notice?" in given
     wake("\n\n".join(block("BOARD", "topic: week-2026-W42\nPost %d." % n) for n in (1, 2, 3)))

@@ -19,10 +19,14 @@ Three rules hold across the whole suite, and this file is where they are kept:
   * A room is kept in a folder of its own, rooms/<room>/, and is a room only
     where its room.json is (rooms.py). A test writes the first one's letters,
     errands, bond and offerings through the room fixture, rooms/first/.
-  * Both registries are tested. The registry of agents (agents.py) is the
-    committed agents.json, or, with no file there, the first one alone, and the
-    two must be one: pytest --agents=file, the default, reads the file, and
-    pytest --agents=absent runs as though there were none.
+  * Both registries are tested. The registry of agents (agents.py) is a file,
+    or, with no file there, the first one alone, and the two must be one: pytest
+    --agents=file, the default, reads a file, and pytest --agents=absent runs as
+    though there were none. The file read is never the committed agents.json,
+    which holds the second one since 16 November 2026: it is a scratch copy of it
+    holding the first one's committed entry alone (pytest_configure), and a test
+    that wants another agent writes one of its own. Only a test of the committed
+    file itself reads agents.json.
   * Time is pinned. The clock fixture holds one moment; every module that asks
     what time it is is pinned to it, and a test that needs a different moment
     says so rather than waiting for one.
@@ -412,16 +416,38 @@ def pytest_addoption(parser):
                      help="whether the registry is read from agents.json, or as if it were absent")
 
 
-def pytest_configure(config):
-    """With --agents=absent, every module reads the registry as if agents.json were not there.
+# The scratch folder the tests' own registry is kept in, for this run.
+REGISTRY_HOME = None
 
-    This is done before any test is collected, so before any module that derives
+
+def pytest_configure(config):
+    """Every module reads a registry of the tests' own, never the committed agents.json.
+
+    With --agents=file, the default, it is a scratch agents.json holding the first
+    one's entry as committed and nothing else (the second one, committed on 16
+    November 2026, left out); with --agents=absent, there is no file at all. This
+    is done before any test is collected, so before any module that derives
     something from the registry is imported.
     """
+    global REGISTRY_HOME
+    import tempfile
+    import agents
     if config.getoption("--agents") == "absent":
-        import agents
         agents.FILE = agents.FILE.with_name("agents.json.absent-for-this-run")
         assert not agents.FILE.exists()
+        return
+    committed = json.loads((REPO / "agents.json").read_text(encoding="utf-8"))
+    REGISTRY_HOME = Path(tempfile.mkdtemp(prefix="tesserae-registry-"))
+    agents.FILE = REGISTRY_HOME / "agents.json"
+    agents.FILE.write_text(json.dumps(committed[:1], indent=2, ensure_ascii=False) + "\n",
+                           encoding="utf-8")
+    assert agents.registry() == committed[:1]
+
+
+def pytest_unconfigure(config):
+    """The tests' own registry is thrown away when the run ends."""
+    if REGISTRY_HOME is not None:
+        shutil.rmtree(REGISTRY_HOME, ignore_errors=True)
 
 
 def make_room(data):

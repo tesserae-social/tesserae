@@ -25,7 +25,7 @@ from conftest import (FIRST_FOUNDING, FOUNDING_TRANSCRIPT, REPO, Turn, load, pos
                       write_json)
 from test_backup import bucket  # noqa: F401 - a fixture, used by name
 from test_export import taken
-from test_longer_waking import NOT_FOUND, longer, look, world  # noqa: F401 - fixtures
+from test_longer_waking import NOT_FOUND, STILL, longer, look, world  # noqa: F401 - fixtures
 from test_rooms_reading import ERRAND, READING_NOW, a_small_world, fingerprint_of_reading
 
 # Another agent's founding, kept where its own would be, and one left flat beside
@@ -132,7 +132,7 @@ def test_read_founding_gives_its_own_and_no_other(longer, world, data_dir, kept)
 def test_with_its_pinned_file_missing_read_founding_finds_nothing(longer, world, data_dir):
     strays(data_dir)
     (data_dir / "transcripts" / FIRST_FOUNDING).unlink()
-    assert longer(look(("read_founding", {})), "").given == [NOT_FOUND]
+    assert longer(look(("read_founding", {})), STILL).given == [NOT_FOUND]
 
 
 # ---- a copy, and a backup ----------------------------------------------------

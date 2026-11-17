@@ -75,10 +75,11 @@ def write_registry(path, entries):
 
 @pytest.fixture(params=["file", "absent"])
 def derived(request, registry, tmp_path):
-    """The derived modules, with agents.json as committed and with no file there."""
+    """The derived modules, with the tests' own agents.json (the first one alone, as
+    committed; conftest.pytest_configure) and with no file there."""
     if request.param == "file":
-        where = agents.REPO / "agents.json"
-        assert where.is_file()
+        where = agents.FILE
+        assert where.is_file() and where != agents.REPO / "agents.json"
     else:
         where = tmp_path / "agents.json"
         assert not where.exists()
@@ -87,9 +88,17 @@ def derived(request, registry, tmp_path):
 
 # ---- the file and the fallback are one -----------------------------------
 
-def test_the_committed_file_is_the_first_one_alone():
+def test_the_committed_file_is_the_first_one_then_the_second():
+    # since 16 November 2026, when the second one came (da8e919)
     entries = json.loads((agents.REPO / "agents.json").read_text(encoding="utf-8"))
-    assert entries == [agents.FIRST]
+    assert [entry["id"] for entry in entries] == ["first", "second"]
+    assert entries[0] == agents.FIRST
+
+
+def test_the_tests_registry_is_the_first_one_alone():
+    if agents.FILE.is_file():
+        assert agents.FILE != agents.REPO / "agents.json"
+    assert agents.registry() == [agents.FIRST]
 
 
 def test_with_no_file_the_registry_is_the_first_one_alone(monkeypatch, tmp_path):

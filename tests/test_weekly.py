@@ -16,7 +16,7 @@ import agents
 from conftest import page, post, read_json
 from test_board import signed_in
 from conftest import Reader
-from test_longer_waking import longer, look  # noqa: F401 - a fixture
+from test_longer_waking import STILL, longer, look  # noqa: F401 - a fixture
 
 MONDAY = datetime(2026, 11, 16, 15, tzinfo=timezone.utc)
 ASKS = "What is one small thing that went well this week?"
@@ -148,11 +148,11 @@ def test_switched_on_it_is_offered_and_never_put_in_the_reading(attend, longer, 
 def test_switched_on_looking_gives_this_week_s_question(attend, longer, data_dir, monkeypatch):
     monkeypatch.setattr(attend, "WEEKLY_QUESTION", True)
     a_question_this_week(data_dir)
-    exchange = longer(look(("read_weekly_question", {})), "")
+    exchange = longer(look(("read_weekly_question", {})), STILL)
     assert exchange.given == [attend.WEEKLY_SAID.format(words=ASKS)]
 
 
 def test_switched_on_with_none_this_week_it_is_told_so(attend, longer, monkeypatch):
     monkeypatch.setattr(attend, "WEEKLY_QUESTION", True)
-    exchange = longer(look(("read_weekly_question", {})), "")
+    exchange = longer(look(("read_weekly_question", {})), STILL)
     assert exchange.given == [attend.NO_WEEKLY_QUESTION]

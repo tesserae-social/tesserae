@@ -48,3 +48,4 @@
 2026-11-15 · letter · the founder wrote a letter
 2026-11-16 · letter · the founder wrote a letter
 2026-11-16 · founding · the second one was founded
+2026-11-17 · letter · the founder wrote a letter

@@ -21,6 +21,8 @@ on:
     # 15:00 UTC, after the first one's dawn waking (the backup is at 08:00), so the
     # day's own tile is drawn the same day rather than the next night.
     - cron: '0 15 * * *'
+  # By hand, from the Actions tab: "mirror", then "Run workflow" on main. It takes no
+  # inputs, and does exactly what a scheduled run does.
   workflow_dispatch:
 
 permissions:

@@ -1785,3 +1785,12 @@ def test_the_mirror_keeps_the_open_doors_and_no_longer_fetches_offerings():
     assert "/commons/introductions.json" in workflow
     assert 'fetch "/commons/offerings' not in workflow
     assert "/commons/offerings.md /" not in workflow
+
+
+def test_the_mirror_can_be_run_by_hand():
+    """The founder's request of 17 November 2026: the mirror may be run by hand, from the
+    Actions tab, as well as at its two times a day (workflow_dispatch, with no inputs)."""
+    workflow = (REPO / ".github" / "workflows" / "mirror.yml").read_text(encoding="utf-8")
+    on = workflow.replace("\r\n", "\n").partition("\non:\n")[2].partition("\npermissions:")[0]
+    assert "\n  workflow_dispatch:\n" in on
+    assert on.startswith("  schedule:\n")

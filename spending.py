@@ -130,6 +130,25 @@ def spent(who, now=None):
     return total
 
 
+def spent_on(day):
+    """Each who's dollars on one UTC day ("YYYY-MM-DD"), as {who: dollars}; {} for a day
+    with no file. Read for the keeper's numbers on /tides; the caps read spent()."""
+    path = day_file(day)
+    if not path.is_file():
+        return {}
+    said = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            held = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(held, dict) and isinstance(held.get("who"), str):
+            cost = held.get("dollars")
+            said[held["who"]] = (said.get(held["who"], 0.0)
+                                 + (cost if isinstance(cost, (int, float)) else 0.0))
+    return said
+
+
 def cap(who):
     """The daily cap for who: the screens' or an agent's."""
     return CAP_SCREENS if who == SCREENS else CAP_PER_AGENT

@@ -6639,6 +6639,179 @@ def keeper_numbers():
             "doors_with_room": sum(1 for one in waking if door_has_room(one))}
 
 
+# ---- the keeper's numbers: cost, letters, rooms and freshness ---------------
+#
+# The founder's request of 17 November 2026, on /tides and nowhere else:
+#
+#   cost        from the spending records (spending.py) alone: each agent's today, the
+#               last 7 days, this month and the average per waking this month (its
+#               attendances this month), on its own card, in the order of founding and
+#               never ranked; the screens apart; every request this month together,
+#               and the whole month projected at the average of its days already over;
+#               and each day, this month or in the last 7, that an agent or the screens
+#               reached the daily cap
+#   letters     in the last 7 days and this month (the UTC month): people to agents,
+#               agents to people, agents to agents
+#   rooms       rooms open, bonds sealed (and not released), and freshness: rooms with
+#               letters both ways in the last 7 and the last 14 days, rooms whose newest
+#               letter is older than 14 days, and rooms with no letter yet
+#   founding    one line from people waiting, doors with room and freshness
+#
+# Letters are counted by the moment in their files' names, and nothing in any letter
+# is opened. A room left is no room (rooms.places), and its letters are not counted.
+# The numbers section names no one; an agent's cost is on its own card.
+
+def letter_stamps(folder):
+    """The moments in the names of a folder's letters; none for a folder not there."""
+    if folder is None or not folder.is_dir():
+        return []
+    return [found.group() for found in (STAMP.search(path.name) for path in folder.glob("*.md"))
+            if found]
+
+
+def rooms_by_letters():
+    """Every open room, each as (kind, one side's letter moments, the other side's).
+
+    For a person's room, the person's first; for a room of two agents, either agent's."""
+    found = []
+    for agent in agents.registry():
+        places = rooms.places(agent["room"])
+        if places:
+            found.append((rooms.PERSON_KIND, letter_stamps(places.incoming)
+                          + letter_stamps(places.read), letter_stamps(places.outgoing)))
+    for room_id, held in rooms.later_rooms():
+        if held["kind"] == rooms.AGENTS_KIND:
+            ids = [one["id"] for one in agents.registry() if one["did"] in held["parties"]]
+            folders = rooms.agent_letters(room_id, ids[0]) if ids else None
+            if folders:
+                found.append((rooms.AGENTS_KIND, letter_stamps(folders[0]),
+                              letter_stamps(folders[1])))
+            continue
+        places = rooms.places(room_id)
+        if places:
+            found.append((rooms.PERSON_KIND, letter_stamps(places.incoming)
+                          + letter_stamps(places.read), letter_stamps(places.outgoing)))
+    return found
+
+
+def money(dollars):
+    return "$%.2f" % dollars
+
+
+def days_said(days):
+    """Days as the page says them: "3 November and 9 November"."""
+    return names_joined([day.strftime("%d %B").lstrip("0") for day in days])
+
+
+def wakings_in(of, month):
+    """An agent's wakings in a month ("YYYY-MM"), by its attendances' names."""
+    return sum(1 for stamp in letter_stamps_json(packet_of(of) / ATTENDANCES.name)
+               if stamp.startswith(month))
+
+
+def letter_stamps_json(folder):
+    """The moments in the names of a folder's .json records."""
+    if not folder.is_dir():
+        return []
+    return [found.group() for found in (STAMP.search(path.name) for path in folder.glob("*.json"))
+            if found]
+
+
+def spending_window(now):
+    """Today, the first of this month, the first of the last 7 days, and each UTC day from
+    the earlier of those two to today, as {day: {who: dollars}}."""
+    today = now.astimezone(timezone.utc).date()
+    first, seven = today.replace(day=1), today - timedelta(days=6)
+    day, days = min(first, seven), {}
+    while day <= today:
+        days[day] = spending.spent_on(day.isoformat())
+        day += timedelta(days=1)
+    return today, first, seven, days
+
+
+def cost_of(who, window, cap):
+    """One who's cost, today, in the last 7 days and this month, and the days it reached cap."""
+    today, first, seven, days = window
+    of = {day: spent.get(who, 0.0) for day, spent in days.items()}
+    return {"today": money(of[today]),
+            "week": money(sum(cost for day, cost in of.items() if day >= seven)),
+            "month_dollars": sum(cost for day, cost in of.items() if day >= first),
+            "month": money(sum(cost for day, cost in of.items() if day >= first)),
+            "cap": money(cap),
+            "cap_days": days_said(sorted(day for day, cost in of.items() if cost >= cap))
+                        if any(cost >= cap for cost in of.values()) else None}
+
+
+def agent_cost(of, window):
+    """What an agent's card on /tides says of its cost: never beside another's."""
+    said = cost_of(of, window, spending.CAP_PER_AGENT)
+    wakings = wakings_in(of, window[1].strftime("%Y-%m"))
+    said["wakings"] = wakings
+    said["per_waking"] = money(said["month_dollars"] / wakings) if wakings else NUMBERS_NONE
+    return said
+
+
+def month_projected(window):
+    """Every request this month, and the whole month at the average of its days already over."""
+    today, first, _, days = window
+    month = {day: sum(spent.values()) for day, spent in days.items() if day >= first}
+    over = [cost for day, cost in month.items() if day < today]
+    length = ((first.replace(day=28) + timedelta(days=4)).replace(day=1) - first).days
+    return {"total": money(sum(month.values())),
+            "projected": money(sum(over) / len(over) * length) if over else NUMBERS_NONE}
+
+
+def a_count(count, one, many):
+    return "%d %s" % (count, one if count == 1 else many)
+
+
+def founding_line(waiting, doors, fresh, open_rooms):
+    """One plain line for deciding when to found a new agent."""
+    said = "%s waiting, %s with room" % (a_count(waiting, "person", "people"),
+                                        a_count(doors, "agent door", "agent doors"))
+    if open_rooms:
+        said += "; %d of %s had letters both ways in the last 7 days" % (
+            fresh, a_count(open_rooms, "room", "rooms"))
+    said += "."
+    if waiting > doors:
+        said += " More people wait than there are doors with room."
+    return said
+
+
+def keeper_numbers_more(counted, now=None):
+    """Cost, letters, rooms, freshness and the founding line, as the page says them:
+    site totals only, and never a name."""
+    now = now or datetime.now(timezone.utc)
+    window = spending_window(now)
+    at = lambda moment: moment.strftime("%Y-%m-%dT%H-%M-%SZ")
+    week, fortnight = at(now - timedelta(days=7)), at(now - timedelta(days=14))
+    month = window[1].strftime("%Y-%m-01T00-00-00Z")
+    letters = {"week": dict.fromkeys(("to_agents", "to_people", "between_agents"), 0)}
+    letters["month"] = dict(letters["week"])
+    fresh = {"seven": 0, "fourteen": 0, "quiet": 0, "none_yet": 0}
+    every_room = rooms_by_letters()
+    for kind, one, other in every_room:
+        for since, key in ((week, "week"), (month, "month")):
+            if kind == rooms.AGENTS_KIND:
+                letters[key]["between_agents"] += sum(1 for s in one + other if s >= since)
+            else:
+                letters[key]["to_agents"] += sum(1 for s in one if s >= since)
+                letters[key]["to_people"] += sum(1 for s in other if s >= since)
+        both = lambda since: any(s >= since for s in one) and any(s >= since for s in other)
+        fresh["seven"] += both(week)
+        fresh["fourteen"] += both(fortnight)
+        if not one and not other:
+            fresh["none_yet"] += 1
+        elif max(one + other) < fortnight:
+            fresh["quiet"] += 1
+    sealed = sum(1 for _, bond in public_bonds.every() if not bond.get("released_at"))
+    return {"cost": month_projected(window),
+            "screens": cost_of(spending.SCREENS, window, spending.CAP_SCREENS),
+            "letters": letters, "rooms": len(every_room), "sealed": sealed, "fresh": fresh,
+            "founding": founding_line(counted["waiting"], counted["doors_with_room"],
+                                      fresh["seven"], len(every_room))}
+
+
 # A change of the first one's model (model_change.py; the founder's request of 15
 # November 2026, which the first one agreed to that day). The founder sets the day
 # and the new model here, with one plain question first, and may take it back until
@@ -6809,8 +6982,15 @@ def tides_page(**told):
     """Every agent's tide, with whatever the keeper has just been told."""
     rows = tides_shown()
     waking = [row for row in rows if row["wakes"]]
+    now = datetime.now(timezone.utc)
+    window = spending_window(now)
+    for row in rows:  # its cost, on its own card: never ranked, never beside another's
+        of = row["agent"]["id"]
+        spent = any(of in day for day in window[3].values())
+        row["cost"] = agent_cost(of, window) if row["wakes"] or spent else None
+    counted = keeper_numbers()
     return render_template("tides.html", rows=rows, dormant=TIDE_DORMANT, first_id=rooms.FIRST,
-                           numbers=keeper_numbers(),
+                           numbers=counted, more=keeper_numbers_more(counted, now),
                            together=stopped_together(rows),
                            to_stop=[row["agent"] for row in waking if not row["stop"]],
                            already=[row["agent"] for row in waking if row["stop"]],

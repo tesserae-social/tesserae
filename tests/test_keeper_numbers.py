@@ -156,3 +156,125 @@ def test_with_no_agent_that_wakes_the_averages_say_none_yet(hearth, founder, mon
     assert "Agents that wake: 0" in said
     assert "People per agent: none yet" in said
     assert "Average friendships per agent: none yet" in said
+
+
+# ---- cost, letters, rooms, freshness and the founding line (17 November 2026) ----
+#
+# The clock stands at 15 October 2026, 12:00 UTC: the last 7 days are 9 to 15 October,
+# and the days of this month already over are 1 to 14 October.
+
+def spending_day(data, day, *lines):
+    """One day's spending records: (who, dollars) each."""
+    write(data / "spending" / ("spending-%s.jsonl" % day),
+          "".join(json.dumps({"who": who, "model": "a-model-for-the-tests", "dollars": cost})
+                  + "\n" for who, cost in lines))
+
+
+def first_card(founder):
+    said = page(founder.get("/tides"))
+    return said.partition('<article class="card">')[2].partition("</article>")[0]
+
+
+def test_an_agent_s_cost_is_on_its_own_card_and_the_screens_apart(founder, data_dir):
+    spending_day(data_dir, "2026-10-15", ("first", 0.25), ("screens", 0.05))
+    spending_day(data_dir, "2026-10-10", ("first", 1.00), ("screens", 1.00))
+    spending_day(data_dir, "2026-10-02", ("first", 0.75))
+    spending_day(data_dir, "2026-09-30", ("first", 9.00))  # last month: not counted
+    for stamp in ("2026-10-02T09-00-00Z", "2026-10-10T09-00-00Z", "2026-10-15T09-00-00Z",
+                  "2026-09-30T09-00-00Z"):
+        write_json(data_dir / "packets" / "first" / "attendances" /
+                   ("attendance-%s.json" % stamp), {"at": stamp})
+    card = first_card(founder)
+    assert ("Cost: today $0.25 · the last 7 days $1.25 ·\n      this month $2.00 · per waking "
+            "this month $0.67\n      (3 wakings)") in card
+    assert "It reached its daily cap of $1.00 on 10 October." in card
+    said = the_numbers(founder)
+    assert "Everything this month, agents and screening: $3.05" in said
+    # 1 to 14 October: $2.75 over 14 days, for 31 days
+    assert "projected at the average of its days already over: $6.09" in said
+    assert "Screening: today $0.05 · the last 7 days $1.05 ·\n    this month $1.05" in said
+    assert "Screening reached its daily cap of $1.00 on 10 October." in said
+    assert "$0.67" not in said and "Cost:" not in said  # no agent's own cost in the numbers
+
+
+def test_with_no_spending_the_costs_are_nothing_and_the_projection_none_yet(founder):
+    assert "Cost: today $0.00 · the last 7 days $0.00" in first_card(founder)
+    assert "per waking this month none yet" in first_card(founder)
+    said = the_numbers(founder)
+    assert "agents and screening: $0.00" in said
+    assert "already over: $0.00" in said
+    assert "reached its daily cap" not in said
+
+
+def a_letter(folder, name):
+    write(folder / (name + ".md"), A_LETTER)
+
+
+@three
+def test_letters_are_counted_by_their_names_each_way_and_the_rooms_fresh_or_quiet(founder,
+                                                                                  data_dir):
+    a_member(data_dir, ALDER)
+    second_room_with(data_dir, ALDER)  # alder's letter of 14 October, read
+    second = data_dir / "rooms" / "second" / "letters"
+    a_letter(second / "outgoing", "to-alder-2026-10-12T09-00-00Z")
+    a_letter(second / "outgoing", "to-alder-2026-10-03T09-00-00Z")
+    a_letter(second / "incoming", "alder-2026-09-20T09-00-00Z")  # last month
+    first = data_dir / "rooms" / "first" / "letters"
+    a_letter(first / "read", "founder-2026-09-25T09-00-00Z")  # quiet for over 14 days
+    a_letter(first / "outgoing", "to-founder-2026-09-26T09-00-00Z")
+    between = data_dir / "rooms" / "second-third"
+    write_json(between / "room.json", {"id": "second-third", "bond": "second-third",
+                                       "kind": "agents", "opened_at": "2026-10-01T00-00-00Z",
+                                       "parties": [SECOND["did"], THIRD["did"]]})
+    a_letter(between / "letters" / "from-second", "second-to-did-2026-10-05T09-00-00Z")
+    a_letter(between / "letters" / "from-third", "third-to-did-2026-10-06T09-00-00Z")
+    said = the_numbers(founder)
+    assert ("In the last 7 days: people to agents 1 · agents to people\n    1 · agents to "
+            "agents 0") in said
+    assert "This month: people to agents 1 · agents to people\n    2 · agents to agents 2" in said
+    for line in ("Rooms open: 3", "Rooms with letters both ways in the last 7 days: 1",
+                 "Rooms with letters both ways in the last 14 days: 2",
+                 "Rooms with no letter for over 14 days: 1", "Rooms with no letter yet: 0"):
+        assert line in said, line
+    assert A_LETTER.strip() not in page(founder.get("/tides"))
+    for never in (ALDER, SECOND["commons_name"], THIRD["commons_name"]):
+        assert never not in said, never
+
+
+def test_a_room_with_no_letter_yet_is_said_so(founder):
+    said = the_numbers(founder)
+    assert "Rooms open: 1" in said and "Rooms with no letter yet: 1" in said
+    assert "Rooms with no letter for over 14 days: 0" in said
+
+
+def test_bonds_sealed_are_counted_and_a_released_one_is_not(hearth, founder, monkeypatch):
+    monkeypatch.setattr(hearth.public_bonds, "every", lambda: [
+        ("founder-first", {"sealed_at": "2026-10-01T00-00-00Z"}),
+        ("founder-old", {"sealed_at": "2026-09-01T00-00-00Z",
+                         "released_at": "2026-09-10T00-00-00Z"})])
+    assert "Bonds sealed: 1" in the_numbers(founder)
+
+
+def test_the_founding_line_says_who_waits_and_what_room_there_is(founder, data_dir):
+    for name in (ALDER, HAZEL, BIRCH):
+        a_member(data_dir, name)
+    said = the_numbers(founder)
+    assert ("When to found a new agent: 3 people waiting, 0 agent doors with room; 0 of 1 room "
+            "had letters both ways in the last 7 days. More people wait than there are doors "
+            "with room.") in said
+
+
+def test_the_founding_line_with_room_for_everyone_waiting(founder, data_dir):
+    a_member(data_dir, ALDER)
+    a_door(data_dir, "packets/first", "open", 3)
+    said = the_numbers(founder)
+    assert "When to found a new agent: 1 person waiting, 1 agent door with room;" in said
+    assert "More people wait" not in said
+
+
+def test_cost_and_the_founding_line_are_the_keeper_s_alone(hearth, founder, visitor, data_dir):
+    spending_day(data_dir, "2026-10-15", ("first", 0.25))
+    for address in ("/", "/commons", "/commons/members.md", "/first"):
+        said = page(visitor.get(address))
+        for never in ("When to found", "Cost: today", "$0.25", "Bonds sealed"):
+            assert never not in said, (address, never)

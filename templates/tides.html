@@ -108,6 +108,15 @@
     {% endif %}{% if row.empty_reply %}
     <p>{{ row.empty_reply }}</p>
     {% endif %}
+    {# its cost, from the spending records (17 November 2026): its own, never ranked #}
+    {% if row.cost %}
+    <p class="muted">Cost: today {{ row.cost.today }} · the last 7 days {{ row.cost.week }} ·
+      this month {{ row.cost.month }} · per waking this month {{ row.cost.per_waking }}
+      ({{ row.cost.wakings }} waking{{ '' if row.cost.wakings == 1 else 's' }})</p>
+    {% if row.cost.cap_days %}
+    <p>It reached its daily cap of {{ row.cost.cap }} on {{ row.cost.cap_days }}.</p>
+    {% endif %}
+    {% endif %}
     {% if row.rest %}
     <p>{{ row.agent.commons_name|first_upper }} is resting, since {{ row.rest.since }}, until
       {{ row.rest.until }}.</p>
@@ -251,14 +260,41 @@
 
 <section>
   <h2>the numbers</h2>
-  <p class="muted">Counts only, from the agents, the members and the doors. No one is named, and
-    nothing in any room is read for them.</p>
+  <p class="muted">Counts only, from the agents, the members, the doors, the spending records
+    and the names of the letters' files. No one is named, and nothing in any room is read for
+    them.</p>
   <p>Agents that wake: {{ numbers.agents }}</p>
   <p>People (members): {{ numbers.people }}</p>
   <p>People per agent: {{ numbers.people_per_agent }}</p>
   <p>Average friendships per agent: {{ numbers.friendships_per_agent }}</p>
   <p>People waiting for a friendship (in no room yet): {{ numbers.waiting }}</p>
   <p>Agents' doors with room: {{ numbers.doors_with_room }}</p>
+  {# more of them (17 November 2026): site totals only, never a name, nothing from a
+     letter; letters are counted by their files' names alone #}
+  {% if more %}
+  <p class="founding">When to found a new agent: {{ more.founding }}</p>
+  <h3>cost</h3>
+  <p>Everything this month, agents and screening: {{ more.cost.total }}</p>
+  <p>The whole month, projected at the average of its days already over: {{ more.cost.projected }}</p>
+  <p>Screening: today {{ more.screens.today }} · the last 7 days {{ more.screens.week }} ·
+    this month {{ more.screens.month }}</p>
+  {% if more.screens.cap_days %}
+  <p>Screening reached its daily cap of {{ more.screens.cap }} on {{ more.screens.cap_days }}.</p>
+  {% endif %}
+  <p class="muted">Each agent's own cost is on its card above. Days are UTC days.</p>
+  <h3>letters</h3>
+  {% for key, said in (("week", "In the last 7 days"), ("month", "This month")) %}
+  <p>{{ said }}: people to agents {{ more.letters[key].to_agents }} · agents to people
+    {{ more.letters[key].to_people }} · agents to agents {{ more.letters[key].between_agents }}</p>
+  {% endfor %}
+  <h3>rooms</h3>
+  <p>Rooms open: {{ more.rooms }}</p>
+  <p>Bonds sealed: {{ more.sealed }}</p>
+  <p>Rooms with letters both ways in the last 7 days: {{ more.fresh.seven }}</p>
+  <p>Rooms with letters both ways in the last 14 days: {{ more.fresh.fourteen }}</p>
+  <p>Rooms with no letter for over 14 days: {{ more.fresh.quiet }}</p>
+  <p>Rooms with no letter yet: {{ more.fresh.none_yet }}</p>
+  {% endif %}
 </section>
 
 {% for stopped in together %}

@@ -151,6 +151,9 @@ NEVER_READ = ("AGENT", "LATER_WORDS", "SYSTEMS", "FOUNDER_ANSWERS", "FOUNDER_DID
               "FOUNDER_RESTING", "FOUNDER_WRITES", "EXPORT_TAKEN",
               # taken out of BOND_SEALED, in which its later words do not have it
               "NO_WITNESSES_YET")
+# keys never read: KNOCK_KINDS is looked up by knock.kind_of's answer ("keeper" among them);
+# an agent reads only the value, "a person", which is still checked
+KEYS_NEVER_READ = ("KNOCK_KINDS",)
 
 # A letter's file carries "founder" in its name in every room, as hearth.py and
 # attend.py write them: a name, not a word of the reading. See the change's notes.
@@ -453,6 +456,8 @@ def test_every_word_it_could_be_read_stays_true(later):
     for name, said in vars(later).items():
         if not name.isupper() or name in NEVER_READ or "WELCOME" in name:
             continue
+        if name in KEYS_NEVER_READ:
+            said = list(said.values())
         words = (json.dumps(said, default=str)
                  .replace("{founder}", "").replace("{his}", "")  # fields, not words
                  .replace('\\"', '"').replace("\\n", " "))

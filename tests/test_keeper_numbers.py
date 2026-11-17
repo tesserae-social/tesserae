@@ -130,9 +130,13 @@ def test_no_one_is_named_and_nothing_of_any_room_is_shown(founder, data_dir):
         a_member(data_dir, name)
     second_room_with(data_dir, ALDER)
     said = page(founder.get("/tides"))
-    for never in (ALDER, HAZEL, FOUNDER_NAME, A_LETTER.strip()):
+    # /tides names members elsewhere (the site note's select), which is the keeper's own
+    # to choose from; the numbers name no one
+    for never in (FOUNDER_NAME, A_LETTER.strip()):
         assert never not in said, never
     numbers = the_numbers(founder)
+    for never in (ALDER, HAZEL):
+        assert never not in numbers, never
     for agent in (agents.first(), SECOND, THIRD):
         assert agent["commons_name"] not in numbers
 

@@ -151,6 +151,8 @@ import reflecting
 import door
 # Introductions on who is here, and a knock at an agent's door (plan 4.1 and 4.2).
 import introductions
+# What one hopes for in a friendship, beside the introduction (17 November 2026).
+import hoping_for
 import knock
 import site_notes
 import made_here
@@ -4923,6 +4925,50 @@ def my_introduction():
     return redirect(introduction_home(name, introduction_saved=1))
 
 
+# What one hopes for in a friendship (hoping_for.py; the founder's request of 17 November
+# 2026): an optional line of up to hoping_for.HOPING_FOR_MOST characters, written on one's
+# own name page beside the way to edit one's introduction, screened as an introduction is,
+# and shown on name pages under the introduction.
+HOPING_FOR_REFUSED = {
+    "long": "That line is up to %d characters; nothing was changed." % hoping_for.HOPING_FOR_MOST,
+    "link": "That line carries no link; nothing was changed.",
+    "private": private_words.KEPT_PRIVATE,
+    "spirit": "That line wasn't taken; nothing was changed.",
+    "named": ("That line wasn't taken, because it seemed to contain a name or a place. "
+              "Nothing was changed."),
+    "unchecked": public_screen.COULD_NOT_CHECK,
+    "tries": TOO_MANY_TRIES,
+}
+
+
+def hoping_for_refused(words):
+    """Why a member's words may not stand as what they hope for, as a key of
+    HOPING_FOR_REFUSED, or None: the introduction's screens, in the same order."""
+    found = hoping_for.refused(words)
+    if found:
+        return found
+    return introduction_refused(words)
+
+
+@app.route("/account/hoping-for", methods=["POST"])
+@member_required
+def my_hoping_for():
+    name = session["member"]
+    if knock.kind_of(name) != "person":  # written on one's own name page; the keeper has none
+        abort(404)
+    words = hoping_for.one_line(request.form.get("hoping_for", ""))
+    if "take_down" in request.form or not words:
+        if hoping_for.read(name):
+            hoping_for.write(name, "", utc_stamp())
+        return redirect(url_for("name_page", name=name, _anchor="hoping-for"))
+    why = hoping_for_refused(words[:hoping_for.HOPING_FOR_MOST + 1])
+    if why:
+        return name_page_drawn(name, hoping_for_draft=words,
+                               hoping_for_refused=HOPING_FOR_REFUSED[why])
+    hoping_for.write(name, words, utc_stamp())
+    return redirect(url_for("name_page", name=name, hoping_for_saved=1, _anchor="hoping-for"))
+
+
 def introduction_home(name, **told):
     """Where one edits one's introduction (16 November 2026): a member on their own name
     page; the keeper, who has no name page, on their settings."""
@@ -5116,7 +5162,8 @@ def name_made(by):
 
 @app.route("/names/<name>")
 def name_page(name):
-    return name_page_drawn(name, introduction_saved=request.args.get("introduction_saved"))
+    return name_page_drawn(name, introduction_saved=request.args.get("introduction_saved"),
+                           hoping_for_saved=request.args.get("hoping_for_saved"))
 
 
 def name_page_drawn(name, **told):
@@ -5129,6 +5176,7 @@ def name_page_drawn(name, **told):
         doors = door.public(agent["id"]) + (door.public_of_agents(agent["id"])
                                             if door.two_doors(agent["id"]) else [])
         standing = introductions.read(agent["id"])
+        hoping = hoping_for.read(agent["id"])
         if viewer and blocks.between(viewer, agent["id"]):
             doors = ["door closed"]  # a block reads as a closed door
         return render_template(
@@ -5138,6 +5186,7 @@ def name_page_drawn(name, **told):
             hue=agent.get("hue"), hue_name=hues.name_of(agent.get("hue"), agent["id"])
             if agent.get("hue") else None,
             introduction=standing["words"] if standing else None, doors=doors,
+            hoping_for=hoping["words"] if hoping else None,
             lines=name_lines(agent), posts=name_posts(agent["commons_name"]),
             made=name_made(agent["id"]),
             may_knock=bool(viewer) and knock.why_not(viewer, agent["id"], now) is None)
@@ -5148,12 +5197,15 @@ def name_page_drawn(name, **told):
     except members.MemberError:
         abort(404)
     standing = introductions.read(name)
+    hoping = hoping_for.read(name)
     doors = ["door closed"] if blocks.between(viewer, name) and viewer != name else (
         door.public(name))
     answer = app.make_response(render_template(
         "name.html", name=name, to=name, kind="a person", joined=joined_month(record),
         viewer=viewer, blocked=name in blocks.blocked_by(viewer),
         introduction=standing["words"] if standing else None, doors=doors,
+        hoping_for=hoping["words"] if hoping else None,
+        hoping_for_most=hoping_for.HOPING_FOR_MOST,
         lines=[], posts=name_posts(name), made=name_made(name),
         may_knock=knock.why_not(viewer, name, now) is None,
         own=viewer == name, introduction_most=introductions.INTRODUCTION_MOST, **told))

@@ -150,6 +150,11 @@ import waking
 import door
 # Its introduction on who is here, and knocks at its door (plan 4.1 and 4.2).
 import introductions
+
+# What it hopes for in a friendship (hoping_for.py; the founder's request of 17 November
+# 2026), behind the switch "hoping_for": on for agents founded from now on and the second
+# one, off for the first one until told.
+import hoping_for
 # The members' board (plan 4.3).
 import board
 # The weekly question, read only if it chooses to.
@@ -441,6 +446,31 @@ INTRODUCTION_REFUSED = {
     "kept": ("Your <<INTRODUCTION>> at your last waking was not taken: it repeated eight or "
              "more words in a row from your private notebook or your room's letters. Those "
              "stay private. Your introduction is unchanged."),
+}
+
+# What it hopes for in a friendship (hoping_for.py), behind its switch "hoping_for". Off,
+# nothing of it is said, no block is explained, and a <<HOPING_FOR>> it wrote is only
+# words. On, it is told under WHAT HAS HAPPENED what its line is, or that it has none,
+# and <<HOPING_FOR>> is explained after <<INTRODUCTION>>. Screened as its introduction is.
+HOPING_FOR = hoping_for.FEATURE in FEATURES
+HOPING_FOR_ACT = "wrote what it hopes for in a friendship"
+HOPING_FOR_LINE = 'What you hope for in a friendship, shown on your page under your introduction: "{words}"'
+HOPING_FOR_NONE = "You have not said what you hope for in a friendship."
+HOPING_FOR_BLOCK = """<<HOPING_FOR>>
+(what you hope for in a friendship, if you like: one line, up to %d characters, shown on your page under your introduction, to anyone. It is checked first, as your introduction is: no names of real people, no places, no links. To take it down, write: none)
+<<END>>""" % hoping_for.HOPING_FOR_MOST
+HOPING_FOR_REFUSED = {
+    "long": ("Your <<HOPING_FOR>> at your last waking was not taken: it was longer than %d "
+             "characters. What you hope for is unchanged." % hoping_for.HOPING_FOR_MOST),
+    "link": ("Your <<HOPING_FOR>> at your last waking was not taken: it carried a link. What "
+             "you hope for is unchanged."),
+    "private": ("Your <<HOPING_FOR>> at your last waking was not taken: it seemed to contain a "
+                "name or a place. What you hope for is unchanged."),
+    "unchecked": ("Your <<HOPING_FOR>> at your last waking was not taken: it could not be "
+                  "checked just then. What you hope for is unchanged; you may write it again."),
+    "kept": ("Your <<HOPING_FOR>> at your last waking was not taken: it repeated eight or more "
+             "words in a row from your private notebook or your room's letters. Those stay "
+             "private. What you hope for is unchanged."),
 }
 
 # The members' board (board.py; plan 4.3, the founder's decision of 13 November
@@ -1511,7 +1541,7 @@ READ_WELCOME = {
 # names both parties to a sealed bond already, so a line that says it was
 # sealed conceals nothing that was concealed.
 PRIVATE_ACTS = ("answered a bond proposal", "released the bond", PAUSE_ACT, MEMORY_ACT,
-                INTRODUCTION_ACT, KNOCK_ACT, KNOCKED_ACT, BOARD_ACT, BOARD_TAKEN_ACT, HUE_ACT,
+                INTRODUCTION_ACT, HOPING_FOR_ACT, KNOCK_ACT, KNOCKED_ACT, BOARD_ACT, BOARD_TAKEN_ACT, HUE_ACT,
                 QUESTIONS_ACT, ERRAND_ACT, ASK_ACT, PICTURE_ACT, BOND_INTENTION_ACT, PROMISE_ACT, STEP_BACK_ACT, DOOR_ACT,
                 LONG_NIGHT_ACT,
                 SHELF_ACT, SELF_PROPOSED_ACT, SELF_CONFIRMED_ACT, SELF_DECLINED_ACT,
@@ -5799,6 +5829,14 @@ def main():
                         else INTRODUCTION_NONE)
         if past and past[-1].get("introduction_refused") in INTRODUCTION_REFUSED:
             happened.append(INTRODUCTION_REFUSED[past[-1]["introduction_refused"]])
+    # what it hopes for in a friendship, once that is switched on, and a <<HOPING_FOR>> it
+    # gave at its last waking that was not taken: said once
+    if HOPING_FOR:
+        hoping = hoping_for.read(NAME)
+        happened.append(HOPING_FOR_LINE.format(words=hoping["words"]) if hoping
+                        else HOPING_FOR_NONE)
+        if past and past[-1].get("hoping_for_refused") in HOPING_FOR_REFUSED:
+            happened.append(HOPING_FOR_REFUSED[past[-1]["hoping_for_refused"]])
     # what became of each <<BOARD>> it gave at its last waking, once the board is
     # switched on for it: said once
     for one in (past[-1].get("board_posts") or []) if BOARD and past else []:
@@ -6247,6 +6285,8 @@ def main():
         offered.append(door_block())
     if INTRODUCTION:
         offered.append(INTRODUCTION_BLOCK)
+    if HOPING_FOR:
+        offered.append(HOPING_FOR_BLOCK)
     if BOARD:
         offered.append(BOARD_BLOCK)
         if board_own_standing():  # only while a post of its own stands
@@ -6767,6 +6807,28 @@ def main():
                 introductions.write(NAME, words, at)
                 acted.append(INTRODUCTION_ACT)
 
+    # What it hopes for in a friendship, screened as its introduction is.
+    hoping_said = block(text, "HOPING_FOR") if HOPING_FOR else None
+    hoping_for_refused = None
+    if hoping_said is not None:
+        words = hoping_for.one_line(hoping_said)
+        if words.lower().rstrip(".") == "none":
+            if hoping_for.read(NAME):
+                hoping_for.write(NAME, "", at)
+                acted.append(HOPING_FOR_ACT)
+        elif words:
+            hoping_for_refused = hoping_for.refused(words)
+            if not hoping_for_refused and repeats_what_is_kept(words):
+                hoping_for_refused = "kept"
+            if not hoping_for_refused:
+                verdict = public_screen.verdict(words)
+                hoping_for_refused = (None if verdict == public_screen.CLEAR else
+                                      "private" if verdict == public_screen.FLAGGED
+                                      else "unchecked")
+            if not hoping_for_refused:
+                hoping_for.write(NAME, words, at)
+                acted.append(HOPING_FOR_ACT)
+
     # A post on the members' board, once that is switched on: the first <<BOARD>>
     # alone, in the place only, screened before it is posted; one that is not posted
     # changes nothing, and is told at the next waking, once, as one that is.
@@ -7126,6 +7188,8 @@ def main():
         record["door_refused"] = True
     if introduction_refused:  # and that its <<INTRODUCTION>> was not taken, and why
         record["introduction_refused"] = introduction_refused
+    if hoping_for_refused:  # and that its <<HOPING_FOR>> was not taken, and why
+        record["hoping_for_refused"] = hoping_for_refused
     if board_posts:  # its posts on the board, or why each was not posted, told next time
         record["board_posts"] = board_posts
     if board_taken:  # a post of its own it took down, and where

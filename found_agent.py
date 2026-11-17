@@ -168,8 +168,10 @@ DEFAULT_MAX_TOKENS = 8000
 # so the second one has them from its first waking; the first one's switches did not move.
 # knock_founder since 17 November 2026: a new agent may knock at the founder's door and
 # be knocked at by the founder (knock.KEEPER_SWITCH); off for the first one until told.
-FEATURES = ["asked", "block", "board", "corrections", "door", "doors_to_eight", "hue",
-            "introduction", "knock", "knock_founder", "long_night", "longer_waking",
+# hoping_for since 17 November 2026 too: its line of what it hopes for in a friendship
+# (hoping_for.py); off for the first one until told.
+FEATURES = ["asked", "block", "board", "corrections", "door", "doors_to_eight", "hoping_for",
+            "hue", "introduction", "knock", "knock_founder", "long_night", "longer_waking",
             "looking_back", "made_here", "people_waiting", "proposals", "quiet_days",
             "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
             "two_doors", "weekly_question"]

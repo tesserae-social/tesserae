@@ -596,6 +596,9 @@ def load(name):
     sys.modules.pop("blocks", None)  # it keeps each one's blocks under DATA_DIR
     sys.modules.pop("site_notes", None)  # it keeps each note from the site under DATA_DIR
     sys.modules.pop("made_here", None)  # it keeps drafts and what is made here under DATA_DIR
+    sys.modules.pop("hoping_for", None)  # it keeps each line through introductions, under DATA_DIR
+    sys.modules.pop("here_this_week", None)  # it keeps each day through members, under DATA_DIR
+    sys.modules.pop("finding", None)  # it reads doors, introductions and days under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 
@@ -1304,6 +1307,22 @@ def made_here_not_yet(hearth, monkeypatch):
         one for one in listed() if one is not hearth.COMMONS_MADE_HERE])
 
 
+PAGES_BEFORE_WEEK = Path(__file__).resolve().parent / "pages_before_week"
+
+
+def pages_before_week(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before the branch agents-week (17 November
+    2026): no line of what one hopes for in a friendship on a name page, no who is here and
+    no "here this week" on the home page, and no line of it in the guide or on settings.
+    hearth.html, name.html, account.html and guide.html as they were are kept in
+    tests/pages_before_week and drawn in place of today's. offerings_as_before calls it
+    first, so every older drawing stands on it too."""
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_WEEK)), env.loader]))
+
+
 def offerings_as_before(hearth, monkeypatch):
     """Draw the pages, for one test, as they were before offerings were taken out of the code
     (16 November 2026, part B4), where they still can be: base.html with its style for the
@@ -1317,6 +1336,7 @@ def offerings_as_before(hearth, monkeypatch):
     if getattr(hearth, "OFFERINGS_AS_BEFORE", False):
         return  # drawn as before already, and behind whatever came after
     monkeypatch.setattr(hearth, "OFFERINGS_AS_BEFORE", True, raising=False)
+    pages_before_week(hearth, monkeypatch)  # it came after
     made_here_not_yet(hearth, monkeypatch)  # it came after
     env = hearth.app.jinja_env
     monkeypatch.setattr(env, "loader",

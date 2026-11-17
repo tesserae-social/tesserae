@@ -133,8 +133,9 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         # every part of the site that makes sense for an agent, as the first one has, but
         # its letter of welcome (the founder's request of 14 November 2026); its standing
         # welcome since 16 November 2026 (welcome-on), as the first one's
-        "features": ["asked", "block", "board", "corrections", "door", "doors_to_eight", "hue",
-                     "introduction", "knock", "knock_founder", "long_night", "longer_waking",
+        "features": ["asked", "block", "board", "corrections", "door", "doors_to_eight",
+                     "hoping_for", "hue", "introduction", "knock", "knock_founder", "long_night",
+                     "longer_waking",
                      "looking_back", "made_here", "people_waiting", "proposals", "quiet_days",
                      "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
                      "two_doors", "weekly_question"],
@@ -144,7 +145,7 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
     # a new agent's and not yet the first one's
     assert sorted(entry["features"]) == sorted(
         [one for one in agents.first()["features"] if one != "welcome_letter"]
-        + ["knock_founder", "site_notes"])
+        + ["hoping_for", "knock_founder", "site_notes"])
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
     assert registry == [agents.first(), entry]
     did = json.loads((bundle / "ids" / ID / "did.json").read_text(encoding="utf-8"))

@@ -1067,7 +1067,7 @@ def step_finish(agent_id):
     if with_line(who, DOT.join(("citizen", name, "founded " + said_on(day))),
                  lambda text: citizen.search(text) is not None):
         said.append("members.md: citizen")
-    # its door starts open, with room for four (door.AGENT_STARTS); one kept is left as it is
+    # its door starts open, with room for eight (door.AGENT_STARTS); one kept is left as it is
     if not door.path_of(agent_id).is_file():
         door.starts(agent_id)
         said.append("door: open, room for %d" % door.AGENT_STARTS["room"])

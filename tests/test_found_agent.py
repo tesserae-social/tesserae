@@ -172,11 +172,11 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         found.run(ID, "finish")
     deployed(found, data_dir, monkeypatch, tmp_path)
     done = found.run(ID, "finish")
-    assert done["added"] == ["events.md", "members.md: citizen", "door: open, room for 4",
+    assert done["added"] == ["events.md", "members.md: citizen", "door: open, room for 8",
                              "members.md: member"]
-    # its door starts open, with room for four
+    # its door starts open, with room for eight (four until 17 November 2026)
     door = json.loads((data_dir / "packets" / ID / "door.json").read_text(encoding="utf-8"))
-    assert (door["state"], door["room"]) == ("open", 4)
+    assert (door["state"], door["room"]) == ("open", 8)
     events = (data_dir / "commons" / "events.md").read_text(encoding="utf-8")
     assert events.endswith(f"2026-10-15 · founding · {NAME} was founded\n")
     said = (data_dir / "commons" / "members.md").read_text(encoding="utf-8").splitlines()

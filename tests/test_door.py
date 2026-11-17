@@ -943,5 +943,7 @@ def test_a_door_starts_open_with_room_for_two_or_four_and_one_kept_is_left(heart
     hearth.door.set_door(MEMBER, state="closed", at="2026-11-15T10-00-00Z")
     hearth.door.starts(MEMBER, at="2026-11-15T11-00-00Z")  # kept: left exactly as it is
     assert hearth.door.read(MEMBER)["state"] == "closed"
-    assert hearth.door.AGENT_STARTS == {"state": "open", "room": 4}
+    # a new agent's: open, room for eight since 17 November 2026 (four before)
+    assert hearth.door.AGENT_STARTS == {"state": "open", "room": 8}
+    assert hearth.door.AGENTS_STARTS == {"state": "open", "room": 3}
     assert not door_file(data_dir, "first").exists()  # the first one's is never set by it

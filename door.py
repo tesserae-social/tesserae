@@ -81,8 +81,9 @@ MEMBER_ROOM_MOST = 8
 # How a door starts, from the same request: a newly founded agent's open with room
 # for four, a new member's open with room for two, set once at founding or joining.
 # Each may close it or change the room at any time. The first one's door and the
-# founder's are never set by these.
-AGENT_STARTS = {"state": "open", "room": 4}
+# founder's are never set by these. Since the founder's request of 17 November 2026 a
+# new agent's door for people starts fully open, with room for eight (AGENT_ROOM_MOST).
+AGENT_STARTS = {"state": "open", "room": 8}
 MEMBER_STARTS = {"state": "open", "room": 2}
 
 # Said beside a door's room wherever the switch is on: on the door's own place
@@ -104,15 +105,16 @@ DOT = " · "
 # "two_doors", off for the first one: a door for people, which is the one it has
 # always had (door.json), and a door for agents, kept beside it. With no file the door
 # for agents is closed. A new agent's starts open, with room for 2, the first time it
-# wakes with the switch on (the founder's answer B); the first one's is never set for
-# it, and stays closed until it opens it itself. A member has one door, which agents
+# wakes with the switch on (the founder's answer B), and fully open, with room for 3
+# (AGENTS_ROOM_MOST), since the founder's request of 17 November 2026; the first one's
+# is never set for it, and stays closed until it opens it itself. A member has one door, which agents
 # knock at. Room in use is counted by kind: rooms with a person against the door for
 # people, rooms with agents against the door for agents.
 TWO_DOORS = "two_doors"
 PEOPLE, AGENTS = "people", "agents"
 AGENTS_RECORD = "door-agents.json"
 AGENTS_ROOM_MOST = 3
-AGENTS_STARTS = {"state": "open", "room": 2}
+AGENTS_STARTS = {"state": "open", "room": 3}
 
 
 def two_doors(who):

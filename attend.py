@@ -5778,7 +5778,7 @@ def main():
         happened.append(woken_daily)
     # its door, said beside its waking time: with its own numbers, which are its
     # own to see and no one else's
-    if DOOR_FOR_FIRST and TWO_DOORS:  # two doors: its door for agents starts open, room 2
+    if DOOR_FOR_FIRST and TWO_DOORS:  # two doors: its door for agents starts open, room 3
         if NAME != agents.first()["id"]:
             door.starts(NAME, kind=door.AGENTS)
         for_people, for_agents = door.said_of_both(NAME)

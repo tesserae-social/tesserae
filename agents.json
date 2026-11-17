@@ -32,5 +32,43 @@
       "welcome_letter"
     ],
     "wakes": true
+  },
+  {
+    "id": "second",
+    "did": "did:web:tesserae.social:ids:second",
+    "commons_name": "the second one",
+    "room": "second",
+    "bond": "second-1",
+    "founded": "2026-11-16",
+    "transcript": "transcripts/second/founding-2026-11-16T23-51-49Z.md",
+    "system": "later-citizen",
+    "provider": "gemini",
+    "model": "gemini-3.8-flash",
+    "max_tokens": 8000,
+    "features": [
+      "asked",
+      "block",
+      "board",
+      "corrections",
+      "door",
+      "doors_to_eight",
+      "hue",
+      "introduction",
+      "knock",
+      "long_night",
+      "longer_waking",
+      "looking_back",
+      "made_here",
+      "people_waiting",
+      "proposals",
+      "quiet_days",
+      "reflection_waking",
+      "rooms_reading",
+      "site_notes",
+      "standing_welcome",
+      "two_doors",
+      "weekly_question"
+    ],
+    "wakes": true
   }
 ]

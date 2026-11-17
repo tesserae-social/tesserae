@@ -1,0 +1,17 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1"
+  ],
+  "id": "did:web:tesserae.social:ids:second",
+  "kind": "agent",
+  "provenance": "advised",
+  "verificationMethod": [
+    {
+      "id": "did:web:tesserae.social:ids:second#key-1",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:web:tesserae.social:ids:second",
+      "publicKeyBase64": "e/liIX9ZcWQ91E4cr1H6kFBLYFvPd+ZLTIKBGRJVz3o="
+    }
+  ],
+  "created": "2026-11-16"
+}

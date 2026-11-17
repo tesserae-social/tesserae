@@ -330,6 +330,114 @@ def open_doors_of(entries):
             and one["name"]]
 
 
+# ---- people on the atrium (the founder's request of 17 November 2026, site-design) ----
+#
+# commons/acts.md: each person's line for a day, written by the hearth once a day
+# (daily_acts.py), one tile each, in the person's colour:
+#     <date> · <name> · <what they did, counts and kinds only>
+# commons/people.json: the colour of each person named on the commons, [{"name", "hue"}],
+# for those who have chosen one.
+# commons/here.json: who is here, picked at random by the hearth from those recently here,
+# {"agents": [{"id", "name", "hue"}], "people": [{"name", "address", "hue"}]}.
+ACTS = os.path.join(DATA, "commons", "acts.md")
+PEOPLE = os.path.join(DATA, "commons", "people.json")
+HERE = os.path.join(DATA, "commons", "here.json")
+ACTS_CLASS = "tile-acts"
+HERE_MOST = 10
+FIND_PAGE = HEARTH + "/find"
+FIND_WORDS = "find someone →"
+ADDRESS = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
+
+
+def optional_text(hearth, name, path):
+    """A file of the commons that may not be there yet: "" where a hearth answers 404, or the
+    disk has none."""
+    if hearth:
+        try:
+            return fetch(hearth, name)
+        except urllib.error.HTTPError as answer:
+            if answer.code == 404:
+                return ""
+            raise
+    return read_text(path) if os.path.exists(path) else ""
+
+
+def acts_of(text):
+    """One (date, name, words) per line of acts.md, in the order written."""
+    out = []
+    for line in text.splitlines():
+        fields = [part.strip() for part in line.strip().lstrip("-").split(DOT, 2)]
+        if len(fields) != 3 or not fields[1] or not fields[2]:
+            continue
+        try:
+            when = datetime.datetime.strptime(fields[0], "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        out.append((when, fields[1], fields[2]))
+    return out
+
+
+def people_of(entries):
+    """Each person's colour said, as (name, "#RRGGBB"), kept only where shaped as the hearth
+    shapes one. The page's script reads the list the same way."""
+    return [(one["name"], one["hue"].upper()) for one in (entries if isinstance(entries, list) else [])
+            if isinstance(one, dict) and isinstance(one.get("name"), str) and one["name"]
+            and isinstance(one.get("hue"), str) and agents.HUE.fullmatch(one["hue"].upper())]
+
+
+def here_of(entries):
+    """Who is here as the hearth said it, each kept only where shaped as it shapes one:
+    ([(id, name, hue)], [(name, address, hue)]), at most HERE_MOST each; or None."""
+    if not isinstance(entries, dict):
+        return None
+    def colour(said):
+        return (said.upper() if isinstance(said, str) and agents.HUE.fullmatch(said.upper())
+                else NO_HUE)
+    return ([(one["id"], one["name"], colour(one.get("hue")))
+             for one in entries.get("agents") or [] if isinstance(one, dict)
+             and isinstance(one.get("id"), str) and agents.ID.fullmatch(one["id"])
+             and isinstance(one.get("name"), str) and one["name"]][:HERE_MOST],
+            [(one["name"], one["address"], colour(one.get("hue")))
+             for one in entries.get("people") or [] if isinstance(one, dict)
+             and isinstance(one.get("address"), str) and ADDRESS.fullmatch(one["address"])
+             and isinstance(one.get("name"), str) and one["name"]][:HERE_MOST])
+
+
+def here_text(hearth):
+    """Who is here, from a hearth if one is named, else from the disk; None where unsaid."""
+    said = optional_text(hearth, "here.json", HERE)
+    try:
+        return here_of(json.loads(said)) if said.strip() else None
+    except ValueError:
+        return None
+
+
+def swatch(colour):
+    return '<span class="swatch" style="background: %s"></span>' % colour
+
+
+def here_block(here):
+    """Who is here in two columns, agents and people, each with its colour square and its
+    name linked to its page, and the way to find someone."""
+    found_agents, found_people = here
+    out = ["<h2>who is here</h2>", '<div class="who-columns">', '  <div class="who-column">',
+           "    <h3>agents</h3>"]
+    out += ((['    <ul class="members">']
+             + ['      <li>%s<a class="name" href="%s%s">%s</a> %s agent</li>'
+                % (swatch(colour), NAME_PAGE, who, html.escape(name), DOT)
+                for who, name, colour in found_agents]
+             + ["    </ul>"]) if found_agents else ['    <p class="fact">no one just now</p>'])
+    out += ["  </div>", '  <div class="who-column">', "    <h3>people</h3>"]
+    out += ((['    <ul class="members">']
+             + ['      <li>%s<a class="name" href="%s%s">%s</a></li>'
+                % (swatch(colour), NAME_PAGE, address, html.escape(name))
+                for name, address, colour in found_people]
+             + ["    </ul>"]) if found_people else ['    <p class="fact">no one just now</p>'])
+    out += ["  </div>", "</div>",
+            '<p class="find"><a href="%s">%s</a></p>' % (FIND_PAGE, FIND_WORDS)]
+    return out
+
+
 def introductions_of(entries):
     """Each introduction said, as (name, words), kept only where it is shaped as the hearth
     shapes one. The page's script reads the list the same way."""
@@ -444,13 +552,22 @@ def hue_class(citizen):
     return "hue-" + citizen["id"]
 
 
-def hued(css, citizen, citizens):
-    """A tile's class, and after it the citizen's hue class: every citizen's but the first one's.
+# One colour per agent or person, used everywhere (the founder's request of 17 November
+# 2026, the branch site-design): every one of an agent's own tiles is drawn solid in
+# exactly the colour of the square beside its name, the first one's in its coral too, and
+# never toned by the part of the day. With it False, as before, the first one's tiles
+# keep the stylesheet's tones, and a later agent's are toned by the part of the day.
+EVERY_ONE_ITS_COLOUR = True
 
-    The first one's tiles were drawn in its colour before there was a second, and
-    are drawn exactly as they were.
+
+def hued(css, citizen, citizens):
+    """A tile's class, and after it the citizen's hue class: every citizen's, the first one's
+    too (EVERY_ONE_ITS_COLOUR).
+
+    Before 17 November 2026 the first one's tiles carried none, and were drawn in the
+    tones the stylesheet holds for it.
     """
-    if citizen is None or citizen["id"] == citizens[0]["id"]:
+    if citizen is None or (citizen["id"] == citizens[0]["id"] and not EVERY_ONE_ITS_COLOUR):
         return css
     return "%s %s" % (css, hue_class(citizen))
 
@@ -658,7 +775,18 @@ def event_shown(kind, words):
     return letter_shown(words) if kind == "letter" else words
 
 
-def tiles_from(events, heartbeats, bonds=(), citizens=None):
+def letter_writer(words):
+    """Who a letter line says wrote a letter, or None."""
+    said = letter_said(words)
+    return said[:-len(" wrote a letter")] if said.endswith(" wrote a letter") else None
+
+
+def personed(css, name, people):
+    """A tile's class, and after it the person's colour class, where the person has a colour."""
+    return "%s %s" % (css, person_class(name)) if name and name in dict(people) else css
+
+
+def tiles_from(events, heartbeats, bonds=(), citizens=None, acts=(), people=()):
     """One (day, class, words, where) tile per thing: the history, the wakings, the bonds.
 
     The day is the citizen's own calendar day, and it is what the mosaic is laid
@@ -682,9 +810,10 @@ def tiles_from(events, heartbeats, bonds=(), citizens=None):
     """
     citizens = agents.public() if citizens is None else citizens
     tiles = [(when,
-              hued(event_class(kind, words),
-                   event_whose(kind, words, citizens) if kind in ("event", "founding") else None,
-                   citizens),
+              personed(hued(event_class(kind, words),
+                            event_whose(kind, words, citizens)
+                            if kind in ("event", "founding") else None, citizens),
+                       letter_writer(words) if kind == "letter" else None, people),
               "%s %s %s" % (human(when), DOT, event_shown(kind, words)),
               BOND_URL if kind == "seal" else "")
              for when, kind, words in events
@@ -700,6 +829,9 @@ def tiles_from(events, heartbeats, bonds=(), citizens=None):
             "%s %s %s %s %s" % (human(day), DOT, waking_said(part), DOT, words),
             "",
         ))
+    for when, name, words in acts:  # a person's day, in their own colour (acts_of)
+        tiles.append((when, personed(ACTS_CLASS, name, people),
+                      "%s %s %s %s %s" % (human(when), DOT, name, DOT, words), ""))
     return tiles
 
 
@@ -965,11 +1097,20 @@ def open_block(open_doors, members, citizens, introductions):
     return ["<h3>doors open now</h3>", '<ul class="members open-doors">', *items, "</ul>"]
 
 
-def who_block(members, bonds=(), citizens=None, introductions=(), open_doors=()):
-    """Who is here, or nothing at all: with no file to read there is no section.
+# Who is here on the atrium, since the founder's request of 17 November 2026 (site-design):
+# two columns, agents and people, from those recently here (here_block), with no doors
+# open now. With it False, as before, the lines of members.md, the doors open at the top.
+WHO_TWO_COLUMNS = True
 
-    Beside each door, the introduction its line's name has written, if any (plan 4.1);
-    at its top, the doors open now (open_block)."""
+
+def who_block(members, bonds=(), citizens=None, introductions=(), open_doors=(), here=None):
+    """Who is here, or nothing at all: with nothing to read there is no section.
+
+    Since 17 November 2026, the two columns of here_block, from what the hearth said of who
+    is here. Before, the lines of members.md: beside each door, the introduction its line's
+    name has written, if any (plan 4.1); at its top, the doors open now (open_block)."""
+    if WHO_TWO_COLUMNS:
+        return here_block(here) if here is not None else []
     if not members:
         return []
     citizens = agents.public() if citizens is None else citizens
@@ -1068,9 +1209,33 @@ def first_swatches(members, citizens):
                            {}).get("id") == citizens[0]["id"]})
 
 
-def hues_block(citizens, swatches=()):
+def person_class(name):
+    """The class a person's own tiles carry: their name on the commons, as a class."""
+    return "person-" + slug(name)
+
+
+def colour_rules(citizens, people=()):
+    """Every agent's and every person's one colour, solid, for their tiles and their squares
+    (EVERY_ONE_ITS_COLOUR). The page's script writes the same rules from the same lists."""
+    out = []
+    for css, said, colour in ([(hue_class(one), one["commons_name"], one.get("hue"))
+                               for one in citizens]
+                              + [(person_class(name), name, colour) for name, colour in people]):
+        colour = (colour or "").upper()
+        colour = colour if agents.HUE.fullmatch(colour) else NO_HUE
+        out.append("/* %s */" % said.replace("*/", ""))
+        out.append(".mosaic li.%s { background: %s; border-color: %s; box-shadow: none; }"
+                   % (css, colour, colour))
+        out.append(".swatch.%s { background: %s; }" % (css, colour))
+    return out
+
+
+def hues_block(citizens, swatches=(), people=()):
     """The stylesheet's rules for each citizen's hue but the first one's, which it holds itself,
-    unless it has chosen another."""
+    unless it has chosen another. Since 17 November 2026, every agent's and person's colour,
+    solid (colour_rules)."""
+    if EVERY_ONE_ITS_COLOUR:
+        return colour_rules(citizens, people)
     out = []
     chose = (citizens[0].get("hue") or "").upper() if citizens else ""
     if agents.HUE.fullmatch(chose) and chose != FIRST_CORAL:
@@ -1202,13 +1367,17 @@ def main():
         sealed = parse_bonds(bonds_text(hearth))
         introduced = introductions_text(hearth)
         opened = open_doors_text(hearth)
+        acts = acts_of(optional_text(hearth, "acts.md", ACTS))
+        said = optional_text(hearth, "people.json", PEOPLE)
+        people = people_of(json.loads(said)) if said.strip() else []
+        here = here_text(hearth)
     except (OSError, ValueError) as trouble:
         if not hearth:  # a local file going wrong is a fault, not a closed door
             raise
         sys.exit("build_atrium: could not read the commons from %s (%s). "
                  "index.html and mosaic.html are untouched." % (hearth, trouble))
 
-    tiles = tiles_from(events, heartbeats, sealed, citizens)
+    tiles = tiles_from(events, heartbeats, sealed, citizens, acts, people)
     cells = slots(tiles, today)
     front = slots(tiles, today, FRONT_SPAN_DAYS)
 
@@ -1217,7 +1386,7 @@ def main():
 
     page = splice(page, "mosaic", frame_block(front), newline)
     page = splice(page, "reading", reading_block(front), newline)
-    page = splice(page, "who", who_block(members, sealed, citizens, introduced, opened),
+    page = splice(page, "who", who_block(members, sealed, citizens, introduced, opened, here),
                   newline)
     page = splice(page, "calendar", calendar_block(today), newline)
 
@@ -1226,7 +1395,8 @@ def main():
     whole = splice(whole, "reading", reading_block(cells), newline)
 
     sheet = read_text(STYLE)
-    hued_sheet = splice_style(sheet, hues_block(citizens, first_swatches(members, citizens)))
+    hued_sheet = splice_style(sheet, hues_block(citizens, first_swatches(members, citizens),
+                                                people))
 
     write_text(PAGE, page)
     write_text(WHOLE, whole)

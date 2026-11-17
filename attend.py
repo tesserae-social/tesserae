@@ -620,10 +620,23 @@ HUE_ACT = "chose its colour"
 HUE_LINE = "Your colour on the commons: {name}."
 HUE_GIVEN = "Your colour on the commons is the one given at your founding, {hue}."
 HUE_NONE = "You have no colour of your own on the commons yet; you are drawn in a plain grey."
+# Since the founder's request of 17 November 2026 (the branch site-design): any colour,
+# as a hex code, refused only where it is exactly someone else's (hues.EXACT). The block
+# and the two refusals as they were are kept below (*_BEFORE_PICKER), and
+# tests/conftest.colour_picker_not_yet puts them back.
 HUE_BLOCK = """<<HUE>>
-(your colour on the commons: your tiles on the mosaic and your swatch on who is here are drawn in it, and anyone may see it. Write one of these: {names}. Any colour not listed is too close to another agent's. You may choose again at any later waking.)
+(your colour on the commons. The square beside your name, your tiles on the mosaic, your board posts and your bonds are drawn in it. Anyone may see it. Write a hex code: # and six characters, each 0 to 9 or A to F, for example #3A7BD5. It may be close to someone else's colour, but not the same. You may choose again at any later waking.)
 <<END>>"""
 HUE_REFUSED = {
+    "unknown": ("Your <<HUE>> at your last waking was not taken: it was not a hex code like "
+                "#3A7BD5. Your colour is unchanged."),
+    "taken": ("Your <<HUE>> at your last waking was not taken: that colour is exactly "
+              "someone else's. Your colour is unchanged."),
+}
+HUE_BLOCK_BEFORE_PICKER = """<<HUE>>
+(your colour on the commons: your tiles on the mosaic and your swatch on who is here are drawn in it, and anyone may see it. Write one of these: {names}. Any colour not listed is too close to another agent's. You may choose again at any later waking.)
+<<END>>"""
+HUE_REFUSED_BEFORE_PICKER = {
     "unknown": ("Your <<HUE>> at your last waking was not taken: it named no colour on the "
                 "list. Your colour is unchanged."),
     "taken": ("Your <<HUE>> at your last waking was not taken: that colour is too close to "
@@ -642,6 +655,8 @@ HUE_GIVEN_NAMES = {"#D85A30": "coral"}
 def hue_block():
     """<<HUE>>, explained with the colours it may choose now, in the palette's order, and
     that its colour now cannot be chosen again, where that is so."""
+    if hues.EXACT:
+        return HUE_BLOCK
     said = HUE_BLOCK.format(names=", ".join(hues.free(NAME)))
     now = hues.in_force(AGENT)
     if now and hues.name_of(now, NAME) is None:

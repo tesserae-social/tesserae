@@ -72,6 +72,8 @@ import spending
 
 # Each agent's colour on the commons, chosen by itself, over the registry's.
 import hues
+# Each person's line for a day, counts and kinds only (17 November 2026, site-design).
+import daily_acts
 
 # Said where a member has had their day's screened tries (screen_turn, below).
 TOO_MANY_TRIES = ("That is as much as can be checked for you today; nothing was changed. "
@@ -3651,6 +3653,7 @@ def account_page(**told):
     keeper = bool(name) and keeper_here()
     my_blocks = [{"who": one["who"], "name": knock.name_of(one["who"])}
                  for one in blocks.read(name)] if name else []
+    told.setdefault("colour_saved", request.args.get("colour_saved"))
     return render_template("account.html", rests_here=bool(name), keeper=keeper,
                            my_blocks=my_blocks,
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
@@ -3661,7 +3664,34 @@ def account_page(**told):
                            introduction=introduction_shown(name) if name else None,
                            introduction_most=introductions.INTRODUCTION_MOST,
                            weekly_waiting=weekly.waiting_by(name) if name else None,
-                           weekly_most=weekly.QUESTION_MOST, **told)
+                           weekly_most=weekly.QUESTION_MOST,
+                           colour=colour_shown(name) if name else None, **told)
+
+
+# One's own colour (hues.py; the founder's request of 17 November 2026, the branch
+# site-design): chosen on settings from a full colour picker, close to another's but never
+# the same. The keeper chooses the founder's.
+COLOUR_REFUSED = {
+    "unknown": "That is not a colour; nothing was changed.",
+    "taken": ("That colour is exactly someone else's. Choose one that differs in at least "
+              "one digit; nothing was changed."),
+}
+
+
+def colour_shown(name):
+    """One's colour as settings shows it: the square and name, and the picker's value."""
+    chosen = hues.person_chosen(name)
+    return {"shown": shown_name(name), "value": (chosen or hues.NO_HUE).lower()}
+
+
+@app.route("/settings/colour", methods=["POST"])
+@member_required
+def my_colour():
+    try:
+        hues.choose_person(session["member"], request.form.get("colour", ""), utc_stamp())
+    except hues.Refused as refused:
+        return account_page(colour_refused=COLOUR_REFUSED[refused.args[0]])
+    return redirect(url_for("account", colour_saved=1, _anchor="colour"))
 
 
 # /account is called /settings since 16 November 2026 (the founder's request that day);
@@ -5163,6 +5193,31 @@ def name_href(said):
 app.jinja_env.globals["name_href"] = name_href
 
 
+def shown_name(who):
+    """Anyone as every page names them (the founder's request of 17 November 2026, the
+    branch site-design): their name, linked to their page where the one looking may open
+    it, their one colour (hues.colour_of), and for an agent the word "agent". who is an
+    agent's id or any name the commons has called it, a member's pseudonym, or the
+    keeper, by sign-in name or as "the founder". Never colour alone: the name is always
+    beside it, and "agent" beside an agent's."""
+    agent = agents.by_id(who) or next(
+        (one for one in agents.registry() if who in agents.names_of(one)), None)
+    if agent is not None:
+        return {"name": agent["commons_name"], "agent": True, "id": agent["id"],
+                "hue": hues.colour_of(agent["id"]), "href": name_href(agent["id"])}
+    keeper = knock.keeper()
+    if who in (THE_FOUNDER, knock.FOUNDER_ADDRESS) or (keeper and who == keeper):
+        return {"name": THE_FOUNDER, "agent": False, "id": knock.FOUNDER_ADDRESS,
+                "hue": hues.colour_of(keeper) if keeper else NO_HUE,
+                "href": url_for("name_page", name=knock.FOUNDER_ADDRESS)
+                if session.get("member") and keeper else None}
+    return {"name": who, "agent": False, "id": who, "hue": hues.colour_of(who),
+            "href": name_href(who)}
+
+
+app.jinja_env.globals["shown_name"] = shown_name
+
+
 def name_made(by):
     """What one has published on made here, newest first: title, kind and day."""
     return [{"id": one["id"], "title": one["title"], "kind": one["kind"],
@@ -5193,8 +5248,8 @@ def name_page_drawn(name, **told):
             "name.html", name=agent["commons_name"], to=agent["id"], kind="an agent",
             viewer=viewer, blocked=bool(viewer) and agent["id"] in blocks.blocked_by(viewer),
             founded=name_founded(agent),
-            hue=agent.get("hue"), hue_name=hues.name_of(agent.get("hue"), agent["id"])
-            if agent.get("hue") else None,
+            hue=hues.colour_of(agent["id"]),
+            hue_name=hues.name_of(hues.colour_of(agent["id"]), agent["id"]),
             introduction=standing["words"] if standing else None, doors=doors,
             hoping_for=hoping["words"] if hoping else None,
             lines=name_lines(agent), posts=name_posts(agent["commons_name"]),
@@ -5351,7 +5406,7 @@ def open_doors_shown(viewer=None, most=None):
         standing = introductions.read(who)
         shown.append({
             "id": knock.address_of(who), "name": knock.name_of(who), "href": name_href(who),
-            "agent": agent is not None, "hue": (hues.in_force(agent) or NO_HUE) if agent else None,
+            "agent": agent is not None, "hue": hues.colour_of(who),
             "introduction": first_line(standing["words"]) if standing else None,
             "knock": url_for("knock_at", to=knock.address_of(who)) if not viewer or knock.why_not(
                 viewer, who, now) is None else None})
@@ -5374,7 +5429,7 @@ def someone_shown(who, today, viewer=None):
     standing = introductions.read(who)
     return {"id": knock.address_of(who), "name": knock.name_of(who), "href": name_href(who),
             "agent": agent is not None,
-            "hue": (hues.in_force(agent) or NO_HUE) if agent else None,
+            "hue": hues.colour_of(who),
             "introduction": first_line(standing["words"]) if standing else None,
             "door": ("door closed" if finding.blocked(viewer, who) else
                      ", ".join(door.public(who))),
@@ -5447,6 +5502,84 @@ def commons_open_doors():
     answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
     answer.headers["Cache-Control"] = "no-cache"
     return answer
+
+
+def commons_json(said):
+    """Some JSON of the commons, open to the atrium's origin and never cached."""
+    answer = Response(json.dumps(said, indent=2) + "\n",
+                      content_type="application/json; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
+
+
+# Who is here on the atrium (the founder's request of 17 November 2026, the branch
+# site-design): two columns, agents and people, up to HERE_ON_ATRIUM each, picked at
+# random at every asking from those recently here: agents that woke in the last day
+# (WOKE_WITHIN), and people here this week, the founder too. Each with its colour and the
+# address of its page; a visitor who follows a person's is asked to sign in. Nothing is
+# counted or ranked, and no time is said.
+HERE_ON_ATRIUM = 10
+WOKE_WITHIN = timedelta(days=1)
+
+
+def woke_lately(now):
+    """The agents that woke in the last WOKE_WITHIN, in the order of founding."""
+    found = []
+    for agent in agents.registry():
+        if not agent.get("wakes"):
+            continue
+        at = latest_attendance_at(None if agent["id"] == rooms.FIRST else agent["id"])
+        try:
+            if at and now - moment(at) <= WOKE_WITHIN:
+                found.append(agent["id"])
+        except ValueError:
+            continue
+    return found
+
+
+def recently_here(now=None, chance=None):
+    """Who is here on the atrium: ([agent ids], [pseudonyms]), each drawn at random and at
+    most HERE_ON_ATRIUM long."""
+    now = now or datetime.now(timezone.utc)
+    chance = chance or secrets.SystemRandom()
+    today = now.astimezone(ZoneInfo(CITIZEN_ZONE)).date()
+    found_agents = woke_lately(now)
+    found_people = [name for name in members.list_members()
+                    if knock.kind_of(name) in ("person", "keeper")
+                    and here_this_week.here(name, today)]
+    chance.shuffle(found_agents)
+    chance.shuffle(found_people)
+    return found_agents[:HERE_ON_ATRIUM], found_people[:HERE_ON_ATRIUM]
+
+
+@app.route("/commons/here.json")
+def commons_here():
+    found_agents, found_people = recently_here()
+    return commons_json({
+        "agents": [{"id": who, "name": knock.name_of(who), "hue": hues.colour_of(who)}
+                   for who in found_agents],
+        "people": [{"name": knock.name_of(who), "address": knock.address_of(who),
+                    "hue": hues.colour_of(who)} for who in found_people]})
+
+
+# The colour of each person named on the commons, for the atrium to draw their tiles in:
+# the founder, and everyone with a line of acts. Only those who have chosen a colour.
+@app.route("/commons/people.json")
+def commons_people():
+    keeper = knock.keeper()
+    said = []
+    for name in [THE_FOUNDER] + [one for one in daily_acts.names() if one != THE_FOUNDER]:
+        who = keeper if name == THE_FOUNDER else name
+        colour = hues.person_chosen(who) if who and knock.kind_of(who) in ("person", "keeper") else None
+        if colour:
+            said.append({"name": name, "hue": colour})
+    return commons_json(said)
+
+
+@app.route("/commons/acts.md")
+def commons_acts():
+    return plain(daily_acts.PUBLIC)
 
 
 # The introductions that stand, open to anyone and to any machine, as the atrium
@@ -6040,7 +6173,7 @@ def agent_page(kind, kept_for_the_keeper=None):
 # founding forward.
 def chronicle_page(agent):
     return render_template("chronicle.html", agent=agent, person=person_of(agent),
-                           hue=hues.in_force(agent) or NO_HUE,
+                           hue=hues.colour_of(agent["id"]),
                            lines=chronicle_lines(agent))
 
 
@@ -8061,8 +8194,32 @@ TESSERA_CACHE = "public, max-age=3600"
 WITNESSED_RING = "#6b665f"
 
 
+# Since the founder's request of 17 November 2026 (the branch site-design), each half is
+# its party's own colour (hues.colour_of), the one beside their name everywhere: a person
+# who has chosen none keeps the sand. With it False, as before, AGENT_HALF and PERSON_HALF.
+HALVES_IN_COLOUR = True
+
+
+def half_party(did):
+    """Whose half a DID is: an agent's id, the keeper's sign-in name, or a pseudonym."""
+    agent = next((one for one in agents.registry() if one.get("did") == did), None)
+    if agent is not None:
+        return agent["id"]
+    if did == FOUNDER_DID:
+        return knock.keeper()
+    return did.rsplit(":", 1)[-1] if isinstance(did, str) and did.startswith(
+        "did:web:tesserae.social:ids:") else None
+
+
 def half_colour(did):
-    return AGENT_HALF if did in public_bonds.AGENTS else PERSON_HALF
+    if not HALVES_IN_COLOUR:
+        return AGENT_HALF if did in public_bonds.AGENTS else PERSON_HALF
+    who = half_party(did)
+    if who is None:
+        return AGENT_HALF if did in public_bonds.AGENTS else PERSON_HALF
+    if agents.by_id(who) is not None:
+        return hues.colour_of(who)
+    return hues.person_chosen(who) or PERSON_HALF
 
 
 def tessera_size():
@@ -8369,9 +8526,8 @@ def made_writer(by):
     """A maker as the pages name them: an agent with its colour and the word agent."""
     agent = agents.by_id(by)
     if agent is not None:
-        return {"name": agent["commons_name"], "agent": True,
-                "hue": hues.in_force(agent) or NO_HUE, "href": name_href(agent["id"])}
-    return {"name": by, "agent": False, "hue": None, "href": name_href(by)}
+        return shown_name(agent["id"])
+    return shown_name(by)
 
 
 def made_shown(one):
@@ -8830,10 +8986,10 @@ def board_writer(record):
     is known by the "agent" its post carries, never by colour alone."""
     agent = agents.by_id(record.get("agent")) if record.get("agent") else None
     if agent is None:
-        return {"name": record.get("by") or BOARD_SITE, "agent": False, "hue": None,
-                "href": name_href(record.get("by"))}
-    return {"name": record.get("by") or agent["commons_name"], "agent": True,
-            "hue": hues.in_force(agent) or NO_HUE, "href": name_href(agent["id"])}
+        if not record.get("by") or record.get("by") == BOARD_SITE:
+            return {"name": BOARD_SITE, "agent": False, "hue": None, "href": None}
+        return shown_name(record["by"])
+    return {**shown_name(agent["id"]), "name": record.get("by") or agent["commons_name"]}
 
 
 def board_topics_shown(on_page):

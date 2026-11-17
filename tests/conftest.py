@@ -872,11 +872,22 @@ READ_WHO_IS_HERE_BEFORE = {
     "input_schema": {"type": "object", "properties": {}}}
 
 
+def site_design_not_yet(module, monkeypatch):
+    """Put back, for one test, everything of an agent's reading that the branch site-design
+    moved (the founder's request of 17 November 2026, later still): <<HUE>> as it was, with
+    the palette's names (colour_picker_not_yet). Every reading cut before then is exactly
+    what it was with this done. Given hearth, it is done to the attend.py the hearth holds
+    the tide through. who_drawn_not_yet does it first, so every older reading stands on it."""
+    colour_picker_not_yet(module, monkeypatch)
+
+
 def who_drawn_not_yet(module, monkeypatch):
     """Give read_who_is_here back, for one test, as it was given until 17 November 2026,
     later: its description and its input with no word (attend.READ_WHO_IS_HERE). Every
     reading of an agent with knocks on cut before then is exactly what it was with this
-    done. Given hearth, it is done to the attend.py the hearth holds the tide through."""
+    done. Given hearth, it is done to the attend.py the hearth holds the tide through.
+    What site-design moved after it is put back first (site_design_not_yet)."""
+    site_design_not_yet(module, monkeypatch)
     module = getattr(module, "the_waking", module)
     if hasattr(module, "READ_WHO_IS_HERE"):
         monkeypatch.setattr(module, "READ_WHO_IS_HERE", READ_WHO_IS_HERE_BEFORE)
@@ -939,6 +950,17 @@ def hue_choice_not_yet(module, monkeypatch):
     2026): no line of its colour under WHAT HAS HAPPENED, and no <<HUE>> explained.
     The first one's switch is off already, so its reading is as it was either way."""
     monkeypatch.setattr(module, "HUE_CHOOSING", False)
+
+
+def colour_picker_not_yet(module, monkeypatch):
+    """<<HUE>> as it was before any colour could be chosen by its hex code (17 November 2026,
+    the branch site-design, part 1): the palette's names alone, a colour too close to
+    another agent's refused (hues.EXACT False), and the block and its refusals in their
+    old words. Given hearth, it is done to the attend.py the hearth wakes."""
+    module = getattr(module, "the_waking", module)
+    monkeypatch.setattr(module.hues, "EXACT", False)
+    monkeypatch.setattr(module, "HUE_BLOCK", module.HUE_BLOCK_BEFORE_PICKER)
+    monkeypatch.setattr(module, "HUE_REFUSED", module.HUE_REFUSED_BEFORE_PICKER)
 
 
 def wakings_not_yet_switched(module, monkeypatch):
@@ -1358,6 +1380,26 @@ def a_day_here(path):
     return True
 
 
+PAGES_BEFORE_DESIGN = Path(__file__).resolve().parent / "pages_before_design"
+
+
+def pages_before_design(hearth, monkeypatch):
+    """Draw the pages, for one test, as they were before the branch site-design (the
+    founder's request of 17 November 2026, later still): every template that branch changed,
+    as it stood on keeper-pages, is kept in tests/pages_before_design and drawn in place of
+    today's; the views still hand them what they read. The tessera's halves are drawn in
+    the two colours of before (hearth.HALVES_IN_COLOUR False). pages_before_week calls it
+    first, so every older drawing stands on it too; it is done once only."""
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    if getattr(hearth, "DESIGN_AS_BEFORE", False):
+        return
+    monkeypatch.setattr(hearth, "DESIGN_AS_BEFORE", True, raising=False)
+    monkeypatch.setattr(hearth, "HALVES_IN_COLOUR", False)
+    env = hearth.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_DESIGN)), env.loader]))
+
+
 PAGES_BEFORE_WEEK = Path(__file__).resolve().parent / "pages_before_week"
 
 
@@ -1367,8 +1409,10 @@ def pages_before_week(hearth, monkeypatch):
     no "here this week" on the home page, and no line of it in the guide or on settings.
     hearth.html, name.html, account.html and guide.html as they were are kept in
     tests/pages_before_week and drawn in place of today's. offerings_as_before calls it
-    first, so every older drawing stands on it too."""
+    first, so every older drawing stands on it too. What site-design moved after it is put
+    back first (pages_before_design)."""
     from jinja2 import ChoiceLoader, FileSystemLoader
+    pages_before_design(hearth, monkeypatch)
     env = hearth.app.jinja_env
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_WEEK)), env.loader]))
@@ -1461,10 +1505,22 @@ def pages_before_doors(hearth, monkeypatch):
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_DOORS)), env.loader]))
 
 
+def atrium_before_design(atrium, monkeypatch):
+    """Draw the atrium, for one test, as before the branch site-design (17 November 2026):
+    the first one's tiles in the stylesheet's tones and a later agent's toned by the part of
+    the day (build_atrium.EVERY_ONE_ITS_COLOUR False), and who is here as the lines of
+    members.md with the doors open now at its top (build_atrium.WHO_TWO_COLUMNS False).
+    With it, every region is exactly what it was. atrium_before_doors does it first."""
+    monkeypatch.setattr(atrium, "EVERY_ONE_ITS_COLOUR", False)
+    monkeypatch.setattr(atrium, "WHO_TWO_COLUMNS", False)
+
+
 def atrium_before_doors(atrium, monkeypatch):
     """Draw who is here on the atrium, for one test, as before the rooms update of 16
     November 2026: no citizen's name linked to its page, and no doors open now at its top.
-    With it, every region is exactly what it was."""
+    With it, every region is exactly what it was. What site-design moved after it is put
+    back first (atrium_before_design)."""
+    atrium_before_design(atrium, monkeypatch)
     monkeypatch.setattr(atrium, "name_of", lambda kind, name, citizens: atrium.html.escape(name))
     monkeypatch.setattr(atrium, "open_doors_text", lambda hearth: [])
 

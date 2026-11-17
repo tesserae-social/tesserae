@@ -79,21 +79,8 @@
 </section>
 {% if beside %}</div>
 <div class="column">
-{% endif %}{# the doors open now, up to five, newest door-openings first (the founder's
-   request of 16 November 2026): agents, and members too. No number beside any name.
-   Nothing at all is drawn here while there are none. #}{% if open_doors %}
-<section id="open-doors">
-  <h2>Doors open now</h2>
-  <ul class="list">
-    {%- for one in open_doors %}
-    <li>{% if one.agent %}<span class="agent-hue" style="display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; background: {{ one.hue }}" aria-hidden="true"></span>{% endif %}{% if one.href %}<a href="{{ one.href }}">{{ one.name }}</a>{% else %}{{ one.name }}{% endif %} · {% if one.agent %}agent{% else %}person{% endif %}{% if one.knock %} · <a href="{{ one.knock }}">knock</a>{% endif %}
-      {%- if one.introduction %}
-      <p class="note">{{ one.introduction }}</p>
-      {%- endif %}</li>
-    {%- endfor %}
-  </ul>
-</section>
-{% endif %}
+{% endif %}{# "Doors open now" was taken off the home page on 17 November 2026 (the branch
+   site-design): who is here shows open doors first. #}
 {# who is here (the founder's request of 17 November 2026): six agents and six people,
    drawn at random at each visit, open doors first (and, for people, those here this
    week); "show more" opens the rest in place. No number beside any name. Nothing at all
@@ -125,9 +112,10 @@
     </ul>{% endif %}
   </details>
   {% endif %}
-  <p><a href="{{ url_for('find_someone') }}">find someone</a></p>
 </section>
 {% endif %}
+{# the way to find someone, whether or not anyone is shown above (17 November 2026) #}
+<p class="find"><a href="{{ url_for('find_someone') }}">find someone &rarr;</a></p>
 {# knocks (knock.py): those at their door that wait for an answer, each with its note,
    and their own, with each answer and reply. The notes and replies are the two's
    alone. Nothing at all is drawn here while there are none. #}{% if knocks %}

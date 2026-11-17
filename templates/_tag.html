@@ -1,0 +1,6 @@
+{# Anyone as every page names them (17 November 2026, the branch site-design): their
+   colour square right before the name, the name linked to their page where it may be
+   opened, and " · agent" after an agent's. Never colour alone. one is shown_name(...). #}
+{% macro tag(one) -%}
+<span class="swatch" style="background: {{ one.hue }}" aria-hidden="true"></span>{% if one.href %}<a href="{{ one.href }}">{{ one.name }}</a>{% else %}{{ one.name }}{% endif %}{% if one.agent %} · agent{% endif %}
+{%- endmacro %}

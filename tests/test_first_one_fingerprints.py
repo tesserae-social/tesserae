@@ -48,7 +48,7 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import (asked_described_as_before, made_here_not_yet, offerings_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
+from conftest import (pages_before_design, atrium_before_design, asked_described_as_before, made_here_not_yet, offerings_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
                       pages_before_doors, pages_before_fewer, pages_before_settings,
                       pages_before_pages, pages_before_small,
                       pages_before_saturday, pages_before_week, here_not_yet, post, registry_six_not_yet, registry_switches_not_yet,
@@ -257,8 +257,14 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # its line "find someone". With the templates of before drawn in their place
 # (conftest.pages_before_week) it is exactly the one held before, in WEEK_BEFORE below. No
 # waking moved.
+#
+# / cut again, on purpose, on 17 November 2026, on the branch site-design (the founder's
+# request that day, later still), and for nothing else: part 3, "Doors open now" taken off
+# the home page, and "find someone ->" said under who is here whether or not anyone is
+# shown. With the templates of before drawn in their place (conftest.pages_before_design)
+# it is exactly the one held before, in DESIGN_BEFORE below. No waking moved.
 PAGES = {
-    "/": "03bdcae88a19a1f5b12e2e47f169aee7982a042ef1aff4c1e297e74de47fa38d",
+    "/": "14889a74bc53ebf0ab35b766a70803941d79cdaa520dfd701ce0c021cde1cd54",
     "/rooms/first": "7816934d331ae825641e06e0a54b085209ec67377026a3a2fef849400e5ffa4c",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
     "/self": "708c75f04e55981579e4b6e7a63997278cd145bcc6a8613ba86363d56273bbf8",
@@ -334,8 +340,16 @@ TIDE = "5a014bba0ff7b5999e3e4da0508801678836529e567294f61f89a4e5e3697ae0"
 # open now, every agent whose door is open with room left, are listed, where there are
 # any. With who is here drawn as before (conftest.atrium_before_doors) each is exactly the
 # one held before, in ATRIUM_BEFORE_DOORS below.
-ATRIUM_WITH_LETTER_PARTS = "5f6d968fb24e05fc82a7a86676e0a01828a27ef03217c33589144e7545d0429c"
-ATRIUM = "532b941af4096b1a8b74989d189611ec18156ea675a5cf8939317f83373d0f1d"
+#
+# Both cut again, on purpose, on 17 November 2026, on the branch site-design (the founder's
+# request that day, later still), and for nothing else: part 1, every agent's own tiles,
+# the first one's too, carry its colour class and are drawn solid in the colour of the
+# square beside its name; part 3, who is here is two columns from the hearth's here.json,
+# with no doors open now, and this world has none, so the region is empty. With both as
+# they were (conftest.atrium_before_design) each is exactly the one held before, in
+# ATRIUM_BEFORE_DESIGN.
+ATRIUM_WITH_LETTER_PARTS = "15e1bd03df42c546f7d7f94c11a553685984cedacb62b3a7f344c892d95011e3"
+ATRIUM = "a593055b611f6ba95e15f61a9ddb8e5fab850f3816c26bbbb39a923e2abbd0bc"
 ATRIUM_BEFORE_DOORS = {
     False: "75355742f27af4d0efce32150ebbb7667c090cfc2cb61f9332501457dc79e470",
     True: "2fdaabcfd6e5987b0e1aefab9aa9eed082bacf04cc47866e78ae75d42091c1b3"}
@@ -551,6 +565,19 @@ SETTINGS_AND_LETTER_PARTS_BEFORE = {
 DOORS_BEFORE = {
     "/": "e05ea9c1aca562b47b4e37e0d67de4ab99d949071ad2f108226bc55e50ca88fc",
 }
+
+# What each page the branch site-design moved (the founder's request of 17 November 2026,
+# later still) was before it, and is again drawn with the templates of before
+# (conftest.pages_before_design). The reason each moved is written beside PAGES.
+DESIGN_BEFORE = {
+    "/": "03bdcae88a19a1f5b12e2e47f169aee7982a042ef1aff4c1e297e74de47fa38d",
+}
+
+# What the atrium drew before site-design, and draws again with build_atrium as it was
+# (conftest.atrium_before_design): with the letter line as before, and as it is.
+ATRIUM_BEFORE_DESIGN = {
+    False: "532b941af4096b1a8b74989d189611ec18156ea675a5cf8939317f83373d0f1d",
+    True: "5f6d968fb24e05fc82a7a86676e0a01828a27ef03217c33589144e7545d0429c"}
 
 # What / was before who is here (17 November 2026, the branch agents-week), and is again
 # drawn with the templates of before (conftest.pages_before_week).
@@ -951,6 +978,36 @@ def test_with_no_day_kept_the_backup_is_the_one_before(steady, letter_parts, fou
     here_not_yet(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     assert backup_held(hearth) == BACKUP_BEFORE_HERE[letter_parts]
+
+
+@pytest.mark.parametrize("address", list(DESIGN_BEFORE))
+def test_with_the_pages_drawn_before_site_design_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page site-design moved (17 November 2026), drawn with the templates of before:
+    each is exactly the page held before."""
+    pages_before_design(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == DESIGN_BEFORE[address]
+
+
+def test_with_the_atrium_drawn_before_site_design_it_is_the_one_before(
+        steady, letter_parts, founder, wake, room, commons, atrium, monkeypatch):
+    """The atrium as before site-design: every region exactly what it was."""
+    if letter_parts:
+        letter_parts_as_before(atrium, monkeypatch)
+    atrium_before_design(atrium, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    drawn = [("index:bench", EMPTY_BENCH_DREW), ("index:offering", EMPTY_OFFERING_DREW)]
+    for which, path in (("index", atrium.page_path), ("mosaic", atrium.whole_path)):
+        for name, inside in MARKED.findall(path.read_text(encoding="utf-8")):
+            drawn.append(("%s:%s" % (which, name), inside.encode("utf-8")))
+    drawn.sort()
+    assert digest(drawn) == ATRIUM_BEFORE_DESIGN[letter_parts]
 
 
 @pytest.mark.parametrize("address", list(WEEK_BEFORE))

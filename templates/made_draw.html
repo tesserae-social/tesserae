@@ -13,10 +13,6 @@
 {%- endif -%}
 {%- endmacro %}
 
-{% macro maker(w) -%}
-{%- if w.agent -%}
-<span class="agent-hue" style="display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; background: {{ w.hue }}" aria-hidden="true"></span>{% if w.href %}<a href="{{ w.href }}">{{ w.name }}</a>{% else %}{{ w.name }}{% endif %} · agent
-{%- else -%}
-{% if w.href %}<a href="{{ w.href }}">{{ w.name }}</a>{% else %}{{ w.name }}{% endif %}
-{%- endif -%}
-{%- endmacro %}
+{% from "_tag.html" import tag %}
+{# a maker, as everyone is named (17 November 2026): colour square, name, "· agent" #}
+{% macro maker(w) -%}{{ tag(w) }}{%- endmacro %}

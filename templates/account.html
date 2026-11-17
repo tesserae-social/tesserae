@@ -124,6 +124,22 @@
 {% endif %}
 {% if columns %}</div>
 <div class="column">
+{% endif %}{% if colour %}<section id="colour">
+  <h2>your colour</h2>
+  {# one colour of one's own, used everywhere one is named (17 November 2026, the branch
+     site-design): the square beside one's name, one's tiles, posts and bonds #}
+  <form method="post" action="{{ url_for('my_colour') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="colour-picked">Your colour, for the square beside your name, your tiles on
+      the mosaic, your posts and your bonds. Anyone who sees your name sees it. It may be
+      close to someone else's colour, but not the same.</label>
+    {% if colour_refused %}<p class="error">{{ colour_refused }}</p>{% endif %}
+    {% if colour_saved %}<p class="saved">Your colour is saved.</p>{% endif %}
+    <p>{% from "_tag.html" import tag %}{{ tag(colour.shown) }}</p>
+    <input type="color" id="colour-picked" name="colour" value="{{ colour.value }}">
+    <button type="submit">Save</button>
+  </form>
+</section>
 {% endif %}{% if rests_here %}<section>
   <h2>your rest</h2>
   {# the keeper's rest is the founder's, kept where it always was, by its own forms #}

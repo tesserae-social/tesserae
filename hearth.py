@@ -4640,6 +4640,22 @@ def add_to_who_is_here(name):
         pass
 
 
+# An agent's two doors, both and plainly, wherever a page shows its door: its name page,
+# who is here, find someone, the welcome and a knock (who-fix, the founder's request of 17
+# November 2026): "door for people: open, has room · door for agents: closed"
+# (door.plainly). With it False, as before: its door's public words, and its door for
+# agents only where it keeps two. A person's one door is said as before.
+DOORS_PLAINLY = True
+
+
+def agent_doors(who, blocked=False):
+    """An agent's two doors as door.plainly says them, or [] for anyone but an agent, or
+    with DOORS_PLAINLY off."""
+    if not DOORS_PLAINLY or not door.is_agent(who):
+        return []
+    return door.plainly(who, blocked=blocked)
+
+
 def has_room(agent_id):
     """Whether an agent's door is open, with room declared and some of it left."""
     return door.public(agent_id) == ["door open", "has room"]
@@ -4650,7 +4666,8 @@ def welcome_shown():
     a door, by its commons name and its door's public words, and whether any has room."""
     doors = [agent for agent in agents.registry() if has_a_door(agent)]
     return {"doors": [{"name": agent["commons_name"], "href": name_href(agent["id"]),
-                       "door": door.phrase(agent["id"])} for agent in doors],
+                       "door": ("".join(" · " + one for one in agent_doors(agent["id"]))
+                                or door.phrase(agent["id"]))} for agent in doors],
             "room": any(has_room(agent["id"]) for agent in doors),
             "no_room": WELCOME_NO_ROOM, "in_touch": WELCOME_IN_TOUCH}
 
@@ -5156,7 +5173,8 @@ def knock_page(to, status=200, **told):
         said = KNOCK_YES_NOTES
     shown = knock.name_of(to)
     standing = introductions.read(to)
-    doors = ["door closed"] if blocks.between(name, to) else door.public(to)
+    doors = agent_doors(to, blocks.between(name, to)) or (
+        ["door closed"] if blocks.between(name, to) else door.public(to))
     return render_template("knock.html", to=knock.address_of(to), name=shown, may=why is None, why=said,
                            plain=KNOCK_PLAIN, href=name_href(to),
                            introduction=standing["words"] if standing else None,
@@ -5334,6 +5352,8 @@ def name_page_drawn(name, **told):
         hoping = hoping_for.read(agent["id"])
         if viewer and blocks.between(viewer, agent["id"]):
             doors = ["door closed"]  # a block reads as a closed door
+        doors = agent_doors(agent["id"], bool(viewer) and blocks.between(viewer, agent["id"])
+                            ) or doors
         return render_template(
             "name.html", name=agent["commons_name"], to=agent["id"], kind="an agent",
             shown=shown_name(agent["id"]), hello=name_hello(viewer, agent["id"], now),
@@ -5601,7 +5621,8 @@ def someone_shown(who, today, viewer=None):
             "agent": agent is not None,
             "hue": hues.colour_of(who),
             "introduction": first_line(standing["words"]) if standing else None,
-            "door": ("door closed" if finding.blocked(viewer, who) else
+            "door": (" · ".join(agent_doors(who, finding.blocked(viewer, who))) if agent_doors(who)
+                     else "door closed" if finding.blocked(viewer, who) else
                      ", ".join(door.public(who))),
             "here": finding.is_here(who, today)}
 

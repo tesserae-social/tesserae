@@ -48,7 +48,7 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import (pages_before_design, atrium_before_design, asked_described_as_before, made_here_not_yet, offerings_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
+from conftest import (pages_before_design, who_fix_not_yet,atrium_before_design, asked_described_as_before, made_here_not_yet, offerings_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
                       pages_before_doors, pages_before_fewer, pages_before_settings,
                       pages_before_pages, pages_before_small,
                       pages_before_saturday, pages_before_week, here_not_yet, post, registry_six_not_yet, registry_switches_not_yet,
@@ -271,8 +271,14 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # its own style block. With the templates of before (conftest.pages_before_design) each is
 # exactly the one held before, in DESIGN_BEFORE (and /chronicle with the letter line as
 # before, in DESIGN_AND_LETTER_PARTS_BEFORE). No waking moved.
+#
+# / cut again, on purpose, on 17 November 2026, on the branch who-fix (the founder's request
+# that day, latest), part 2, and for nothing else: who is here shows the first one's two
+# doors plainly, "door for people: ... · door for agents: closed" (hearth.DOORS_PLAINLY).
+# With it put back (conftest.who_fix_not_yet) it is exactly the one held before, in
+# WHO_FIX_BEFORE below. No waking moved.
 PAGES = {
-    "/": "14889a74bc53ebf0ab35b766a70803941d79cdaa520dfd701ce0c021cde1cd54",
+    "/": "9103075fa51e2145b8c6f3ed88b537e5b96b27a07b1f2ecf4ed89fb497e7afc4",
     "/rooms/first": "3b54365e459c86713f02b94a5c56cacb71b133b0ff0bcf8cf62956cfac615ddc",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
     "/self": "29fa1ff56bae40214f028d0599da5d9274b5a9c74e84a1d0041d608d90323b6c",
@@ -597,6 +603,13 @@ DESIGN_AND_LETTER_PARTS_BEFORE = {
 ATRIUM_BEFORE_DESIGN = {
     False: "532b941af4096b1a8b74989d189611ec18156ea675a5cf8939317f83373d0f1d",
     True: "5f6d968fb24e05fc82a7a86676e0a01828a27ef03217c33589144e7545d0429c"}
+
+# What each page the branch who-fix moved (the founder's request of 17 November 2026,
+# latest) was before it, and is again drawn as before (conftest.who_fix_not_yet). The
+# reason each moved is written beside PAGES.
+WHO_FIX_BEFORE = {
+    "/": "14889a74bc53ebf0ab35b766a70803941d79cdaa520dfd701ce0c021cde1cd54",
+}
 
 # What / was before who is here (17 November 2026, the branch agents-week), and is again
 # drawn with the templates of before (conftest.pages_before_week).
@@ -1042,6 +1055,19 @@ def test_with_the_atrium_drawn_before_site_design_it_is_the_one_before(
             drawn.append(("%s:%s" % (which, name), inside.encode("utf-8")))
     drawn.sort()
     assert digest(drawn) == ATRIUM_BEFORE_DESIGN[letter_parts]
+
+
+@pytest.mark.parametrize("address", list(WHO_FIX_BEFORE))
+def test_with_the_pages_drawn_before_who_fix_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page who-fix moved (17 November 2026), drawn as before it: each is exactly the
+    page held before."""
+    who_fix_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == WHO_FIX_BEFORE[address]
 
 
 @pytest.mark.parametrize("address", list(WEEK_BEFORE))

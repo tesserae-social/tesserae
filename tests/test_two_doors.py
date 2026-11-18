@@ -43,6 +43,20 @@ def test_the_door_for_agents_is_kept_beside_the_door_for_people(world):
     assert door.read(SECOND)["state"] == "closed"  # its door for people, untouched
 
 
+def test_both_doors_are_said_plainly(world):
+    """who-fix, 17 November 2026: wherever an agent's door is shown, both doors, plainly."""
+    door = load("door")
+    door.set_door(SECOND, state="open", room=2, at="2026-10-15T09-00-00Z")
+    people = "door for people: open, " + door.public(SECOND)[1]  # its rooms are the world's
+    assert door.plainly(SECOND) == [people, "door for agents: closed"]
+    door.set_door(SECOND, state="open", room=3, at="2026-10-15T10-00-00Z", kind=door.AGENTS)
+    assert door.plainly(SECOND) == [people, "door for agents: open, has room"]
+    assert door.plainly(SECOND, blocked=True) == ["door for people: closed",
+                                                  "door for agents: closed"]
+    door.set_door(THIRD, state="open", at="2026-10-15T09-00-00Z")  # no room said, no switch
+    assert door.plainly(THIRD) == ["door for people: open", "door for agents: closed"]
+
+
 def test_the_first_one_s_door_for_agents_is_never_set_for_it(world):
     """Two doors on for it since 17 November 2026, at its yes; its door for agents starts
     closed and is never set for it: it opens it itself, if it chooses."""

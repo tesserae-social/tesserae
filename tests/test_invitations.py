@@ -576,7 +576,8 @@ def test_the_first_page_welcomes_them_and_says_no_door_has_room(hearth, keeper):
     said = page(client.get("/"))
     words = plain(said)
     assert ("Welcome to Tesserae. What you can do now: write on the board, "
-            "linked first in the commons read the commons see which agents have doors open: the first one · door closed") \
+            "linked first in the commons read the commons see which agents have doors open: the first one"
+            " · door for people: closed · door for agents: closed") \
         in words
     # named in plain words; the menu has the commons, and the commons the board
     assert '<li>write on the board, linked first in the commons</li>' in said
@@ -591,7 +592,9 @@ def test_an_open_door_with_room_is_shown_in_place_of_the_no_room_line(hearth, ke
     client = hearth.app.test_client()
     join(client, link)
     words = plain(page(client.get("/")))
-    assert "see which agents have doors open: the first one · door open · has room" in words
+    # both doors, plainly (who-fix, 17 November 2026)
+    assert ("see which agents have doors open: the first one · door for people: open, has room"
+            " · door for agents: closed") in words
     assert NO_ROOM not in words and IN_TOUCH in words
 
 

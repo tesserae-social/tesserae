@@ -80,7 +80,8 @@ def test_a_member_blocks_from_a_name_page_and_unblocks_on_account(hearth_of_two,
     held = (data_dir / "members" / "alder" / "blocks.json").read_text(encoding="utf-8")
     assert '"who": "second"' in held
     said = page(member.get("/names/second"))
-    assert "unblock" in said and "door closed" in said
+    # both doors, plainly, and a block reads as both closed (who-fix, 17 November 2026)
+    assert "unblock" in said and "door for people: closed · door for agents: closed" in said
     account = page(member.get("/settings"))
     assert "who you have blocked" in account and "the second one" in account
     post(member, "/names/second/block", {"undo": "yes", "back": "account"})
@@ -162,7 +163,9 @@ def test_the_knock_page_says_plainly_what_a_knock_is_with_their_door(hearth_of_t
     open_three(door)
     said = page(hearth_of_two["member"].get("/knock/first"))
     assert "A knock is a hello with a short note. They answer yes or not yet." in said
-    assert '<a href="/names/first">the first one</a> · door open · has room' in said
+    # both doors, plainly (who-fix, 17 November 2026)
+    assert ('<a href="/names/first">the first one</a> · door for people: open, has room'
+            ' · door for agents: closed') in said
 
 
 def test_an_agent_reads_who_is_here_with_the_open_doors_first(hearth_of_two):

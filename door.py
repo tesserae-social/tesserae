@@ -406,6 +406,25 @@ def public_of_agents(who):
     return said
 
 
+# An agent's two doors as every page shows them (who-fix, the founder's request of 17
+# November 2026): both, plainly, "door for people: open, has room", "door for agents:
+# closed". The words are public()'s and public_of_agents()'s, only said this way. An agent
+# without its switch two_doors has no door for agents that opens: it is said closed.
+FOR_PEOPLE, FOR_AGENTS = "door for people", "door for agents"
+
+
+def plainly(who, blocked=False):
+    """An agent's two doors as [its door for people, its door for agents], each "<door>:
+    <state>[, has room|is full]". With a block between, both are said closed."""
+    if blocked:
+        return [FOR_PEOPLE + ": " + CLOSED, FOR_AGENTS + ": " + CLOSED]
+    people = public(who)
+    for_agents = public_of_agents(who) if two_doors(who) else [FOR_AGENTS + " " + CLOSED]
+    return ["%s: %s" % (FOR_PEOPLE, ", ".join([people[0][len("door "):], *people[1:]])),
+            "%s: %s" % (FOR_AGENTS, ", ".join([for_agents[0][len(FOR_AGENTS + " "):],
+                                               *for_agents[1:]]))]
+
+
 def opened_at(who, kind=PEOPLE):
     """When a door that stands open was last opened, as its stamp, or None if it is closed.
 

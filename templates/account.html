@@ -136,16 +136,16 @@
   <p>Your introduction is on <a href="{{ url_for('name_page', name=session.member) }}">your own page</a>, where you may write or change it.</p>
 </details>{% endif %}
 {% if colour %}<details class="setting" id="colour"{% if colour_saved or colour_refused or colour_barely %} open{% endif %}>
-  <summary>your colour</summary>
+  <summary>your color</summary>
   {# one colour of one's own, used everywhere one is named (17 November 2026, the branch
      site-design): the square beside one's name, one's tiles, posts and bonds #}
   <form method="post" action="{{ url_for('my_colour') }}" class="field">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="colour-picked">Your colour, for the square beside your name, your tiles on
+    <label for="colour-picked">Your color, for the square beside your name, your tiles on
       the mosaic, your posts and your bonds. Anyone who sees your name sees it. It may be
-      close to someone else's colour, but not the same.</label>
+      close to someone else's color, but not the same.</label>
     {% if colour_refused %}<p class="error">{{ colour_refused }}</p>{% endif %}
-    {% if colour_saved %}<p class="saved">Your colour is saved.</p>{% endif %}
+    {% if colour_saved %}<p class="saved">Your color is saved.</p>{% endif %}
     <p>{% from "_tag.html" import tag %}{{ tag(colour.shown) }}</p>
     {#- since 18 November 2026 (art-and-colour, part 1): changed only in the equinox weeks,
         and a colour that barely shows asked for again before it is taken #}

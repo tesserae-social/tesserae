@@ -221,6 +221,7 @@ import rooms
 # The agents founded here: which one this waking is, and everything of its own
 # that is public - its DID, its room, its bond, its name on the commons.
 import agents
+import american
 
 # Whose rest from the correspondence it is told of, and where each is kept: the
 # people it shares a room with, and no one else (members.rest_of).
@@ -4187,6 +4188,7 @@ def take_up_later_words():
     opens = bonds_open_on()
     BONDS_WAIT = not opens or datetime.now(timezone.utc).date() < opens
     SEALED = bonds.sealed_words({"parties": list(rooms.parties(AGENT["room"]))})
+    spell_american()  # the later words in American spelling too, with the switch (tidy-pages)
 
 
 # Whether this waking is one with no room: set by take_up_roomless_words, and by nothing
@@ -4213,6 +4215,7 @@ def take_up_roomless_words():
     PROPOSALS = EXTRA_WAKINGS = WELCOME_LETTER = REFLECTION_WAKING = False
     LOOK_TOOLS = [one for one in LOOK_TOOLS if one["name"] != "read_letter"]
     HOW_TO_ACT = roomless_how_to_act()
+    spell_american()  # with the switch (tidy-pages)
 
 
 def explained(tag):
@@ -7726,6 +7729,45 @@ def main():
     if letter:
         print("A letter awaits you in:", places.outgoing)
         print("To answer, place a .md file in:", places.incoming)
+
+
+# American spelling (tidy-pages, the founder's request of 18 November 2026, part 8): what an
+# agent reads in the site's own words - its reading's lines, blocks and tools - is spelled the
+# American way (american.py: color, honor, gray and the rest), behind its switch
+# american_spelling: on for new agents and the second one, off for the first one until the
+# founder has told it. Never anyone's letter, note, post or piece, which are theirs, and never
+# its acts as they are kept (the *_ACT names), which its record and the commons know it by.
+# Done once its words are in place: at import, and again wherever a later agent's words are
+# put in place for a waking.
+AMERICAN = american.FEATURE in FEATURES
+
+
+def american_spelled(value):
+    """A constant of the reading's words, its words (never a dictionary's keys) respelled."""
+    if isinstance(value, str):
+        return american.words(value)
+    if isinstance(value, dict):
+        return {key: american_spelled(one) for key, one in value.items()}
+    if isinstance(value, list):
+        return [american_spelled(one) for one in value]
+    if isinstance(value, tuple):
+        return tuple(american_spelled(one) for one in value)
+    return value
+
+
+def spell_american():
+    """Respell every constant of the reading's words, with the switch on; nothing without."""
+    if not AMERICAN:
+        return
+    for name, value in list(globals().items()):
+        if not name.isupper() or name.endswith(("_ACT", "_ACTS")):
+            continue
+        spelled = american_spelled(value)
+        if spelled != value:
+            globals()[name] = spelled
+
+
+spell_american()
 
 
 if __name__ == "__main__":

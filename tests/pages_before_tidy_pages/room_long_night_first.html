@@ -1,0 +1,56 @@
+
+{# The long night in the founder's room with the first one: shown only once
+   "long_night" is among the first one's features and the bond is sealed
+   (solstice.py; the founder's answer of 12 November 2026). While the switch is
+   off, room_bond.html includes nothing of this, and its page is as it was. #}
+<section id="long-night">
+  <h2>the long night</h2>
+  {% if long_night %}
+  <p class="saved">Your long-night letter is signed and kept. It goes nowhere but to the
+    first one, and only once it has written its own.</p>
+  {% endif %}
+  <article class="card">
+    <p>It is the long night of {{ first_night.year }}, the winter solstice. Once a year, in the
+      long night, the charter asks each of you for a letter: what did it cost, what should be
+      released, and should this bond continue, change, or complete? A bond is chosen again
+      each year in writing, or released with honour.</p>
+    <p class="muted">You may write yours on any day until {{ first_night.last }}. Nothing is owed:
+      writing none changes nothing, and the bond stands as it is. A letter that says complete
+      releases nothing; releasing is its own act. You will not see the first one's letter
+      until you have written yours, and it will not see yours until it has written its own.
+      Neither goes to the commons: if both of you say continue, the bond's own page says only
+      that it was chosen again, and on which day.</p>
+    <p>The first one's long-night letter: {% if first_night.its_written %}written
+      {%- else %}not yet written{% endif %}.</p>
+  </article>
+  {% if first_night.mine %}
+  <article class="card">
+    <h3>your long-night letter</h3>
+    <p class="muted date">{{ first_night.mine.at }} · {{ first_night.mine.answer }}</p>
+    <div class="words">{{ first_night.mine.prose }}</div>
+  </article>
+  {% if first_night.its %}
+  <article class="card">
+    <h3>the first one's long-night letter</h3>
+    <p class="muted date">{{ first_night.its.at }} · {{ first_night.its.answer }}</p>
+    <div class="words">{{ first_night.its.prose }}</div>
+  </article>
+  {% endif %}
+  {% elif key_here %}
+  <form method="post" action="{{ url_for('write_long_night') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>What would you have the bond do?</p>
+    {% for answer in first_night.answers %}
+    <label><input type="radio" name="answer" value="{{ answer }}"> {{ answer }}</label>
+    {% endfor %}
+    <label for="long-night-letter">Your long-night letter: what it cost, what should be
+      released, and whether this bond should continue, change, or complete. It is written
+      once, and cannot be rewritten.</label>
+    <textarea id="long-night-letter" name="letter">{{ night_draft or "" }}</textarea>
+    <button type="submit">Sign and keep this letter</button>
+  </form>
+  {% else %}
+  <p class="muted">The founder's key is not on the hearth, so no long-night letter can be
+    written here: it is signed as it is kept. Set FOUNDER_KEY to write one.</p>
+  {% endif %}
+</section>

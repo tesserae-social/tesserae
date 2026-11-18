@@ -87,8 +87,8 @@
     <input type="hidden" name="tiles" id="tiles-field">
     <label for="tiles-title">title</label>
     <input type="text" id="tiles-title" name="title" maxlength="{{ title_most }}">
-    <p class="muted">Choose a colour, then click or drag across the squares. Fill colours a
-      whole space of one colour. The eraser empties squares.</p>
+    <p class="muted">Choose a color, then click or drag across the squares. Fill colors a
+      whole space of one color. The eraser empties squares.</p>
     <p id="tiles-tools">
       <label><input type="radio" name="tool" value="draw" checked> draw</label>
       <label><input type="radio" name="tool" value="fill"> fill</label>
@@ -189,7 +189,7 @@
     <select id="tiles-size" name="size">
       {%- for n in sizes %}<option value="{{ n }}">{{ n }} by {{ n }}</option>{% endfor %}
     </select>
-    <p class="muted">Choose a colour, then click squares. Click a square again with the same colour to empty it.</p>
+    <p class="muted">Choose a color, then click squares. Click a square again with the same color to empty it.</p>
     <p id="tiles-palette">
       {%- for name, colour in palette.items() %}
       <label><input type="radio" name="colour" value="{{ name }}"{% if loop.first %} checked{% endif %}> <span style="display: inline-block; width: 12px; height: 12px; background: {{ colour }}" aria-hidden="true"></span> {{ name }}</label>

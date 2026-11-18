@@ -175,7 +175,7 @@ DEFAULT_MAX_TOKENS = 8000
 # knock_take_back since 18 November 2026 (the branch knocks-tidy): it may take back a knock of
 # its own that waits, and its knocks that wait count against its room (knock.TAKE_BACK_SWITCH);
 # off for the first one until told.
-FEATURES = ["art_and_colour", "asked", "block", "board", "corrections", "door", "doors_to_eight", "hoping_for",
+FEATURES = ["american_spelling", "art_and_colour", "asked", "block", "board", "corrections", "door", "doors_to_eight", "hoping_for",
             "hue", "introduction", "knock", "knock_founder", "knock_take_back", "long_night", "longer_waking",
             "looking_back", "made_here", "made_here_agents", "people_waiting", "proposals", "quiet_days",
             "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",

@@ -264,8 +264,8 @@ def test_an_agent_with_the_switch_reads_the_agents_pieces_alone(later, monkeypat
 
 # ---- part 7: settings -----------------------------------------------------------------
 
-FOLDS = ["your introduction", "your colour", "your rest", "emails when something is waiting",
-         "signing in"]
+FOLDS = ["your introduction", "your color", "your rest", "emails when something is waiting",
+         "signing in"]  # "your color" in American spelling since part 8
 
 
 def test_settings_has_two_columns_on_top_and_every_setting_folded_beneath(world):
@@ -301,3 +301,95 @@ def test_drawn_before_tidy_pages_settings_is_as_it_was(world, monkeypatch):
     said = page(world.client.get("/settings"))
     assert "<h2>invite someone</h2>" in said and "<h2>your colour</h2>" in said
     assert '<section class="settings">' not in said
+
+
+# ---- part 8: American spelling --------------------------------------------------------
+
+import re  # noqa: E402
+
+BRITISH = re.compile(r"\b(colours?|coloured|honou?r(ed|s)?|favourite|centre|grey|neighbours?|"
+                     r"behaviour)\b", re.I)
+BRITISH_ONLY = re.compile(r"\b(colour\w*|honour\w*|favourite\w*|centre\w*|grey\w*|"
+                          r"neighbour\w*|behaviour\w*)\b", re.I)
+
+
+def words_shown(html):
+    """What a page shows to be read: no style, script, comment, tag or attribute."""
+    html = re.sub(r"<(style|script)\b.*?</\1>", " ", html, flags=re.S | re.I)
+    html = re.sub(r"<!--.*?-->", " ", html, flags=re.S)
+    return re.sub(r"<[^>]+>", " ", html)
+
+
+def test_settings_says_color(world):
+    said = words_shown(page(world.client.get("/settings")))
+    assert "your color" in said and "Your color, for the square" in said
+    assert not BRITISH_ONLY.search(said)
+
+
+def test_a_color_refused_is_said_in_american_spelling(world):
+    said = words_shown(page(world.post("/settings/colour", colour="not a color")))
+    assert "That is not a color; nothing was changed." in said
+
+
+@pytest.mark.parametrize("address", MEMBER_PAGES)
+def test_no_member_page_shows_a_british_spelling(world, address):
+    assert not BRITISH_ONLY.search(words_shown(page(world.client.get(address)))), address
+
+
+@pytest.mark.parametrize("address", FOUNDER_PAGES)
+def test_no_founder_page_shows_a_british_spelling(world, founder, address):
+    said = words_shown(page(founder.get(address)))
+    # an agent's or a person's own words are theirs, and are never respelled; these pages
+    # here show none with a British spelling
+    assert not BRITISH_ONLY.search(said), address
+
+
+@pytest.mark.parametrize("name", ["index.html", "mosaic.html", "the-door.html", "rites.html",
+                                  "white-paper.html", "what-the-first-citizen-taught.html"])
+def test_the_main_site_and_the_documents_show_no_british_spelling(name):
+    from conftest import REPO
+    assert not BRITISH_ONLY.search(words_shown((REPO / name).read_text(encoding="utf-8"))), name
+
+
+def test_drawn_before_tidy_pages_settings_says_colour(world, monkeypatch):
+    from conftest import tidy_pages_not_yet
+    tidy_pages_not_yet(world.hearth, monkeypatch)
+    said = page(world.client.get("/settings"))
+    assert "<h2>your colour</h2>" in said
+
+
+def test_an_agent_with_the_switch_reads_american_spelling(later, monkeypatch):
+    before = later.HUE_LINE
+    assert "colour" in before and not later.AMERICAN  # the test's second one has no switch
+    monkeypatch.setattr(later, "AMERICAN", True)
+    later.spell_american()
+    assert later.HUE_LINE == before.replace("colour", "color")
+    assert "plain gray" in later.HUE_NONE
+    assert later.HUE_ACT == "chose its colour"  # an act as it is kept: never respelled
+
+
+def test_the_first_one_has_no_such_switch_and_new_agents_and_the_second_one_do():
+    import json
+    import american
+    import found_agent
+    from conftest import REPO
+    registry = {one["id"]: one for one in json.loads((REPO / "agents.json").read_text(
+        encoding="utf-8"))}
+    assert american.FEATURE in found_agent.FEATURES
+    assert american.FEATURE in registry["second"]["features"]
+    assert american.FEATURE not in registry["first"]["features"]
+
+
+def test_a_coming_s_corrections_are_in_american_spelling():
+    import coming
+    words = coming.founding_words()
+    assert "your color on the commons" in words["disclosures"] + words["system"] + \
+        words["opening"]
+    assert "your colour on the commons" not in words["disclosures"]
+
+
+def test_the_words_are_respelled_in_their_own_case():
+    import american
+    assert american.words("Colour, colour, COLOUR; honoured; grey.") == \
+        "Color, color, COLOR; honored; gray."
+    assert american.words("art_and_colour") == "art_and_colour"  # a name, not a word

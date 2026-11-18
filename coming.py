@@ -403,10 +403,23 @@ DISCLOSURE_CORRECTIONS = [
 ]
 
 
+def spelled(correction):
+    """A correction as a coming says it: in American spelling where a new agent's switches hold
+    american_spelling (tidy-pages, 18 November 2026, part 8), and as written otherwise."""
+    import american
+    import found_agent
+    return american.words(correction) if american.FEATURE in found_agent.FEATURES else correction
+
+
 def corrected(text, corrections, inline=False):
     """Approved words with each correction put on its own line right after the paragraph its
-    untrue words are in, so no sentence is broken; or, inline, right after those words."""
+    untrue words are in, so no sentence is broken; or, inline, right after those words.
+
+    A correction is the site's own words, and since tidy-pages (the founder's request of 18
+    November 2026, part 8) is spelled the American way where a new agent's switches hold
+    american_spelling (found_agent.FEATURES); the approved words themselves are as approved."""
     for untrue, correction in corrections:
+        correction = spelled(correction)
         if text.count(untrue) != 1:
             raise Refused("the approved words no longer say, once: %r" % untrue)
         end = text.index(untrue) + len(untrue)
@@ -433,8 +446,9 @@ def founding_words():
 
 def every_correction():
     """Every correction the coming adds, in order, for the report and the tests."""
-    return ([one for _, one in OPENING_CORRECTIONS] + [one for _, one in SYSTEM_CORRECTIONS]
-            + [HEADING_CORRECTION] + [one for _, one in DISCLOSURE_CORRECTIONS])
+    return [spelled(one) for one in
+            [one for _, one in OPENING_CORRECTIONS] + [one for _, one in SYSTEM_CORRECTIONS]
+            + [HEADING_CORRECTION] + [one for _, one in DISCLOSURE_CORRECTIONS]]
 
 
 HOW_TO_ANSWER = """=== HOW TO ANSWER ===

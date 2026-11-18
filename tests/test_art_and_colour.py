@@ -128,8 +128,9 @@ def test_settings_says_the_weeks_and_a_colour_chosen_waits_for_one(world, data_d
 def test_settings_suggests_the_nearest_that_shows_and_keeps_one_asked_again(world):
     said = page(world.post("/settings/colour", colour="#F2A541"))
     nearest = hues.nearest_showing("#F2A541", HAZEL)
-    assert "That colour barely shows on the site&#39;s pages." in said
-    assert "The nearest colour that shows well is %s." % nearest in said
+    # in American spelling since tidy-pages (18 November 2026, part 8)
+    assert "That color barely shows on the site&#39;s pages." in said
+    assert "The nearest color that shows well is %s." % nearest in said
     assert "Use %s" % nearest in said and "Keep #F2A541 anyway" in said
     assert hues.person_chosen(HAZEL) is None
     world.post("/settings/colour", colour="#F2A541", anyway="yes")

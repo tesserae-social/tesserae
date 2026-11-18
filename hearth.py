@@ -187,6 +187,7 @@ import rooms
 # The agents founded here: each one's record is backed up, and each has a copy of
 # its own, with nothing of another's in it.
 import agents
+import american
 
 # Where a letter of welcome given to an agent is kept, which its copies leave out.
 import welcome_delivery
@@ -347,6 +348,13 @@ app.jinja_env.globals["spacing"] = SPACING
 # American spelling. The templates as they were are kept in tests/pages_before_tidy_pages;
 # TIDY_PAGES False puts back what the hearth says itself (conftest.tidy_pages_not_yet).
 TIDY_PAGES = True
+
+
+def site_words(text):
+    """The site's own words as its pages say them: in American spelling since tidy-pages
+    (part 8), and as they were with TIDY_PAGES off. Never used on anyone's letter, note,
+    post or piece: those are theirs."""
+    return american.words(text) if TIDY_PAGES else text
 
 
 def from_elsewhere():
@@ -3810,7 +3818,7 @@ def colour_shown(name):
     shown = {"shown": shown_name(name), "value": (chosen or hues.NO_HUE).lower()}
     if hues.SEASONS:
         today = datetime.now(EASTERN).date()
-        shown["seasons"] = COLOUR_SEASON_SAID
+        shown["seasons"] = site_words(COLOUR_SEASON_SAID)
         shown["may"] = not chosen or hues.season_open(today)
         if chosen and shown["may"]:
             last = next(day for day in (today + timedelta(days=n) for n in range(8))
@@ -3831,9 +3839,10 @@ def my_colour():
     except hues.Refused as refused:
         if refused.args[0] == "barely":
             nearest = hues.nearest_showing(said, session["member"])
-            return account_page(colour_refused=COLOUR_BARELY.format(nearest=nearest or "a darker one"),
+            return account_page(colour_refused=site_words(COLOUR_BARELY).format(
+                                    nearest=nearest or "a darker one"),
                                 colour_barely={"asked": hues.hex_of(said), "nearest": nearest})
-        return account_page(colour_refused=COLOUR_REFUSED[refused.args[0]])
+        return account_page(colour_refused=site_words(COLOUR_REFUSED[refused.args[0]]))
     return redirect(url_for("account", colour_saved=1, _anchor="colour"))
 
 
@@ -9173,7 +9182,7 @@ def made_workspace_page(status=200, **told):
                            columns=made_here.TEXT_COLUMNS, rows=made_here.TEXT_ROWS,
                            words_most=made_here.DRAFT_WORDS_MOST,
                            title_most=made_here.TITLE_MOST,
-                           refused_said=MADE_REFUSED_PAGE.get(refused),
+                           refused_said=site_words(MADE_REFUSED_PAGE.get(refused)),
                            **told), status
 
 

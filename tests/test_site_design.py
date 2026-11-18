@@ -37,14 +37,14 @@ def test_a_person_chooses_a_colour_on_settings(world, data_dir):
     assert answer.status_code == 302
     held = json.loads((data_dir / "members" / HAZEL / "colour.json").read_text(encoding="utf-8"))
     assert held["hue"] == "#AA3366"
-    assert "Your colour is saved." in page(world.client.get("/settings?colour_saved=1"))
+    assert "Your color is saved."  # American spelling since tidy-pages in page(world.client.get("/settings?colour_saved=1"))
 
 
 def test_exactly_another_s_colour_is_refused_and_close_is_not(world, data_dir):
     import hues
     hues.choose_person(ALDER, "#AA3366", "2026-10-15T09-00-00Z")
     said = page(world.post("/settings/colour", colour="#aa3366"))
-    assert "That colour is exactly someone else&#39;s." in said
+    assert "That color is exactly someone else&#39;s." in said
     assert not (data_dir / "members" / HAZEL / "colour.json").exists()
     world.post("/settings/colour", colour="#AA3367")
     assert hues.colour_of(HAZEL) == "#AA3367"

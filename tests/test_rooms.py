@@ -197,7 +197,12 @@ def test_the_chronicle_is_in_no_menu_and_in_the_room(hearth, monkeypatch, founde
     assert re.findall(r'href="([^"]+)"', foot) == ["/tides", "/backups"]
     assert 'href="/chronicle"' not in said
     room = page(founder.get("/rooms/first"))
-    fold = room.split("<summary>more</summary>", 1)[1].split("</form>", 1)[0]
+    # since day-pages (18 November 2026) "more" is its own section in the room's right-hand
+    # column, no longer the letter form's fold; drawn as before, it is the fold again
+    if as_before:
+        fold = room.split("<summary>more</summary>", 1)[1].split("</form>", 1)[0]
+    else:
+        fold = room.split('<section id="more">', 1)[1].split("</section>", 1)[0]
     for href in ('href="/self"', 'href="/chronicle"', 'href="/export"'):
         assert room.count(href) == 1 and href in fold, href
     assert 'href="/attendances"' not in room

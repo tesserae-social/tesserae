@@ -645,6 +645,37 @@ def correspondence(room=None):
     return letters
 
 
+# A room shows the letters of the last LETTERS_RECENT open to read, newest first, and folds
+# the older ones below it, one fold a month, newest month first (the founder's request of 18
+# November 2026, the branch day-pages). A letter still waiting to be read stays with the
+# recent ones, however old. Every letter is still on the page; only the folding changed.
+LETTERS_RECENT = timedelta(days=14)
+MONTH_NAMES = ("January", "February", "March", "April", "May", "June", "July", "August",
+               "September", "October", "November", "December")
+
+
+def letters_by_time(letters, now=None):
+    """A room's letters (newest first) as (the recent ones, [{"month", "letters"}] older)."""
+    now = now or datetime.now(timezone.utc)
+    recent, older = [], {}
+    for letter in letters:
+        try:
+            when = moment(letter["stamp"])
+        except ValueError:
+            when = None
+        if when is None or letter.get("unread") or now - when < LETTERS_RECENT:
+            recent.append(letter)
+            continue
+        day = when.astimezone(EASTERN)
+        older.setdefault((day.year, day.month), []).append(letter)
+    months = [{"month": "%s %d" % (MONTH_NAMES[month - 1], year), "letters": older[(year, month)]}
+              for year, month in sorted(older, reverse=True)]
+    return recent, months
+
+
+app.jinja_env.globals["letters_by_time"] = letters_by_time
+
+
 # ---- the errands ---------------------------------------------------------
 
 # An errand is one plain request the first one made at a waking: go somewhere,

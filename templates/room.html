@@ -3,32 +3,39 @@
 {% block title %}{{ room.other }}{% endblock %}
 {% block back %}<a href="{{ url_for('hearth') }}">&larr; home</a>{% endblock %}
 {% block heading %}{{ room.other }}{% endblock %}
+{% block main_class %} class="wide"{% endblock %}
 
-{# One correspondence, whole, and shown only to the two who are in it: the
-   letters first, then the bond - except while an asking or a threshold is in
-   progress, when the bond comes first, so that what waits on either of them,
-   and the seal above all, is the first thing in the room. A proposal of the
-   first one's that waits for an answer comes first of all, in the same way;
-   otherwise its proposals, where it has made any, come last. The proposals are the
-   first one's room's alone. Any other room's bond is its own, in
-   room_bond_any.html, once its thirty days have passed (13 November 2026). #}
-{% block content %}{% if weekly_question %}
+{# One correspondence, shown only to the two who are in it. On a wide screen, two columns
+   (the founder's request of 18 November 2026, the branch day-pages): the correspondence
+   on the left, and on the right the bond, the first one's proposals, and more - the
+   agent's wakings and its links. On a phone, one column: what waits on either of them
+   first (an asking or a threshold, or a proposal of the first one's that waits for an
+   answer), so the seal above all is the first thing in the room; otherwise the letters
+   first. The proposals are the first one's room's alone. Any other room's bond is its
+   own, in room_bond_any.html, once its thirty days have passed (13 November 2026). The
+   page as it was is kept in tests/pages_before_day_pages. #}
+{% block content %}
+<style>
+  /* the correspondence wider than what stands beside it */
+  @media (min-width: 840px) {
+    .columns.room { grid-template-columns: 3fr 2fr; }
+    .columns.room .letters-column { grid-column: 1; grid-row: 1; }
+    .columns.room .side-column { grid-column: 2; grid-row: 1; }
+  }
+  details.month { margin: var(--space-3) 0; }
+</style>
+{% if weekly_question %}
 {# this week's question, an offer and nothing more (weekly.py); with none, nothing #}
 <p class="note">{{ weekly_question }}{% if weekly_topic %} <a href="{{ url_for('board_topic', key=weekly_topic) }}">its topic on the board</a>{% endif %}</p>{% endif %}{% if guide %}
 {% include "guide.html" %}{% endif %}
-{% if proposal_waits %}
-{% include "room_proposals.html" %}
-{% endif %}
-{% if proposal or threshold %}
-{% if first_room %}{% include "room_bond.html" %}{% elif bonds_open %}{% include "room_bond_any.html" %}{% endif %}
+{% set pressing = proposal_waits or proposal or threshold %}
+<div class="columns room">
+{% if pressing %}{% include "room_side.html" %}{% endif %}
+<div class="column letters-column">
 {% include "letters.html" %}
-{% else %}
-{% include "letters.html" %}
-{% if first_room %}{% include "room_bond.html" %}{% elif bonds_open %}{% include "room_bond_any.html" %}{% endif %}
-{% endif %}
-{% if proposals and not proposal_waits %}
-{% include "room_proposals.html" %}
-{% endif %}
+</div>
+{% if not pressing %}{% include "room_side.html" %}{% endif %}
+</div>
 {% if leavable -%}
 {# A block stands between the two of this room, so either may leave it (blocks.py).
    Leaving closes it for both; nothing in it is erased. #}

@@ -48,7 +48,7 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import (pages_before_design, who_fix_not_yet,atrium_before_design, asked_described_as_before, made_here_not_yet, offerings_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
+from conftest import (pages_before_design, who_fix_not_yet, day_pages_not_yet,atrium_before_design, asked_described_as_before, made_here_not_yet, offerings_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
                       pages_before_doors, pages_before_fewer, pages_before_settings,
                       pages_before_pages, pages_before_small,
                       pages_before_saturday, pages_before_week, here_not_yet, post, registry_six_not_yet, registry_switches_not_yet,
@@ -286,9 +286,19 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # before, in WHO_FIX_BEFORE (and /chronicle with the letter line as before, in
 # WHO_FIX_AND_LETTER_PARTS_BEFORE; in the daily line, LETTERS_IN_ACTS_BEFORE_WHO_FIX). (/
 # after part 2 alone was 9103075f....) No waking moved.
+#
+# /rooms/first cut again, on purpose, on 18 November 2026, on the branch day-pages (the
+# founder's request that day, part 1), and for nothing else: the room is two columns on a
+# wide screen (main.wide, and a few lines of style of its own), the correspondence on the
+# left and the bond and more on the right (room_side.html), the agent's wakings and links
+# under "more" there and no longer under the letter form's more, letters older than 14
+# days folded by month below the recent ones, and the bond's past steps folded into "how it
+# went" once it is sealed (not in this world). With the templates of before drawn in their
+# place (conftest.day_pages_not_yet, which who_fix_not_yet and every older drawing call
+# first) it is exactly the one held before, in DAY_PAGES_BEFORE below. No waking moved.
 PAGES = {
     "/": "cbfde990330d70a8c86eb5bce5047b007c3a55a417800d68f195a4db707c07dd",
-    "/rooms/first": "e68700b76b94824908057603db7b7ae0c60940f3e74f05ecd0553890cb996d74",
+    "/rooms/first": "0ef15411e1e85993815aeb376932cf1c185ac65ab4dfe3c8b8d5984306bb6294",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
     "/self": "18e8016e3e1d04d84498715fc8e0dd57e6608df7289fb5e57af345741045e3d7",
     "/attendances": "771de91e102e811f71c0252464d68403368199e850389858fcea3c880148ba4f",
@@ -630,6 +640,13 @@ WHO_FIX_BEFORE = {
 }
 WHO_FIX_AND_LETTER_PARTS_BEFORE = {
     "/chronicle": "929f6f4cad5ef65b5a159eb3572497f375614a0cc6bf83212e43ddaf23f73793",
+}
+
+# What the room was before the branch day-pages (18 November 2026), and is again drawn as
+# before (conftest.day_pages_not_yet), with the letter line as before and as it is: the
+# same. The reason it moved is written beside PAGES.
+DAY_PAGES_BEFORE = {
+    "/rooms/first": "e68700b76b94824908057603db7b7ae0c60940f3e74f05ecd0553890cb996d74",
 }
 
 # What / was before who is here (17 November 2026, the branch agents-week), and is again
@@ -1093,6 +1110,19 @@ def test_with_the_pages_drawn_before_who_fix_each_is_the_page_before(
     assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
 
 
+@pytest.mark.parametrize("address", list(DAY_PAGES_BEFORE))
+def test_with_the_pages_drawn_before_day_pages_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page day-pages moved (18 November 2026), drawn as before it: each is exactly the
+    page held before."""
+    day_pages_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s" % (answer.status_code, answer.headers.get("Location", "")) + chr(10)
+             + FORM_TOKEN.sub(lambda found: found.group(1) + found.group(2), page(answer)))
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == DAY_PAGES_BEFORE[address]
+
+
 @pytest.mark.parametrize("address", list(WEEK_BEFORE))
 def test_with_the_pages_drawn_before_the_week_each_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
@@ -1266,8 +1296,12 @@ LETTERS_IN_ACTS = {
                      "2026-09-04 · founding · the first one was founded\n"),
     # /rooms/first and /chronicle cut again on purpose on 17 November 2026, who-fix, part 3,
     # for the menu drawn first and nothing else: LETTERS_IN_ACTS_BEFORE_WHO_FIX holds them
-    # as they were, drawn again with conftest.who_fix_not_yet
-    "PAGES['/rooms/first']": "2dd66acd7a3de435e7b7ac1f4f01708f73369d170a798823386cf33bc914c6af",
+    # as they were, drawn again with conftest.who_fix_not_yet; /rooms/first cut again on
+    # purpose on 18 November 2026, day-pages, part 1, for the room in two columns and its
+    # letters folded by month, and nothing else (the reason is beside PAGES):
+    # LETTERS_IN_ACTS_BEFORE_DAY_PAGES holds it as it was, drawn again with
+    # conftest.day_pages_not_yet
+    "PAGES['/rooms/first']": "d9667d02b921a644697a9360618442951605ef83d9264229d9b906976c14550a",
     "PAGES['/chronicle']": "544b8aaf859184bc79c77da703b1e975a4a9c2432d41be5fe0eb4a8d616ec5c0",
     "PAGES['/chronicle.md']": "ae6b5570d51d80d2f844913dc243bb2b33b347f84b8f6a3d96f2b0522d63aef3",
     "PAGES['/commons/events.md']": "0d4296f8857dbd6f8400a22ffaeb371f56aede44dd327c8fe2572b32720bc127",
@@ -1280,6 +1314,9 @@ LETTERS_IN_ACTS = {
 LETTERS_IN_ACTS_BEFORE_WHO_FIX = {
     "PAGES['/rooms/first']": "d72546ca0be79579abd7cd5c5febfb92f97d0b0d6897a1c516f12449e1340c49",
     "PAGES['/chronicle']": "979a66b933004087ec108b34f55958181b5d17ea21f7cac9fb98ea5e3d49b49d",
+}
+LETTERS_IN_ACTS_BEFORE_DAY_PAGES = {
+    "PAGES['/rooms/first']": "2dd66acd7a3de435e7b7ac1f4f01708f73369d170a798823386cf33bc914c6af",
 }
 
 
@@ -1324,6 +1361,18 @@ def test_in_the_daily_line_drawn_before_who_fix_these_pages_are_the_ones_before(
              + FORM_TOKEN.sub(lambda found: found.group(1) + found.group(2), page(answer)))
     assert (hashlib.sha256(shown.encode("utf-8")).hexdigest()
             == LETTERS_IN_ACTS_BEFORE_WHO_FIX["PAGES[%r]" % address])
+
+
+def test_in_the_daily_line_drawn_before_day_pages_the_room_is_the_one_before(
+        steady, letters_in_acts, hearth, founder, wake, room, commons, monkeypatch):
+    """The room in the daily line, drawn as before day-pages (18 November 2026)."""
+    day_pages_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get("/rooms/first")
+    shown = ("%d %s" % (answer.status_code, answer.headers.get("Location", "")) + chr(10)
+             + FORM_TOKEN.sub(lambda found: found.group(1) + found.group(2), page(answer)))
+    assert (hashlib.sha256(shown.encode("utf-8")).hexdigest()
+            == LETTERS_IN_ACTS_BEFORE_DAY_PAGES["PAGES['/rooms/first']"])
 
 
 def test_in_the_daily_line_the_export_and_the_backup_hold_these(steady, letters_in_acts, founder,

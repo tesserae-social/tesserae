@@ -1483,6 +1483,24 @@ def who_fix_not_yet(hearth, monkeypatch):
 
 PAGES_BEFORE_ART = Path(__file__).resolve().parent / "pages_before_art"
 PAGES_BEFORE_KNOCKS_TIDY = Path(__file__).resolve().parent / "pages_before_knocks_tidy"
+PAGES_BEFORE_DAY_PAGES = Path(__file__).resolve().parent / "pages_before_day_pages"
+
+
+def day_pages_not_yet(module, monkeypatch):
+    """A room's page as it was before the branch day-pages (the founder's request of 18
+    November 2026): one column, every letter open to the list, the agent's wakings under the
+    letter form's more, and the bond's past steps never folded. room.html, letters.html,
+    room_bond.html and room_bond_any.html as they stood on main are kept in
+    tests/pages_before_day_pages and drawn in place of today's (room_side.html is then never
+    drawn). knocks_tidy_not_yet calls it first, so every older drawing stands on it too; it
+    is done once only."""
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    if not hasattr(module, "app") or getattr(module, "DAY_PAGES_AS_BEFORE", False):
+        return
+    monkeypatch.setattr(module, "DAY_PAGES_AS_BEFORE", True, raising=False)
+    env = module.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_DAY_PAGES)), env.loader]))
 
 
 def knocks_tidy_not_yet(module, monkeypatch):
@@ -1495,6 +1513,7 @@ def knocks_tidy_not_yet(module, monkeypatch):
     from jinja2 import ChoiceLoader, FileSystemLoader
     import knock
     import types
+    day_pages_not_yet(module, monkeypatch)  # it came after
     for one in {knock, getattr(module, "knock", knock)}:
         if isinstance(one, types.ModuleType):  # never the function knock.knock
             monkeypatch.setattr(one, "TIDY", False)

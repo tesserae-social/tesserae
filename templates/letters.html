@@ -1,7 +1,6 @@
 {# The letters of one room: what waits on you, the form that writes, and the
    correspondence folded newest first. A part of room.html, which draws the
    page around it. #}
-{% from "wakings.html" import wakings %}
 {# what the first one has asked of him, above the form that answers it #}
 {% if errands %}
 <section>
@@ -119,29 +118,12 @@
           rites</a>.</p>
       </details>
       {% endif %}
-      {# the agent's wakings, closed, as its attendances page shows them; its rhythm; and
-         its self, its chronicle and a copy (the founder's decision of 10 November 2026) #}
-      {% if room_agent %}
-      <details class="more spaced" id="wakings">
-        <summary>wakings</summary>
-        {% if room_reflections %}<p class="muted">{{ room_reflections }}</p>{% endif %}
-        {{ wakings(room_wakings, wakings_shown, room_agent) }}
-      </details>
-      <p class="muted">{{ room_rhythm }}</p>
-      <p class="muted"><a href="{{ agent_page_url(room_agent, 'self') }}">its self</a> ·
-        <a href="{{ agent_page_url(room_agent, 'chronicle') }}">the chronicle</a> ·
-        <a href="{{ agent_page_url(room_agent, 'export') }}">a copy</a></p>
-      {% endif %}
     </details>
   </form>
 </section>
 
-{# both directions in one sequence, newest first; only the newest stands open #}
-<section>
-  <h2>the correspondence</h2>
-  {% if correspondence %}
-    {% for letter in correspondence %}
-    <details class="letter" id="{{ letter.stem }}"{% if loop.first %} open{% endif %}>
+{% macro one_letter(letter, open) %}
+    <details class="letter" id="{{ letter.stem }}"{% if open %} open{% endif %}>
       <summary{% if letter.unread %} class="unread"{% endif %}>{{ letter.date }} ·
         {{ letter.who }} · {{ letter.opening }}{% if letter.unread %}<span class="mark"> ·
         waiting to be read</span>{% endif %}{% if letter.proposes %}<span class="mark"> ·
@@ -157,7 +139,28 @@
            alt="the picture {{ room.other }} drew beside this letter">
       {% endif %}
     </details>
+{% endmacro %}
+
+{# both directions in one sequence, newest first: the last fourteen days, with only the
+   newest standing open, and the older letters folded below, one fold a month #}
+<section id="correspondence">
+  <h2>the correspondence</h2>
+  {% if correspondence %}
+    {% set recent, older = letters_by_time(correspondence) %}
+    {% for letter in recent %}{{ one_letter(letter, loop.first) }}{% endfor %}
+    {% if not recent %}
+    <p class="muted">No letters in the last fourteen days.</p>
+    {% endif %}
+    {% if older %}
+    <h3>older letters</h3>
+    {% for month in older %}
+    <details class="month">
+      <summary>{{ month.month }} · {{ month.letters|length }}
+        letter{% if month.letters|length != 1 %}s{% endif %}</summary>
+      {% for letter in month.letters %}{{ one_letter(letter, False) }}{% endfor %}
+    </details>
     {% endfor %}
+    {% endif %}
   {% else %}
     <p class="muted">Nothing has passed between them yet.</p>
   {% endif %}
@@ -165,14 +168,17 @@
 
 <script>
 // A line in the chronicle names one letter: /rooms/<room>#<its stem>. Arriving that
-// way opens that letter and brings it into view, on arrival and on any later
-// change of the hash, so a second click on a second line works as the first did.
+// way opens that letter, and the month it is folded in, and brings it into view, on
+// arrival and on any later change of the hash, so a second click on a second line works
+// as the first did.
 (() => {
   const open = () => {
     const wanted = decodeURIComponent(location.hash.slice(1));
     const letter = wanted && document.getElementById(wanted);
     if (!letter || letter.tagName !== "DETAILS") return;
-    letter.open = true;
+    for (let fold = letter; fold; fold = fold.parentElement.closest("details")) {
+      fold.open = true;
+    }
     letter.scrollIntoView();
   };
   open();

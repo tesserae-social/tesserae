@@ -148,6 +148,7 @@
 
 {# The asking, said as it stands: open, answered and on the threshold, answered
    and sealed, or not made - and an invitation to ask only where one may be made. #}
+{% set past_steps %}
 <section>
   <h2>the asking</h2>
   {% if proposal and proposal.by_first %}
@@ -289,6 +290,12 @@
 </section>
 {% endif %}
 
+{% endset %}
+{# once the bond is sealed, the steps that led to it - the asking and the answers -
+   are folded into one "how it went", below the bond (the branch day-pages, 18 November
+   2026); while nothing is sealed, or something is asked again, they stand open here #}
+{% set how_it_went = bond and bond.sealed_at and not proposal and not threshold %}
+{% if not how_it_went %}{{ past_steps }}{% endif %}
 {% if bond %}
 <section>
   <h2>the bond</h2>
@@ -342,5 +349,11 @@
   </form>
   {% endif %}
 </section>
+{% endif %}
+{% if how_it_went %}
+<details class="more" id="how-it-went">
+  <summary>how it went</summary>
+{{ past_steps }}
+</details>
 {% endif %}
 </div>

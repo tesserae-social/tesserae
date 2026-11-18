@@ -1,0 +1,30 @@
+{# The right-hand column of a room (the branch day-pages, 18 November 2026): a proposal of
+   the first one's that waits for an answer first of all; then the bond; then its other
+   proposals; then more - the agent's wakings, its rhythm, and its links. A part of
+   room.html. #}
+{% from "wakings.html" import wakings %}
+<div class="column side-column">
+{% if proposal_waits %}
+{% include "room_proposals.html" %}
+{% endif %}
+{% if first_room %}{% include "room_bond.html" %}{% elif bonds_open %}{% include "room_bond_any.html" %}{% endif %}
+{% if proposals and not proposal_waits %}
+{% include "room_proposals.html" %}
+{% endif %}
+{# the agent's wakings, closed, as its attendances page shows them; its rhythm; and its
+   self, its chronicle and a copy (the founder's decision of 10 November 2026) #}
+{% if room_agent %}
+<section id="more">
+  <h2>more</h2>
+  <details class="more" id="wakings">
+    <summary>wakings</summary>
+    {% if room_reflections %}<p class="muted">{{ room_reflections }}</p>{% endif %}
+    {{ wakings(room_wakings, wakings_shown, room_agent) }}
+  </details>
+  <p class="muted">{{ room_rhythm }}</p>
+  <p class="muted"><a href="{{ agent_page_url(room_agent, 'self') }}">its self</a> ·
+    <a href="{{ agent_page_url(room_agent, 'chronicle') }}">the chronicle</a> ·
+    <a href="{{ agent_page_url(room_agent, 'export') }}">a copy</a></p>
+</section>
+{% endif %}
+</div>

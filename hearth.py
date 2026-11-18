@@ -2561,6 +2561,16 @@ KEPT_BESIDE = ("knocks", "weekly-questions.json", "board-removed.json")
 # when the second one is given its welcome, and which welcomes were read at which coming.
 # In a backup, and never in a copy (the founder's request of 15 November 2026).
 KEPT_BESIDE += ("comings",)
+# And, since safety-fixes (the founder's request of 18 November 2026, the inventory's c20),
+# four records that were nowhere but this disk: the notes between two people (notes.py),
+# whose only copy they are; what was taken down from made here, kept aside
+# (made_here.TAKEN); and the pieces held for the keeper and those he did not publish
+# (made_here.HELD, NOT_PUBLISHED). In a backup, and never in a copy. A folder not there
+# yet adds nothing. BACKUP_MORE False leaves them out, as before.
+BACKUP_MORE = True
+KEPT_BESIDE_BEFORE = KEPT_BESIDE
+if BACKUP_MORE:
+    KEPT_BESIDE += ("notes", "made-taken-down", "made-held", "made-not-published")
 
 # What a backup holds: the same trees, and the members beside them, each
 # with the vault their key is sealed in, the first one's own signing key,

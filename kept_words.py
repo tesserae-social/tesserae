@@ -37,9 +37,16 @@ def runs_of(words, run=RUN):
 def kept_texts(folders):
     """The text of each kept file in the folders: every .md file directly inside each,
     in no particular order. A folder that is not there holds nothing; a file that can't
-    be read is passed over."""
+    be read is passed over. Since safety-fixes (18 November 2026) a file named among the
+    folders is read as itself, whatever it is called."""
     for folder in folders:
         folder = Path(folder) if folder else None
+        if folder is not None and folder.is_file():
+            try:
+                yield folder.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                pass
+            continue
         if folder is None or not folder.is_dir():
             continue
         for path in folder.glob("*.md"):

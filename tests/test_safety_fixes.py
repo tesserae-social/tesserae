@@ -188,3 +188,72 @@ def test_people_at_random_off_puts_back_people_here_this_week(members_world, mon
     monkeypatch.setattr(hearth, "PEOPLE_AT_RANDOM", False)
     _, people = hearth.recently_here()
     assert people == []
+
+
+# ---- part 3: the backup (the inventory's c20) ---------------------------------------
+
+def test_the_backup_takes_notes_and_what_made_here_keeps_aside(hearth, data_dir):
+    import tarfile
+    for path, words in (("notes/alder--hazel.json", '{"said": "SENTINEL-NOTES"}'),
+                        ("made-taken-down/p1.json", '{"said": "SENTINEL-TAKEN"}'),
+                        ("made-held/p2.json", '{"said": "SENTINEL-HELD"}'),
+                        ("made-not-published/p3.json", '{"said": "SENTINEL-NOT-PUBLISHED"}')):
+        write(data_dir / path, words + "\n")
+    names = [name for _, name in hearth.export_files(hearth.BACKUP_TREES, left_out=())]
+    for name in ("notes/alder--hazel.json", "made-taken-down/p1.json", "made-held/p2.json",
+                 "made-not-published/p3.json"):
+        assert name in names, name
+    assert tarfile  # the archive is built from these names (hearth.backup_archive)
+
+
+def test_none_of_them_is_in_a_copy(world, founder):
+    for path in ("notes/alder--hazel.json", "made-taken-down/p1.json", "made-held/p2.json"):
+        write(world / path, "SENTINEL-NOT-IN-A-COPY\n")
+    copied = zipped(post(founder, "/export"))
+    assert not any(name.startswith(("notes/", "made-")) for name in copied)
+
+
+def test_a_disk_without_them_backs_up_as_before(hearth, data_dir):
+    names = [name for _, name in hearth.export_files(hearth.BACKUP_TREES, left_out=())]
+    assert not any(name.startswith(("notes/", "made-")) for name in names)
+    assert hearth.KEPT_BESIDE[:len(hearth.KEPT_BESIDE_BEFORE)] == hearth.KEPT_BESIDE_BEFORE
+
+
+# ---- part 3: the knock reply (the inventory's a1) -----------------------------------
+
+from conftest import block  # noqa: E402
+from test_introductions import kept_knock, knock_at  # noqa: E402
+
+SECRET = "the river path behind the old mill where we met on Sunday"
+KNOCK_REPLY = "Thank you for knocking. I go along " + SECRET + " most mornings."
+
+
+@pytest.mark.parametrize("where", ["memory/notes.md", "memory/notes/walks.md", "self.md",
+                                   "site-notes/2026-10-14T09-00-00Z.json"])
+def test_a_knock_reply_that_repeats_what_it_keeps_is_not_sent(members_world, where):
+    world = members_world
+    write(world.data / "packets" / "second" / where, "Kept: " + SECRET + ".\n")
+    knock_at(world)
+    world.wake()
+    world.wake(block("KNOCK_ANSWER", "from: hazel\nanswer: yes\n" + KNOCK_REPLY))
+    assert kept_knock(world, HAZEL_NAME, "second")["answer"] is None
+    assert SECRET not in page(world.client.get("/"))
+
+
+def test_a_knock_reply_that_repeats_nothing_kept_goes(members_world):
+    world = members_world
+    write(world.data / "packets" / "second" / "memory" / "notes.md", "Nothing like it.\n")
+    knock_at(world)
+    world.wake()
+    world.wake(block("KNOCK_ANSWER", "from: hazel\nanswer: yes\n" + KNOCK_REPLY))
+    assert kept_knock(world, HAZEL_NAME, "second")["reply"] == KNOCK_REPLY
+
+
+def test_the_first_one_is_checked_as_before(members_world, monkeypatch):
+    members_world.wake()
+    module = members_world.module
+    monkeypatch.setattr(module, "NAME", "first")
+    assert module.kept_for_a_knock() == []
+    monkeypatch.setattr(module, "NAME", "second")
+    monkeypatch.setattr(module, "KNOCK_KEEPS_MORE", False)
+    assert module.kept_for_a_knock() == []

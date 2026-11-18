@@ -3212,13 +3212,29 @@ def repeats_what_is_kept(words):
     return kept_words.repeats(words, kept_folders())
 
 
+# A knock note or reply goes to someone outside its room, so since safety-fixes (the
+# founder's request of 18 November 2026, the inventory's a1) it is also checked against
+# what else it keeps for itself: its notes, its named notes, its self and the notes the
+# site sent it. For every agent but the first one, whose reading does not change until
+# the founder has told it (KNOCK_KEEPS_MORE False puts it back for all).
+KNOCK_KEEPS_MORE = True
+
+
+def kept_for_a_knock():
+    """What else a knock note or reply of its own is checked against, past kept_folders."""
+    if not KNOCK_KEEPS_MORE or NAME == rooms.FIRST:
+        return []
+    return [MEMORY, NOTES, PACKET / "self.md",
+            *sorted((PACKET / site_notes.FOLDER).glob("*.json"))]
+
+
 def knock_screened(words):
     """Why a knock note or reply of its own may not go, past knock.refused: "kept" where
     it repeats what it keeps private, "spirit" where it is not read as in good spirit,
     and the public screen's "private" or "unchecked"; None where it may go. Kept apart
     from screened, below, which is a line for the commons'. The checks that ask no
     model come first."""
-    if repeats_what_is_kept(words):
+    if repeats_what_is_kept(words) or kept_words.repeats(words, kept_for_a_knock()):
         return "kept"
     if not good_spirit.ask(words):
         return "spirit"

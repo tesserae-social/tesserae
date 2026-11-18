@@ -45,7 +45,10 @@ FIRST_PRIVATE = b"A FAKE ENTRY OF MY OWN, FOR THE TESTS."  # as a_whole_world ke
 # "board-removed.json".
 FIRST_ONE_S_BACKUP_TREES = ("packets/first", "commons", "bonds", "rooms", "members",
                             "keys/first", "private-words.txt", "transcripts", "invitations",
-                            "knocks", "weekly-questions.json", "board-removed.json", "comings")
+                            "knocks", "weekly-questions.json", "board-removed.json", "comings",
+                            # since safety-fixes (18 November 2026): before it, it ended at
+                            # "comings" (hearth.KEPT_BESIDE_BEFORE)
+                            "notes", "made-taken-down", "made-held", "made-not-published")
 
 # What of the world is the second one's, by the names it has on disk.
 SECOND_S = ("packets/second/", "keys/second/", "transcripts/second/", "rooms/second/",

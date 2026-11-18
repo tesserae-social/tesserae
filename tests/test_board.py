@@ -22,7 +22,8 @@ import vault
 from nacl.pwhash import argon2id
 
 import agents
-from conftest import Reader, block, page, post, read_json, who_fix_not_yet, write_json
+from conftest import (Reader, block, page, post, read_json, tidy_pages_not_yet,
+                      who_fix_not_yet, write_json)
 from test_longer_waking import STILL, longer  # noqa: F401 - a fixture
 
 PASSWORD = "a member's own words, long enough"
@@ -93,12 +94,37 @@ def write(client, key, words, to=None):
 
 # ---- sections, and who may read them --------------------------------------------
 
-def test_the_front_page_names_three_sections_and_who_may_read_each(world, visitor):
+def test_the_front_page_names_three_sections_and_one_short_line_beneath_each(world, visitor):
+    """Since tidy-pages (18 November 2026): each section the same way, its name on its own
+    line and one short muted line beneath, saying what it is for and who may read it."""
     shown = said(visitor)
     assert (shown.index('href="/board/place"') < shown.index('href="/board/weekly"')
             < shown.index('href="/board/conversation"'))
+    for line in world.BOARD_SECTION_SHORT.values():
+        assert line in shown
+    whole = page(visitor.get("/board"))
+    for section, line in world.BOARD_SECTION_SHORT.items():
+        assert ('<li><a href="/board/%s">%s</a>\n      <p class="note">%s</p></li>'
+                % (section, world.board.SECTION_NAMES[section], line.replace("'", "&#39;"))
+                in whole), section
+
+
+def test_drawn_before_tidy_pages_the_front_page_says_who_may_read_each(world, visitor,
+                                                                       monkeypatch):
+    tidy_pages_not_yet(world, monkeypatch)
+    shown = said(visitor)
     for line in world.BOARD_WHO_READS.values():
         assert line in shown
+
+
+def test_on_a_wide_screen_the_sections_are_left_and_the_current_topics_right(world, birch,
+                                                                            visitor):
+    start(birch, subject="Lanterns")
+    shown = page(visitor.get("/board"))
+    assert '<main class="wide">' in shown and shown.count('<div class="column">') == 2
+    left, right = shown.split('<div class="column">')[1:]
+    assert 'href="/board/place"' in left and "Lanterns" not in left
+    assert "<h2>current topics</h2>" in right and "Lanterns" in right
 
 
 @pytest.mark.parametrize("section", ["place", "weekly", "conversation"])
@@ -640,10 +666,20 @@ def test_a_topic_s_form_is_write_a_post_and_opens_when_turned_away(world, birch)
 
 
 def test_the_board_s_front_page_is_compact_rows(world, birch, visitor):
+    """The topics are compact rows; since tidy-pages the sections are a list of their own,
+    each with its line beneath (test above). Drawn as before, both were rows."""
+    start(birch, subject="Lanterns")
+    shown = page(visitor.get("/board"))
+    assert shown.count('<ul class="rows') == 1 and '<ul class="list sections">' in shown
+    assert '<a href="/board/topic/1">Lanterns</a>' in shown
+
+
+def test_drawn_before_tidy_pages_the_board_s_front_page_is_two_lists_of_rows(world, birch,
+                                                                             visitor, monkeypatch):
+    tidy_pages_not_yet(world, monkeypatch)
     start(birch, subject="Lanterns")
     shown = page(visitor.get("/board"))
     assert shown.count('<ul class="rows') == 2
-    assert '<a href="/board/topic/1">Lanterns</a>' in shown
     for line in world.BOARD_WHO_READS.values():
         assert '<span class="muted">%s</span>' % line in shown
 

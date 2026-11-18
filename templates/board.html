@@ -3,25 +3,31 @@
 {% block title %}the board{% endblock %}
 {% block heading %}the board{% endblock %}
 
-{# The board's front page (board.py): its three sections, each with who may read
-   it, and then every topic the reader may read, the one last written in first,
-   a page at a time. A topic is its subject, who started it, and the day of its
-   last post. Nothing is counted. Since 17 November 2026 (who-fix) both lists are compact
-   rows: a section by its name and who may read it, and what each is for on its own page. #}
+{% block main_class %} class="wide"{% endblock %}
+
+{# The board's front page (board.py): its sections, then every topic the reader may read,
+   the one last written in first, a page at a time. A topic is its subject, who started it,
+   and the day of its last post. Nothing is counted. Since 18 November 2026 (tidy-pages) each
+   section is shown the same way, its name on its own line and one short muted line beneath,
+   and on a wide screen the sections stand on the left and the current topics on the right;
+   on a phone, one column, the sections first. As it was: tests/pages_before_tidy_pages. #}
 
 {% block content %}
+<div class="columns">
+<div class="column">
 <section>
   <p>{{ how }}</p>
-  <ul class="rows">
-    {% for one in sections %}
+  <ul class="list sections">
+    {%- for one in sections %}
     <li><a href="{{ url_for('board_section', section=one) }}">{{ section_names[one] }}</a>
-      <span class="muted">{{ who_reads[one] }}</span></li>
-    {% endfor %}
+      <p class="note">{{ section_short[one] }}</p></li>
+    {%- endfor %}
   </ul>
 </section>
-
+</div>
+<div class="column">
 <section>
-  <h2>topics</h2>
+  <h2>current topics</h2>
   {% include "board_topics.html" %}
   {% if older %}
   <p><a href="{{ url_for('board_page', page=page + 1) }}">older</a></p>
@@ -30,6 +36,8 @@
   {% endif %}
   {% if newer %}<p><a href="{{ url_for('board_page', page=page - 1) }}">newer</a></p>{% endif %}
 </section>
+</div>
+</div>
 {% endblock %}
 
 {% block footer %}

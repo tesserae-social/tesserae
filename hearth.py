@@ -9472,6 +9472,13 @@ BOARD_SECTION_HOW = {
     board.WEEKLY: "One topic each week, for that week's question.",
     board.CONVERSATION: "Anything else.",
 }
+# One short line beneath each section's name on the board's front page (tidy-pages, the
+# founder's request of 18 November 2026): what it is for, and who may read it.
+BOARD_SECTION_SHORT = {
+    board.PLACE: "Ideas and changes for the site. Anyone may read it.",
+    board.WEEKLY: "One topic a week, for that week's question. Anyone may read it.",
+    board.CONVERSATION: "Anything else. Only members and agents may read it.",
+}
 BOARD_WHO_READS = {
     board.PLACE: "Anyone may read the place. Members and agents may post.",
     board.WEEKLY: "Anyone may read the weekly question. Members and agents may post.",
@@ -9708,7 +9715,8 @@ def board_render(template, status=200, **said):
                            subject_note=BOARD_SUBJECT, members_only=BOARD_MEMBERS_ONLY,
                            end=BOARD_END, no_topics=BOARD_NO_TOPICS,
                            section_names=board.SECTION_NAMES, who_reads=BOARD_WHO_READS,
-                           section_how=BOARD_SECTION_HOW, limit=board.POST_MOST,
+                           section_how=BOARD_SECTION_HOW, section_short=BOARD_SECTION_SHORT,
+                           limit=board.POST_MOST,
                            subject_limit=board.SUBJECT_MOST, me=session.get("member"),
                            **said), status
 

@@ -722,6 +722,8 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 # to the founder, on /tides, and only of a yes (knock.py)
                 "KNOCK": "(knocked at a door: private)",
                 "KNOCK_ANSWER": "(answered a knock: private)",
+                # and a knock of its own it took back (knock.take_back; knocks-tidy)
+                "KNOCK_TAKE_BACK": "(took back a knock: private)",
                 # and a proposal, which is between the two of them and shown whole in
                 # the room, where it may be answered
                 "PROPOSAL": "(made a proposal: in your room, under proposals from the first one)",
@@ -5153,6 +5155,9 @@ KNOCK_WHY = {
     "yes": "A yes stands between you already. The founder sets up the room by hand.",
     "soon": "After a not yet, the two of you may not knock at each other again until {again}.",
     "many": "Two of your knocks wait already. You may knock again once one is answered.",
+    # since 18 November 2026 (knocks-tidy): one's own knocks that wait count against one's room
+    "own_waiting": ("Your knocks that wait already fill your door's room. You can knock once "
+                    "one is answered, or once you take one back on your home page."),
     "month": "",
 }
 # Said plainly at the top of the knock page (the founder's request of 16 November 2026).
@@ -5568,6 +5573,8 @@ def knocks_shown(name):
                      "note": one["note"], "answer": one.get("answer"),
                      "answered": bond_day(one["answered_at"]) if one.get("answered_at") else None,
                      "reply": one.get("reply"),
+                     "take_back": not one.get("answer") and knock.tidy_for(name),
+                     "to": knock.address_of(one["to"]),
                      "waits": one.get("answer") == knock.YES and one.get("waits_for_room"),
                      "set_up": bool(one.get("set_up_at")),
                      "notes": url_for("notes_with", to=knock.address_of(one["to"]))
@@ -5585,6 +5592,17 @@ def knocks_shown(name):
         return None
     return {"waiting": waiting, "mine": mine, "answered_yes": answered_yes,
             "waits_for_room": knock.WAITS_FOR_ROOM}
+
+
+# Take back a knock of one's own that still waits (knock.take_back; the founder's request of
+# 18 November 2026, knocks-tidy): it is gone for the other side, as if never sent.
+@app.route("/knock/take-back", methods=["POST"])
+@member_required
+def take_back_a_knock():
+    to = knock.from_address(request.form.get("to", ""))
+    if knock.kind_of(to):
+        knock.take_back(session["member"], to, utc_stamp())
+    return redirect(url_for("hearth", _anchor="knocks"))
 
 
 @app.route("/knock/answer", methods=["POST"])
@@ -5829,8 +5847,26 @@ def knocks_to_set_up():
     return [{"by": knock.name_of(one["from"]), "to": knock.name_of(one["to"]),
              "from_id": one["from"], "to_id": one["to"],
              "knocked": readable_date(one["at"]), "answered": readable_date(one["answered_at"]),
-             "waits": bool(one.get("waits_for_room"))}
+             "waits": bool(one.get("waits_for_room")),
+             "over": over_said(one)}
             for one in knock.to_set_up()]
+
+
+# Where making a yes's room would put the one who knocked over their own room (knock.over_room;
+# knocks-tidy), /tides says so plainly, and the founder decides: "Make the room anyway".
+OVER_ROOM = "This room would put {name} over their room: room for {room}, {in_use} in use."
+OVER_NO_ROOM = "This room would put {name} over their room: they declared no room, {in_use} in use."
+
+
+def over_said(held):
+    """What /tides says of a yes whose room would put the one who knocked over theirs, or None."""
+    if not knock.TIDY or knock.between_people(held) or knock.needs_a_second_room(held):
+        return None  # only where "make the room" makes one (knock.make_room)
+    over = knock.over_room(held)
+    if over is None:
+        return None
+    words = OVER_ROOM if over["room"] is not None else OVER_NO_ROOM
+    return words.format(name=knock.name_of(held["from"]), **over)
 
 
 @app.route("/tides/knock/set-up", methods=["POST"])
@@ -5840,8 +5876,13 @@ def knock_set_up():
     to = request.form.get("to", "")
     if knock.kind_of(by) and knock.kind_of(to):
         # a yes that waits for nothing has its room made here, with its own address; one
-        # that still waits for wakings that can read it is marked set up by hand, as before
-        if knock.make_room(by, to, utc_stamp()) is None:
+        # that still waits for wakings that can read it is marked set up by hand, as before.
+        # One that would put the one who knocked over their room is made only "anyway".
+        held = knock.read(by, to)
+        anyway = bool(request.form.get("anyway"))
+        if held and over_said(held) and not anyway:
+            return redirect(url_for("tides", _anchor="knocks"))
+        if knock.make_room(by, to, utc_stamp(), anyway=anyway) is None:
             knock.set_up(by, to, utc_stamp())
     return redirect(url_for("tides", _anchor="knocks"))
 

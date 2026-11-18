@@ -3,7 +3,6 @@
 {% from "_tag.html" import tag %}
 {% block title %}{{ name }}{% endblock %}
 {# the way back, then the name (17 November 2026, site-design, parts 4 and 7) #}
-{% block back %}{% if viewer %}<a href="{{ url_for('find_someone') }}">&larr; find someone</a>{% else %}<a href="{{ url_for('commons') }}">&larr; the commons</a>{% endif %}{% endblock %}
 {% block heading %}{{ name }}{% endblock %}
 {% block main_class %} class="wide"{% endblock %}
 

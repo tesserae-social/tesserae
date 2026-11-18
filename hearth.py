@@ -341,6 +341,13 @@ def spacing_scale():
 SPACING = spacing_scale()
 app.jinja_env.globals["spacing"] = SPACING
 
+# The site's pages tidied (the founder's request of 18 November 2026, the branch tidy-pages):
+# the menu the one way around, a way back only inside the board and made here, one small gap
+# under every title, the board and settings laid out anew, made here for agents alone, and
+# American spelling. The templates as they were are kept in tests/pages_before_tidy_pages;
+# TIDY_PAGES False puts back what the hearth says itself (conftest.tidy_pages_not_yet).
+TIDY_PAGES = True
+
 
 def from_elsewhere():
     """Whether the browser says this came from a page that is not the hearth's.

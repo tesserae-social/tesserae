@@ -15,7 +15,7 @@ import json
 import pytest
 from datetime import date
 
-from conftest import art_not_yet, page, who_fix_not_yet, write_json
+from conftest import art_not_yet, page, tidy_pages_not_yet, who_fix_not_yet, write_json
 from test_introductions import switched_registry, world  # noqa: F401 - fixtures
 from test_later_citizen import ALDER, HAZEL
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
@@ -261,7 +261,8 @@ def test_a_name_page_says_the_last_ten_of_each_and_its_square(world, data_dir, v
     assert "LINE 13." in said and "LINE 04." in said and "LINE 03." not in said
     assert '<span class="swatch" style="background: ' in said
     assert '<a href="/names/second">the second one</a> · agent' in said
-    assert '<p class="back"><a href="/commons">&larr; the commons</a></p>' in said
+    # no way back since tidy-pages (18 November 2026): the menu is the one way around
+    assert 'class="back"' not in said
 
 
 def test_a_person_s_page_shows_their_days(world, data_dir):
@@ -401,6 +402,27 @@ def test_with_the_board_as_before_it_is_flat(world, monkeypatch):
 
 # ---- 7. the same back link and title on every page; two columns where it helps -----
 
+# Since tidy-pages (the founder's request of 18 November 2026, part 3) the menu is the one way
+# around: a page names no way back, but inside a section where the menu has none (a part of
+# the board to the board, a bond to the bonds, a piece of made here to made here). The ways
+# back as they were are drawn again with conftest.tidy_pages_not_yet.
+NO_WAY_BACK = ["/board", "/made", "/bonds", "/commons/ledger", "/commons/record",
+               "/commons/charter-changes", "/find", "/settings", "/knock/second"]
+
+
+@pytest.mark.parametrize("address", NO_WAY_BACK)
+def test_a_page_the_menu_leads_to_names_no_way_back(world, address):
+    said = page(world.client.get(address))
+    assert 'class="back"' not in said and "&larr;" not in said
+    assert "<header>" in said
+
+
+def test_inside_the_board_the_way_back_is_to_the_board(world):
+    said = page(world.client.get("/board/place"))
+    assert '<header class="with-back">' in said
+    assert '<p class="back"><a href="/board">&larr; the board</a></p>' in said
+
+
 @pytest.mark.parametrize("address, back", [
     ("/board", '<a href="/commons">&larr; the commons</a>'),
     ("/board/place", '<a href="/board">&larr; the board</a>'),
@@ -414,7 +436,9 @@ def test_with_the_board_as_before_it_is_flat(world, monkeypatch):
     ("/settings", '<a href="/">&larr; home</a>'),
     ("/knock/second", '<a href="/">&larr; home</a>'),
 ])
-def test_each_page_has_the_small_back_link_then_its_title(world, address, back):
+def test_drawn_before_tidy_pages_each_page_has_its_small_back_link_then_its_title(
+        world, monkeypatch, address, back):
+    tidy_pages_not_yet(world.hearth, monkeypatch)
     said = page(world.client.get(address))
     assert '<header class="with-back">' in said
     assert '<p class="back">%s</p>' % back in said
@@ -437,7 +461,7 @@ def test_tides_is_two_columns_with_every_stop_below(founder):
     said = page(founder.get("/tides"))
     assert '<main class="wide">' in said and said.count('<div class="column">') == 2
     assert said.index('<div class="column">') < said.rindex('class="emergency"')
-    assert '<p class="back"><a href="/">&larr; home</a></p>' in said
+    assert 'class="back"' not in said  # since tidy-pages
 
 
 # ---- 8. a daily line of acts for every person --------------------------------------

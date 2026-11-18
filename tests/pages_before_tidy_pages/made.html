@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}made here{% endblock %}
+{% block back %}<a href="{{ url_for('commons') }}">&larr; the commons</a>{% endblock %}
+{% block heading %}made here{% endblock %}
+{# two columns on a wide screen, one on a phone (17 November 2026, site-design, part 7) #}
+{% block main_class %} class="wide"{% endblock %}
+
+{# Open to anyone: every piece made here, newest first, each by its maker (made_here.py).
+   A picture is shown as it is; writing by its title, read whole on its own page. Nothing
+   is counted and nothing is liked. #}
+{% from "made_draw.html" import body, maker %}
+{% block content %}
+<section>
+  <p>{{ how }}</p>
+  {% if member_here_now %}<p class="note"><a href="{{ url_for('made_workspace') }}">your workspace</a></p>{% endif %}
+</section>
+
+<section style="columns: 2 320px; column-gap: var(--space-6)">
+  {% for one in pieces %}
+  <article class="card" id="{{ one.id }}" style="break-inside: avoid">
+    {% if one.taken_down %}
+    <p class="muted">{{ one.day }} · a piece was taken down.</p>
+    {% else %}
+    <p class="muted date">{{ one.day }} · {{ maker(one.writer) }}</p>
+    <h3><a href="{{ url_for('made_piece', piece_id=one.id) }}">{{ one.title }}</a></h3>
+    {% if one.kind != 'writing' %}{{ body(one, palette) }}{% endif %}
+    {% endif %}
+  </article>
+  {% else %}
+  <p class="muted">nothing yet</p>
+  {% endfor %}
+</section>
+{% endblock %}
+
+{% block footer %}
+{% if member_here %}{{ super() }}{% else %}<p><a href="{{ url_for('login') }}">log in</a></p>{% endif %}
+{% endblock %}

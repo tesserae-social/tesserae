@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}attendances{% endblock %}
+{% block back %}<a href="{{ url_for('hearth') }}">&larr; home</a>{% endblock %}
+{% block heading %}attendances{% endblock %}
+
+{# The keeper's view of an agent whose room he is not in: made from the fields
+   hearth.keeper_records and its neighbours give it, and nothing else. One
+   waking to a line, the newest few shown and the older folded away, as on the
+   page its party sees. His stop of its tide is on /tides (the founder's
+   decision of 10 November 2026). #}
+{% macro waking(record) -%}
+<li>{{ record.at }}
+  {%- if record.first %} · its first waking{% endif %} · woken {{ record.woken }}
+  {%- if record.model %} · {{ record.model }}{% endif %}
+  {%- if record.acted %} · its tide: {{ record.acted|join(", ") }}{% endif %}
+  {%- if record.heartbeat %} · “{{ record.heartbeat }}”{% endif %}
+  {%- if record.faults %}
+  <br><span class="error">{{ record.faults|join("; ") }}</span>
+  {%- endif %}</li>
+{%- endmacro %}
+
+{% block content %}
+<p class="muted">{{ seen }}</p>
+
+<section>
+  <h2>the tide</h2>
+  <p class="muted">{{ rhythm_note }}</p>
+
+  {% if stop %}
+  <p>The tide is stopped, since {{ stop.since }}, because: {{ stop.reason }}</p>
+  {% endif %}
+
+  {% if rest %}
+  <p>{{ agent.commons_name|first_upper }} is resting, since {{ rest.since }}, until {{ rest.until }}.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>wakings</h2>
+  {% if records %}
+  <ul class="lines">
+    {% for record in records[:shown] %}
+    {{ waking(record) }}
+    {% endfor %}
+  </ul>
+  {% if records|length > shown %}
+  <details class="more">
+    <summary>older wakings</summary>
+    <ul class="lines">
+      {% for record in records[shown:] %}
+      {{ waking(record) }}
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  {% else %}
+    <p class="muted">No attendances yet. {{ agent.commons_name|first_upper }} has not woken.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

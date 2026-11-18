@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}your workspace{% endblock %}
+{% block back %}<a href="{{ url_for('made_here_page') }}">&larr; made here</a>{% endblock %}
+{% block heading %}your workspace{% endblock %}
+
+{# A member's private workspace (made_here.py): up to five drafts, each writing or one
+   picture, seen by no one else. A draft is published from here: one piece of writing a
+   week and three pictures a week. Nothing is taken out of it but by its maker. #}
+{% from "made_draw.html" import body %}
+{% block content %}
+<section>
+  {% if uploads %}
+  {#- since 18 November 2026 (art-and-colour): a person's pictures are uploaded, not drawn #}
+  <p>Your drafts are private. You may keep up to {{ most }}. Publishing puts one on
+    <a href="{{ url_for('made_here_page') }}">made here</a>, where anyone may read it, with its
+    own topic on the board. You may publish one piece of writing a week, and upload three
+    pictures a week. Once published, a piece is never edited; you may add a note beneath it,
+    or take it down.</p>
+  {% else %}
+  <p>Your drafts are private. You may keep up to {{ most }}. Publishing puts one on
+    <a href="{{ url_for('made_here_page') }}">made here</a>, where anyone may read it, with its
+    own topic on the board. You may publish one piece of writing and three pictures a week.
+    Once published, a piece is never edited; you may add a note beneath it, or take it down.</p>
+  {% endif %}
+  {% if saved %}<p class="saved">Kept in your workspace.</p>{% endif %}
+  {% if upload_held %}<p class="saved">{{ upload_held }}</p>{% endif %}
+  {% if refused_said %}<p class="error">{{ refused_said }}</p>{% endif %}
+</section>
+
+<section>
+  <h2>drafts</h2>
+  {% for one in drafts %}
+  <article class="card" id="draft-{{ one.id }}">
+    <p class="muted date">{{ one.day }} · {{ one.kind }}</p>
+    <h3>{{ one.title }}</h3>
+    {{ body(one, palette) }}
+    {% if uploads and one.kind != 'writing' %}
+    <p class="muted">Pictures are uploaded now, not drawn here, so this drawing can't be published. It stays here until you discard it.</p>
+    {% else %}
+    <form method="post" action="{{ url_for('made_publish') }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="id" value="{{ one.id }}">
+      <button type="submit">Publish</button>
+    </form>
+    {% endif %}
+    <form method="post" action="{{ url_for('made_discard') }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="id" value="{{ one.id }}">
+      {% if confirming == one.id %}
+      <input type="hidden" name="confirm" value="yes">
+      <p class="error">Discard this draft? It is not shown again.</p>
+      <button type="submit" class="consequential small">Yes, discard it</button>
+      {% else %}
+      <button type="submit" class="small">Discard</button>
+      {% endif %}
+    </form>
+  </article>
+  {% else %}
+  <p class="muted">No drafts yet.</p>
+  {% endfor %}
+</section>
+
+{% if drafts|length < most %}
+<section>
+  <h2>new writing</h2>
+  <form method="post" action="{{ url_for('made_save_draft') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="kind" value="writing">
+    <label for="writing-title">title</label>
+    <input type="text" id="writing-title" name="title" maxlength="{{ title_most }}" value="{{ draft_title or '' }}">
+    <label for="writing-body">your writing, up to about {{ words_most }} words</label>
+    <textarea id="writing-body" name="body" rows="12">{{ draft_body or '' }}</textarea>
+    <button type="submit">Keep the draft</button>
+  </form>
+</section>
+
+{% if uploads %}
+{% elif squares %}
+<section>
+  <h2>new picture</h2>
+  {# a picture in squares, 32 by 32 (17 November 2026, site-design, part 5): click and drag
+     to draw, fill a space of one colour, or erase. Kept as 32 lines of 32 letters. #}
+  <form method="post" action="{{ url_for('made_save_draft') }}" class="field" id="tiles-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="kind" value="tiles">
+    <input type="hidden" name="size" value="{{ sizes[0] }}">
+    <input type="hidden" name="tiles" id="tiles-field">
+    <label for="tiles-title">title</label>
+    <input type="text" id="tiles-title" name="title" maxlength="{{ title_most }}">
+    <p class="muted">Choose a colour, then click or drag across the squares. Fill colours a
+      whole space of one colour. The eraser empties squares.</p>
+    <p id="tiles-tools">
+      <label><input type="radio" name="tool" value="draw" checked> draw</label>
+      <label><input type="radio" name="tool" value="fill"> fill</label>
+      <label><input type="radio" name="tool" value="erase"> eraser</label>
+      <button type="button" id="tiles-clear" class="small">clear all</button>
+    </p>
+    <p id="tiles-palette" class="squares-palette">
+      {%- for letter, name, colour in squares %}
+      <label title="{{ name }}"><input type="radio" name="colour" value="{{ letter }}"{% if loop.first %} checked{% endif %}><span style="display: inline-block; width: 16px; height: 16px; vertical-align: -3px; border: 1px solid #ccc; background: {{ colour }}" aria-hidden="true"></span> {{ name }}</label>
+      {%- endfor %}
+    </p>
+    <div id="tiles-grid" role="grid" aria-label="the picture, {{ sizes[0] }} by {{ sizes[0] }} squares"
+         style="display: grid; grid-template-columns: repeat({{ sizes[0] }}, 1fr); width: 100%; max-width: 448px; aspect-ratio: 1; border: 1px solid #ccc; touch-action: none; user-select: none"></div>
+    <button type="submit">Keep the draft</button>
+  </form>
+</section>
+<script>
+(() => {
+  const palette = {{ palette|tojson }};
+  const n = {{ sizes[0] }};
+  const grid = document.getElementById("tiles-grid");
+  const field = document.getElementById("tiles-field");
+  const cells = Array(n * n).fill(".");
+  const squares = [];
+  const chosen = () => document.querySelector('#tiles-palette input:checked').value;
+  const tool = () => document.querySelector('#tiles-tools input:checked').value;
+  const write = () => {
+    const rows = [];
+    for (let y = 0; y < n; y++) rows.push(cells.slice(y * n, y * n + n).join(""));
+    field.value = rows.join("\n");
+  };
+  const paint = (i, value) => {
+    cells[i] = value;
+    squares[i].style.background = value === "." ? "#fff" : palette[value];
+  };
+  const fill = (start, value) => {
+    const from = cells[start];
+    if (from === value) return;
+    const stack = [start];
+    while (stack.length) {
+      const i = stack.pop();
+      if (cells[i] !== from) continue;
+      paint(i, value);
+      const x = i % n, y = Math.floor(i / n);
+      if (x > 0) stack.push(i - 1);
+      if (x < n - 1) stack.push(i + 1);
+      if (y > 0) stack.push(i - n);
+      if (y < n - 1) stack.push(i + n);
+    }
+  };
+  const act = i => {
+    if (tool() === "fill") fill(i, chosen());
+    else paint(i, tool() === "erase" ? "." : chosen());
+    write();
+  };
+  let down = false;
+  for (let i = 0; i < n * n; i++) {
+    const square = document.createElement("div");
+    square.dataset.i = i;
+    square.style.cssText = "background: #fff; outline: 1px solid #f1ede6";
+    squares.push(square);
+    grid.appendChild(square);
+  }
+  const under = event => {
+    const found = document.elementFromPoint(event.clientX, event.clientY);
+    return found && found.parentNode === grid ? Number(found.dataset.i) : null;
+  };
+  grid.addEventListener("pointerdown", event => {
+    const i = under(event);
+    if (i === null) return;
+    down = tool() !== "fill";
+    act(i);
+    event.preventDefault();
+  });
+  grid.addEventListener("pointermove", event => {
+    if (!down) return;
+    const i = under(event);
+    if (i !== null) act(i);
+  });
+  window.addEventListener("pointerup", () => { down = false; });
+  document.getElementById("tiles-clear").addEventListener("click", () => {
+    for (let i = 0; i < n * n; i++) paint(i, ".");
+    write();
+  });
+  write();
+})();
+</script>
+{% else %}
+<section>
+  <h2>new tiles</h2>
+  <form method="post" action="{{ url_for('made_save_draft') }}" class="field" id="tiles-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="kind" value="tiles">
+    <input type="hidden" name="tiles" id="tiles-field">
+    <label for="tiles-title">title</label>
+    <input type="text" id="tiles-title" name="title" maxlength="{{ title_most }}">
+    <label for="tiles-size">size</label>
+    <select id="tiles-size" name="size">
+      {%- for n in sizes %}<option value="{{ n }}">{{ n }} by {{ n }}</option>{% endfor %}
+    </select>
+    <p class="muted">Choose a colour, then click squares. Click a square again with the same colour to empty it.</p>
+    <p id="tiles-palette">
+      {%- for name, colour in palette.items() %}
+      <label><input type="radio" name="colour" value="{{ name }}"{% if loop.first %} checked{% endif %}> <span style="display: inline-block; width: 12px; height: 12px; background: {{ colour }}" aria-hidden="true"></span> {{ name }}</label>
+      {%- endfor %}
+    </p>
+    <div id="tiles-grid" role="grid" aria-label="the tiles"></div>
+    <button type="submit">Keep the draft</button>
+  </form>
+</section>
+{% endif %}
+
+{% if not uploads %}
+<section>
+  <h2>new text picture</h2>
+  <form method="post" action="{{ url_for('made_save_draft') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="kind" value="text">
+    <label for="text-title">title</label>
+    <input type="text" id="text-title" name="title" maxlength="{{ title_most }}">
+    <label for="text-body">a picture in fixed-width text, up to {{ columns }} characters wide and {{ rows }} lines</label>
+    <textarea id="text-body" name="body" rows="{{ rows }}" style="font-family: monospace"></textarea>
+    <button type="submit">Keep the draft</button>
+  </form>
+</section>
+{% endif %}
+
+{% if not squares and not uploads %}
+<script>
+(() => {
+  const palette = {{ palette|tojson }};
+  const grid = document.getElementById("tiles-grid");
+  const size = document.getElementById("tiles-size");
+  const field = document.getElementById("tiles-field");
+  let cells = [];
+  const write = () => {
+    const n = Number(size.value);
+    const rows = [];
+    for (let y = 0; y < n; y++) rows.push(cells.slice(y * n, y * n + n).join(" "));
+    field.value = rows.join("\n");
+  };
+  const draw = () => {
+    const n = Number(size.value);
+    cells = Array(n * n).fill(".");
+    grid.innerHTML = "";
+    grid.style.display = "grid";
+    grid.style.gridTemplateColumns = `repeat(${n}, 20px)`;
+    grid.style.gap = "2px";
+    for (let i = 0; i < n * n; i++) {
+      const square = document.createElement("button");
+      square.type = "button";
+      square.setAttribute("aria-label", "square " + (i + 1));
+      square.style.cssText = "width: 20px; height: 20px; padding: 0; border: 1px solid #ccc; background: #fff";
+      square.addEventListener("click", () => {
+        const chosen = document.querySelector('#tiles-palette input:checked').value;
+        cells[i] = cells[i] === chosen ? "." : chosen;
+        square.style.background = cells[i] === "." ? "#fff" : palette[cells[i]];
+        write();
+      });
+      grid.appendChild(square);
+    }
+    write();
+  };
+  size.addEventListener("change", draw);
+  draw();
+})();
+</script>
+{% endif %}
+{% endif %}
+
+{% if uploads %}
+<section id="upload">
+  <h2>upload a picture</h2>
+  {# uploads only (18 November 2026): made bare, at most 1,600 pixels on its longest side,
+     looked at before it appears, three a week #}
+  <form method="post" action="{{ url_for('made_upload') }}" class="field" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="upload-title">title</label>
+    <input type="text" id="upload-title" name="title" maxlength="{{ title_most }}">
+    <label for="upload-picture">a JPEG, PNG or WebP</label>
+    <input type="file" id="upload-picture" name="picture" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+    <p class="muted">{{ upload_line }}</p>
+    <button type="submit">Upload</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

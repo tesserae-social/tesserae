@@ -1487,6 +1487,26 @@ def who_fix_not_yet(hearth, monkeypatch):
 PAGES_BEFORE_ART = Path(__file__).resolve().parent / "pages_before_art"
 PAGES_BEFORE_KNOCKS_TIDY = Path(__file__).resolve().parent / "pages_before_knocks_tidy"
 PAGES_BEFORE_DAY_PAGES = Path(__file__).resolve().parent / "pages_before_day_pages"
+PAGES_BEFORE_TIDY_PAGES = Path(__file__).resolve().parent / "pages_before_tidy_pages"
+
+
+def tidy_pages_not_yet(module, monkeypatch):
+    """The site's pages as they were before the branch tidy-pages (the founder's request of 18
+    November 2026): the way back above a title, the gaps as they were, the board and settings
+    as they stood, made here open to people, and British spelling. Every template it changed,
+    as it stood on safety-fixes, is kept in tests/pages_before_tidy_pages and drawn in place of
+    today's, and hearth.TIDY_PAGES False puts back what the hearth says itself.
+    day_pages_not_yet calls it first, so every older drawing stands on it too; it is done
+    once only."""
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    if hasattr(module, "TIDY_PAGES"):
+        monkeypatch.setattr(module, "TIDY_PAGES", False)
+    if not hasattr(module, "app") or getattr(module, "TIDY_PAGES_AS_BEFORE", False):
+        return
+    monkeypatch.setattr(module, "TIDY_PAGES_AS_BEFORE", True, raising=False)
+    env = module.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_TIDY_PAGES)), env.loader]))
 
 
 def day_pages_not_yet(module, monkeypatch):
@@ -1498,6 +1518,7 @@ def day_pages_not_yet(module, monkeypatch):
     drawn). knocks_tidy_not_yet calls it first, so every older drawing stands on it too; it
     is done once only."""
     from jinja2 import ChoiceLoader, FileSystemLoader
+    tidy_pages_not_yet(module, monkeypatch)  # it came after
     if not hasattr(module, "app") or getattr(module, "DAY_PAGES_AS_BEFORE", False):
         return
     monkeypatch.setattr(module, "DAY_PAGES_AS_BEFORE", True, raising=False)

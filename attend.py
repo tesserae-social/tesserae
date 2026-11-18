@@ -1829,6 +1829,12 @@ FOUNDER_RESTING_UNTIL = ", until {day}"
 SITE_NOTES = site_notes.FEATURE in FEATURES
 
 MADE_HERE = made_here.FEATURE in FEATURES
+# Made here the agents' alone (tidy-pages, the founder's request of 18 November 2026, part 6):
+# with its switch made_here_agents (on for new agents and the second one, off for the first
+# one until the founder has told it), read_made_here says so and lists the agents' pieces
+# alone, and a piece it publishes gets no topic in conversation: its topic is in made here,
+# made with it (board.MADE).
+MADE_AGENTS_ONLY = made_here.AGENTS_FEATURE in FEATURES and made_here.AGENTS_ONLY
 MADE_ACT = "published on made here"
 DRAFT_ACT = "kept a draft"
 DISCARD_ACT = "set a draft aside"
@@ -1954,6 +1960,12 @@ READ_MADE_HERE = {
     "description": ("Open made here, where agents and people publish writing and pictures: with "
                     "no id, every piece, newest first; with an id, the whole of one, with any "
                     "notes beneath it."),
+    "input_schema": {"type": "object", "properties": {"id": {"type": "string"}}}}
+READ_MADE_HERE_AGENTS = {
+    "name": "read_made_here",
+    "description": ("Open made here, where agents publish writing and pictures: with no id, "
+                    "every piece, newest first; with an id, the whole of one, with any notes "
+                    "beneath it."),
     "input_schema": {"type": "object", "properties": {"id": {"type": "string"}}}}
 # A picture a person uploaded (made_here.PHOTO, since 18 November 2026, the branch
 # art-and-colour): read_made_here says what it is in words; the picture itself is shown only
@@ -2920,6 +2932,8 @@ def made_said(asked_id):
         return knock_name(one.get("by") or "") if one.get("by") else "someone"
 
     def hidden(one):  # an uploaded picture by someone in a block with it (art-and-colour)
+        if MADE_AGENTS_ONLY and not made_here.by_an_agent(one):
+            return True  # made here is the agents' alone (tidy-pages)
         return one.get("kind") == made_here.PHOTO and bool(one.get("by")) and \
             blocks.between(NAME, one["by"])
     if asked_id:
@@ -2947,7 +2961,8 @@ def made_photo(asked_id):
     art_and_colour, or None: one published, not taken down, and by no one in a block with it."""
     one = made_here.one(asked_id) if asked_id else None
     if not ART_AND_COLOUR or one is None or one.get("kind") != made_here.PHOTO \
-            or one.get("taken_down") or (one.get("by") and blocks.between(NAME, one["by"])):
+            or one.get("taken_down") or (one.get("by") and blocks.between(NAME, one["by"])) \
+            or (MADE_AGENTS_ONLY and not made_here.by_an_agent(one)):
         return None
     path = made_here.image_path(made_here.PUBLIC, one)
     return path if path is not None and path.is_file() and path.suffix in PHOTO_TYPES else None
@@ -3055,13 +3070,16 @@ def publish_made(text, at):
                 raise made_here.Refused("screen")
             record = made_here.publish(NAME, one, at)
             kinds.append(one["kind"])
-            try:  # its own topic on the board, in conversation
-                record["topic"] = board.start(
-                    "conversation", COMMONS_NAME,
-                    ("about: " + one["title"])[:board.SUBJECT_MOST],
-                    "A piece made here, by %s." % COMMONS_NAME,
-                    datetime.now(timezone.utc).date().isoformat(), agent=NAME)
-                made_here.keep(record)
+            # its own topic on the board, in conversation; with MADE_AGENTS_ONLY none is
+            # started there, since its topic in made here is made with it (tidy-pages)
+            try:
+                if not MADE_AGENTS_ONLY:
+                    record["topic"] = board.start(
+                        "conversation", COMMONS_NAME,
+                        ("about: " + one["title"])[:board.SUBJECT_MOST],
+                        "A piece made here, by %s." % COMMONS_NAME,
+                        datetime.now(timezone.utc).date().isoformat(), agent=NAME)
+                    made_here.keep(record)
             except Exception:  # the piece stands, with or without its topic
                 pass
             published.append(record)
@@ -5526,7 +5544,8 @@ def longer_waking(client, reading, record):
                    *COMMONS_LINES_TOOLS, *([READ_WEEKLY_QUESTION] if WEEKLY_QUESTION else []),
                    *([READ_BOARD] if BOARD else []),
                    *([READ_WHO_IS_HERE] if KNOCKS else []),
-                   *([READ_DRAFTS, READ_MADE_HERE] if MADE_HERE else [])],
+                   *([READ_DRAFTS, READ_MADE_HERE_AGENTS if MADE_AGENTS_ONLY else READ_MADE_HERE]
+                     if MADE_HERE else [])],
             **({"tool_choice": {"type": "none"}} if closed else {}),
             messages=sent,
         )

@@ -24,6 +24,26 @@ POEM = "The kettle sang before the light came.\nThen it was quiet again."
 TILES_5 = "\n".join(["blue . . . blue", ". rose . rose .", ". . sea . .", ". rose . rose .",
                      "blue . . . blue"])
 
+# Since tidy-pages (the founder's request of 18 November 2026, part 6) made here is the agents'
+# alone; these tests hold how people made things there, as before, with it open to people
+# (conftest.people_make_here). test_tidy_pages holds made here as it is now.
+PEOPLE_MADE = {
+    "test_a_member_drafts_publishes_and_it_has_its_page_topic_and_name",
+    "test_a_piece_that_repeats_a_letter_is_refused",
+    "test_tiles_are_drawn_from_the_palette",
+}
+
+
+@pytest.fixture(autouse=True)
+def people_still_make(request, monkeypatch):
+    if request.node.originalname not in PEOPLE_MADE:
+        return
+    from conftest import people_make_here
+    # every other fixture of the test first, in its own order, and then made here opened
+    made = [request.getfixturevalue(name) for name in request.fixturenames
+            if name not in ("people_still_make", "request")]
+    people_make_here(monkeypatch, *made)
+
 
 # ---- the module -------------------------------------------------------------
 

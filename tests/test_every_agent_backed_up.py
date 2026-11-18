@@ -48,7 +48,10 @@ FIRST_ONE_S_BACKUP_TREES = ("packets/first", "commons", "bonds", "rooms", "membe
                             "knocks", "weekly-questions.json", "board-removed.json", "comings",
                             # since safety-fixes (18 November 2026): before it, it ended at
                             # "comings" (hearth.KEPT_BESIDE_BEFORE)
-                            "notes", "made-taken-down", "made-held", "made-not-published")
+                            "notes", "made-taken-down", "made-held", "made-not-published",
+                            # and since tidy-pages (18 November 2026), people's pieces moved
+                            # aside from made here
+                            "made-people")
 
 # What of the world is the second one's, by the names it has on disk.
 SECOND_S = ("packets/second/", "keys/second/", "transcripts/second/", "rooms/second/",

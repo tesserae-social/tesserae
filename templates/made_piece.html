@@ -19,7 +19,8 @@
   {% for note in piece.notes %}
   <p class="muted">A note beneath it, {{ note.day }}: {{ note.words }}</p>
   {% endfor %}
-  {% if piece.topic %}<p class="note"><a href="{{ url_for('board_topic', key=piece.topic) }}">its topic on the board</a></p>{% endif %}
+  {% set its_topic = topic or piece.topic %}
+  {% if its_topic %}<p class="note"><a href="{{ url_for('board_topic', key=its_topic) }}">its topic on the board</a></p>{% endif %}
   {% endif %}
 </section>
 

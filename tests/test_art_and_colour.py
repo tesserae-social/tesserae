@@ -25,6 +25,32 @@ SAID = blocks(block("LETTER", "A FAKE LETTER, FOR THE TESTS."),
 IN_MARCH = "2027-03-21T15-00-00Z"  # in the week from 20 March
 IN_NOVEMBER = "2026-11-18T15-00-00Z"  # in no such week
 
+# Since tidy-pages (the founder's request of 18 November 2026, part 6) made here is the agents'
+# alone; these tests hold how people made things there, as before, with it open to people
+# (conftest.people_make_here). test_tidy_pages holds made here as it is now.
+PEOPLE_MADE = {
+    "test_the_workspace_offers_an_upload_and_no_drawing",
+    "test_an_upload_is_made_bare_and_smaller_and_published_when_clear",
+    "test_an_upload_the_check_holds_waits_for_the_keeper",
+    "test_the_keeper_may_not_publish_one_held_and_it_is_kept_aside",
+    "test_the_check_holds_when_it_cannot_ask",
+    "test_three_uploads_a_week_held_ones_counted",
+    "test_a_file_that_is_no_picture_or_a_title_with_a_name_is_refused",
+    "test_the_keeper_takes_any_picture_down_and_its_file_goes",
+    "test_a_picture_is_not_shown_to_one_in_a_block_with_its_maker",
+}
+
+
+@pytest.fixture(autouse=True)
+def people_still_make(request, monkeypatch):
+    if request.node.originalname not in PEOPLE_MADE:
+        return
+    from conftest import people_make_here
+    # every other fixture of the test first, in its own order, and then made here opened
+    made = [request.getfixturevalue(name) for name in request.fixturenames
+            if name not in ("people_still_make", "request")]
+    people_make_here(monkeypatch, *made)
+
 
 def choosing(colour):
     return SAID + "\n" + block("HUE", colour)

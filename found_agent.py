@@ -177,7 +177,7 @@ DEFAULT_MAX_TOKENS = 8000
 # off for the first one until told.
 FEATURES = ["art_and_colour", "asked", "block", "board", "corrections", "door", "doors_to_eight", "hoping_for",
             "hue", "introduction", "knock", "knock_founder", "knock_take_back", "long_night", "longer_waking",
-            "looking_back", "made_here", "people_waiting", "proposals", "quiet_days",
+            "looking_back", "made_here", "made_here_agents", "people_waiting", "proposals", "quiet_days",
             "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
             "two_doors", "weekly_question"]
 

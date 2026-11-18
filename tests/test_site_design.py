@@ -15,7 +15,8 @@ import json
 import pytest
 from datetime import date
 
-from conftest import art_not_yet, page, tidy_pages_not_yet, who_fix_not_yet, write_json
+from conftest import (art_not_yet, page, people_make_here, tidy_pages_not_yet, who_fix_not_yet,
+                      write_json)
 from test_introductions import switched_registry, world  # noqa: F401 - fixtures
 from test_later_citizen import ALDER, HAZEL
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
@@ -315,6 +316,7 @@ def test_a_picture_is_32_lines_of_32_letters(world):
 
 def test_a_person_draws_one_and_it_is_drawn_in_its_colours(world, visitor, monkeypatch):
     art_not_yet(world.hearth, monkeypatch)  # drawn on the site, as before 18 November 2026
+    people_make_here(monkeypatch, visitor)  # and made here open to people, as before tidy-pages
     import made_here
     said = page(world.client.get("/made/workspace"))
     assert "new picture" in said and 'value="erase"' in said and 'value="fill"' in said
@@ -452,8 +454,13 @@ def test_the_home_page_and_the_commons_have_no_back_link(world):
 
 
 @pytest.mark.parametrize("address", ["/made", "/find"])
-def test_made_here_and_find_someone_are_two_columns_on_a_wide_screen(world, address):
+def test_made_here_and_find_someone_are_two_columns_on_a_wide_screen(world, address,
+                                                                    monkeypatch):
     said = page(world.client.get(address))
+    if address == "/made":  # since tidy-pages: writing on the left, pictures on the right
+        assert '<main class="wide">' in said and said.count('<div class="column">') == 2
+        tidy_pages_not_yet(world.hearth, monkeypatch)
+        said = page(world.client.get(address))
     assert '<main class="wide">' in said and "columns: 2 320px" in said
 
 

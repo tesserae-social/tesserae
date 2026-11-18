@@ -83,7 +83,14 @@ PLACE, WEEKLY, CONVERSATION = "place", "weekly", "conversation"
 SECTIONS = (PLACE, WEEKLY, CONVERSATION)
 SECTION_NAMES = {PLACE: "the place", WEEKLY: "the weekly question",
                  CONVERSATION: "conversation"}
-PUBLIC = frozenset({PLACE, WEEKLY})          # anyone may read these
+# Since tidy-pages (the founder's request of 18 November 2026, part 6): "made here", one topic
+# for each piece an agent made, made automatically, as the weekly question's are, and linked
+# from the piece. Anyone may read it; members post. It is shown only where the hearth names
+# it among its sections (hearth.board_sections), and no agent's reading lists it.
+MADE = "made"
+SECTION_NAMES[MADE] = "made here"
+MADE_TOPICS = True
+PUBLIC = frozenset({PLACE, WEEKLY, MADE})    # anyone may read these
 STARTED_BY_MEMBERS = (PLACE, CONVERSATION)   # where a member may start a topic
 
 # A short post: a few sentences, as much as a reply needs.
@@ -407,6 +414,15 @@ def topics(charter_path, weeks, today, sections=SECTIONS):
                           "day": monday.isoformat(), "last": last_of(posts, monday.isoformat()),
                           "posts": posts, "change": None, "week": week, "question": words,
                           "open": True, "auto": True})
+    if MADE in sections and MADE_TOPICS:
+        for piece in made_pieces():
+            day = (piece.get("published_at") or "")[:10]
+            posts = list(board["auto"].get("made:" + piece["id"]) or [])
+            found.append({"key": key_of("made", piece["id"]), "section": MADE,
+                          "subject": piece.get("title"), "by": made_by(piece),
+                          "agent": piece.get("by"), "day": day, "last": last_of(posts, day),
+                          "posts": posts, "change": None, "week": None, "question": None,
+                          "open": True, "auto": True, "piece": piece["id"]})
     for topic in board["topics"]:
         if topic.get("section") not in sections:
             continue
@@ -421,6 +437,21 @@ def topics(charter_path, weeks, today, sections=SECTIONS):
     return found
 
 
+def made_pieces():
+    """Every piece an agent made here that stands (not taken down), newest first: each has its
+    topic in made here."""
+    import made_here
+    return [one for one in made_here.every()
+            if made_here.is_agent(one.get("by") or "") and not one.get("taken_down")]
+
+
+def made_by(piece):
+    """A piece's maker as the board names a topic's: an agent by its name on the commons."""
+    import agents
+    agent = agents.by_id(piece.get("by") or "")
+    return agent["commons_name"] if agent else None
+
+
 def topic(key, charter_path, weeks, today):
     """One topic by its key, as topics() gives it, or None."""
     section = None
@@ -428,6 +459,8 @@ def topic(key, charter_path, weeks, today):
         section = PLACE
     elif key.startswith("week-"):
         section = WEEKLY
+    elif key.startswith("made-"):
+        section = MADE
     wanted = (section,) if section else STARTED_BY_MEMBERS
     return next((one for one in topics(charter_path, weeks, today, wanted)
                  if one["key"] == key), None)
@@ -502,6 +535,11 @@ def posts_of(board, key, charter_path, weeks, today):
         except ValueError:
             raise NotOnTheBoard(key)
         return board["auto"].setdefault("week:" + week, [])
+    if key.startswith("made-"):
+        piece_id = key[len("made-"):]
+        if not MADE_TOPICS or not any(one["id"] == piece_id for one in made_pieces()):
+            raise NotOnTheBoard(key)
+        return board["auto"].setdefault("made:" + piece_id, [])
     found = next((one for one in board["topics"] if key_of("topic", one.get("n")) == key), None)
     if found is None:
         raise NotOnTheBoard(key)

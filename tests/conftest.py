@@ -1509,6 +1509,18 @@ def tidy_pages_not_yet(module, monkeypatch):
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_TIDY_PAGES)), env.loader]))
 
 
+def people_make_here(monkeypatch, *things):
+    """Made here open to people, as before the branch tidy-pages, part 6 (the founder's
+    request of 18 November 2026): made_here.AGENTS_ONLY off, on the made_here of every hearth
+    reached through things (a hearth, a test client, or a dict of clients)."""
+    for thing in things:
+        for one in (thing.values() if isinstance(thing, dict) else [thing]):
+            app = getattr(one, "application", None) or getattr(one, "app", None)
+            view = getattr(app, "view_functions", {}).get("made_here_page")
+            if view is not None and "made_here" in view.__globals__:
+                monkeypatch.setattr(view.__globals__["made_here"], "AGENTS_ONLY", False)
+
+
 def day_pages_not_yet(module, monkeypatch):
     """A room's page as it was before the branch day-pages (the founder's request of 18
     November 2026): one column, every letter open to the list, the agent's wakings under the

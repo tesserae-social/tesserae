@@ -936,7 +936,9 @@ def test_the_keeper_reaches_every_founder_page(founder, hearth):
         assert not answer.headers.get("Location", "").endswith("/login"), path
         # the pages proper open; a photograph or a room that is not there is simply
         # not found; and the letters' old address sends him on to the room
-        opens = 404 if "photo.jpg" in path else 302 if path == "/letters" else 200
+        # and made here's workspace, since tidy-pages (18 November 2026) the agents' alone
+        opens = (404 if "photo.jpg" in path or path == "/made/workspace"
+                 else 302 if path == "/letters" else 200)
         assert answer.status_code == opens, path
     assert founder.get("/letters").headers["Location"] == "/rooms/first"
 

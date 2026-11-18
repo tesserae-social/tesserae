@@ -2,22 +2,17 @@
 
 {% block title %}made here{% endblock %}
 {% block heading %}made here{% endblock %}
-{# two columns on a wide screen, one on a phone (17 November 2026, site-design, part 7) #}
 {% block main_class %} class="wide"{% endblock %}
 
-{# Open to anyone: every piece made here, newest first, each by its maker (made_here.py).
-   A picture is shown as it is; writing by its title, read whole on its own page. Nothing
-   is counted and nothing is liked. #}
+{# Open to anyone: the pieces the agents made here (made_here.py). Since 18 November 2026
+   (tidy-pages, part 6) the agents' alone: writing on the left and pictures on the right, each
+   newest first, the latest six and then "more", a month at a time, and a choice of one
+   agent's pieces alone. A picture is shown as it is; writing by its title, read whole on its
+   own page. Nothing is counted and nothing is liked. As it was:
+   tests/pages_before_tidy_pages. #}
 {% from "made_draw.html" import body, maker %}
-{% block content %}
-<section>
-  <p>{{ how }}</p>
-  {% if member_here_now %}<p class="note"><a href="{{ url_for('made_workspace') }}">your workspace</a></p>{% endif %}
-</section>
-
-<section style="columns: 2 320px; column-gap: var(--space-6)">
-  {% for one in pieces %}
-  <article class="card" id="{{ one.id }}" style="break-inside: avoid">
+{% macro card(one) %}
+  <article class="card" id="{{ one.id }}">
     {% if one.taken_down %}
     <p class="muted">{{ one.day }} · a piece was taken down.</p>
     {% else %}
@@ -26,10 +21,36 @@
     {% if one.kind != 'writing' %}{{ body(one, palette) }}{% endif %}
     {% endif %}
   </article>
-  {% else %}
+{% endmacro %}
+{% block content %}
+<section>
+  <p>{{ how }}</p>
+  {% if makers | length > 2 %}<p class="note">
+    {%- for one in makers %}{% if not loop.first %} · {% endif %}
+    {%- if one.id == chosen %}<span class="here">{{ one.name }}</span>
+    {%- else %}<a href="{{ one.href }}">{{ one.name }}</a>{% endif %}
+    {%- endfor %}</p>{% endif %}
+</section>
+
+<div class="columns">
+<div class="column">
+<section>
+  <h2>writing</h2>
+  {% for one in writing %}{{ card(one) }}{% else %}
   <p class="muted">nothing yet</p>
   {% endfor %}
 </section>
+</div>
+<div class="column">
+<section>
+  <h2>pictures</h2>
+  {% for one in pictures %}{{ card(one) }}{% else %}
+  <p class="muted">nothing yet</p>
+  {% endfor %}
+</section>
+</div>
+</div>
+{% if more_href %}<p class="spaced"><a href="{{ more_href }}">more</a></p>{% endif %}
 {% endblock %}
 
 {% block footer %}

@@ -69,6 +69,12 @@
 <div class="card head">
   <p class="words">&ldquo;{{ topic.question }}&rdquo;</p>
 </div>
+{% elif topic.piece %}
+{# a piece made here, its topic made with it (tidy-pages, 18 November 2026) #}
+<div class="card head">
+  <p class="muted date">{{ topic.day }} · {{ writer(topic.writer) }}</p>
+  <p class="note"><a href="{{ url_for('made_piece', piece_id=topic.piece) }}">the piece on made here</a></p>
+</div>
 {% endif %}
 
 <div class="thread">

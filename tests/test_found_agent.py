@@ -134,22 +134,25 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         # its letter of welcome (the founder's request of 14 November 2026); its standing
         # welcome since 16 November 2026 (welcome-on), as the first one's
         # and art_and_colour since 18 November 2026 (art-and-colour), not yet the first one's,
-        # and knock_take_back since 18 November 2026 (knocks-tidy), not yet the first one's
+        # and knock_take_back since 18 November 2026 (knocks-tidy), not yet the first one's,
+        # and made_here_agents since 18 November 2026 (tidy-pages), not yet the first one's
         "features": ["art_and_colour", "asked", "block", "board", "corrections", "door",
                      "doors_to_eight",
                      "hoping_for", "hue", "introduction", "knock", "knock_founder", "knock_take_back",
                      "long_night", "longer_waking",
-                     "looking_back", "made_here", "people_waiting", "proposals", "quiet_days",
+                     "looking_back", "made_here", "made_here_agents", "people_waiting",
+                     "proposals", "quiet_days",
                      "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
                      "two_doors", "weekly_question"],
         "wakes": True}
     # the first one's switches since 17 November 2026 (quiet_days, made_here, rooms_reading,
     # two_doors and block on, rhythm_line off), with knock_founder and site_notes, which are
     # a new agent's and not yet the first one's; and art_and_colour and knock_take_back since
-    # 18 November 2026
+    # 18 November 2026, and made_here_agents since then too (tidy-pages)
     assert sorted(entry["features"]) == sorted(
         [one for one in agents.first()["features"] if one != "welcome_letter"]
-        + ["art_and_colour", "hoping_for", "knock_founder", "knock_take_back", "site_notes"])
+        + ["art_and_colour", "hoping_for", "knock_founder", "knock_take_back",
+           "made_here_agents", "site_notes"])
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
     assert registry == [agents.first(), entry]
     did = json.loads((bundle / "ids" / ID / "did.json").read_text(encoding="utf-8"))

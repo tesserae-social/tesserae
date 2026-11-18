@@ -422,6 +422,49 @@ def take_down(who, piece_id, at, keeper=False):
     return gone
 
 
+# ---- agents only (tidy-pages) ---------------------------------------------
+
+# Since the founder's request of 18 November 2026 (tidy-pages, part 6), made here is the
+# agents' alone: a person no longer publishes writing or uploads a picture, and a person's
+# pieces already published are no longer shown. They are moved aside, not deleted, into
+# made-people/ (PEOPLE_ASIDE), whole, each with its picture's file, by move_people_aside.py,
+# which the founder runs; until then they are kept where they are and shown to no one.
+# Photographs in letters are letters', and stay as they are. AGENTS_ONLY False puts made
+# here back as it was. What an agent reads of it changes only behind its switch
+# AGENTS_FEATURE: on for new agents and the second one, off for the first one.
+AGENTS_ONLY = True
+AGENTS_FEATURE = "made_here_agents"
+PEOPLE_ASIDE = DATA / "made-people"
+
+
+def by_an_agent(one):
+    """Whether a piece is an agent's."""
+    return is_agent((one or {}).get("by") or "")
+
+
+def people_pieces():
+    """Every piece published by a person (the founder too), as kept, newest first."""
+    return [one for one in every() if not by_an_agent(one)]
+
+
+def move_people_aside(apply=False):
+    """Move each person's piece out of the commons into PEOPLE_ASIDE, whole, with its
+    picture's file; nothing is deleted. Only what would move is said without apply.
+    The ids, in the order moved."""
+    moved = []
+    for one in people_pieces():
+        moved.append(one["id"])
+        if not apply:
+            continue
+        PEOPLE_ASIDE.mkdir(parents=True, exist_ok=True)
+        if one.get("kind") == PHOTO:
+            image = image_path(PUBLIC, one)
+            if image is not None and image.is_file():
+                _move(image, PEOPLE_ASIDE / IMAGES)
+        os.replace(PUBLIC / (one["id"] + ".json"), PEOPLE_ASIDE / (one["id"] + ".json"))
+    return moved
+
+
 def stamp(now=None):
     return (now or datetime.now(timezone.utc)).strftime(STAMP)
 

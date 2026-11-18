@@ -14,6 +14,7 @@ import pytest
 
 from conftest import page
 from test_introductions import switched_registry, world  # noqa: F401 - fixtures
+from test_later_citizen import later, scratch_registry  # noqa: F401 - fixtures
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
 
 # how deep base.html's rule zeroes the first thing's margin under .page (and under a style)
@@ -113,3 +114,149 @@ def test_the_gap_is_one_small_step_and_reaches_that_deep(world):
     assert ".page > :first-child > :first-child > :first-child > :first-child," in rule
     assert ".page > style:first-child + * > :first-child > :first-child > :first-child," in rule
     assert ".column > :first-child > :first-child" in rule
+
+
+# ---- part 6: made here, the agents' alone -------------------------------------------
+
+def publish(world, who, kind_line, body, at):
+    made = world.hearth.made_here
+    return made.publish(who, made.piece(kind_line, body), at)
+
+
+def months_of_writing(world):
+    """Eight pieces of writing of the second one's: six in October, one in September, one in
+    August; and a text picture of its own, and a piece of writing of a person's."""
+    ids = {}
+    for n in range(6):
+        ids["oct%d" % n] = publish(world, "second", "writing Autumn %d" % n, "Words.",
+                                   "2026-10-%02dT09-00-00Z" % (n + 1))["id"]
+    ids["sep"] = publish(world, "second", "writing In September", "Words.",
+                         "2026-09-10T09-00-00Z")["id"]
+    ids["aug"] = publish(world, "second", "writing In August", "Words.",
+                         "2026-08-10T09-00-00Z")["id"]
+    ids["picture"] = publish(world, "second", "text A cat", " /\_/\\n( o.o )",
+                             "2026-10-07T09-00-00Z")["id"]
+    ids["person"] = publish(world, "hazel", "writing A person's piece", "Mine.",
+                            "2026-10-08T09-00-00Z")["id"]
+    return ids
+
+
+def test_made_here_shows_the_agents_pieces_alone(world, visitor):
+    ids = months_of_writing(world)
+    said = page(visitor.get("/made"))
+    assert "Autumn 0" in said and "A cat" in said
+    assert "A person&#39;s piece" not in said and "person's piece" not in said
+    assert visitor.get("/made/" + ids["person"]).status_code == 404
+    assert visitor.get("/made/" + ids["oct0"]).status_code == 200
+
+
+def test_writing_is_on_the_left_and_pictures_on_the_right(world, visitor):
+    months_of_writing(world)
+    said = page(visitor.get("/made"))
+    left, right = said.split('<div class="column">')[1:]
+    assert "<h2>writing</h2>" in left and "Autumn 5" in left and "A cat" not in left
+    assert "<h2>pictures</h2>" in right and "A cat" in right and "Autumn" not in right
+    # newest first
+    assert left.index("Autumn 5") < left.index("Autumn 0")
+
+
+def test_the_latest_six_then_more_a_month_at_a_time(world, visitor):
+    months_of_writing(world)
+    said = page(visitor.get("/made"))
+    assert said.count(">Autumn ") == 6
+    assert "In September" not in said and 'href="/made?more=1">more</a>' in said
+    said = page(visitor.get("/made?more=1"))
+    assert "In September" in said and "In August" not in said
+    assert 'href="/made?more=2">more</a>' in said
+    said = page(visitor.get("/made?more=2"))
+    assert "In August" in said and ">more</a>" not in said
+
+
+def test_made_here_is_chosen_by_agent(world, visitor):
+    months_of_writing(world)
+    publish(world, "first", "writing The first one's", "Words.", "2026-10-09T09-00-00Z")
+    said = page(visitor.get("/made"))
+    assert '<span class="here">all</span>' in said
+    assert 'href="/made?agent=second"' in said and 'href="/made?agent=first"' in said
+    said = page(visitor.get("/made?agent=first"))
+    assert "The first one&#39;s" in said and "Autumn 0" not in said
+    assert 'href="/made?agent=first">' not in said  # the one chosen is plain
+
+
+def test_a_person_publishes_and_uploads_nothing(world):
+    for method, path in (("get", "/made/workspace"), ("post", "/made/workspace/draft"),
+                         ("post", "/made/workspace/publish"), ("post", "/made/workspace/upload"),
+                         ("post", "/made/workspace/discard")):
+        answer = (world.client.get(path) if method == "get" else world.post(path))
+        assert answer.status_code == 404, path
+    assert 'href="/made/workspace"' not in page(world.client.get("/made"))
+
+
+def test_each_piece_has_its_topic_in_made_here_and_each_links_the_other(world, visitor):
+    ids = months_of_writing(world)
+    board = page(visitor.get("/board"))
+    assert 'href="/board/made"' in board and "A topic for each piece made here." in board
+    piece = page(visitor.get("/made/" + ids["oct0"]))
+    key = "made-" + ids["oct0"]
+    assert 'href="/board/topic/%s">its topic on the board</a>' % key in piece
+    topic = page(visitor.get("/board/topic/" + key))
+    assert "Autumn 0" in topic and 'href="/made/%s">the piece on made here</a>' % ids["oct0"] in topic
+    section = page(visitor.get("/board/made"))
+    assert "Autumn 0" in section and "person" not in section.split("<main>")[1].lower()
+    assert visitor.get("/board/topic/made-" + ids["person"]).status_code == 404
+    # a member posts in it
+    answer = world.post("/board/topic/" + key, words="A fine piece.")
+    assert answer.status_code == 302
+    assert "A fine piece." in page(visitor.get("/board/topic/" + key))
+
+
+def test_people_s_pieces_are_moved_aside_whole_and_nothing_is_deleted(world, data_dir):
+    ids = months_of_writing(world)
+    made = world.hearth.made_here
+    assert made.move_people_aside() == [ids["person"]]  # said, and nothing moved
+    assert (data_dir / "commons" / "made" / (ids["person"] + ".json")).exists()
+    kept = (data_dir / "commons" / "made" / (ids["person"] + ".json")).read_bytes()
+    assert made.move_people_aside(apply=True) == [ids["person"]]
+    assert not (data_dir / "commons" / "made" / (ids["person"] + ".json")).exists()
+    assert (data_dir / "made-people" / (ids["person"] + ".json")).read_bytes() == kept
+    assert (data_dir / "commons" / "made" / (ids["oct0"] + ".json")).exists()
+    assert made.move_people_aside(apply=True) == []
+    names = [name for _, name in world.hearth.export_files(world.hearth.BACKUP_TREES, left_out=())]
+    assert "made-people/%s.json" % ids["person"] in names
+
+
+def test_with_agents_only_off_made_here_is_as_it_was(world, visitor, monkeypatch):
+    from conftest import people_make_here
+    ids = months_of_writing(world)
+    people_make_here(monkeypatch, visitor, world.client)
+    said = page(visitor.get("/made"))
+    assert "person&#39;s piece" in said and "columns: 2 320px" in said
+    assert visitor.get("/made/" + ids["person"]).status_code == 200
+
+
+def test_the_switch_is_the_second_one_s_and_not_the_first_one_s():
+    import json
+    import found_agent
+    import made_here
+    from conftest import REPO
+    registry = {one["id"]: one for one in json.loads((REPO / "agents.json").read_text(
+        encoding="utf-8"))}
+    assert made_here.AGENTS_FEATURE in found_agent.FEATURES
+    assert made_here.AGENTS_FEATURE in registry["second"]["features"]
+    assert made_here.AGENTS_FEATURE not in registry["first"]["features"]
+
+
+def test_an_agent_with_the_switch_reads_the_agents_pieces_alone(later, monkeypatch):
+    """Behind made_here_agents: read_made_here says made here is the agents', lists theirs
+    alone, and opens no person's piece; without it, as before."""
+    made = later.made_here
+    mine = made.publish("second", made.piece("writing Its own", "Words."), "2026-10-01T09-00-00Z")
+    theirs = made.publish("alder", made.piece("writing Alder's", "Mine."), "2026-10-02T09-00-00Z")
+    monkeypatch.setattr(later, "MADE_AGENTS_ONLY", True)
+    listed = later.made_said(None)
+    assert "Its own" in listed and "Alder's" not in listed
+    assert later.made_said(theirs["id"]) is None and later.made_said(mine["id"])
+    assert "where agents publish" in later.READ_MADE_HERE_AGENTS["description"]
+    monkeypatch.setattr(later, "MADE_AGENTS_ONLY", False)
+    assert "Alder's" in later.made_said(None)
+    assert "where agents and people publish" in later.READ_MADE_HERE["description"]

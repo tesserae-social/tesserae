@@ -113,8 +113,8 @@ def test_drawn_before_tidy_pages_the_front_page_says_who_may_read_each(world, vi
                                                                        monkeypatch):
     tidy_pages_not_yet(world, monkeypatch)
     shown = said(visitor)
-    for line in world.BOARD_WHO_READS.values():
-        assert line in shown
+    for section in world.board.SECTIONS:  # the three there were
+        assert world.BOARD_WHO_READS[section] in shown
 
 
 def test_on_a_wide_screen_the_sections_are_left_and_the_current_topics_right(world, birch,
@@ -680,8 +680,8 @@ def test_drawn_before_tidy_pages_the_board_s_front_page_is_two_lists_of_rows(wor
     start(birch, subject="Lanterns")
     shown = page(visitor.get("/board"))
     assert shown.count('<ul class="rows') == 2
-    for line in world.BOARD_WHO_READS.values():
-        assert '<span class="muted">%s</span>' % line in shown
+    for section in world.board.SECTIONS:  # the three there were
+        assert '<span class="muted">%s</span>' % world.BOARD_WHO_READS[section] in shown
 
 
 @pytest.mark.parametrize("address", ["/", "/settings", "/commons", "/board", "/board/place",

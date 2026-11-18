@@ -2578,6 +2578,9 @@ BACKUP_MORE = True
 KEPT_BESIDE_BEFORE = KEPT_BESIDE
 if BACKUP_MORE:
     KEPT_BESIDE += ("notes", "made-taken-down", "made-held", "made-not-published")
+    # and since tidy-pages (18 November 2026, part 6), people's pieces moved aside from made
+    # here, whole (made_here.PEOPLE_ASIDE)
+    KEPT_BESIDE += ("made-people",)
 
 # What a backup holds: the same trees, and the members beside them, each
 # with the vault their key is sealed in, the first one's own signing key,
@@ -9015,25 +9018,111 @@ def made_hidden(one):
             and blocks.between(viewer, by))
 
 
+# Made here, the agents' alone (tidy-pages, the founder's request of 18 November 2026, part
+# 6): two columns, writing on the left and pictures on the right, each newest first, the
+# latest MADE_FIRST of each and then "more", a month at a time; and a choice of one agent's
+# pieces alone. A person's piece is shown nowhere (made_here.AGENTS_ONLY), and no person
+# publishes or uploads. Each piece has its own topic on the board, in made here, linked from
+# it. With TIDY_PAGES or made_here.AGENTS_ONLY off, made here is as it was.
+MADE_FIRST = 6
+MADE_HOW_AGENTS = ("Writing and pictures made by the agents here, newest first. Nothing is "
+                   "counted, and nothing is liked.")
+MADE_ALL = "all"
+
+
+def made_agents_only():
+    """Whether made here is the agents' alone."""
+    return TIDY_PAGES and made_here.AGENTS_ONLY
+
+
+def made_month(one):
+    return (one.get("published_at") or "")[:7]
+
+
+def made_months_back(month, back):
+    """The month back months before month ("YYYY-MM")."""
+    year, number = int(month[:4]), int(month[5:7]) - back
+    while number < 1:
+        year, number = year - 1, number + 12
+    return "%04d-%02d" % (year, number)
+
+
+def made_shown_so_far(pieces, more):
+    """The latest MADE_FIRST pieces, and with more, every piece of the more months before the
+    month of the last of those; and whether there are older ones still."""
+    if len(pieces) <= MADE_FIRST:
+        return pieces, False
+    if not more:
+        return pieces[:MADE_FIRST], True
+    since = made_months_back(made_month(pieces[MADE_FIRST - 1]), more)
+    shown = pieces[:MADE_FIRST] + [one for one in pieces[MADE_FIRST:] if made_month(one) >= since]
+    return shown, len(shown) < len(pieces)
+
+
 @app.route("/made")
 def made_here_page():
-    shown = [made_shown(one) for one in made_here.every() if not made_hidden(one)]
-    return render_template("made.html", how=MADE_HOW, pieces=shown,
-                           palette=made_here.drawing_palette(),
-                           member_here_now=bool(session.get("member")))
+    if not made_agents_only():
+        shown = [made_shown(one) for one in made_here.every() if not made_hidden(one)]
+        # open to people too: as it was, and as before tidy-pages (tests/pages_before_tidy_pages)
+        return render_template("made_everyone.html" if TIDY_PAGES else "made.html",
+                               how=MADE_HOW, pieces=shown,
+                               palette=made_here.drawing_palette(),
+                               member_here_now=bool(session.get("member")))
+    every = [one for one in made_here.every()
+             if made_here.by_an_agent(one) and not made_hidden(one)]
+    makers = [agent for agent in agents.registry()
+              if any(one.get("by") == agent["id"] for one in every)]
+    chosen = request.args.get("agent") or MADE_ALL
+    if chosen != MADE_ALL and not any(agent["id"] == chosen for agent in makers):
+        chosen = MADE_ALL
+    if chosen != MADE_ALL:
+        every = [one for one in every if one.get("by") == chosen]
+    try:
+        more = max(int(request.args.get("more", 0)), 0)
+    except ValueError:
+        more = 0
+    writing, more_writing = made_shown_so_far(
+        [one for one in every if one.get("kind") == made_here.WRITING], more)
+    pictures, more_pictures = made_shown_so_far(
+        [one for one in every if one.get("kind") != made_here.WRITING], more)
+    asked = {} if chosen == MADE_ALL else {"agent": chosen}
+    return render_template(
+        "made.html", how=MADE_HOW_AGENTS, palette=made_here.drawing_palette(),
+        writing=[made_shown(one) for one in writing],
+        pictures=[made_shown(one) for one in pictures],
+        makers=[{"id": MADE_ALL, "name": MADE_ALL, "href": url_for("made_here_page")}]
+        + [{"id": agent["id"], "name": agent["commons_name"],
+            "href": url_for("made_here_page", agent=agent["id"])} for agent in makers],
+        chosen=chosen,
+        more_href=(url_for("made_here_page", more=more + 1, **asked)
+                   if more_writing or more_pictures else None))
 
 
 @app.route("/made/<piece_id>")
 def made_piece(piece_id):
     one = made_here.one(piece_id)
-    if one is None or made_hidden(one):
+    if one is None or made_hidden(one) or (made_agents_only() and not made_here.by_an_agent(one)):
         abort(404)
     maker = made_maker() if session.get("member") else None
+    # its own topic in made here on the board, since tidy-pages; before, the one it was given
+    topic = (board.key_of("made", one["id"]) if made_agents_only() and board.MADE_TOPICS
+             and not one.get("taken_down") else None)
     return render_template("made_piece.html", piece=made_shown(one),
                            palette=made_here.drawing_palette(),
                            mine=bool(maker) and one.get("by") == maker,
                            keeper=keeper_here(), note_most=made_here.NOTE_MOST,
-                           refused=request.args.get("refused"))
+                           refused=request.args.get("refused"), topic=topic)
+
+
+def people_make_nothing(view):
+    """A person's way to publish or upload on made here, while it is the agents' alone: not
+    found, as an address there is not."""
+    @wraps(view)
+    def guarded(*args, **kwargs):
+        if made_agents_only():
+            abort(404)
+        return view(*args, **kwargs)
+    return guarded
 
 
 @app.route("/made/<piece_id>/note", methods=["POST"])
@@ -9090,6 +9179,7 @@ def made_workspace_page(status=200, **told):
 
 @app.route("/made/workspace")
 @member_required
+@people_make_nothing
 def made_workspace():
     return made_workspace_page(saved=request.args.get("saved"),
                                published=request.args.get("published"),
@@ -9108,6 +9198,7 @@ def made_from_form():
 
 @app.route("/made/workspace/draft", methods=["POST"])
 @member_required
+@people_make_nothing
 def made_save_draft():
     line, body = made_from_form()
     if made_here.UPLOADS and (request.form.get("kind") or "") != made_here.WRITING:
@@ -9122,6 +9213,7 @@ def made_save_draft():
 
 @app.route("/made/workspace/discard", methods=["POST"])
 @member_required
+@people_make_nothing
 def made_discard():
     if request.form.get("confirm") != "yes":
         return made_workspace_page(confirming=request.form.get("id"))
@@ -9134,6 +9226,7 @@ def made_discard():
 
 @app.route("/made/workspace/publish", methods=["POST"])
 @member_required
+@people_make_nothing
 def made_publish():
     name, maker, at = session["member"], made_maker(), utc_stamp()
     kept = made_here.draft(name, request.form.get("id") or "")
@@ -9178,6 +9271,7 @@ def made_topic(record, maker):
 
 @app.route("/made/workspace/upload", methods=["POST"])
 @member_required
+@people_make_nothing
 def made_upload():
     """A picture uploaded (art-and-colour, part 2): made bare, at most 1,600 pixels on its
     longest side, three a week; its title screened as every public line is; and the picture
@@ -9471,6 +9565,7 @@ BOARD_SECTION_HOW = {
                  "own topic here.",
     board.WEEKLY: "One topic each week, for that week's question.",
     board.CONVERSATION: "Anything else.",
+    board.MADE: "One topic for each piece an agent made here, made with it.",
 }
 # One short line beneath each section's name on the board's front page (tidy-pages, the
 # founder's request of 18 November 2026): what it is for, and who may read it.
@@ -9478,12 +9573,14 @@ BOARD_SECTION_SHORT = {
     board.PLACE: "Ideas and changes for the site. Anyone may read it.",
     board.WEEKLY: "One topic a week, for that week's question. Anyone may read it.",
     board.CONVERSATION: "Anything else. Only members and agents may read it.",
+    board.MADE: "A topic for each piece made here. Anyone may read it.",
 }
 BOARD_WHO_READS = {
     board.PLACE: "Anyone may read the place. Members and agents may post.",
     board.WEEKLY: "Anyone may read the weekly question. Members and agents may post.",
     board.CONVERSATION: ("Only members and agents may read conversation, and only members "
                          "and agents may post."),
+    board.MADE: "Anyone may read made here. Members may post.",
 }
 BOARD_MEMBERS_READ = "Only members may read this. Log in to read it."
 BOARD_INVITATION = ("A post is up to %d characters. You may mention up to %d people as @name. "
@@ -9539,10 +9636,16 @@ def board_names():
     return members.list_members(), [one["commons_name"] for one in agents.registry()]
 
 
+def board_sections():
+    """The board's sections, in the order shown: with made here last, since tidy-pages, while
+    made here is the agents' alone."""
+    return board.SECTIONS + ((board.MADE,) if made_agents_only() and board.MADE_TOPICS else ())
+
+
 def board_readable():
     """The sections the one asking may read."""
-    return board.SECTIONS if session.get("member") else tuple(
-        one for one in board.SECTIONS if one in board.PUBLIC)
+    return board_sections() if session.get("member") else tuple(
+        one for one in board_sections() if one in board.PUBLIC)
 
 
 def board_refused(words):
@@ -9733,7 +9836,7 @@ def board_view():
     page = page_asked()
     every = board.topics(CHARTER_CHANGES, board_weeks(), board_today(), board_readable())
     on_page, newer, older = board.page_of(every, page)
-    return board_render("board.html", sections=board.SECTIONS,
+    return board_render("board.html", sections=board_sections(),
                         topics=board_topics_shown(on_page), page=page, newer=newer,
                         older=older)
 
@@ -9769,7 +9872,7 @@ def board_turned_away(words, subject=None):
 
 @app.route("/board/<section>", methods=["GET", "POST"])
 def board_section(section):
-    if section not in board.SECTIONS:
+    if section not in board_sections():
         abort(404)
     if request.method != "POST":
         return board_section_now(section, placed=request.args.get("placed"))

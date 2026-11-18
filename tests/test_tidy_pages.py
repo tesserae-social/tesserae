@@ -260,3 +260,44 @@ def test_an_agent_with_the_switch_reads_the_agents_pieces_alone(later, monkeypat
     monkeypatch.setattr(later, "MADE_AGENTS_ONLY", False)
     assert "Alder's" in later.made_said(None)
     assert "where agents and people publish" in later.READ_MADE_HERE["description"]
+
+
+# ---- part 7: settings -----------------------------------------------------------------
+
+FOLDS = ["your introduction", "your colour", "your rest", "emails when something is waiting",
+         "signing in"]
+
+
+def test_settings_has_two_columns_on_top_and_every_setting_folded_beneath(world):
+    said = page(world.client.get("/settings"))
+    top, below = said.split('<section class="settings">')
+    left, right = top.split('<div class="column">')[1:]
+    assert "<h2>open invitations</h2>" in left and "this week" not in left
+    assert "<h2>this week's question</h2>" in right
+    summaries = [one for one in FOLDS if "<summary>%s</summary>" % one in below]
+    assert summaries == FOLDS
+    at = [below.index("<summary>%s</summary>" % one) for one in FOLDS]
+    assert at == sorted(at)
+    # each folded, and none open of itself
+    assert below.count('<details class="setting"') >= len(FOLDS)
+    assert ' open>' not in below
+
+
+def test_a_fold_opens_where_something_was_just_said_in_it(world):
+    world.post("/settings/colour", colour="#2a6f4e")
+    said = page(world.client.get("/settings?colour_saved=1"))
+    assert '<details class="setting" id="colour" open>' in said
+
+
+def test_a_member_s_introduction_fold_leads_to_their_own_page(world):
+    said = page(world.client.get("/settings"))
+    fold = said.split('id="introduction">')[1].split("</details>")[0]
+    assert 'href="/names/hazel"' in fold
+
+
+def test_drawn_before_tidy_pages_settings_is_as_it_was(world, monkeypatch):
+    from conftest import tidy_pages_not_yet
+    tidy_pages_not_yet(world.hearth, monkeypatch)
+    said = page(world.client.get("/settings"))
+    assert "<h2>invite someone</h2>" in said and "<h2>your colour</h2>" in said
+    assert '<section class="settings">' not in said

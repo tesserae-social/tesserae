@@ -215,7 +215,7 @@ def test_a_new_member_is_told_from_when_and_shown_no_form(hearth, pinned):
     arrive(hearth, MEMBER, MEMBER_PASSWORD, datetime(2026, 10, 1, 15, tzinfo=timezone.utc))
     client = signed_in(hearth, MEMBER, MEMBER_PASSWORD)
     said = page(client.get("/settings"))
-    assert "<h2>invite someone</h2>" in said
+    assert "<h2>open invitations</h2>" in said  # since tidy-pages; before, "invite someone"
     assert "You may invite someone from 31 October 2026." in said
     assert 'name="note"' not in said
     assert invite(client).status_code == 200
@@ -315,7 +315,9 @@ def test_no_other_member_may_withdraw_it_and_none_once_used(hearth, member, data
     arrive(hearth, OTHER, OTHER_PASSWORD, datetime(2026, 9, 1, tzinfo=timezone.utc))
     other = signed_in(hearth, OTHER, OTHER_PASSWORD)
     [one] = files(data_dir)
-    assert "open invitations" not in page(other.get("/settings"))
+    # the keeper's list of every open invitation (since tidy-pages so called; before, "open
+    # invitations", which now heads one's own)
+    assert "every open invitation" not in page(other.get("/settings"))
     withdraw(other, one["id"])
     assert files(data_dir)[0]["withdrawn_at"] is None
     join(hearth.app.test_client(), link)

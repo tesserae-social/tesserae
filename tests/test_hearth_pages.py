@@ -299,8 +299,9 @@ def test_the_rest_and_the_stop_are_apart(founder):
     """The founder's rest is on the account page, as a member's is; the stop is the tide's,
     on /tides (10 November 2026)."""
     account, tides = page(founder.get("/settings")), page(founder.get("/tides"))
-    assert "<h2>your rest</h2>" in account and "Stop the tide" not in account
-    assert "<h2>your rest</h2>" not in tides
+    # since tidy-pages folded beneath its own arrow; before, under its own heading
+    assert "<summary>your rest</summary>" in account and "Stop the tide" not in account
+    assert "your rest" not in tides
     assert "Rest from the correspondence" not in tides
     assert '<details class="emergency">' in tides
     assert 'class="emergency"' not in page(founder.get("/attendances"))

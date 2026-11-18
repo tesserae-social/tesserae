@@ -22,7 +22,7 @@ import re
 import pytest
 
 import agents
-from conftest import REPO, write
+from conftest import REPO, atrium_before_design, write
 from test_atrium_paths import (NODE, REGIONS, a_record, both_pages, build, jsdom_here,
                                regions_of)
 
@@ -108,6 +108,7 @@ def test_a_renamed_citizen_s_old_lines_keep_its_colour(atrium, data_dir, two, mo
 
 
 def test_the_first_one_s_tiles_never_change_colour(atrium, data_dir, monkeypatch, tmp_path):
+    atrium_before_design(atrium, monkeypatch)  # as before site-design (17 November 2026)
     """Its tiles, and every line that names no one, are drawn alike with a second or without."""
     a_record_of_two(data_dir)
     registry_of(monkeypatch, tmp_path)
@@ -130,6 +131,7 @@ def test_the_first_one_s_tiles_never_change_colour(atrium, data_dir, monkeypatch
 
 
 def test_who_is_here_gives_each_citizen_its_own_swatch(atrium, data_dir, two, monkeypatch):
+    atrium_before_design(atrium, monkeypatch)  # as before site-design (17 November 2026)
     a_record_of_two(data_dir)
     who = drawn_regions(atrium, monkeypatch)["who"]
     # each citizen's name links to its page (16 November 2026)
@@ -142,6 +144,7 @@ def test_who_is_here_gives_each_citizen_its_own_swatch(atrium, data_dir, two, mo
 
 def test_the_stylesheet_is_written_with_the_second_citizen_s_hue(atrium, data_dir, two,
                                                                  monkeypatch):
+    atrium_before_design(atrium, monkeypatch)  # as before site-design (17 November 2026)
     real = (REPO / "style.css").read_bytes()
     a_record_of_two(data_dir)
     build(atrium, monkeypatch)
@@ -161,6 +164,7 @@ def test_the_stylesheet_is_written_with_the_second_citizen_s_hue(atrium, data_di
 
 def test_with_the_first_one_alone_the_stylesheet_is_not_written(atrium, data_dir,
                                                                  monkeypatch, tmp_path):
+    atrium_before_design(atrium, monkeypatch)  # as before site-design (17 November 2026)
     registry_of(monkeypatch, tmp_path)
     a_record(data_dir)
     atrium.style_path.write_bytes((REPO / "style.css").read_bytes())
@@ -174,6 +178,7 @@ def test_with_the_first_one_alone_the_stylesheet_is_not_written(atrium, data_dir
 
 def test_a_citizen_with_no_hue_is_never_drawn_in_the_first_one_s(atrium, data_dir, monkeypatch,
                                                                   tmp_path):
+    atrium_before_design(atrium, monkeypatch)  # as before site-design (17 November 2026)
     registry_of(monkeypatch, tmp_path, {key: value for key, value in SECOND.items()
                                         if key != "hue"})
     a_record_of_two(data_dir)
@@ -223,11 +228,11 @@ def test_both_paths_draw_a_second_citizen_alike(atrium, data_dir, two, monkeypat
     assert tiles["9 October 2026 · waking · the second one · "
                  "woke in the evening, as it was then"] == (
         "tile-attendance hue-second")
+    # since site-design (17 November 2026) the first one's tiles carry its colour class too,
+    # and who is here is drawn from here.json, which this record has not: no section
     assert tiles["10 October 2026 · waking · the first one · attended by day"] == (
-        "tile-attendance")
-    assert ('<span class="swatch hue-second"></span><a class="name" '
-            'href="https://hearth.tesserae.social/names/second">Wren</a>') in there["who"]
-    assert FIRST_SWATCH in there["who"]
+        "tile-attendance hue-first")
+    assert there["who"].strip() == ""
 
 
 @needs_jsdom

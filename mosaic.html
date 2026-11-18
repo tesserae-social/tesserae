@@ -116,8 +116,64 @@
   const called = citizens => citizens
     .flatMap(one => [one.commons_name, ...one.formerly].map(name => [name, one]))
     .sort((a, b) => b[0].length - a[0].length);
-  const hued = (css, one, citizens) =>
-    !one || one.id === citizens[0].id ? css : `${css} hue-${one.id}`;
+  // every agent's own tiles carry hue-<its id>, the first one's too, and are drawn solid in
+  // exactly the colour of the square beside its name (17 November 2026); a person's carry
+  // person-<their name>, where they have chosen a colour. build_atrium.py says the same.
+  const hued = (css, one, citizens) => !one ? css : `${css} hue-${one.id}`;
+  const personClass = name => "person-" + slug(name);
+  const personed = (css, name, people) =>
+    name && people.some(([said]) => said === name) ? `${css} ${personClass(name)}` : css;
+  const HEX = /^#[0-9A-F]{6}$/, NO_HUE = "#5F5E5A";
+  const colourRules = (citizens, people) =>
+    [...citizens.map(one => [`hue-${one.id}`, one.hue]),
+     ...people.map(([name, colour]) => [personClass(name), colour])].map(([css, colour]) => {
+      const c = HEX.test((colour || "").toUpperCase()) ? colour.toUpperCase() : NO_HUE;
+      return `.mosaic li.${css} { background: ${c}; border-color: ${c}; box-shadow: none; }\n` +
+             `.swatch.${css} { background: ${c}; }`;
+    }).join("\n");
+  // each person's colour, as (name, colour), where shaped as the hearth shapes one
+  const peopleOf = entries => (Array.isArray(entries) ? entries : []).filter(one =>
+    one && typeof one === "object" && typeof one.name === "string" && one.name &&
+    typeof one.hue === "string" && HEX.test(one.hue.toUpperCase()))
+    .map(one => [one.name, one.hue.toUpperCase()]);
+  // who is here as the hearth said it: agents and people, at most ten each
+  const ADDRESS = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, HERE_MOST = 10;
+  const colourOf = said => typeof said === "string" && HEX.test(said.toUpperCase())
+    ? said.toUpperCase() : NO_HUE;
+  const hereOf = said => {
+    if (!said || typeof said !== "object" || Array.isArray(said)) return null;
+    return [(Array.isArray(said.agents) ? said.agents : []).filter(one =>
+              one && typeof one === "object" && typeof one.id === "string" && ID.test(one.id) &&
+              typeof one.name === "string" && one.name)
+              .slice(0, HERE_MOST).map(one => [one.id, one.name, colourOf(one.hue)]),
+            (Array.isArray(said.people) ? said.people : []).filter(one =>
+              one && typeof one === "object" && typeof one.address === "string" &&
+              ADDRESS.test(one.address) && typeof one.name === "string" && one.name)
+              .slice(0, HERE_MOST).map(one => [one.name, one.address, colourOf(one.hue)])];
+  };
+  // a line of acts.md: a date, a person's name, what they did that day
+  const parseActs = (text, people) => text.split(/\r?\n/).map(line => {
+    let f = line.trim().replace(/^-+/, "").split(DOT);
+    if (f.length > 3) f = [...f.slice(0, 2), f.slice(2).join(DOT)];
+    f = f.map(part => part.trim());
+    const t = f.length === 3 && f[1] && f[2] ? when(DAY.exec(f[0])) : null;
+    if (!t) return null;
+    return [Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()),
+            personed("tile-acts", f[1], people),
+            `${human(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate())} ${DOT} ${f[1]} ${DOT} ${f[2]}`, ""];
+  }).filter(Boolean);
+  const swatchOfColour = colour => `<span class="swatch" style="background: ${colour}"></span>`;
+  const hereBlock = ([found, people]) => [
+    "<h2>who is here</h2>", '<div class="who-columns">', '  <div class="who-column">',
+    "    <h3>agents</h3>",
+    ...(found.length ? ['    <ul class="members">', ...found.map(([id, name, colour]) =>
+      `      <li>${swatchOfColour(colour)}<a class="name" href="${NAME_PAGE}${id}">${esc(name)}</a> ${DOT} agent</li>`),
+      "    </ul>"] : ['    <p class="fact">no one just now</p>']),
+    "  </div>", '  <div class="who-column">', "    <h3>people</h3>",
+    ...(people.length ? ['    <ul class="members">', ...people.map(([name, address, colour]) =>
+      `      <li>${swatchOfColour(colour)}<a class="name" href="${NAME_PAGE}${address}">${esc(name)}</a></li>`),
+      "    </ul>"] : ['    <p class="fact">no one just now</p>']),
+    "  </div>", "</div>", `<p class="find"><a href="${HEARTH}/find">find someone →</a></p>`];
   // a line of events.md named for a citizen, and a citizen's founding
   const eventWhose = (kind, words, citizens) => {
     const named = kind === "event" && called(citizens)
@@ -196,7 +252,9 @@
                   : h >= 16 && h <= 20 ? "evening" : "night";
   // a line of events.md: a date, a kind, the words -- a kind we do not know is a
   // plain event.
-  const parseEvents = (text, citizens) => text.split(/\r?\n/).map(line => {
+  const letterWriter = words => { const said = letterShown(words).split(` ${DOT} `)[0];
+    return said.endsWith(" wrote a letter") ? said.slice(0, -" wrote a letter".length) : null; };
+  const parseEvents = (text, citizens, people = []) => text.split(/\r?\n/).map(line => {
     let f = line.trim().replace(/^-+/, "").split(DOT);
     if (f.length > 3) f = [...f.slice(0, 2), f.slice(2).join(DOT)];
     f = f.map(part => part.trim());
@@ -208,7 +266,8 @@
     const css = known || KIND.event;
     const shown = known === KIND.letter ? letterShown(words) : words;
     return [Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()),
-            hued(css, eventWhose(known ? f[1] : "event", words, citizens), citizens),
+            personed(hued(css, eventWhose(known ? f[1] : "event", words, citizens), citizens),
+                     known === KIND.letter ? letterWriter(words) : null, people),
             `${day} ${DOT} ${shown}`, known === KIND.seal ? BOND_URL : ""];
   }).filter(Boolean);
   // a heartbeat's words as the page reads them out: the name, a middot, the rest.
@@ -451,14 +510,20 @@
   };
   const draw = said => {
     const [eventsText, beatsText, membersText, bondsText, citizens,
-           introductions, open] = said;
+           introductions, open, actsText, people, hereSaid] = said;
     const beats = parseBeats(beatsText, citizens);
     const members = parseMembers(membersText), bonds = parseBonds(bondsText);
     // once there is a list of bonds, a seal is drawn from it, one tile a bond, and
     // the seal lines of events.md are passed over
-    const events = parseEvents(eventsText, citizens)
+    const events = parseEvents(eventsText, citizens, people)
       .filter(t => !(bonds.length && t[1] === KIND.seal));
-    const tiles = [...events, ...bondTiles(bonds), ...beats.map(b => [b.day, b.tile, b.title, ""])];
+    const tiles = [...events, ...bondTiles(bonds), ...beats.map(b => [b.day, b.tile, b.title, ""]),
+                   ...parseActs(actsText, people)];
+    // every agent's and person's colour, as the hearth says it now, over what was baked
+    let live = document.getElementById("hues-live");
+    if (!live) { live = document.createElement("style"); live.id = "hues-live";
+                 document.head.appendChild(live); }
+    live.textContent = colourRules(citizens, people);
     if (!tiles.length) return;
     // the commons keeps one clock, so the last slot the page draws and the season
     // it says are both read off the citizen's, not off whoever is reading
@@ -471,7 +536,7 @@
       ? [["whole", wholeBlock(days(tiles, today))],
          ["reading", readingBlock(slots(tiles, today))]]
       : [["mosaic", frameBlock(front)], ["reading", readingBlock(front)],
-         ["who", whoBlock(members, bonds, citizens, introductions, open)],
+         ["who", hereSaid ? hereBlock(hereSaid) : []],
          ["calendar", calendarBlock(now.year, now.month, now.day)]];
     const where = blocks.map(([name]) => [edge(name, "start"), edge(name, "end")]);
     if (where.some(([a, b]) => !a || !b)) return;
@@ -487,10 +552,15 @@
     .map(name => asked(`commons/${name}`)), asked("commons/bonds.md").catch(() => ""),
     asked("commons/agents.json").then(JSON.parse).catch(() => null),
     asked("commons/introductions.json").then(JSON.parse).catch(() => null),
-    asked("commons/open-doors.json").then(JSON.parse).catch(() => null)])
-    .then(([eventsText, beatsText, membersText, bondsText, listed, introduced, opened]) =>
+    asked("commons/open-doors.json").then(JSON.parse).catch(() => null),
+    asked("commons/acts.md").catch(() => ""),
+    asked("commons/people.json").then(JSON.parse).catch(() => null),
+    asked("commons/here.json").then(JSON.parse).catch(() => null)])
+    .then(([eventsText, beatsText, membersText, bondsText, listed, introduced, opened,
+            actsText, peopleSaid, hereSaid]) =>
       draw([eventsText, beatsText, membersText, bondsText,
-            citizensOf(listed), introductionsOf(introduced), openDoorsOf(opened)])).catch(() => { /* the hearth is quiet; what was baked in stands */ });
+            citizensOf(listed), introductionsOf(introduced), openDoorsOf(opened),
+            actsText, peopleOf(peopleSaid), hereOf(hereSaid)])).catch(() => { /* the hearth is quiet; what was baked in stands */ });
 })();
 
 // The reading line says the tile the cursor or the keyboard is on, and returns

@@ -79,7 +79,8 @@ def test_taken_down_it_is_gone_and_what_stood_is_kept_beside_it(world):
 
 def test_another_member_sees_it_and_a_visitor_never_sees_a_person(world, visitor):
     world.post("/account/hoping-for", hoping_for=HOPES)
-    assert visitor.get("/names/" + HAZEL).status_code == 404
+    assert visitor.get("/names/" + HAZEL).status_code == 302  # asked to sign in (17 November 2026)
+    assert HOPES not in page(visitor.get("/names/" + HAZEL))
 
 
 # ---- an agent's ---------------------------------------------------------------

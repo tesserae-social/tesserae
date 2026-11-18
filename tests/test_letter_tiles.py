@@ -17,6 +17,17 @@ import pytest
 import backfill_letter_tiles as backfill
 from conftest import FOUNDING_LINE, WORD_LINE, lines_of, page, post, write
 
+
+@pytest.fixture(autouse=True)
+def letter_events_as_before(request, monkeypatch):
+    """These tests hold a letter's line of events.md as it was written before the branch
+    site-design, part 8 (17 November 2026; conftest.letter_events_not_yet). Since then a
+    person's letters are counted in their daily line of acts, and a letter writes no line of
+    its own unless it carries a line for the commons (held at the end of this file)."""
+    if "hearth" in request.fixturenames or "founder" in request.fixturenames:
+        from conftest import letter_events_not_yet
+        letter_events_not_yet(request.getfixturevalue("hearth"), monkeypatch)
+
 LETTER = "Dear first one,\n\nThe heron came back to the lake this morning.\n"
 
 
@@ -412,3 +423,13 @@ def test_with_no_letters_the_backfill_adds_nothing(commons, capsys, room):
     added, said = run(commons, room / "letters", capsys)
     assert added == 0 and said == "0\n"
     assert (commons / "events.md").read_text(encoding="utf-8") == EVENTS
+
+
+# ---- since the branch site-design, part 8 (17 November 2026) --------------------------
+
+def test_in_the_daily_line_a_letter_writes_no_line_of_its_own(founder, commons, hearth,
+                                                              monkeypatch):
+    monkeypatch.setattr(hearth, "LETTER_EVENTS_IN_ACTS", True)
+    assert leave(founder).status_code == 302
+    assert letter_lines(commons) == []
+    assert lines_of(commons / "events.md")[:2] == [WORD_LINE, FOUNDING_LINE]  # the old stay

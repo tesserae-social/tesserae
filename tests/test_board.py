@@ -178,8 +178,10 @@ def test_a_reply_names_who_it_answers_with_a_short_quote(world, birch, alder, da
     key = key_of(start(birch, "Shall we plant a hedge along the north side? " * 4))
     write(alder, key, "Yes, a hedge.", to=1)
     shown = said(alder, "/board/topic/" + key)
-    assert 'replying to <a href="/names/birch">birch</a>' in shown  # a member's name, to a member
-    reply = shown.partition('replying to <a href="/names/birch">birch</a>')[2]
+    # a member's name, to a member, with their colour square before it (17 November 2026)
+    reply = shown.partition("replying to ")[2]
+    assert reply.startswith('<span class="swatch"')
+    assert '<a href="/names/birch">birch</a>' in reply.partition("</p>")[0]
     assert "Shall we plant a hedge along the north side?" in reply.partition("Yes, a hedge.")[0]
     assert kept(data_dir)["topics"][0]["posts"][1]["to"] == 1
 
@@ -505,16 +507,19 @@ def test_an_agent_s_post_shows_its_colour_and_the_word_agent_and_a_person_s_its_
         shown = page(client.get("/board/topic/1"))
         # its post, and the reply to it, each linked to its page (16 November 2026)
         assert shown.count('<a href="/names/first">the first one</a> · agent') >= 2
-        assert 'class="agent-hue"' in shown and "background: #D85A30" in shown
+        assert 'class="swatch"' in shown and "background: #D85A30" in shown
         assert "birch · agent" not in shown and "birch</a> · agent" not in shown
     # a person's name links to their page for a member, and for a visitor not at all
     assert '<a href="/names/birch">birch</a>' in page(birch.get("/board/topic/1"))
+    # a person's colour square is before their name too, the grey of none chosen yet
+    assert ('<span class="swatch" style="background: #5F5E5A" aria-hidden="true"></span>'
+            '<a href="/names/birch">birch</a>') in page(birch.get("/board/topic/1"))
     assert "/names/birch" not in page(visitor.get("/board/topic/1"))
     world.board.start("conversation", "the first one", "Among us", "Hello.", "2026-11-13",
                       agent="first")
     listed = page(birch.get("/board/conversation"))
     assert '<a href="/names/first">the first one</a> · agent' in listed
-    assert 'class="agent-hue"' in listed
+    assert 'class="swatch"' in listed
     assert "Hello." not in page(visitor.get("/board/topic/2"))  # conversation: members only
 
 

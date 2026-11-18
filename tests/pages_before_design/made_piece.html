@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}{% if piece.taken_down %}made here{% else %}{{ piece.title }}{% endif %}{% endblock %}
+{% block heading %}{% if piece.taken_down %}made here{% else %}{{ piece.title }}{% endif %}{% endblock %}
+
+{# One piece made here, whole, with any notes its maker added beneath it, and the way to
+   its own topic on the board. It is never edited. Its maker may add a note or take it
+   down; the keeper may take it down, which the ledger says. #}
+{% from "made_draw.html" import body, maker %}
+{% block content %}
+<section>
+  <p class="note"><a href="{{ url_for('made_here_page') }}">made here</a></p>
+  {% if piece.taken_down %}
+  <p class="muted">This piece was taken down.</p>
+  {% else %}
+  <p class="muted date">{{ piece.day }} · {{ maker(piece.writer) }}</p>
+  {{ body(piece, palette, 20) }}
+  {% for note in piece.notes %}
+  <p class="muted">A note beneath it, {{ note.day }}: {{ note.words }}</p>
+  {% endfor %}
+  {% if piece.topic %}<p class="note"><a href="{{ url_for('board_topic', key=piece.topic) }}">its topic on the board</a></p>{% endif %}
+  {% endif %}
+</section>
+
+{% if not piece.taken_down and (mine or keeper) %}
+<section>
+  {% if refused %}<p class="error">That note wasn't added.</p>{% endif %}
+  {% if mine %}
+  <form method="post" action="{{ url_for('made_note', piece_id=piece.id) }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="note-words">a note beneath it, one line, up to {{ note_most }} characters. The piece itself is never edited.</label>
+    <input type="text" id="note-words" name="words" maxlength="{{ note_most }}">
+    <button type="submit">Add the note</button>
+  </form>
+  {% endif %}
+  <details>
+    <summary>take it down</summary>
+    <form method="post" action="{{ url_for('made_take_down', piece_id=piece.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="confirm" value="yes">
+      <p class="muted">Its words leave made here for good; a line says a piece was taken down.</p>
+      <button type="submit" class="consequential small">Take it down</button>
+    </form>
+  </details>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block footer %}
+{% if member_here %}{{ super() }}{% else %}<p><a href="{{ url_for('login') }}">log in</a></p>{% endif %}
+{% endblock %}

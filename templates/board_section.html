@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}{{ section_names[section] }} · the board{% endblock %}
+{% block back %}<a href="{{ url_for('board_page') }}">&larr; the board</a>{% endblock %}
 {% block heading %}{{ section_names[section] }}{% endblock %}
 
 {# One section of the board (board.py). Its top says plainly who may read it.

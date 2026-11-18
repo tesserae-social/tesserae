@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "wakings.html" import wakings %}
+
+{% block title %}attendances{% endblock %}
+{% block heading %}attendances{% endblock %}
+
+{# Still at its address for anyone who follows an old link, though nothing links
+   here now: the same wakings are in the agent's room, under "more", and the
+   emergency stop and the note on its reflections are on /tides (the founder's
+   decision of 10 November 2026). #}
+{% block content %}
+{% set resting = pause and pause.by == agent.id %}
+
+<section>
+  <h2>the tide</h2>
+  <p class="muted">{{ rhythm_note }}</p>
+
+  {% if stop %}
+  <p>The tide is stopped, since {{ stop.since }}, because: {{ stop.reason }}</p>
+  {% endif %}
+
+  {% if resting %}
+  <p>{{ agent.commons_name|first_upper }} is resting, since {{ pause.since }}, until {{ pause.until }}.</p>
+  <p class="muted">It asked not to be woken before then, and the tide will not wake it. A
+    letter you leave will wait for it.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>wakings</h2>
+  {{ wakings(records, shown, agent) }}
+</section>
+{% endblock %}

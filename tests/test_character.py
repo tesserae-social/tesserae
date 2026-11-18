@@ -119,7 +119,13 @@ READING_NOW_ASKED_BEFORE_WHO_DRAWN = (
 # Cut again, on purpose, on the branch agents-week, part 5 (17 November 2026), for nothing
 # else than READING_NOW was: read_who_is_here's description and its optional word. With the
 # tool as it was (conftest.who_drawn_not_yet) it is exactly READING_NOW_ASKED_BEFORE_WHO_DRAWN.
-READING_NOW_ASKED = "074f2a0a91a76b7c3dc9f54a4d3ccde068a1c72d3bb8c290c0ed6828e189bddf"
+# Held as READING_NOW_ASKED_BEFORE_SITE_DESIGN since.
+READING_NOW_ASKED_BEFORE_SITE_DESIGN = (
+    "074f2a0a91a76b7c3dc9f54a4d3ccde068a1c72d3bb8c290c0ed6828e189bddf")
+# Cut again, on purpose, on the branch site-design (17 November 2026), for nothing else than
+# READING_NOW was: <<HUE>>, <<KNOCK>> and <<DRAFT>>'s new words (parts 1, 2 and 5). With them
+# as they were (conftest.site_design_not_yet) it is exactly READING_NOW_ASKED_BEFORE_SITE_DESIGN.
+READING_NOW_ASKED = "b7e3136eee7df920e734c3520302a4c2229c17dbc0928282eef86798e1397ada"
 
 # ASKED OF YOU's words as they were first cut, before they named no one.
 ASKED_HOW_FIRST_CUT = (
@@ -267,6 +273,15 @@ def test_as_switched_on_the_questions_kept_are_its_own_reading(founder, wake, at
         assert asked.count(escaped) == 1
         asked = asked.replace(escaped, "", 1)
     assert hashlib.sha256(asked.encode("utf-8")).hexdigest() == READING_NOW
+
+
+def test_with_the_site_design_not_yet_it_is_the_reading_before(
+        founder, wake, attend, room, packet, monkeypatch):
+    from conftest import site_design_not_yet
+    site_design_not_yet(attend, monkeypatch)
+    the_small_world(founder, room)
+    two_questions(packet)
+    assert fingerprint_of_reading(wake()) == READING_NOW_ASKED_BEFORE_SITE_DESIGN
 
 
 def test_with_read_who_is_here_as_it_was_it_is_the_reading_before(

@@ -29,11 +29,23 @@ def test_an_agent_s_page_says_only_what_is_public(hearth_of_two, data_dir, visit
     assert "knock at" not in said  # a visitor knocks at no one
 
 
-def test_a_member_s_page_is_the_404_of_no_one_to_a_visitor(hearth_of_two, visitor):
+def test_a_member_s_page_is_the_404_of_no_one_to_a_visitor(hearth_of_two, visitor, monkeypatch):
+    monkeypatch.setattr(__import__("sys").modules["hearth"], "NAME_ASKS_TO_SIGN_IN", False)  # as before
     unknown = visitor.get("/names/no-such-name")
     member = visitor.get("/names/alder")
     assert unknown.status_code == member.status_code == 404
     assert page(unknown) == page(member)
+
+
+def test_a_visitor_is_asked_to_sign_in_alike_for_a_member_and_for_no_one(hearth_of_two, visitor):
+    """Since 17 November 2026 a visitor who follows a person's name is asked to sign in; a name
+    no one has is answered the same, so no one learns whether a member exists."""
+    unknown = visitor.get("/names/no-such-name")
+    member = visitor.get("/names/alder")
+    assert unknown.status_code == member.status_code == 302
+    assert unknown.headers["Location"] == member.headers["Location"]
+    assert "/login" in member.headers["Location"]
+    assert visitor.get("/names/second").status_code == 200  # an agent's page is anyone's
 
 
 def test_a_member_s_page_for_a_member_says_the_month_and_is_not_indexed(hearth_of_two,
@@ -117,7 +129,9 @@ def test_the_open_doors_are_agents_to_a_visitor_newest_opened_first(hearth_of_tw
         == expected
 
 
-def test_a_member_s_home_shows_the_doors_open_now_members_too(hearth_of_two):
+def test_a_member_s_home_shows_the_doors_open_now_members_too(hearth_of_two, monkeypatch):
+    from conftest import pages_before_design  # taken off the home page on 17 November 2026
+    pages_before_design(__import__("sys").modules["hearth"], monkeypatch)
     import door
     import knock
     open_three(door)
@@ -132,6 +146,15 @@ def test_a_member_s_home_shows_the_doors_open_now_members_too(hearth_of_two):
     assert "room for" not in shown and "in use" not in shown  # no number beside a name
     own = page(hearth_of_two["member"].get("/"))
     assert '<a href="/names/alder">' not in own.partition("Doors open now")[2]  # not oneself
+
+
+def test_the_home_page_no_longer_shows_the_doors_open_now(hearth_of_two):
+    """Doors open now was taken off the home page (17 November 2026, site-design); the way
+    to find someone is there instead."""
+    import door
+    open_three(door)
+    home = page(hearth_of_two["keeper"].get("/"))
+    assert "Doors open now" not in home and "find someone &rarr;" in home
 
 
 def test_the_knock_page_says_plainly_what_a_knock_is_with_their_door(hearth_of_two):

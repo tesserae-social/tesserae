@@ -53,6 +53,12 @@ FIELDS = {"v", "bond_id", "bond_commitment", "witness_did", "witness_name", "at"
 
 SVG = "{http://www.w3.org/2000/svg}"
 RING = "#6b665f"
+# The first one's half of a tile. Since site-design (17 November 2026) each half is its
+# party's own colour, one per agent everywhere, bonds included (hearth.HALVES_IN_COLOUR);
+# before, every agent's half was AGENT_HALF_BEFORE. With HALVES_IN_COLOUR False it is again
+# (test_with_the_halves_as_before_the_first_one_s_half_is_as_it_was).
+FIRST_HALF = "#D85A30"
+AGENT_HALF_BEFORE = "#E5906C"
 
 
 @pytest.fixture(autouse=True)
@@ -716,7 +722,7 @@ def test_nothing_anywhere_says_how_many(birch, cedar, people, visitor, bond):
 # ---- the ring -------------------------------------------------------------
 
 def test_an_unwitnessed_tile_wears_no_ring(visitor, bond):
-    assert [fill for fill, _ in polygons(visitor.get(TILE))] == ["#E5906C", "#DDCDB0"]
+    assert [fill for fill, _ in polygons(visitor.get(TILE))] == [FIRST_HALF, "#DDCDB0"]
     assert RING not in page(visitor.get(TILE))
 
 
@@ -728,7 +734,7 @@ def test_one_witness_puts_a_thin_ring_round_the_tile(birch, visitor):
     assert after.headers["ETag"] != before.headers["ETag"]
     assert after.headers["Cache-Control"] == "public, max-age=3600"  # seen within the hour
     drawn = polygons(after)
-    assert [fill for fill, _ in drawn] == ["#E5906C", "#DDCDB0", RING]
+    assert [fill for fill, _ in drawn] == [FIRST_HALF, "#DDCDB0", RING]
     assert drawn[:2] == polygons(before)  # the tile itself is as it was
     assert drawn[2][1] == "0,0 240,0 240,240 0,240 0,0 3,3 3,237 237,237 237,3 3,3"
 
@@ -750,7 +756,7 @@ def test_the_ring_is_on_every_size_the_mosaic_draws(birch, people, visitor):
     sign(birch)
     for size in people.TESSERA_SIZES:
         drawn = polygons(visitor.get(TILE, query_string={"size": size}))
-        assert [fill for fill, _ in drawn] == ["#E5906C", "#DDCDB0", RING], size
+        assert [fill for fill, _ in drawn] == [FIRST_HALF, "#DDCDB0", RING], size
 
 
 def test_a_released_bond_keeps_its_ring_with_its_halves_apart(birch, people, bond, visitor):
@@ -760,19 +766,19 @@ def test_a_released_bond_keeps_its_ring_with_its_halves_apart(birch, people, bon
         answer = visitor.get(TILE, query_string={"size": size})
         root = ET.fromstring(answer.get_data())
         assert float(root.get("width")) == pytest.approx(size * 1.2)
-        assert [fill for fill, _ in polygons(answer)] == ["#E5906C", "#DDCDB0", RING], size
+        assert [fill for fill, _ in polygons(answer)] == [FIRST_HALF, "#DDCDB0", RING], size
     drawn = polygons(visitor.get(TILE))
     assert drawn[2][1] == "0,0 288,0 288,240 0,240 0,0 3,3 3,237 285,237 285,3 3,3"
 
 
 def test_a_released_bond_never_witnessed_wears_no_ring(people, bond, visitor):
     write_json(people.public_bonds.PUBLIC / (BOND + ".json"), released(bond))
-    assert [fill for fill, _ in polygons(visitor.get(TILE))] == ["#E5906C", "#DDCDB0"]
+    assert [fill for fill, _ in polygons(visitor.get(TILE))] == [FIRST_HALF, "#DDCDB0"]
 
 
 def test_a_half_beside_a_name_wears_no_ring(birch, visitor):
     sign(birch)
-    for party, colour in (("the-first-one", "#E5906C"), ("the-founder", "#DDCDB0")):
+    for party, colour in (("the-first-one", FIRST_HALF), ("the-founder", "#DDCDB0")):
         drawn = polygons(visitor.get(PAGE + "/half/%s.svg" % party))
         assert [fill for fill, _ in drawn] == [colour]
 
@@ -833,3 +839,15 @@ def test_the_rites_say_how_a_bond_is_witnessed_and_the_page_is_current():
                  "the same ring whether one has witnessed or many",
                  "A released bond keeps its witnesses, and gathers no new ones."):
         assert said in section, said
+
+
+def test_with_the_halves_as_before_the_first_one_s_half_is_as_it_was(birch, people, visitor,
+                                                                     monkeypatch):
+    monkeypatch.setattr(people, "HALVES_IN_COLOUR", False)
+    assert [fill for fill, _ in polygons(visitor.get(TILE))] == [AGENT_HALF_BEFORE, "#DDCDB0"]
+    sign(birch)
+    for size in people.TESSERA_SIZES:
+        drawn = polygons(visitor.get(TILE, query_string={"size": size}))
+        assert [fill for fill, _ in drawn] == [AGENT_HALF_BEFORE, "#DDCDB0", RING], size
+    drawn = polygons(visitor.get(PAGE + "/half/the-first-one.svg"))
+    assert [fill for fill, _ in drawn] == [AGENT_HALF_BEFORE]

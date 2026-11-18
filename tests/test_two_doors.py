@@ -57,6 +57,7 @@ def test_a_knock_asks_the_door_of_its_kind(world, clock):
     door = load("door")
     knock = load("knock")
     a_member(world, "rowan2")
+    door.set_door("rowan2", state="open", room=2, at="2026-10-15T09-00-00Z")  # its own door
     door.set_door(SECOND, state="open", room=4, at="2026-10-15T09-00-00Z")
     door.set_door(SECOND, state="closed", at="2026-10-15T09-00-00Z", kind=door.AGENTS)
     assert knock.why_not(THIRD, SECOND, clock.at) == "door"

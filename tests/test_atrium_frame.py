@@ -442,16 +442,11 @@ def test_the_longest_introduction_is_one_a_member_may_write():
 
 
 @pytest.mark.parametrize("width", WIDTHS)
-def test_the_longest_introduction_wraps_inside_the_column(measured, width):
-    """500 characters, a long run of letters among them, stand beneath the door
-    inside the column's gutters at every width, phones too, and push nothing sideways."""
+def test_no_introduction_is_drawn_on_who_is_here_and_nothing_spills(measured, width):
+    """Since site-design (17 November 2026) who is here is names only, in two columns;
+    an introduction is on its name page. Nothing on the page is pushed sideways."""
     said = measured["introduced", width]
-    column, words = said["column"], said["introduction"]
-    gutter = 16 if width <= 480 else 24
-    assert words and words["height"] > 0
-    assert said["introductionSpill"] == 0    # no word of it runs past its own box
-    assert words["left"] >= column["left"] + gutter - 0.5
-    assert words["right"] <= column["right"] - gutter + 0.5
+    assert not said["introduction"]
     assert said["scroll"] == said["client"] and said["right"] <= said["client"]
 
 

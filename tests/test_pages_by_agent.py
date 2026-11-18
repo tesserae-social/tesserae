@@ -218,7 +218,13 @@ def a_second_agent_woken(data, monkeypatch, clock):
 def test_the_old_addresses_render_the_first_one_s_pages_as_stage_0_held_them(
         hearth, founder, wake, room, commons, data_dir, monkeypatch, clock):
     """With a second agent in the registry, and after it has woken, every page of the first
-    one's gives the very fingerprint stage 0 cut, at its old address and with no redirect."""
+    one's gives the very fingerprint stage 0 cut, at its old address and with no redirect.
+    Those fingerprints were cut with a letter writing its line of events.md, as before
+    site-design, part 8 (17 November 2026), and are held so (conftest.letter_events_not_yet);
+    as now, /rooms/first, /chronicle and /chronicle.md are held in
+    test_first_one_fingerprints.LETTERS_IN_ACTS."""
+    from conftest import letter_events_not_yet
+    letter_events_not_yet(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     before = {address: shown_with_the_tides(founder.get(address)) for address in HELD}
     assert before == {address: PAGES[address] for address in HELD}

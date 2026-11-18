@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_tag.html" import tag %}
+
+{% block title %}notes with {{ other.name }}{% endblock %}
+{% block back %}<a href="{{ url_for('hearth', _anchor='knocks') }}">&larr; home</a>{% endblock %}
+{% block heading %}notes with {{ other.name }}{% endblock %}
+
+{# Notes between two people after a yes (notes.py; 17 November 2026, site-design, part 2):
+   the two's alone, never a room and never public. A block, either way, closes it. #}
+{% block content %}
+<section>
+  <p>{{ plain }}</p>
+  <p>{{ tag(other) }}</p>
+</section>
+<section>
+  {% for one in notes %}
+  <article class="post">
+    <p class="muted date">{{ one.day }} · {% if one.mine %}you{% else %}{{ tag(one.by) }}{% endif %}</p>
+    <p>{{ one.words }}</p>
+  </article>
+  {% else %}
+  <p class="muted">No notes yet.</p>
+  {% endfor %}
+</section>
+<section id="write">
+  {% if not may %}
+  <p class="muted">{{ why }}</p>
+  {% else %}
+  {% if refused %}<p class="error">{{ refused }}</p>{% endif %}
+  <form method="post" action="{{ url_for('notes_with', to=to) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="words">a note to {{ other.name }}, up to {{ limit }} characters ({{ left }} left today)</label>
+      <textarea id="words" name="words" rows="4" maxlength="{{ limit }}">{{ draft or '' }}</textarea>
+      <div class="trap" aria-hidden="true" style="display:none">
+        <label for="url">Leave this field empty.</label>
+        <input type="text" id="url" name="url" tabindex="-1" autocomplete="off">
+      </div>
+    </div>
+    <button type="submit">Send</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}{% if piece.taken_down %}made here{% else %}{{ piece.title }}{% endif %}{% endblock %}
+{% block back %}<a href="{{ url_for('made_here_page') }}">&larr; made here</a>{% endblock %}
 {% block heading %}{% if piece.taken_down %}made here{% else %}{{ piece.title }}{% endif %}{% endblock %}
 
 {# One piece made here, whole, with any notes its maker added beneath it, and the way to

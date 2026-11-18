@@ -48,7 +48,7 @@ from datetime import date
 import pytest
 from nacl.signing import SigningKey
 
-from conftest import (asked_described_as_before, made_here_not_yet, offerings_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
+from conftest import (pages_before_design, atrium_before_design, asked_described_as_before, made_here_not_yet, offerings_as_before, atrium_before_doors, blocks, block, letter_part_as_before, page,
                       pages_before_doors, pages_before_fewer, pages_before_settings,
                       pages_before_pages, pages_before_small,
                       pages_before_saturday, pages_before_week, here_not_yet, post, registry_six_not_yet, registry_switches_not_yet,
@@ -257,16 +257,30 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # its line "find someone". With the templates of before drawn in their place
 # (conftest.pages_before_week) it is exactly the one held before, in WEEK_BEFORE below. No
 # waking moved.
+#
+# / cut again, on purpose, on 17 November 2026, on the branch site-design (the founder's
+# request that day, later still), and for nothing else: part 3, "Doors open now" taken off
+# the home page, and "find someone ->" said under who is here whether or not anyone is
+# shown. With the templates of before drawn in their place (conftest.pages_before_design)
+# it is exactly the one held before, in DESIGN_BEFORE below. No waking moved.
+#
+# /rooms/first, /self, /attendances, /chronicle, /export and /bonds cut on purpose, on the
+# same branch, part 7, and for nothing else: each has a small back link above its title
+# ("<- home", or "<- the commons" for /chronicle and /bonds), and its title is set in a
+# little beneath it, in the size of a section label, with the two rules that draw them in
+# its own style block. With the templates of before (conftest.pages_before_design) each is
+# exactly the one held before, in DESIGN_BEFORE (and /chronicle with the letter line as
+# before, in DESIGN_AND_LETTER_PARTS_BEFORE). No waking moved.
 PAGES = {
-    "/": "03bdcae88a19a1f5b12e2e47f169aee7982a042ef1aff4c1e297e74de47fa38d",
-    "/rooms/first": "7816934d331ae825641e06e0a54b085209ec67377026a3a2fef849400e5ffa4c",
+    "/": "14889a74bc53ebf0ab35b766a70803941d79cdaa520dfd701ce0c021cde1cd54",
+    "/rooms/first": "3b54365e459c86713f02b94a5c56cacb71b133b0ff0bcf8cf62956cfac615ddc",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
-    "/self": "708c75f04e55981579e4b6e7a63997278cd145bcc6a8613ba86363d56273bbf8",
-    "/attendances": "e624e6d07e4eca2e8ebd4f2528e4fad2bb4edbfe2791e702dbe647bfa248099e",
-    "/chronicle": "e1505184cff286ba366cc8a225742087c13a3cfd91dd5df59381f0e8b7d98057",
+    "/self": "29fa1ff56bae40214f028d0599da5d9274b5a9c74e84a1d0041d608d90323b6c",
+    "/attendances": "57f4ac056a1307710f333e859d8158ea69c434c0220101d3554338799671ee56",
+    "/chronicle": "9c084f85513c3b15b9468fe79a6066444888e7e3b9623fc82f3a86fcbde0dc8f",
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
-    "/export": "8f99cdb3b445560ad99478d358cfb0de2a1e753422ce8f9a0eb873cb0354494c",
-    "/bonds": "9e2e4625ee9975985dd3b51aebcf2de2a51613af3a7e90f8f6280321e604f722",
+    "/export": "62b767ac9c7616359448b44a9ba68173117099f86e52bba60b588d0e558c2213",
+    "/bonds": "c1709545a9b797ab4751659651be69544db17fa61b8bd8479b74f472824ff919",
     "/commons": "becf97deeb1caa0e8babeb0769ca70fd35ef9e5196c054000e7d0e7071a4761a",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
@@ -334,8 +348,16 @@ TIDE = "5a014bba0ff7b5999e3e4da0508801678836529e567294f61f89a4e5e3697ae0"
 # open now, every agent whose door is open with room left, are listed, where there are
 # any. With who is here drawn as before (conftest.atrium_before_doors) each is exactly the
 # one held before, in ATRIUM_BEFORE_DOORS below.
-ATRIUM_WITH_LETTER_PARTS = "5f6d968fb24e05fc82a7a86676e0a01828a27ef03217c33589144e7545d0429c"
-ATRIUM = "532b941af4096b1a8b74989d189611ec18156ea675a5cf8939317f83373d0f1d"
+#
+# Both cut again, on purpose, on 17 November 2026, on the branch site-design (the founder's
+# request that day, later still), and for nothing else: part 1, every agent's own tiles,
+# the first one's too, carry its colour class and are drawn solid in the colour of the
+# square beside its name; part 3, who is here is two columns from the hearth's here.json,
+# with no doors open now, and this world has none, so the region is empty. With both as
+# they were (conftest.atrium_before_design) each is exactly the one held before, in
+# ATRIUM_BEFORE_DESIGN.
+ATRIUM_WITH_LETTER_PARTS = "15e1bd03df42c546f7d7f94c11a553685984cedacb62b3a7f344c892d95011e3"
+ATRIUM = "a593055b611f6ba95e15f61a9ddb8e5fab850f3816c26bbbb39a923e2abbd0bc"
 ATRIUM_BEFORE_DOORS = {
     False: "75355742f27af4d0efce32150ebbb7667c090cfc2cb61f9332501457dc79e470",
     True: "2fdaabcfd6e5987b0e1aefab9aa9eed082bacf04cc47866e78ae75d42091c1b3"}
@@ -365,7 +387,9 @@ LETTER_PARTS_BEFORE = {
     # 4affe3f1..., and is again drawn as before: SETTINGS_AND_LETTER_PARTS_BEFORE), and
     # later that day when offerings were taken out (it was 051e9393..., and is again
     # drawn as before: OFFERINGS_AND_LETTER_PARTS_BEFORE)
-    "PAGES['/chronicle']": "dfca286d85016273c250b0deef22e887033b868b7e9334a1ec728fdc4e148dc0",
+    # and on 17 November 2026 for the back link of site-design, part 7 (it was dfca286d...,
+    # and is again drawn as before: DESIGN_AND_LETTER_PARTS_BEFORE)
+    "PAGES['/chronicle']": "929f6f4cad5ef65b5a159eb3572497f375614a0cc6bf83212e43ddaf23f73793",
     "PAGES['/chronicle.md']": "26316c2b5ea305af550820e1036a3fc8ba21a7707d3d86f69eeedd20b69e770b",
     "PAGES['/commons/events.md']":
         "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
@@ -552,6 +576,28 @@ DOORS_BEFORE = {
     "/": "e05ea9c1aca562b47b4e37e0d67de4ab99d949071ad2f108226bc55e50ca88fc",
 }
 
+# What each page the branch site-design moved (the founder's request of 17 November 2026,
+# later still) was before it, and is again drawn with the templates of before
+# (conftest.pages_before_design). The reason each moved is written beside PAGES.
+DESIGN_BEFORE = {
+    "/": "03bdcae88a19a1f5b12e2e47f169aee7982a042ef1aff4c1e297e74de47fa38d",
+    "/rooms/first": "7816934d331ae825641e06e0a54b085209ec67377026a3a2fef849400e5ffa4c",
+    "/self": "708c75f04e55981579e4b6e7a63997278cd145bcc6a8613ba86363d56273bbf8",
+    "/attendances": "e624e6d07e4eca2e8ebd4f2528e4fad2bb4edbfe2791e702dbe647bfa248099e",
+    "/chronicle": "e1505184cff286ba366cc8a225742087c13a3cfd91dd5df59381f0e8b7d98057",
+    "/export": "8f99cdb3b445560ad99478d358cfb0de2a1e753422ce8f9a0eb873cb0354494c",
+    "/bonds": "9e2e4625ee9975985dd3b51aebcf2de2a51613af3a7e90f8f6280321e604f722",
+}
+DESIGN_AND_LETTER_PARTS_BEFORE = {
+    "/chronicle": "dfca286d85016273c250b0deef22e887033b868b7e9334a1ec728fdc4e148dc0",
+}
+
+# What the atrium drew before site-design, and draws again with build_atrium as it was
+# (conftest.atrium_before_design): with the letter line as before, and as it is.
+ATRIUM_BEFORE_DESIGN = {
+    False: "532b941af4096b1a8b74989d189611ec18156ea675a5cf8939317f83373d0f1d",
+    True: "5f6d968fb24e05fc82a7a86676e0a01828a27ef03217c33589144e7545d0429c"}
+
 # What / was before who is here (17 November 2026, the branch agents-week), and is again
 # drawn with the templates of before (conftest.pages_before_week).
 WEEK_BEFORE = {
@@ -604,6 +650,19 @@ def fixed_keys(data_dir, monkeypatch):
             "created": "2026-09-03"})
         if name == "founder":
             monkeypatch.setenv("FOUNDER_KEY", private)
+
+
+@pytest.fixture(autouse=True)
+def letter_events_as_before(request, monkeypatch):
+    """Every fingerprint here was cut with a letter writing its line of events.md, as before
+    the branch site-design, part 8 (17 November 2026), and is held so (conftest.
+    letter_events_not_yet). The fingerprints that moved when a person's letters went into
+    their daily line of acts are held as they are now by the tests marked "in the daily
+    line" (LETTERS_IN_ACTS, in test_first_one_fingerprints). The first one's reading as it
+    reads now is the same either way."""
+    if "hearth" in request.fixturenames or "founder" in request.fixturenames:
+        from conftest import letter_events_not_yet
+        letter_events_not_yet(request.getfixturevalue("hearth"), monkeypatch)
 
 
 @pytest.fixture
@@ -953,6 +1012,38 @@ def test_with_no_day_kept_the_backup_is_the_one_before(steady, letter_parts, fou
     assert backup_held(hearth) == BACKUP_BEFORE_HERE[letter_parts]
 
 
+@pytest.mark.parametrize("address", list(DESIGN_BEFORE))
+def test_with_the_pages_drawn_before_site_design_each_is_the_page_before(
+        steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
+    """Every page site-design moved (17 November 2026), drawn with the templates of before:
+    each is exactly the page held before."""
+    pages_before_design(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    held = (DESIGN_AND_LETTER_PARTS_BEFORE.get(address, DESIGN_BEFORE[address]) if letter_parts
+            else DESIGN_BEFORE[address])
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
+
+
+def test_with_the_atrium_drawn_before_site_design_it_is_the_one_before(
+        steady, letter_parts, founder, wake, room, commons, atrium, monkeypatch):
+    """The atrium as before site-design: every region exactly what it was."""
+    if letter_parts:
+        letter_parts_as_before(atrium, monkeypatch)
+    atrium_before_design(atrium, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    drawn = [("index:bench", EMPTY_BENCH_DREW), ("index:offering", EMPTY_OFFERING_DREW)]
+    for which, path in (("index", atrium.page_path), ("mosaic", atrium.whole_path)):
+        for name, inside in MARKED.findall(path.read_text(encoding="utf-8")):
+            drawn.append(("%s:%s" % (which, name), inside.encode("utf-8")))
+    drawn.sort()
+    assert digest(drawn) == ATRIUM_BEFORE_DESIGN[letter_parts]
+
+
 @pytest.mark.parametrize("address", list(WEEK_BEFORE))
 def test_with_the_pages_drawn_before_the_week_each_is_the_page_before(
         steady, letter_parts, hearth, founder, wake, room, commons, monkeypatch, address):
@@ -1108,3 +1199,81 @@ def test_with_who_is_here_drawn_before_the_doors_the_atrium_is_the_one_before(
             drawn.append(("%s:%s" % (which, name), inside.encode("utf-8")))
     drawn.sort()
     assert digest(drawn) == ATRIUM_BEFORE_DOORS[letter_parts]
+
+
+# ---- a person's letters in their daily line (site-design, part 8) ----------------------
+#
+# Since the founder's request of 17 November 2026 a person's letters are counted in their
+# daily line of acts (daily_acts.py), and a letter writes no line of events.md of its own
+# (hearth.LETTER_EVENTS_IN_ACTS). Every other test here holds the world with the letter's
+# line as before (letter_events_as_before, above); these hold what moved, as it is now. In
+# this world the founder's letter carries no line for the commons, so the commons is told
+# nothing of it on the day, and nothing else moved: the first one's reading is the same.
+# With the letter line of 10 November as before, nothing moves further, since no line is
+# written either way.
+LETTERS_IN_ACTS = {
+    "ON_DISK_AFTER": "946e7c1d51fc80d9959658658f84ff7e1fc7102968b7145fd34784cd97057849",
+    "EVENTS_AFTER": ("2026-09-02 · word · the word was published\n"
+                     "2026-09-04 · founding · the first one was founded\n"),
+    "PAGES['/rooms/first']": "d72546ca0be79579abd7cd5c5febfb92f97d0b0d6897a1c516f12449e1340c49",
+    "PAGES['/chronicle']": "979a66b933004087ec108b34f55958181b5d17ea21f7cac9fb98ea5e3d49b49d",
+    "PAGES['/chronicle.md']": "ae6b5570d51d80d2f844913dc243bb2b33b347f84b8f6a3d96f2b0522d63aef3",
+    "PAGES['/commons/events.md']": "0d4296f8857dbd6f8400a22ffaeb371f56aede44dd327c8fe2572b32720bc127",
+    "EXPORT": "659880fcfe02a94a85207239b6a5a8cfecc3bd365c7dd4867cc10d4baccba2a3",
+    "BACKUP": "fb6e17f963b4373d039b652e65ced01123a3d1d540652fdc77658bdc86fb843b",
+    "ATRIUM": "4a0cec473524792edb7b0afbf23b44d574694190e8bedeb2ff97d413d4948bca",
+}
+
+
+@pytest.fixture
+def letters_in_acts(hearth, monkeypatch):
+    monkeypatch.setattr(hearth, "LETTER_EVENTS_IN_ACTS", True)
+
+
+def test_in_the_daily_line_the_waking_leaves_these_files(steady, letters_in_acts, founder, wake,
+                                                         room, commons, data_dir):
+    a_lived_world(founder, wake, room, commons)
+    assert cut("LETTERS_IN_ACTS['ON_DISK_AFTER']", fingerprint_of_files(data_dir)) == \
+        LETTERS_IN_ACTS["ON_DISK_AFTER"]
+
+
+def test_in_the_daily_line_the_commons_is_told_no_letter(steady, letters_in_acts, founder, wake,
+                                                         room, commons):
+    a_lived_world(founder, wake, room, commons)
+    assert (commons / "events.md").read_text(encoding="utf-8") == LETTERS_IN_ACTS["EVENTS_AFTER"]
+
+
+@pytest.mark.parametrize("address", ["/rooms/first", "/chronicle", "/chronicle.md",
+                                     "/commons/events.md"])
+def test_in_the_daily_line_the_founder_is_shown_these_pages(steady, letters_in_acts, founder,
+                                                            wake, room, commons, address):
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    name = "PAGES[%r]" % address
+    assert cut("LETTERS_IN_ACTS[%r]" % name, hashlib.sha256(shown.encode("utf-8")).hexdigest()) \
+        == LETTERS_IN_ACTS[name]
+
+
+def test_in_the_daily_line_the_export_and_the_backup_hold_these(steady, letters_in_acts, founder,
+                                                                wake, room, commons, hearth):
+    a_lived_world(founder, wake, room, commons)
+    answer = post(founder, "/export")
+    with zipfile.ZipFile(io.BytesIO(answer.get_data())) as bundle:
+        held = [(name, bundle.read(name)) for name in bundle.namelist()]
+    assert cut("LETTERS_IN_ACTS['EXPORT']", digest(held)) == LETTERS_IN_ACTS["EXPORT"]
+    assert cut("LETTERS_IN_ACTS['BACKUP']", backup_held(hearth)) == LETTERS_IN_ACTS["BACKUP"]
+
+
+def test_in_the_daily_line_the_atrium_draws_these_tiles(steady, letters_in_acts, founder, wake,
+                                                        room, commons, atrium, monkeypatch):
+    a_lived_world(founder, wake, room, commons)
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    drawn = [("index:bench", EMPTY_BENCH_DREW), ("index:offering", EMPTY_OFFERING_DREW)]
+    for which, path in (("index", atrium.page_path), ("mosaic", atrium.whole_path)):
+        for name, inside in MARKED.findall(path.read_text(encoding="utf-8")):
+            drawn.append(("%s:%s" % (which, name), inside.encode("utf-8")))
+    drawn.sort()
+    assert cut("LETTERS_IN_ACTS['ATRIUM']", digest(drawn)) == LETTERS_IN_ACTS["ATRIUM"]

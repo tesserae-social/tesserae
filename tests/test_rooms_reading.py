@@ -437,7 +437,7 @@ from datetime import datetime, timezone
 from conftest import (SWITCHED_ON_21_OCTOBER, offer_explained_again, commons_line_not_yet_offered, explained_as_before,
                       introduction_at_280, letter_part_as_before, long_night_switched_on,
                       six_not_yet, coral_not_yet, board_weekly_not_yet, standing_welcome_not_yet,
-                      agents_week_not_yet, who_drawn_not_yet,
+                      agents_week_not_yet, who_drawn_not_yet, site_design_not_yet,
                       write_json,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
@@ -650,10 +650,35 @@ READING_SWITCHED_17_NOVEMBER = "8789e1c3947bec00635a0185d99cd29b6ee5220006c3674a
 # else: read_who_is_here, among its tools, takes an optional word and says it gives six
 # agents and six people at random, open doors first (its description and its input
 # schema; nothing is added to the reading itself). With the tool as it was
-# (conftest.who_drawn_not_yet) it is exactly READING_SWITCHED_17_NOVEMBER.
-READING_NOW = "6c60ed972b866a6717ded808ea743fe1a2b668212f8e17d1b473f4d9a172ccdf"
+# (conftest.who_drawn_not_yet) it is exactly READING_SWITCHED_17_NOVEMBER. Held as
+# READING_WHO_DRAWN since.
+READING_WHO_DRAWN = "6c60ed972b866a6717ded808ea743fe1a2b668212f8e17d1b473f4d9a172ccdf"
+
+# cut again, on purpose, on the branch site-design (the founder's request of 17 November
+# 2026, later still), for nothing else: what that branch moved of its reading, written out
+# in tesserae-private/proposals/report-17-nov-4.md. Part 1: <<HUE>> asks for a hex code,
+# says what is drawn in the colour, and says a colour may be close to another's but not the
+# same; its two refusals say so too. Part 2: <<KNOCK>> says it may knock only while its own
+# door for them is open with room left (knock.OWN_DOOR). Part 5: <<DRAFT>> says a picture is
+# 32 lines of 32 letters and names the 24 colours by their letters, in place of tiles of 5
+# or 12 in seven colours, and its two refusals say so (made_here.SQUARES). With all of it
+# put back (conftest.site_design_not_yet) it is exactly READING_WHO_DRAWN.
+READING_NOW = "5af1deac139e84895d8484e61f7f3843bef44dc97b5139880001117644f179b6"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
+
+
+@pytest.fixture(autouse=True)
+def letter_events_as_before(request, monkeypatch):
+    """Every fingerprint here was cut with a letter writing its line of events.md, as before
+    the branch site-design, part 8 (17 November 2026), and is held so (conftest.
+    letter_events_not_yet). The fingerprints that moved when a person's letters went into
+    their daily line of acts are held as they are now by the tests marked "in the daily
+    line" (LETTERS_IN_ACTS, in test_first_one_fingerprints). The first one's reading as it
+    reads now is the same either way."""
+    if "hearth" in request.fixturenames or "founder" in request.fixturenames:
+        from conftest import letter_events_not_yet
+        letter_events_not_yet(request.getfixturevalue("hearth"), monkeypatch)
 
 
 def a_small_world(room):
@@ -734,6 +759,7 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "the offerings", READING_STANDING),
     (False, "the agents week", READING_OFFERINGS_OUT),
     (False, "who is here drawn", READING_SWITCHED_17_NOVEMBER),
+    (False, "the site design", READING_WHO_DRAWN),
     (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
@@ -760,9 +786,13 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "its standing welcome, offerings not yet taken out",
          "offerings taken out, the switches of 17 November not yet",
          "the switches of 17 November, read_who_is_here as it was",
+         "read_who_is_here as it is, the site design not yet",
          "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
+    if as_before == "the site design":  # the one cut before had none of site-design
+        site_design_not_yet(attend, monkeypatch)
+        as_before = None
     if as_before:  # every reading cut before had read_who_is_here as it was
         who_drawn_not_yet(attend, monkeypatch)
     if as_before == "who is here drawn":  # and with that, nothing else moved
@@ -859,6 +889,27 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
     reading = fingerprint_of_reading(wake())
     print("\nPACKET_IN_ROOMS = %r\nREADING = %r" % (files, reading))
     assert (files, reading) == (PACKET_IN_ROOMS, as_cut)
+
+
+def test_with_a_person_s_letters_in_their_daily_line_it_reads_what_it_reads_now(
+        founder, wake, attend, hearth, room, data_dir, monkeypatch):
+    """A person's letters counted in their daily line of acts, and no line of events.md for a
+    letter (the branch site-design, part 8; hearth.LETTER_EVENTS_IN_ACTS): the first one
+    reads READING_NOW byte for byte, and its files are held as they are now."""
+    monkeypatch.setattr(hearth, "LETTER_EVENTS_IN_ACTS", True)
+    a_small_world(room)
+    answer = post(founder, "/rooms/first", content_type="multipart/form-data", data={
+        "letter": "The lake was grey this morning, and then it was not.\n\nI am asking.",
+        "thing": ["cold hands", "", "a heron on the far bank"],
+        "errand": ERRAND, "proposes": "1"})
+    assert answer.status_code == 302
+    assert (fingerprint_of_files(data_dir), fingerprint_of_reading(wake())) == (
+        PACKET_IN_ROOMS_LETTERS_IN_ACTS, READING_NOW)
+
+
+# The files of that world with no line of events.md for the founder's letter (site-design,
+# part 8): the commons' events.md has no line for the letter.
+PACKET_IN_ROOMS_LETTERS_IN_ACTS = "7d7267f28511895ed22c9c6caa64a84dbee9eb6bdf0e00e0e04d66a57108cfe1"
 
 
 def test_a_record_of_model_changes_that_holds_nothing_moves_nothing(
@@ -1008,8 +1059,14 @@ def test_how_he_writes_is_no_longer_asked_and_what_was_kept_stays(founder, data_
 #
 # READING_LONG_NIGHT cut again, on purpose, on the branch agents-week, part 5, for nothing
 # else than READING_NOW was: read_who_is_here's description and input. With the tool as it
-# was (conftest.who_drawn_not_yet) it is exactly LONG_NIGHT_BEFORE_WHO_DRAWN.
-READING_LONG_NIGHT = "ce4934cfe3cf8a6692a65ac692e08cd37e278aaf332feea944afc21d0012f0f9"
+# was (conftest.who_drawn_not_yet) it is exactly LONG_NIGHT_BEFORE_WHO_DRAWN. Held as
+# LONG_NIGHT_BEFORE_SITE_DESIGN since.
+#
+# READING_LONG_NIGHT cut again, on purpose, on the branch site-design, for nothing else
+# than READING_NOW was. With all of it put back (conftest.site_design_not_yet) it is
+# exactly LONG_NIGHT_BEFORE_SITE_DESIGN.
+READING_LONG_NIGHT = "7a3bfabefee9cff4bb46e3e246af7a2e27021f8efba9d7f099e1b15df8b136ba"
+LONG_NIGHT_BEFORE_SITE_DESIGN = "ce4934cfe3cf8a6692a65ac692e08cd37e278aaf332feea944afc21d0012f0f9"
 LONG_NIGHT_BEFORE_WHO_DRAWN = "b217d9c6efc5cd0786141c4dd014d3557151206f6e05a86fe592d22748bc674f"
 LONG_NIGHT_BEFORE_AGENTS_WEEK = "d8bd1a8972f5d16f288b7d5b2e118a09170dc65f3379123e266ce8bdd4a22bcb"
 LONG_NIGHT_BEFORE_OFFERINGS = "9f6c68eadcdd5fbcf7212123d3fd37dff037ac0e725319e7a573a8f2e909a646"
@@ -1036,7 +1093,9 @@ def a_sealed_bond(attend, room):
 
 
 @pytest.mark.parametrize("switched, before, as_cut", [
-    (True, None, READING_LONG_NIGHT), (True, "who drawn", LONG_NIGHT_BEFORE_WHO_DRAWN),
+    (True, None, READING_LONG_NIGHT),
+    (True, "site design", LONG_NIGHT_BEFORE_SITE_DESIGN),
+    (True, "who drawn", LONG_NIGHT_BEFORE_WHO_DRAWN),
     (True, "agents week", LONG_NIGHT_BEFORE_AGENTS_WEEK),
     (True, "offerings", LONG_NIGHT_BEFORE_OFFERINGS),
     (True, "standing", LONG_NIGHT_BEFORE_STANDING),
@@ -1047,6 +1106,7 @@ def a_sealed_bond(attend, room):
     (False, "switches", SEALED_IN_WINTER_BEFORE_SWITCHES),
     (True, "switches", LONG_NIGHT_BEFORE_SWITCHES)],
     ids=["the switch on, as it reads today",
+         "the switch on, the site design not yet",
          "the switch on, read_who_is_here as it was",
          "the switch on, the switches of 17 November not yet",
          "the switch on, offerings not yet taken out",
@@ -1061,6 +1121,9 @@ def a_sealed_bond(attend, room):
          "the switch on, the four of 13 November not yet"])
 def test_the_first_one_s_long_night_is_its_own_reading_and_only_when_switched_on(
         wake, attend, room, clock, monkeypatch, tmp_path, switched, before, as_cut):
+    if before == "site design":  # the one held before had none of site-design
+        site_design_not_yet(attend, monkeypatch)
+        before = None
     if before:  # each held before had read_who_is_here as it was
         who_drawn_not_yet(attend, monkeypatch)
     if before == "who drawn":  # and with that, nothing else moved

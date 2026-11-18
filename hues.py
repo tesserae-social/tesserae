@@ -35,6 +35,7 @@ at a waking; the colour in force is read over it here, and is what
 import json
 import math
 import os
+import re
 from pathlib import Path
 
 import agents
@@ -139,7 +140,11 @@ def chosen(agent_id):
         held = json.loads((packet(agent_id) / "hue.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if not isinstance(held, dict) or offered(agent_id).get(held.get("name")) != held.get("hue"):
+    if not isinstance(held, dict):
+        return None
+    named = offered(agent_id).get(held.get("name"))
+    if named != held.get("hue") and not (
+            EXACT and hex_of(held.get("hue")) and held.get("name") == hex_of(held.get("hue"))):
         return None
     return held
 
@@ -182,22 +187,135 @@ def name_of(colour, agent_id=None):
 
 
 def choose(agent_id, said, at):
-    """Take an agent's <<HUE>>: one colour's name (or its #RRGGBB). Gives back its name, or
-    raises Refused("unknown") or Refused("taken"). What it had before goes to hue-history/."""
+    """Take an agent's <<HUE>>: any colour as a hex code, #RRGGBB, or a colour of the palette
+    by its name (the first one's coral too, for it alone). Gives back the name it is kept
+    by (the palette's name, or the hex code itself), or raises Refused("unknown") or
+    Refused("taken"). What it had before goes to hue-history/.
+
+    Since the founder's request of 17 November 2026 (the branch site-design) a colour is
+    refused only where it is exactly another's (EXACT): close is allowed. With EXACT
+    False, as before, only a palette colour clear of every other agent's is taken."""
     words = " ".join((said or "").split()).strip().strip(".").lower()
     among = offered(agent_id)
     name = words if words in among else name_of(words, agent_id)
+    if name is None and EXACT and hex_of(words):
+        name = hex_of(words)
     if name is None:
         raise Refused("unknown")
-    if name not in free(agent_id):
+    colour = among.get(name) or name
+    if EXACT:
+        if not free_exactly(colour, agent=agent_id):
+            raise Refused("taken")
+    elif name not in free(agent_id):
         raise Refused("taken")
-    here = packet(agent_id)
-    here.mkdir(parents=True, exist_ok=True)
-    kept = here / "hue.json"
-    if kept.is_file():
-        history = here / "hue-history"
-        history.mkdir(parents=True, exist_ok=True)
-        (history / f"hue-before-{at}.json").write_bytes(kept.read_bytes())
-    kept.write_text(json.dumps({"name": name, "hue": among[name], "at": at}, indent=2) + "\n",
-                    encoding="utf-8")
+    _keep(packet(agent_id), "hue.json", "hue-history", "hue-before",
+          {"name": name, "hue": colour, "at": at})
     return name
+
+
+def _keep(here, record, history_name, before, held):
+    """Write a choice, the one before it kept in its history folder."""
+    here.mkdir(parents=True, exist_ok=True)
+    kept = here / record
+    if kept.is_file():
+        history = here / history_name
+        history.mkdir(parents=True, exist_ok=True)
+        (history / f"{before}-{held['at']}.json").write_bytes(kept.read_bytes())
+    kept.write_text(json.dumps(held, indent=2) + "\n", encoding="utf-8")
+
+
+# ---- everyone's colour (the founder's request of 17 November 2026) -----------
+#
+# People and agents each choose their own colour from a full colour picker: a person on
+# their settings page, an agent with a hex code in <<HUE>>. A colour may be close to
+# another's but never the same: it must differ in at least one hex digit from every
+# other agent's and person's colour in force, and from the colours the mosaic gives a
+# kind of thing (RESERVED). The first one keeps coral, which is no one else's. One
+# colour per person or agent, used everywhere: the square beside their name, their tiles
+# on the atrium and the mosaic, their board posts and their bonds (colour_of). Someone
+# who has chosen nothing is drawn in the grey of no colour yet (NO_HUE).
+#
+# A person's choice is kept in their own folder, with every earlier one beside it:
+#
+#     members/<pseudonym>/colour.json        {"hue": "#RRGGBB", "at": UTC stamp}
+#     members/<pseudonym>/colour-history/colour-before-<at>.json
+
+EXACT = True  # the rule of 17 November 2026; False puts back the palette and MIN_APART
+NO_HUE = RESERVED["no colour yet"]
+HEX = re.compile(r"#?([0-9A-Fa-f]{6})")
+PERSON_RECORD = "colour.json"
+
+
+def hex_of(said):
+    """A colour said as a hex code, "#RRGGBB" in capitals, or None."""
+    found = HEX.fullmatch((said or "").strip())
+    return "#" + found.group(1).upper() if found else None
+
+
+def person_folder(name):
+    """A member's folder, or None for a name no member could have."""
+    import members
+    if not isinstance(name, str) or agents.by_id(name) is not None:
+        return None
+    try:
+        members.validate_pseudonym(name)
+    except (members.MemberError, ValueError):
+        return None
+    # read where the data is now, as packet() does
+    folder = Path(os.environ.get("DATA_DIR", REPO)) / "members" / name
+    return folder if folder.is_dir() else None
+
+
+def person_chosen(name):
+    """The colour a person chose, "#RRGGBB", or None."""
+    folder = person_folder(name)
+    try:
+        held = json.loads((folder / PERSON_RECORD).read_text(encoding="utf-8")) if folder else None
+    except (OSError, ValueError):
+        return None
+    return hex_of(held.get("hue")) if isinstance(held, dict) else None
+
+
+def colour_of(who):
+    """Anyone's one colour, "#RRGGBB": an agent's (by id) in force, a person's (by
+    pseudonym) as chosen; NO_HUE where they have none yet."""
+    agent = agents.by_id(who) if isinstance(who, str) else None
+    if agent is not None:
+        return (hex_of(in_force(agent)) or NO_HUE)
+    return person_chosen(who) or NO_HUE
+
+
+def claimed(but=None):
+    """Every colour in force now, in capitals, of every agent and every person but one."""
+    import members
+    found = {hex_of(in_force(one)) for one in agents.registry() if one["id"] != but}
+    found |= {person_chosen(name) for name in members.list_members() if name != but}
+    return {colour for colour in found if colour}
+
+
+def reserved_for(who):
+    """The colours of a kind of thing, which no one chooses; coral is the first one's own."""
+    held = {colour.upper() for colour in RESERVED.values()}
+    if who == agents.FIRST["id"]:
+        held.discard(FIRST_OWN["coral"].upper())
+    return held
+
+
+def free_exactly(colour, agent=None, person=None):
+    """Whether a colour is free to choose: exactly no one else's, and no kind of thing's."""
+    colour = hex_of(colour)
+    who = agent or person
+    return bool(colour) and colour not in claimed(but=who) and colour not in reserved_for(who)
+
+
+def choose_person(name, said, at):
+    """Take a person's colour from the picker: gives back "#RRGGBB", or raises
+    Refused("unknown") or Refused("taken")."""
+    colour = hex_of(said)
+    folder = person_folder(name)
+    if colour is None or folder is None:
+        raise Refused("unknown")
+    if not free_exactly(colour, person=name):
+        raise Refused("taken")
+    _keep(folder, PERSON_RECORD, "colour-history", "colour-before", {"hue": colour, "at": at})
+    return colour

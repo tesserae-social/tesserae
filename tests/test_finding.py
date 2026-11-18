@@ -116,7 +116,7 @@ def test_six_agents_and_six_people_and_the_rest_in_place(world, data_dir):
     assert first.count("· agent") == 6 and more.count("· agent") == 2  # eight agents in all
     names = [one for one in [ALDER, *MORE_PEOPLE] if '">%s</a>' % one in first]
     assert len(names) == 6
-    assert '<a href="/find">find someone</a>' in shown
+    assert '<a href="/find">find someone &rarr;</a>' in home  # under who is here (17 November 2026)
     assert '">hazel</a>' not in shown  # never oneself
 
 

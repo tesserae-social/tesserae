@@ -25,7 +25,7 @@ import pytest
 
 import agents
 from conftest import a_day_here, lines_of, load, page, post, read_json, write_json
-from test_first_one_fingerprints import PAGES, a_lived_world, fixed_keys
+from test_first_one_fingerprints import LETTERS_IN_ACTS, PAGES, a_lived_world, fixed_keys
 from test_keeper_view import NEVER, a_planted_record, content
 from test_pages_by_agent import HELD, SECOND, shown, shown_with_the_tides
 from test_tides_for_any_agent import RHYTHM, one_turn
@@ -386,12 +386,22 @@ def test_the_page_carries_nothing_off_the_keeper_s_list(hearth, founder, data_di
 
 # ---- 10. where the page is linked ------------------------------------------------
 
+def pages_now():
+    """PAGES as held now. Since site-design, part 8 (17 November 2026) a person's letter
+    writes no line of events.md (hearth.LETTER_EVENTS_IN_ACTS), so /rooms/first, /chronicle
+    and /chronicle.md are the ones held in LETTERS_IN_ACTS, and nothing else moved. With
+    conftest.letter_events_not_yet each is PAGES as before
+    (test_the_pages_held_before_part_8_are_the_same_with_the_letter_s_line)."""
+    return {address: LETTERS_IN_ACTS.get("PAGES[%r]" % address, PAGES[address])
+            for address in HELD}
+
+
 def test_with_one_agent_the_keeping_menu_links_the_tides_all_the_same(hearth, founder, wake,
                                                                      room, commons):
     """Since the pages were tidied the keeper is always shown the tides, however many."""
     a_lived_world(founder, wake, room, commons)
-    assert {address: shown_with_the_tides(founder.get(address)) for address in HELD} == {
-        address: PAGES[address] for address in HELD}
+    assert {address: shown_with_the_tides(founder.get(address)) for address in HELD} == \
+        pages_now()
     assert founder.get("/tides").status_code == 200
 
 
@@ -399,8 +409,17 @@ def test_with_one_agent_the_keeping_menu_links_the_tides_all_the_same(hearth, fo
 def test_with_more_than_one_agent_each_page_gains_the_one_entry(hearth, founder, wake, room,
                                                                commons, visitor):
     a_lived_world(founder, wake, room, commons)
-    assert {address: shown_with_the_tides(founder.get(address)) for address in HELD} == {
-        address: PAGES[address] for address in HELD}
+    assert {address: shown_with_the_tides(founder.get(address)) for address in HELD} == \
+        pages_now()
     assert '<span class="here">tides</span>' in tides_page(founder)
     for address in HELD:
         assert "/tides" not in page(visitor.get(address)), address
+
+
+def test_the_pages_held_before_part_8_are_the_same_with_the_letter_s_line(
+        hearth, founder, wake, room, commons, monkeypatch):
+    from conftest import letter_events_not_yet
+    letter_events_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    assert {address: shown_with_the_tides(founder.get(address)) for address in HELD} == {
+        address: PAGES[address] for address in HELD}

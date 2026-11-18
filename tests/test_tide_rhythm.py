@@ -566,14 +566,30 @@ def test_the_tide_keeps_the_line_as_it_goes(hearth, packet, commons, monkeypatch
     assert b"attends at 09:30" in members_bytes(commons)
 
 
-def test_the_atrium_builder_draws_the_line_the_hearth_keeps(hearth, atrium, packet, commons):
-    """The builder reads members.md, so what the hearth keeps there is what it bakes."""
+def test_the_atrium_builder_draws_the_line_the_hearth_keeps(hearth, atrium, packet, commons,
+                                                            monkeypatch):
+    """The builder reads members.md, so what the hearth keeps there is what it bakes.
+
+    Since site-design (17 November 2026) who is here shows only those recently here, from
+    the hearth's here.json, by name and colour (build_atrium.WHO_TWO_COLUMNS): so here the
+    first one woke an hour ago. The line of facts is in members.md as before, and is drawn
+    as before by the block of before (WHO_TWO_COLUMNS False)."""
     members(commons, "dawn")
     set_rhythm(packet, "09:30")
+    write_json(packet / "attendances" / "attendance-2026-10-15T11-00-00Z.json",
+               {"at": "2026-10-15T11-00-00Z"})
     hearth.tend_members()
+    answer = hearth.app.test_client().get("/commons/here.json")
+    assert answer.status_code == 200
+    (commons / "here.json").write_bytes(answer.get_data())
     listed = atrium.parse_members(atrium.members_text(None))
     assert listed[0] == ("citizen", "the first one, unnamed by its own choosing",
                          "founded 4 September 2026, attends at 09:30 · door closed")
+    here = atrium.here_text(None)
+    assert [who for who, _, _ in here[0]] == ["first"]
+    drawn = "\n".join(atrium.who_block(listed, here=here))
+    assert '<a class="name" href="%sfirst">' % atrium.NAME_PAGE in drawn
+    monkeypatch.setattr(atrium, "WHO_TWO_COLUMNS", False)
     assert ('<span class="fact">founded 4 September 2026, attends at 09:30 · door closed</span>'
             in "\n".join(atrium.who_block(listed)))
 

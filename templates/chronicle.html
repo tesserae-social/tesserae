@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}chronicle{% endblock %}
+{% block back %}<a href="{{ url_for('commons') }}">&larr; the commons</a>{% endblock %}
 {% block heading %}chronicle{% endblock %}
 
 {# one tile per side: the agent takes the left half, the person it shares its room

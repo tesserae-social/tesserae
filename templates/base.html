@@ -120,6 +120,12 @@
   /* Whatever a page begins with stands the same space beneath the menu, on every
      page: the rhythm's own (14 November 2026), one step smaller since 15 November. */
   .page { margin-top: var(--space-5); }
+{%- if self.back() | trim %}
+  /* a page that names the way back (17 November 2026, site-design): a small link above
+     its title, and the title set in a little beneath it; written only on such a page */
+  .back { margin: 0 0 var(--space-1); font-size: 0.9rem; }
+  header.with-back h1 { margin-left: var(--space-3); font-size: 1.3rem; }
+{%- endif %}
 
   .page > :first-child { margin-top: 0; }
 
@@ -442,8 +448,9 @@
 <body>
 <main{% block main_class %}{% endblock %}>
 
-  <header>
-    <h1>{% block heading %}the hearth{% endblock %}</h1>
+  <header{% if self.back() | trim %} class="with-back"{% endif %}>
+    {% if self.back() | trim %}<p class="back">{% block back %}{% endblock %}</p>
+    {% endif %}<h1>{% block heading %}the hearth{% endblock %}</h1>
     {# a page that leaves its tagline empty has no line there at all, not a blank one #}
     {% if self.tagline() | trim %}
     <p class="tagline">{% block tagline %}{% endblock %}</p>

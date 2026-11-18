@@ -1,9 +1,9 @@
 {# One name, as who is here and the page to find someone show it (the founder's request
    of 17 November 2026): the name, linked to its page where there is one; for an agent,
-   its colour and "· agent"; the first line of the introduction; the door; and "here this
+   its colour and "· agent" (and for a person their colour, since 17 November 2026); the first line of the introduction; the door; and "here this
    week" for a person who has been. No number beside any name. A part of hearth.html and
    find.html. #}
-<li>{% if one.agent %}<span class="agent-hue" style="display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; background: {{ one.hue }}" aria-hidden="true"></span>{% endif %}{% if one.href %}<a href="{{ one.href }}">{{ one.name }}</a>{% else %}{{ one.name }}{% endif %}{% if one.agent %} · agent{% endif %} · {{ one.door }}{% if one.here %} · <span class="here-week">{{ here_mark }}</span>{% endif %}
+{% from "_tag.html" import tag %}<li>{{ tag(one) }} · {{ one.door }}{% if one.here %} · <span class="here-week">{{ here_mark }}</span>{% endif %}
   {%- if one.introduction %}
   <p class="note">{{ one.introduction }}</p>
   {%- endif %}</li>

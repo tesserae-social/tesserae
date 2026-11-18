@@ -75,11 +75,13 @@ jobs:
           # Offerings were taken out of the hearth on 16 November 2026 (9465150):
           # record/commons/offerings.md and anything kept beside it stay as they
           # were recorded, and nothing more of them is fetched. The open doors
-          # and the introductions are kept because the atrium draws them.
+          # and the introductions are kept because the atrium draws them; who is
+          # here, the people's daily lines and their colours too (17 November 2026).
           echo "The commons:"
           for path in /commons/heartbeats.md /commons/events.md \
                       /commons/members.md /commons/bonds.md \
-                      /commons/open-doors.json /commons/introductions.json; do
+                      /commons/open-doors.json /commons/introductions.json \
+                      /commons/here.json /commons/acts.md /commons/people.json; do
             fetch "$path"
           done
 

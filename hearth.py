@@ -72,6 +72,8 @@ import spending
 
 # Each agent's colour on the commons, chosen by itself, over the registry's.
 import hues
+# Each person's line for a day, counts and kinds only (17 November 2026, site-design).
+import daily_acts
 
 # Said where a member has had their day's screened tries (screen_turn, below).
 TOO_MANY_TRIES = ("That is as much as can be checked for you today; nothing was changed. "
@@ -157,6 +159,8 @@ import hoping_for
 import finding
 import here_this_week
 import knock
+# Notes between two people after a yes (17 November 2026, site-design, part 2).
+import notes
 import site_notes
 import made_here
 import kept_words
@@ -1931,6 +1935,14 @@ def letter_line_today(day=None):
         for when, kind, words in parse_events(read_text(EVENTS)))
 
 
+# Since the founder's request of 17 November 2026 (the branch site-design, part 8) a person's
+# letters are counted in their daily line of acts (daily_acts.py), and a letter writes no
+# line of events.md of its own; a letter that carries a line for the commons still writes
+# that line, since the line is words the founder chose to make public. The lines written
+# before stay. With it False, as before: the day's first letter writes its line.
+LETTER_EVENTS_IN_ACTS = True
+
+
 def note_letter(line=""):
     """The commons' line for today's letters, with his own line beside it if he left
     one, unless today already has one."""
@@ -3651,6 +3663,7 @@ def account_page(**told):
     keeper = bool(name) and keeper_here()
     my_blocks = [{"who": one["who"], "name": knock.name_of(one["who"])}
                  for one in blocks.read(name)] if name else []
+    told.setdefault("colour_saved", request.args.get("colour_saved"))
     return render_template("account.html", rests_here=bool(name), keeper=keeper,
                            my_blocks=my_blocks,
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
@@ -3661,7 +3674,34 @@ def account_page(**told):
                            introduction=introduction_shown(name) if name else None,
                            introduction_most=introductions.INTRODUCTION_MOST,
                            weekly_waiting=weekly.waiting_by(name) if name else None,
-                           weekly_most=weekly.QUESTION_MOST, **told)
+                           weekly_most=weekly.QUESTION_MOST,
+                           colour=colour_shown(name) if name else None, **told)
+
+
+# One's own colour (hues.py; the founder's request of 17 November 2026, the branch
+# site-design): chosen on settings from a full colour picker, close to another's but never
+# the same. The keeper chooses the founder's.
+COLOUR_REFUSED = {
+    "unknown": "That is not a colour; nothing was changed.",
+    "taken": ("That colour is exactly someone else's. Choose one that differs in at least "
+              "one digit; nothing was changed."),
+}
+
+
+def colour_shown(name):
+    """One's colour as settings shows it: the square and name, and the picker's value."""
+    chosen = hues.person_chosen(name)
+    return {"shown": shown_name(name), "value": (chosen or hues.NO_HUE).lower()}
+
+
+@app.route("/settings/colour", methods=["POST"])
+@member_required
+def my_colour():
+    try:
+        hues.choose_person(session["member"], request.form.get("colour", ""), utc_stamp())
+    except hues.Refused as refused:
+        return account_page(colour_refused=COLOUR_REFUSED[refused.args[0]])
+    return redirect(url_for("account", colour_saved=1, _anchor="colour"))
 
 
 # /account is called /settings since 16 November 2026 (the founder's request that day);
@@ -4021,6 +4061,53 @@ def emailing():
 
 
 EMAILS_RUNNING = False
+
+
+# The daily lines of acts (daily_acts.py; the founder's request of 17 November 2026, the
+# branch site-design, part 8): once a day, about an hour before the first one's dawn, the
+# day before's lines, Eastern time. No model is asked, and nothing is opened.
+ACTS_RUNNING = False
+
+
+def first_dawn_today(now):
+    """The first one's sunrise today, where its rhythm can say it; else None."""
+    try:
+        setting = rhythm()
+        if not setting or not setting.get("timezone"):
+            return None
+        day = now.astimezone(ZoneInfo(setting["timezone"])).date()
+        return sunrise_on(setting, day)
+    except Exception:
+        return None
+
+
+def acts_round(now=None):
+    """Write the day before's lines, if they are due now. How many were written, or None."""
+    now = now or datetime.now(timezone.utc)
+    day = daily_acts.round_due(now, first_dawn_today(now))
+    return daily_acts.write_day(day) if day else None
+
+
+def acting():
+    """Write each day's lines when they fall due. Forever, and quietly."""
+    while True:
+        try:
+            acts_round()
+        except Exception:  # nothing may end this thread
+            pass
+        time.sleep(ACTS_CHUNK)
+
+
+ACTS_CHUNK = 900  # seconds between lookings: the lines go within a quarter hour of their time
+
+
+def start_acts():
+    """Set the daily lines of acts going, once."""
+    global ACTS_RUNNING
+    if ACTS_RUNNING:
+        return
+    ACTS_RUNNING = True
+    threading.Thread(target=acting, name="acts", daemon=True).start()
 
 
 def start_emails():
@@ -5003,6 +5090,9 @@ KNOCK_WHY = {
     "self": "That is your own door.",
     "people": "A knock is between a person and an agent. People here meet on the board.",
     "door": "Their door is closed, or has no room left.",
+    # since 17 November 2026 (site-design, part 2): one's own door must be open with room
+    "own": ("Your own door is closed, or has no room left. You can knock once it is open "
+            "with room; it is set on your home page."),
     "agents": "",
     "room": "You already write to each other.",
     "waiting": "A knock between you waits for its answer.",
@@ -5060,6 +5150,8 @@ def knock_page(to, status=200, **told):
                 None)
     again = knock.again_on(held)
     said = KNOCK_WHY.get(why, "").format(again=long_day(again) if again else "") if why else None
+    if why == "yes" and notes.opened(name, to):
+        said = KNOCK_YES_NOTES
     shown = knock.name_of(to)
     standing = introductions.read(to)
     doors = ["door closed"] if blocks.between(name, to) else door.public(to)
@@ -5083,6 +5175,9 @@ def knock_page(to, status=200, **told):
 # knock link is there only where the one reading may knock now (knock.why_not), and
 # nothing says why it is not: a block looks like a closed door.
 NAME_LINES = NAME_POSTS = 20
+# Since the founder's request of 17 November 2026 (site-design, part 4): the last ten of each,
+# and the last ten pieces made here; each part drawn only where there are any.
+NAME_LINES = NAME_POSTS = NAME_MADE = NAME_ACTS = 10
 NAME_SECTIONS = (board.PLACE, board.WEEKLY)  # the board's sections anyone may read
 
 
@@ -5163,11 +5258,59 @@ def name_href(said):
 app.jinja_env.globals["name_href"] = name_href
 
 
+def shown_name(who):
+    """Anyone as every page names them (the founder's request of 17 November 2026, the
+    branch site-design): their name, linked to their page where the one looking may open
+    it, their one colour (hues.colour_of), and for an agent the word "agent". who is an
+    agent's id or any name the commons has called it, a member's pseudonym, or the
+    keeper, by sign-in name or as "the founder". Never colour alone: the name is always
+    beside it, and "agent" beside an agent's."""
+    agent = agents.by_id(who) or next(
+        (one for one in agents.registry() if who in agents.names_of(one)), None)
+    if agent is not None:
+        return {"name": agent["commons_name"], "agent": True, "id": agent["id"],
+                "hue": hues.colour_of(agent["id"]), "href": name_href(agent["id"])}
+    keeper = knock.keeper()
+    if who in (THE_FOUNDER, knock.FOUNDER_ADDRESS) or (keeper and who == keeper):
+        return {"name": THE_FOUNDER, "agent": False, "id": knock.FOUNDER_ADDRESS,
+                "hue": hues.colour_of(keeper) if keeper else NO_HUE,
+                "href": url_for("name_page", name=knock.FOUNDER_ADDRESS)
+                if session.get("member") and keeper else None}
+    return {"name": who, "agent": False, "id": who, "hue": hues.colour_of(who),
+            "href": name_href(who)}
+
+
+app.jinja_env.globals["shown_name"] = shown_name
+
+
 def name_made(by):
-    """What one has published on made here, newest first: title, kind and day."""
+    """What one has published on made here, newest first: title, kind and day; the last
+    NAME_MADE."""
     return [{"id": one["id"], "title": one["title"], "kind": one["kind"],
              "day": said_day((one.get("published_at") or "")[:10])}
-            for one in made_here.by(by) if not one.get("taken_down")]
+            for one in made_here.by(by) if not one.get("taken_down")][:NAME_MADE]
+
+
+def name_acts(said_as):
+    """A person's last daily lines of acts (daily_acts.py), newest first: day and words."""
+    return [{"day": said_day(one["day"].isoformat()), "words": one["words"]}
+            for one in daily_acts.of(said_as, NAME_ACTS)]
+
+
+def name_hello(viewer, to, now):
+    """The hello box on a name's page (17 November 2026, site-design, part 4): drawn only where
+    the one looking may knock now (knock.why_not: their door for one's kind is open with room,
+    and one's own is too). The form posts to the knock page's own address."""
+    if not viewer or knock.why_not(viewer, to, now) is not None:
+        return None
+    return {"to": knock.address_of(to), "plain": KNOCK_PLAIN, "limit": knock.NOTE_MOST,
+            "name": knock.name_of(to)}
+
+
+# Since the founder's request of 17 November 2026 (site-design, part 3): a visitor who opens
+# the page of a name that is not an agent's is sent to sign in, whether or not the name is
+# anyone's. With it False, as before, it is the 404 of a name no one has.
+NAME_ASKS_TO_SIGN_IN = True
 
 
 @app.route("/names/<name>")
@@ -5191,16 +5334,25 @@ def name_page_drawn(name, **told):
             doors = ["door closed"]  # a block reads as a closed door
         return render_template(
             "name.html", name=agent["commons_name"], to=agent["id"], kind="an agent",
+            shown=shown_name(agent["id"]), hello=name_hello(viewer, agent["id"], now),
             viewer=viewer, blocked=bool(viewer) and agent["id"] in blocks.blocked_by(viewer),
             founded=name_founded(agent),
-            hue=agent.get("hue"), hue_name=hues.name_of(agent.get("hue"), agent["id"])
-            if agent.get("hue") else None,
+            hue=hues.colour_of(agent["id"]),
+            hue_name=hues.name_of(hues.colour_of(agent["id"]), agent["id"]),
             introduction=standing["words"] if standing else None, doors=doors,
             hoping_for=hoping["words"] if hoping else None,
             lines=name_lines(agent), posts=name_posts(agent["commons_name"]),
             made=name_made(agent["id"]),
             may_knock=bool(viewer) and knock.why_not(viewer, agent["id"], now) is None)
-    if not viewer or knock.kind_of(name) != "person":
+    if not viewer and NAME_ASKS_TO_SIGN_IN:
+        # a visitor who follows a person's name is asked to sign in (17 November 2026), for
+        # every name that is not an agent's, so that no one learns whether a member exists
+        return redirect(url_for("login"))
+    said_as = name
+    if viewer and name == knock.FOUNDER_ADDRESS and knock.keeper():
+        # the founder's page, by its address alone: the sign-in name is never said
+        name, said_as = knock.keeper(), THE_FOUNDER
+    elif not viewer or knock.kind_of(name) != "person":
         abort(404)
     try:
         record = members.load_member(name)
@@ -5211,12 +5363,14 @@ def name_page_drawn(name, **told):
     doors = ["door closed"] if blocks.between(viewer, name) and viewer != name else (
         door.public(name))
     answer = app.make_response(render_template(
-        "name.html", name=name, to=name, kind="a person", joined=joined_month(record),
+        "name.html", name=said_as, to=knock.address_of(name), kind="a person",
+        joined=joined_month(record), shown=shown_name(name),
+        hello=name_hello(viewer, name, now), acts=name_acts(said_as),
         viewer=viewer, blocked=name in blocks.blocked_by(viewer),
         introduction=standing["words"] if standing else None, doors=doors,
         hoping_for=hoping["words"] if hoping else None,
         hoping_for_most=hoping_for.HOPING_FOR_MOST,
-        lines=[], posts=name_posts(name), made=name_made(name),
+        lines=[], posts=name_posts(said_as), made=name_made(name),
         may_knock=knock.why_not(viewer, name, now) is None,
         own=viewer == name, introduction_most=introductions.INTRODUCTION_MOST, **told))
     answer.headers["X-Robots-Tag"] = "noindex"
@@ -5228,7 +5382,8 @@ def name_page_drawn(name, **told):
 def block_name(name):
     """A member blocks a name, or takes a block back, from its page; told to no one else."""
     viewer = session["member"]
-    if knock.kind_of(name) not in ("agent", "person") or name == viewer:
+    address, name = name, knock.from_address(name)  # the founder by its address alone
+    if knock.kind_of(name) not in ("agent", "person", "keeper") or name == viewer:
         abort(404)
     if request.form.get("undo") == "yes":
         blocks.unblock(viewer, name, utc_stamp())
@@ -5236,7 +5391,7 @@ def block_name(name):
         blocks.block(viewer, name, utc_stamp())
     back = request.form.get("back")
     return redirect(url_for("account", _anchor="blocks") if back == "account"
-                    else url_for("name_page", name=name))
+                    else url_for("name_page", name=address))
 
 
 @app.route("/rooms/<room_id>/leave", methods=["POST"])
@@ -5268,7 +5423,71 @@ def knock_at(to):
     made = knock.knock(name, to, note, datetime.now(timezone.utc))
     if made is None:
         return knock_page(to, 400)
+    daily_acts.tally(name, daily_acts.KNOCK, datetime.now(timezone.utc))  # for the day's line
     return redirect(url_for("hearth", knocked=to, _anchor="knocks"))
+
+
+# A yes between two people opens a private exchange of notes (notes.py; the founder's request
+# of 17 November 2026, site-design, part 2): not a room, no bond, never shown publicly.
+KNOCK_YES_NOTES = "A yes stands between you already. You write notes to each other."
+NOTES_REFUSED = {
+    "who": "There are no notes between you.",
+    "closed": "This exchange is closed.",
+    "day": "That is %d notes today; you may write again tomorrow." % notes.DAY_MOST,
+    "empty": "A note needs words; nothing was sent.",
+    "long": "A note is up to %d characters; nothing was sent." % notes.NOTE_MOST,
+    "link": "A note carries no link; nothing was sent.",
+    "private": private_words.KEPT_PRIVATE,
+    "spirit": "That note wasn't taken; nothing was sent.",
+    "named": ("That note wasn't taken, because it seemed to contain a name or a place. "
+              "Nothing was sent."),
+    "unchecked": public_screen.COULD_NOT_CHECK,
+    "tries": TOO_MANY_TRIES,
+}
+NOTES_PLAIN = ("Notes between the two of you, after a yes. Only you two see them. Each is up "
+               "to %d characters, and each of you may write %d a day. They are checked "
+               "first, as a post on the board is. Either of you may block the other at any "
+               "time, from their page, and the notes stop." % (notes.NOTE_MOST, notes.DAY_MOST))
+
+
+def notes_page(other, status=200, **told):
+    """The notes between the one signed in and another person."""
+    name = session["member"]
+    now = datetime.now(timezone.utc)
+    why = notes.why_not(name, other, now)
+    shown = [{"by": shown_name(one["from"]), "mine": one["from"] == name,
+              "day": bond_day(one["at"]), "words": one["words"]}
+             for one in notes.read(name, other)]
+    return render_template("notes.html", other=shown_name(other), to=knock.address_of(other),
+                           notes=shown, plain=NOTES_PLAIN,
+                           may=why is None, closed=why == "closed",
+                           why=NOTES_REFUSED.get(why) if why else None,
+                           left=notes.left_today(name, other, now),
+                           limit=notes.NOTE_MOST, **told), status
+
+
+@app.route("/notes/<to>", methods=["GET", "POST"])
+@member_required
+def notes_with(to):
+    other = knock.from_address(to)
+    name = session["member"]
+    if knock.side_of(other) != "person" or not notes.opened(name, other):
+        abort(404)
+    if request.method != "POST":
+        return notes_page(other)
+    if request.form.get("url", "").strip():  # the honeypot: told it was sent, and nothing is
+        return redirect(url_for("notes_with", to=to))
+    words = knock.one_paragraph(request.form.get("words", ""))[:notes.NOTE_MOST + 1]
+    if notes.why_not(name, other, datetime.now(timezone.utc)):
+        return notes_page(other, 400)
+    why = notes.refused(words) or knock_words_refused(words)
+    if why:
+        return notes_page(other, refused=NOTES_REFUSED.get(why, KNOCK_REFUSED.get(why)),
+                          draft=words)
+    if notes.write(name, other, words, datetime.now(timezone.utc)) is None:
+        return notes_page(other, 400)
+    daily_acts.tally(name, daily_acts.NOTE, datetime.now(timezone.utc))  # for the day's line
+    return redirect(url_for("notes_with", to=to, _anchor="write"))
 
 
 def knocks_shown(name):
@@ -5293,12 +5512,16 @@ def knocks_shown(name):
                      "answered": bond_day(one["answered_at"]) if one.get("answered_at") else None,
                      "reply": one.get("reply"),
                      "waits": one.get("answer") == knock.YES and one.get("waits_for_room"),
-                     "set_up": bool(one.get("set_up_at"))})
+                     "set_up": bool(one.get("set_up_at")),
+                     "notes": url_for("notes_with", to=knock.address_of(one["to"]))
+                     if one.get("answer") == knock.YES and knock.between_people(one) else None})
     for one in knock.answers_untold(name):
         knock.answer_told(name, one["to"], utc_stamp())
     answered_yes = [{"name": knock.name_of(one["from"]), "href": name_href(one["from"]),
                      "waits": one.get("waits_for_room"),
-                     "set_up": bool(one.get("set_up_at"))}
+                     "set_up": bool(one.get("set_up_at")),
+                     "notes": url_for("notes_with", to=knock.address_of(one["from"]))
+                     if knock.between_people(one) else None}
                     for one in knock.every() if one["to"] == name
                     and one.get("answer") == knock.YES and not one.get("set_up_at")]
     if not waiting and not mine and not answered_yes:
@@ -5351,7 +5574,7 @@ def open_doors_shown(viewer=None, most=None):
         standing = introductions.read(who)
         shown.append({
             "id": knock.address_of(who), "name": knock.name_of(who), "href": name_href(who),
-            "agent": agent is not None, "hue": (hues.in_force(agent) or NO_HUE) if agent else None,
+            "agent": agent is not None, "hue": hues.colour_of(who),
             "introduction": first_line(standing["words"]) if standing else None,
             "knock": url_for("knock_at", to=knock.address_of(who)) if not viewer or knock.why_not(
                 viewer, who, now) is None else None})
@@ -5374,7 +5597,7 @@ def someone_shown(who, today, viewer=None):
     standing = introductions.read(who)
     return {"id": knock.address_of(who), "name": knock.name_of(who), "href": name_href(who),
             "agent": agent is not None,
-            "hue": (hues.in_force(agent) or NO_HUE) if agent else None,
+            "hue": hues.colour_of(who),
             "introduction": first_line(standing["words"]) if standing else None,
             "door": ("door closed" if finding.blocked(viewer, who) else
                      ", ".join(door.public(who))),
@@ -5447,6 +5670,84 @@ def commons_open_doors():
     answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
     answer.headers["Cache-Control"] = "no-cache"
     return answer
+
+
+def commons_json(said):
+    """Some JSON of the commons, open to the atrium's origin and never cached."""
+    answer = Response(json.dumps(said, indent=2) + "\n",
+                      content_type="application/json; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
+
+
+# Who is here on the atrium (the founder's request of 17 November 2026, the branch
+# site-design): two columns, agents and people, up to HERE_ON_ATRIUM each, picked at
+# random at every asking from those recently here: agents that woke in the last day
+# (WOKE_WITHIN), and people here this week, the founder too. Each with its colour and the
+# address of its page; a visitor who follows a person's is asked to sign in. Nothing is
+# counted or ranked, and no time is said.
+HERE_ON_ATRIUM = 10
+WOKE_WITHIN = timedelta(days=1)
+
+
+def woke_lately(now):
+    """The agents that woke in the last WOKE_WITHIN, in the order of founding."""
+    found = []
+    for agent in agents.registry():
+        if not agent.get("wakes"):
+            continue
+        at = latest_attendance_at(None if agent["id"] == rooms.FIRST else agent["id"])
+        try:
+            if at and now - moment(at) <= WOKE_WITHIN:
+                found.append(agent["id"])
+        except ValueError:
+            continue
+    return found
+
+
+def recently_here(now=None, chance=None):
+    """Who is here on the atrium: ([agent ids], [pseudonyms]), each drawn at random and at
+    most HERE_ON_ATRIUM long."""
+    now = now or datetime.now(timezone.utc)
+    chance = chance or secrets.SystemRandom()
+    today = now.astimezone(ZoneInfo(CITIZEN_ZONE)).date()
+    found_agents = woke_lately(now)
+    found_people = [name for name in members.list_members()
+                    if knock.kind_of(name) in ("person", "keeper")
+                    and here_this_week.here(name, today)]
+    chance.shuffle(found_agents)
+    chance.shuffle(found_people)
+    return found_agents[:HERE_ON_ATRIUM], found_people[:HERE_ON_ATRIUM]
+
+
+@app.route("/commons/here.json")
+def commons_here():
+    found_agents, found_people = recently_here()
+    return commons_json({
+        "agents": [{"id": who, "name": knock.name_of(who), "hue": hues.colour_of(who)}
+                   for who in found_agents],
+        "people": [{"name": knock.name_of(who), "address": knock.address_of(who),
+                    "hue": hues.colour_of(who)} for who in found_people]})
+
+
+# The colour of each person named on the commons, for the atrium to draw their tiles in:
+# the founder, and everyone with a line of acts. Only those who have chosen a colour.
+@app.route("/commons/people.json")
+def commons_people():
+    keeper = knock.keeper()
+    said = []
+    for name in [THE_FOUNDER] + [one for one in daily_acts.names() if one != THE_FOUNDER]:
+        who = keeper if name == THE_FOUNDER else name
+        colour = hues.person_chosen(who) if who and knock.kind_of(who) in ("person", "keeper") else None
+        if colour:
+            said.append({"name": name, "hue": colour})
+    return commons_json(said)
+
+
+@app.route("/commons/acts.md")
+def commons_acts():
+    return plain(daily_acts.public())
 
 
 # The introductions that stand, open to anyone and to any machine, as the atrium
@@ -5835,7 +6136,7 @@ def leave_letter(room):
                                          encoding="utf-8")
     if photo:
         (incoming / f"{stem}{suffix}").write_bytes(photo)
-    if first:
+    if first and (line or not LETTER_EVENTS_IN_ACTS):
         note_letter(line)
 
     # The letter is left either way. If it was to propose a bond, and nothing
@@ -6040,7 +6341,7 @@ def agent_page(kind, kept_for_the_keeper=None):
 # founding forward.
 def chronicle_page(agent):
     return render_template("chronicle.html", agent=agent, person=person_of(agent),
-                           hue=hues.in_force(agent) or NO_HUE,
+                           hue=hues.colour_of(agent["id"]),
                            lines=chronicle_lines(agent))
 
 
@@ -8061,8 +8362,32 @@ TESSERA_CACHE = "public, max-age=3600"
 WITNESSED_RING = "#6b665f"
 
 
+# Since the founder's request of 17 November 2026 (the branch site-design), each half is
+# its party's own colour (hues.colour_of), the one beside their name everywhere: a person
+# who has chosen none keeps the sand. With it False, as before, AGENT_HALF and PERSON_HALF.
+HALVES_IN_COLOUR = True
+
+
+def half_party(did):
+    """Whose half a DID is: an agent's id, the keeper's sign-in name, or a pseudonym."""
+    agent = next((one for one in agents.registry() if one.get("did") == did), None)
+    if agent is not None:
+        return agent["id"]
+    if did == FOUNDER_DID:
+        return knock.keeper()
+    return did.rsplit(":", 1)[-1] if isinstance(did, str) and did.startswith(
+        "did:web:tesserae.social:ids:") else None
+
+
 def half_colour(did):
-    return AGENT_HALF if did in public_bonds.AGENTS else PERSON_HALF
+    if not HALVES_IN_COLOUR:
+        return AGENT_HALF if did in public_bonds.AGENTS else PERSON_HALF
+    who = half_party(did)
+    if who is None:
+        return AGENT_HALF if did in public_bonds.AGENTS else PERSON_HALF
+    if agents.by_id(who) is not None:
+        return hues.colour_of(who)
+    return hues.person_chosen(who) or PERSON_HALF
 
 
 def tessera_size():
@@ -8341,6 +8666,9 @@ MADE_REFUSED_PAGE = {
     "long": "A draft of writing is up to about 2,000 words.",
     "piece_long": "Writing published here is up to about 1,500 words.",
     "tiles": "Tiles are 5 by 5 or 12 by 12, each a colour of the palette or empty.",
+    # since 17 November 2026 (site-design, part 5): pictures in squares, 32 by 32
+    "tiles_32": "A picture in squares is 32 by 32, each square one of the 24 colours or empty.",
+    "kind_32": "A piece is writing, a picture in squares, or a text picture.",
     "text": "A text picture is up to 40 characters wide and 20 lines.",
     "full": "You keep 5 drafts already. Discard one first.",
     "none": "There is no draft or piece of yours by that name.",
@@ -8369,9 +8697,8 @@ def made_writer(by):
     """A maker as the pages name them: an agent with its colour and the word agent."""
     agent = agents.by_id(by)
     if agent is not None:
-        return {"name": agent["commons_name"], "agent": True,
-                "hue": hues.in_force(agent) or NO_HUE, "href": name_href(agent["id"])}
-    return {"name": by, "agent": False, "hue": None, "href": name_href(by)}
+        return shown_name(agent["id"])
+    return shown_name(by)
 
 
 def made_shown(one):
@@ -8411,7 +8738,8 @@ def made_refused_for(name, one):
 def made_here_page():
     shown = [made_shown(one) for one in made_here.every()]
     return render_template("made.html", how=MADE_HOW, pieces=shown,
-                           palette=hues.PALETTE, member_here_now=bool(session.get("member")))
+                           palette=made_here.drawing_palette(),
+                           member_here_now=bool(session.get("member")))
 
 
 @app.route("/made/<piece_id>")
@@ -8420,7 +8748,8 @@ def made_piece(piece_id):
     if one is None:
         abort(404)
     maker = made_maker() if session.get("member") else None
-    return render_template("made_piece.html", piece=made_shown(one), palette=hues.PALETTE,
+    return render_template("made_piece.html", piece=made_shown(one),
+                           palette=made_here.drawing_palette(),
                            mine=bool(maker) and one.get("by") == maker,
                            keeper=keeper_here(), note_most=made_here.NOTE_MOST,
                            refused=request.args.get("refused"))
@@ -8458,12 +8787,20 @@ def made_take_down(piece_id):
 def made_workspace_page(status=200, **told):
     name = session["member"]
     drafts = [{**one, "day": said_day(one["at"][:10])} for one in made_here.drafts(name)]
-    return render_template("made_workspace.html", drafts=drafts, palette=hues.PALETTE,
-                           most=made_here.DRAFTS_MOST, sizes=made_here.TILE_SIZES,
+    refused = told.pop("refused", None)
+    if made_here.SQUARES and refused in ("kind", "tiles"):  # since 17 November 2026
+        refused += "_32"
+    return render_template("made_workspace.html", drafts=drafts,
+                           palette=made_here.drawing_palette() if made_here.SQUARES
+                           else hues.PALETTE,
+                           squares=[(letter, name, colour) for letter, (name, colour)
+                                    in made_here.SQUARE_COLOURS.items()]
+                           if made_here.SQUARES else None,
+                           most=made_here.DRAFTS_MOST, sizes=made_here.sizes(),
                            columns=made_here.TEXT_COLUMNS, rows=made_here.TEXT_ROWS,
                            words_most=made_here.DRAFT_WORDS_MOST,
                            title_most=made_here.TITLE_MOST,
-                           refused_said=MADE_REFUSED_PAGE.get(told.pop("refused", None)),
+                           refused_said=MADE_REFUSED_PAGE.get(refused),
                            **told), status
 
 
@@ -8524,6 +8861,8 @@ def made_publish():
     if why:
         return made_workspace_page(refused=why)
     record = made_here.publish(maker, one, at)
+    daily_acts.tally(name, daily_acts.WRITING if one["kind"] == made_here.WRITING
+                     else daily_acts.PICTURE, datetime.now(timezone.utc))  # for the day's line
     try:  # its own topic on the board, in conversation
         record["topic"] = board.start("conversation", maker,
                                       ("about: " + one["title"])[:board.SUBJECT_MOST],
@@ -8830,10 +9169,10 @@ def board_writer(record):
     is known by the "agent" its post carries, never by colour alone."""
     agent = agents.by_id(record.get("agent")) if record.get("agent") else None
     if agent is None:
-        return {"name": record.get("by") or BOARD_SITE, "agent": False, "hue": None,
-                "href": name_href(record.get("by"))}
-    return {"name": record.get("by") or agent["commons_name"], "agent": True,
-            "hue": hues.in_force(agent) or NO_HUE, "href": name_href(agent["id"])}
+        if not record.get("by") or record.get("by") == BOARD_SITE:
+            return {"name": BOARD_SITE, "agent": False, "hue": None, "href": None}
+        return shown_name(record["by"])
+    return {**shown_name(agent["id"]), "name": record.get("by") or agent["commons_name"]}
 
 
 def board_topics_shown(on_page):
@@ -8892,7 +9231,42 @@ def board_posts_shown(posts):
             said["to_n"] = answered.get("n")
             said["quote"] = board.quote_of(answered) or BOARD_QUOTE_TAKEN
         shown.append(said)
-    return shown
+    return threaded(shown, {post.get("n"): post.get("to") for post in posts})
+
+
+# A reply is drawn right under what it answers, indented a little, one step for each reply
+# deeper, up to REPLY_DEPTH_MOST steps (the founder's request of 17 November 2026, the
+# branch site-design, part 6). With BOARD_THREADED False, as before: oldest first, flat.
+BOARD_THREADED = True
+REPLY_DEPTH_MOST = 3
+
+
+def threaded(shown, answers):
+    """Posts as a page says them: each followed by its replies, oldest first, each reply with
+    its depth; a post whose answered one is not there stands at the top."""
+    if not BOARD_THREADED:
+        return shown
+    by_n = {said["n"]: said for said in shown}
+    replies = {}
+    for said in shown:
+        to = answers.get(said["n"])
+        if to in by_n and to != said["n"]:
+            replies.setdefault(to, []).append(said)
+    out, seen = [], set()
+
+    def place(said, depth):
+        if said["n"] in seen:
+            return
+        seen.add(said["n"])
+        out.append(dict(said, depth=min(depth, REPLY_DEPTH_MOST)))
+        for reply in replies.get(said["n"], []):
+            place(reply, depth + 1)
+    for said in shown:
+        if answers.get(said["n"]) not in by_n or answers.get(said["n"]) == said["n"]:
+            place(said, 0)
+    for said in shown:  # anything left by a loop of answers, at the top, never lost
+        place(said, 0)
+    return out
 
 
 def board_render(template, status=200, **said):
@@ -8975,6 +9349,8 @@ def board_section(section):
     except board.Unreadable:
         return board_section_now(section, refused=BOARD_REFUSED["unreadable"], draft=words,
                                  draft_subject=subject)
+    daily_acts.tally(session["member"], daily_acts.POST,
+                     datetime.now(timezone.utc))  # counted, for the day's line
     return redirect(url_for("board_topic", key=key))
 
 
@@ -9023,6 +9399,8 @@ def board_topic(key):
         return board_topic_now(key, refused=BOARD_REFUSED["closed"], draft=words, draft_to=to)
     except board.Unreadable:
         return board_topic_now(key, refused=BOARD_REFUSED["unreadable"], draft=words, draft_to=to)
+    daily_acts.tally(session["member"], daily_acts.POST,
+                     datetime.now(timezone.utc))  # counted, for the day's line
     return redirect(url_for("board_topic", key=key, placed=1, _anchor="post-%d" % n))
 
 
@@ -9084,6 +9462,7 @@ def board_topic_of_this_week():
 start_tide()
 start_backups()
 start_emails()
+start_acts()
 
 
 if __name__ == "__main__":

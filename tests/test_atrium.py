@@ -12,13 +12,22 @@ from urllib.parse import unquote
 
 import pytest
 
-from conftest import REPO, write
+from conftest import REPO, atrium_before_design, write
 
 STAMP = "%Y-%m-%dT%H-%M-%SZ"
 
 # The day the atrium fixture is pinned to: conftest's NOW, on the citizen's clock.
 # The mosaic's run of days ends on it, so every test that draws one says which.
 TODAY = datetime.date(2026, 10, 15)
+
+
+@pytest.fixture(autouse=True)
+def as_before_site_design(request, monkeypatch):
+    """These tests hold the atrium as it was before site-design (17 November 2026): the
+    first one's tiles in the stylesheet's tones, and who is here from members.md.
+    test_site_design.py holds it as it is now."""
+    if "atrium" in request.fixturenames:
+        atrium_before_design(request.getfixturevalue("atrium"), monkeypatch)
 
 
 def stamps(*lines):
@@ -1769,14 +1778,27 @@ def test_the_mirror_draws_the_atrium_with_the_standard_library_alone(tmp_path):
     assert not re.search(r"^\s*<h3>doors open now</h3>\s*$", drawn, re.M)
 
 
-def test_the_mirror_draws_the_open_doors_it_kept(tmp_path):
+def test_the_mirror_draws_who_is_here_it_kept(tmp_path):
+    """Since site-design (17 November 2026) the mirror draws who is here from here.json,
+    and doors open now no longer."""
     here = mirror_copy(tmp_path)
     (here / "record" / "commons" / "open-doors.json").write_text(
         json.dumps([{"id": "first", "name": "Kept Door"}]), encoding="utf-8")
+    (here / "record" / "commons" / "here.json").write_text(json.dumps(
+        {"agents": [{"id": "first", "name": "Kept Agent", "hue": "#D85A30"}],
+         "people": [{"name": "kept-person", "address": "kept-person", "hue": "#AA3366"}]}),
+        encoding="utf-8")
     done = draw_as_the_mirror(here)
     assert done.returncode == 0, done.stdout + done.stderr
     page = (here / "index.html").read_text(encoding="utf-8")
-    assert re.search(r"^\s*<h3>doors open now</h3>\s*$", page, re.M) and "Kept Door" in page
+    assert "Kept Agent</a> · agent" in page and "kept-person</a>" in page
+    assert not re.search(r"^\s*<h3>doors open now</h3>\s*$", page, re.M)
+
+
+def test_the_mirror_keeps_who_is_here_and_the_people_s_lines():
+    workflow = (REPO / ".github" / "workflows" / "mirror.yml").read_text(encoding="utf-8")
+    for path in ("/commons/here.json", "/commons/acts.md", "/commons/people.json"):
+        assert path in workflow
 
 
 def test_the_mirror_keeps_the_open_doors_and_no_longer_fetches_offerings():

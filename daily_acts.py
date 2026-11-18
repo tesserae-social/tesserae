@@ -31,9 +31,17 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 REPO = Path(__file__).resolve().parent
-DATA = Path(os.environ.get("DATA_DIR", REPO))
 
-PUBLIC = DATA / "commons" / "acts.md"
+
+def data():
+    """Where the living files are kept, read at each call (as hues.packet does)."""
+    return Path(os.environ.get("DATA_DIR", REPO))
+
+
+def public():
+    """commons/acts.md."""
+    return data() / "commons" / "acts.md"
+
 ZONE = ZoneInfo("America/New_York")
 DOT = " · "
 ACTS_BEFORE_DAWN = timedelta(hours=1)
@@ -44,7 +52,7 @@ LINE = re.compile(r"^-?\s*(\d{4}-\d{2}-\d{2})\s*·\s*(.+?)\s*·\s*(.+?)\s*$")
 def lines():
     """Every line of acts.md, as (day, name, words), oldest first."""
     try:
-        text = PUBLIC.read_text(encoding="utf-8")
+        text = public().read_text(encoding="utf-8")
     except OSError:
         return []
     out = []

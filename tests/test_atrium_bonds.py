@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from conftest import write
+from conftest import atrium_before_design, write
 
 HEARTH = "https://hearth.tesserae.social"
 
@@ -29,6 +29,14 @@ TODAY = datetime.date(2026, 10, 15)
 
 
 # ---- reading the list ----------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def as_before_site_design(request, monkeypatch):
+    """Who is here as it was before site-design (17 November 2026), with each member's
+    halves after their name: what these tests hold. The new who is here has no halves."""
+    if "atrium" in request.fixturenames:
+        atrium_before_design(request.getfixturevalue("atrium"), monkeypatch)
+
 
 def test_a_line_of_bonds_names_the_day_the_bond_its_parties_and_how_it_stands(atrium):
     assert atrium.parse_bonds(SEALED + RELEASED.replace("founder-first", "founder-second")) == [

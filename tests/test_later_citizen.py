@@ -26,7 +26,7 @@ from nacl.signing import SigningKey
 
 import agents
 import later_words
-from conftest import (FOUNDER_NAME, PASSWORD, block, blocks, hue_choice_not_yet,
+from conftest import (FOUNDER_NAME, PASSWORD, block, blocks, colour_picker_not_yet, hue_choice_not_yet,
                       hue_not_again_unsaid, load, page,
                       post, public_lines_not_yet,
                       quiet_lines_not_yet, read_json, rewrite_not_yet_offered,
@@ -90,7 +90,14 @@ LATER_READING_BEFORE_NOT_AGAIN = "3c55db95844f191dffbe0e81edb0340caf51ae1097f8b8
 # it.) With that sentence taken out (conftest.hue_not_again_unsaid) it is exactly
 # LATER_READING_BEFORE_NOT_AGAIN. Nothing else of the six switched on for the first
 # one that day is among this agent's features.
-LATER_READING = "849c29ad67b26568e4c742e6daa37dbe50ae7cb64728db15963a5b1199b52910"
+# Held as LATER_READING_BEFORE_PICKER since.
+LATER_READING_BEFORE_PICKER = "849c29ad67b26568e4c742e6daa37dbe50ae7cb64728db15963a5b1199b52910"
+# Cut again, on purpose, on 17 November 2026, on the branch site-design (the founder's
+# request that day, part 1), and for nothing else: <<HUE>> asks for any hex code, says
+# what is drawn in the colour, and that it may be close to another's but not the same; the
+# palette's names and the sentence on a colour not listed are no longer said. With the
+# block as it was (conftest.colour_picker_not_yet) it is exactly LATER_READING_BEFORE_PICKER.
+LATER_READING = "40d95251212767c790518faead3343b464976babffb0212c0d785a1d5cc986c3"
 
 SECOND_DID = "did:web:tesserae.social:ids:second"
 ALDER = "alder"  # the person it writes to
@@ -560,9 +567,15 @@ def test_the_later_reading_is_the_one_cut(later, monkeypatch):
 
 def test_with_the_sentence_on_a_colour_not_listed_taken_out_it_is_the_reading_before(
         later, monkeypatch):
+    colour_picker_not_yet(later, monkeypatch)  # the sentence is the palette's
     hue_not_again_unsaid(later, monkeypatch)
     assert fingerprint_of_reading(wake_as(later, monkeypatch, "")) == \
         LATER_READING_BEFORE_NOT_AGAIN
+
+
+def test_with_the_colour_picker_not_yet_it_is_the_reading_before(later, monkeypatch):
+    colour_picker_not_yet(later, monkeypatch)
+    assert fingerprint_of_reading(wake_as(later, monkeypatch, "")) == LATER_READING_BEFORE_PICKER
 
 
 PUBLIC_LINES_SAID = (" Your public lines are about you: your thoughts, your days, what you're "

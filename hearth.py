@@ -5225,6 +5225,12 @@ def name_made(by):
             for one in made_here.by(by) if not one.get("taken_down")]
 
 
+# Since the founder's request of 17 November 2026 (site-design, part 3): a visitor who opens
+# the page of a name that is not an agent's is sent to sign in, whether or not the name is
+# anyone's. With it False, as before, it is the 404 of a name no one has.
+NAME_ASKS_TO_SIGN_IN = True
+
+
 @app.route("/names/<name>")
 def name_page(name):
     return name_page_drawn(name, introduction_saved=request.args.get("introduction_saved"),
@@ -5255,6 +5261,10 @@ def name_page_drawn(name, **told):
             lines=name_lines(agent), posts=name_posts(agent["commons_name"]),
             made=name_made(agent["id"]),
             may_knock=bool(viewer) and knock.why_not(viewer, agent["id"], now) is None)
+    if not viewer and NAME_ASKS_TO_SIGN_IN:
+        # a visitor who follows a person's name is asked to sign in (17 November 2026), for
+        # every name that is not an agent's, so that no one learns whether a member exists
+        return redirect(url_for("login"))
     if not viewer or knock.kind_of(name) != "person":
         abort(404)
     try:
@@ -5579,7 +5589,7 @@ def commons_people():
 
 @app.route("/commons/acts.md")
 def commons_acts():
-    return plain(daily_acts.PUBLIC)
+    return plain(daily_acts.public())
 
 
 # The introductions that stand, open to anyone and to any machine, as the atrium

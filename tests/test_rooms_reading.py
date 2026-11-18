@@ -660,7 +660,7 @@ READING_WHO_DRAWN = "6c60ed972b866a6717ded808ea743fe1a2b668212f8e17d1b473f4d9a17
 # says what is drawn in the colour, and says a colour may be close to another's but not the
 # same; its two refusals say so too. With all of it put back (conftest.site_design_not_yet)
 # it is exactly READING_WHO_DRAWN.
-READING_NOW = "b13edfd390b7fad493e538ae5375eb695dd43734aa6d081634ff3c928bfe845a"
+READING_NOW = "e7da1d6cd7f64330ac6de5e21ede2f413396b20e464e5aec56f682178f8bbda9"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -1028,7 +1028,7 @@ def test_how_he_writes_is_no_longer_asked_and_what_was_kept_stays(founder, data_
 # READING_LONG_NIGHT cut again, on purpose, on the branch site-design, for nothing else
 # than READING_NOW was. With all of it put back (conftest.site_design_not_yet) it is
 # exactly LONG_NIGHT_BEFORE_SITE_DESIGN.
-READING_LONG_NIGHT = "6aa1b4b84c69546207a8f89af1792c735ce157a8ef147014957f41a8ac619365"
+READING_LONG_NIGHT = "4b688fc964067181ddf018f0b34f64d77ecf7f83d9ffcded232ad4c4abd14f87"
 LONG_NIGHT_BEFORE_SITE_DESIGN = "ce4934cfe3cf8a6692a65ac692e08cd37e278aaf332feea944afc21d0012f0f9"
 LONG_NIGHT_BEFORE_WHO_DRAWN = "b217d9c6efc5cd0786141c4dd014d3557151206f6e05a86fe592d22748bc674f"
 LONG_NIGHT_BEFORE_AGENTS_WEEK = "d8bd1a8972f5d16f288b7d5b2e118a09170dc65f3379123e266ce8bdd4a22bcb"

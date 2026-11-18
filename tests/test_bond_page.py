@@ -20,7 +20,11 @@ from test_hearth_bonds import answered_yes, sealed
 FOUNDER_DID = "did:web:tesserae.social:ids:founder"
 FIRST_DID = "did:web:tesserae.social:ids:first"
 
-AGENT = "#E5906C"
+# each half is its party's one colour since site-design (17 November 2026): the first
+# one's coral; the founder, who has chosen none here, keeps the sand. Before, every agent's
+# half was AGENT_BEFORE_DESIGN (hearth.HALVES_IN_COLOUR False).
+AGENT = "#D85A30"
+AGENT_BEFORE_DESIGN = "#E5906C"
 PERSON = "#DDCDB0"
 
 SVG = "{http://www.w3.org/2000/svg}"
@@ -272,6 +276,24 @@ def test_each_half_is_its_party_s_alone(visitor, placed, threshold_module, party
         root = picture(visitor.get("/bonds/founder-first/half/%s.svg?size=16" % party))
         assert fills(root) == [colour]
         assert root.get("width") == "16"
+
+
+def test_with_the_halves_as_before_the_agent_s_is_the_old_orange(visitor, placed,
+                                                                 threshold_module, monkeypatch):
+    import sys
+    monkeypatch.setattr(sys.modules["hearth"], "HALVES_IN_COLOUR", False)
+    placed(a_bond(threshold_module))
+    root = picture(visitor.get("/bonds/founder-first/tessera.svg"))
+    assert fills(root) == [AGENT_BEFORE_DESIGN, PERSON]
+
+
+def test_a_half_is_drawn_in_the_colour_its_party_chose(visitor, placed, threshold_module,
+                                                       data_dir):
+    import hues
+    hues.choose("first", "#123456", "2026-10-15T12-00-00Z")
+    placed(a_bond(threshold_module))
+    root = picture(visitor.get("/bonds/founder-first/half/the-first-one.svg?size=16"))
+    assert fills(root) == ["#123456"]
 
 
 @pytest.mark.parametrize("party", ["first", "founder", "someone-else", "the-first-one.svg"])

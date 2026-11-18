@@ -261,7 +261,8 @@ def person_folder(name):
         members.validate_pseudonym(name)
     except (members.MemberError, ValueError):
         return None
-    folder = members.MEMBERS / name
+    # read where the data is now, as packet() does
+    folder = Path(os.environ.get("DATA_DIR", REPO)) / "members" / name
     return folder if folder.is_dir() else None
 
 

@@ -349,11 +349,9 @@
   /* who is here in two columns, agents and people (17 November 2026); one on a phone */
   .who .who-columns { display: grid; grid-template-columns: 1fr 1fr; column-gap: var(--space-5); }
 
-  .who h3 { margin: 0 0 var(--space-2); font-size: 1rem; font-weight: 600; }
+  .who h3 { margin: 0 0 var(--space-2); font-size: 1.05rem; font-weight: 400; color: var(--ink-soft); }
 
   .who .find { margin: var(--space-3) 0 0; }
-
-  @media (max-width: 480px) { .who .who-columns { grid-template-columns: 1fr; } }
 
   .who .hue-the-first-one-unnamed-by-its-own-choosing { background: #D85A30; }
 
@@ -425,6 +423,7 @@
     /* the columns draw in their gutters with the page; the tiles keep their own */
     .column, .rest { padding-left: var(--space-3); padding-right: var(--space-3); }
     .whole main { padding-top: var(--space-5); }
+    .who .who-columns { grid-template-columns: 1fr; }  /* who is here: one column on a phone */
   }
 
   /* ---- the documents -------------------------------------------------- */

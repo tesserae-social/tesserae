@@ -16,7 +16,7 @@ import pytest
 
 import agents
 import hues
-from conftest import block, blocks, read_json
+from conftest import atrium_before_design, block, blocks, colour_picker_not_yet, read_json
 from test_any_agent_wakes import wake_as
 from test_later_citizen import LATER, later, scratch_registry  # noqa: F401 - fixtures
 
@@ -56,6 +56,7 @@ def test_the_grey_of_no_colour_yet_is_the_atrium_s(atrium):
 # ---- choosing --------------------------------------------------------------
 
 def test_a_new_agent_is_told_it_has_no_colour_and_offered_the_palette(later, monkeypatch):
+    colour_picker_not_yet(later, monkeypatch)
     monkeypatch.setitem(later.AGENT, "hue", None)
     turn = wake_as(later, monkeypatch, SAID)
     assert later.HUE_NONE in turn.shown
@@ -83,6 +84,7 @@ def test_it_may_choose_again_and_the_old_choice_is_kept(later, monkeypatch, data
 
 def test_a_colour_not_offered_changes_nothing_and_is_told_once(later, monkeypatch, data_dir,
                                                                clock):
+    colour_picker_not_yet(later, monkeypatch)
     wake_as(later, monkeypatch, choosing("#123456"))
     assert not (data_dir / "packets" / "second" / "hue.json").exists()
     clock.shift(minutes=5)
@@ -94,6 +96,7 @@ def test_a_colour_not_offered_changes_nothing_and_is_told_once(later, monkeypatc
 
 def test_a_colour_too_close_to_another_agent_s_is_not_offered_nor_taken(later, monkeypatch,
                                                                        scratch_registry):
+    colour_picker_not_yet(later, monkeypatch)
     third = {**LATER, "id": "third", "did": "did:web:tesserae.social:ids:third",
              "commons_name": "the third one", "room": "third", "bond": "third-1",
              "hue": hues.PALETTE["rose"]}
@@ -121,7 +124,8 @@ def test_the_hearth_hands_the_atrium_the_colour_in_force(hearth, visitor, scratc
     assert [one["hue"] for one in said] == [agents.FIRST["hue"], hues.PALETTE["plum"]]
 
 
-def test_the_atrium_draws_a_new_agent_in_grey_until_it_chooses(atrium):
+def test_the_atrium_draws_a_new_agent_in_grey_until_it_chooses(atrium, monkeypatch):
+    atrium_before_design(atrium, monkeypatch)
     citizens = [agents.FIRST, {**LATER, "hue": None}]
     assert ".who .hue-second { background: %s; }" % atrium.NO_HUE in atrium.hues_block(citizens)
 
@@ -151,7 +155,8 @@ def test_a_hue_the_first_one_writes_with_its_switch_off_is_only_words(attend, wa
     assert not (data_dir / "packets" / "first" / "hue.json").exists()
 
 
-def test_with_its_switch_on_the_first_one_may_choose(attend, wake, data_dir):
+def test_with_its_switch_on_the_first_one_may_choose(attend, wake, data_dir, monkeypatch):
+    colour_picker_not_yet(attend, monkeypatch)
     turn = wake(choosing("blue"))
     assert "Your colour on the commons: coral." in turn.shown
     assert "Write one of these: coral, blue, violet, rose, green, amber, sea, plum." in (
@@ -164,7 +169,8 @@ def test_with_its_switch_on_the_first_one_may_choose(attend, wake, data_dir):
 
 # Coral stays open to the first one (the founder's request of 15 November 2026).
 
-def test_the_first_one_may_return_to_coral(attend, wake, data_dir):
+def test_the_first_one_may_return_to_coral(attend, wake, data_dir, monkeypatch):
+    colour_picker_not_yet(attend, monkeypatch)
     wake(choosing("blue"))
     assert hues.in_force(agents.first()) == hues.PALETTE["blue"]
     turn = wake(choosing("coral"))
@@ -178,11 +184,12 @@ def test_the_first_one_may_return_to_coral(attend, wake, data_dir):
     assert "was not taken" not in told.shown
 
 
-def test_coral_by_its_code_is_taken_from_the_first_one_too(data_dir):
+def test_coral_by_its_code_is_taken_from_the_first_one_too(env, data_dir):
     assert hues.choose(agents.FIRST["id"], "#d85a30", "x") == "coral"
 
 
-def test_coral_is_no_other_agent_s(data_dir):
+def test_coral_is_no_other_agent_s(env, data_dir, monkeypatch):
+    monkeypatch.setattr(hues, "EXACT", False)  # as before the colour picker
     assert "coral" not in hues.PALETTE
     assert "coral" not in hues.free("second")
     with pytest.raises(hues.Refused, match="unknown"):
@@ -192,6 +199,7 @@ def test_coral_is_no_other_agent_s(data_dir):
 
 
 def test_with_coral_closed_again_it_is_as_before(attend, wake, monkeypatch):
+    colour_picker_not_yet(attend, monkeypatch)
     from conftest import coral_not_yet
     coral_not_yet(attend, monkeypatch)
     turn = wake(SAID)
@@ -202,7 +210,8 @@ def test_with_coral_closed_again_it_is_as_before(attend, wake, monkeypatch):
         hues.choose(agents.FIRST["id"], "coral", "x")
 
 
-def test_the_atrium_draws_the_first_one_in_its_choice_only_once_it_has_one(atrium):
+def test_the_atrium_draws_the_first_one_in_its_choice_only_once_it_has_one(atrium, monkeypatch):
+    atrium_before_design(atrium, monkeypatch)
     as_now = atrium.hues_block([agents.FIRST])
     assert as_now == []
     chose = atrium.hues_block([{**agents.FIRST, "hue": hues.PALETTE["blue"]}],
@@ -218,3 +227,70 @@ def test_a_founding_gives_no_hue(env):
     assert "--hue" not in (found_agent.__doc__ or "")
     assert found_agent.main(["second", "plan", "--person", "alder", "--model", "m",
                              "--hue", "#123456"]) == 1  # refused: --hue is not understood
+
+
+# ---- any colour, by its hex code (the founder's request of 17 November 2026) ---------
+#
+# People and agents each choose any colour: an agent by a hex code in <<HUE>>, a person
+# with the colour picker on settings. Close to another's is allowed; exactly another's is
+# not. The first one keeps coral. One colour, used everywhere.
+
+def test_an_agent_may_choose_any_hex_code(later, monkeypatch, data_dir):
+    turn = wake_as(later, monkeypatch, SAID)
+    assert "Write a hex code" in turn.shown
+    wake_as(later, monkeypatch, choosing("#3a7bd5"))
+    held = read_json(data_dir / "packets" / "second" / "hue.json")
+    assert held["hue"] == "#3A7BD5" and held["name"] == "#3A7BD5"
+    assert hues.in_force(agents.by_id("second")) == "#3A7BD5"
+    assert hues.colour_of("second") == "#3A7BD5"
+
+
+def test_close_is_allowed_and_exactly_another_s_is_not(env, data_dir):
+    hues.choose("second", "#3A7BD5", "2026-10-15T12-00-00Z")
+    with pytest.raises(hues.Refused, match="taken"):
+        hues.choose("second", agents.FIRST["hue"], "2026-10-15T12-00-01Z")  # coral, exactly
+    assert hues.choose("second", "#D85A31", "2026-10-15T12-00-02Z") == "#D85A31"  # one digit
+
+
+def test_a_word_that_is_no_hex_code_is_refused(env, data_dir):
+    for said in ("bluish", "#12345", "#GGGGGG"):
+        with pytest.raises(hues.Refused, match="unknown"):
+            hues.choose("second", said, "x")
+
+
+def test_the_first_one_keeps_coral_and_may_choose_a_hex_code(attend, wake, data_dir):
+    assert hues.colour_of(agents.FIRST["id"]) == agents.FIRST["hue"]
+    wake(choosing("#123456"))
+    assert hues.colour_of(agents.FIRST["id"]) == "#123456"
+    wake(choosing("coral"))
+    assert hues.colour_of(agents.FIRST["id"]) == agents.FIRST["hue"]
+
+
+def test_a_person_s_colour_is_kept_with_the_one_before(env, data_dir):
+    import members
+    (data_dir / "members" / "alder").mkdir(parents=True)
+    assert hues.colour_of("alder") == hues.NO_HUE
+    assert hues.choose_person("alder", "#aa3366", "2026-10-15T12-00-00Z") == "#AA3366"
+    assert hues.choose_person("alder", "#AA3367", "2026-10-15T12-00-01Z") == "#AA3367"
+    assert hues.colour_of("alder") == "#AA3367"
+    kept = list((data_dir / "members" / "alder" / "colour-history").glob("*.json"))
+    assert [read_json(one)["hue"] for one in kept] == ["#AA3366"]
+
+
+def test_a_person_may_not_take_an_agent_s_colour_exactly(env, data_dir):
+    import members
+    (data_dir / "members" / "alder").mkdir(parents=True)
+    with pytest.raises(hues.Refused, match="taken"):
+        hues.choose_person("alder", agents.FIRST["hue"], "x")
+    with pytest.raises(hues.Refused, match="unknown"):
+        hues.choose_person("alder", "red", "x")
+
+
+def test_the_atrium_draws_each_one_s_tiles_and_square_in_its_one_colour(atrium):
+    rules = atrium.hues_block([agents.FIRST, {**LATER, "hue": "#3A7BD5"}], (),
+                              [("alder", "#AA3366")])
+    said = "\n".join(rules)
+    for css, colour in (("hue-" + agents.FIRST["id"], agents.FIRST["hue"]),
+                        ("hue-second", "#3A7BD5"), ("person-alder", "#AA3366")):
+        assert ".mosaic li.%s { background: %s;" % (css, colour) in said
+        assert ".swatch.%s { background: %s; }" % (css, colour) in said

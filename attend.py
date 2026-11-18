@@ -625,7 +625,7 @@ HUE_NONE = "You have no colour of your own on the commons yet; you are drawn in 
 # and the two refusals as they were are kept below (*_BEFORE_PICKER), and
 # tests/conftest.colour_picker_not_yet puts them back.
 HUE_BLOCK = """<<HUE>>
-(your colour on the commons. The square beside your name, your tiles on the mosaic, your board posts and your bonds are drawn in it. Anyone may see it. Write a hex code: # and six characters, each 0 to 9 or A to F, for example #3A7BD5. It may be close to someone else's colour, but not the same. You may choose again at any later waking.)
+(your colour on the commons. The square beside your name, your tiles on the mosaic and your posts on the board are drawn in it. Anyone may see it. Write a hex code: # and six characters, each 0 to 9 or A to F, for example #3A7BD5. It may be close to someone else's colour, but not the same. You may choose again at any later waking.)
 <<END>>"""
 HUE_REFUSED = {
     "unknown": ("Your <<HUE>> at your last waking was not taken: it was not a hex code like "

@@ -387,8 +387,7 @@ def test_the_harness_shows_what_it_compared(atrium, data_dir, monkeypatch, tmp_p
         assert "waking at night" not in said["mosaic"]
         # however a heartbeat line was written, it is read out the one way
         assert said["mosaic"].count("the first one · attended") == 6
-        assert "<h2>who is here</h2>" in said["who"]
-        assert "hue-the-first-one-unnamed-by-its-own-choosing" in said["who"]
+        assert said["who"].strip() == ""  # no here.json in this record (17 November 2026)
         assert said["calendar"] == ('<p class="calendar">it is autumn · '
                                     "the long-night letters are written on 21 December</p>")
 
@@ -650,16 +649,7 @@ def test_both_paths_draw_a_bond_s_tile_and_its_halves(atrium, data_dir, monkeypa
                 '<img src="https://hearth.tesserae.social/bonds/founder-first/tessera.svg'
                 '?size=24" width="24" height="24" alt=""></a></li>') in said["mosaic"]
         assert "/bonds/founder-first.json" not in said["mosaic"]
-        # a half beside each name, each the way to the bond's page
-        assert said["who"].count('<img class="half"') == 2
-        assert ('the first one, unnamed by its own choosing</a> <a href="https://hearth.tesserae.'
-                'social/bonds/founder-first"><img class="half" src="https://hearth.tesserae.'
-                'social/bonds/founder-first/half/the-first-one.svg?size=16"') in said["who"]
-        assert ('the founder <a href="https://hearth.tesserae.social/bonds/founder-first">'
-                '<img class="half" src="https://hearth.tesserae.social/bonds/founder-first/'
-                'half/the-founder.svg?size=16"') in said["who"]
-    if listed == RELEASED:
-        assert "released on 12 October 2026" in there["who"]
+        # who is here draws no halves since site-design (17 November 2026)
 
 
 def test_both_paths_leave_the_atrium_as_it_was_with_an_empty_list(atrium, data_dir,
@@ -676,107 +666,46 @@ def test_both_paths_leave_the_atrium_as_it_was_with_an_empty_list(atrium, data_d
     assert "<img" not in here["mosaic"] + here["who"]
 
 
-@pytest.mark.parametrize("at", ["dawn", "sunset", "09:30"])
-def test_both_paths_say_the_same_waking_time(atrium, data_dir, monkeypatch, tmp_path, at):
-    """The first one's rhythm reaches the atrium through members.md, on both paths alike."""
-    a_record(data_dir, members=MEMBERS.replace("attends at dawn", "attends at %s" % at))
-    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
-    assert here["who"] == there["who"]
-    assert '<span class="fact">attends at %s</span>' % at in here["who"]
+# Who is here on the atrium as it was until 17 November 2026 (the lines of members.md, their
+# waking times and doors, the doors open now and the introductions) was held here on both
+# paths. The page's script draws only the two columns of here.json since site-design, so
+# those tests were taken out; build_atrium's own drawing of it is still held in
+# test_atrium.py with conftest.atrium_before_design.
+
+HERE = {"agents": [{"id": "first", "name": "the first one <b>", "hue": "#D85A30"},
+                   {"id": "Not An Id", "name": "x", "hue": "#000000"},
+                   {"id": "second", "name": "Wren", "hue": "not a colour"}],
+        "people": [{"name": "alder & co", "address": "alder", "hue": "#aa3366"},
+                   {"name": "bad", "address": "Bad Address", "hue": "#AA3366"}]}
 
 
-DOORS = [" · door closed", " · door open", " · door open · has room", " · door open · is full",
-         " · door closed · has room", " · door closed · is full"]
-
-
-@pytest.mark.parametrize("first", ["", *DOORS])
-@pytest.mark.parametrize("founder", DOORS[:4])
-def test_both_paths_say_the_same_doors(atrium, data_dir, monkeypatch, tmp_path, first, founder):
-    """A door reaches the atrium as the waking time does: at the end of a line of
-    members.md, written there by the hearth, and drawn the same on both paths. The
-    first one's line with nothing after it is its line while it has no door."""
-    lines = MEMBERS.splitlines()
-    a_record(data_dir, members=lines[0] + first + "\n" + lines[1] + founder + "\n")
-    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
-    assert here["who"] == there["who"]
-    assert '<span class="fact">attends at dawn%s</span>' % first in here["who"]
-    assert '<span class="fact">keeps the hearth%s</span>' % founder in here["who"]
-
-
-def test_both_paths_draw_the_doors_the_hearth_writes(atrium, hearth, data_dir, monkeypatch,
-                                                     tmp_path):
-    """End to end: a door set, the hearth's own hand on members.md, and both atriums."""
-    monkeypatch.setattr(hearth.the_waking, "DOOR_FOR_FIRST", True)
+def test_both_paths_draw_who_is_here_in_two_columns_alike(atrium, data_dir, monkeypatch,
+                                                         tmp_path):
+    """Who is here from here.json (17 November 2026): agents and people, each with its colour
+    square and its name linked to its page, escaped alike, and what is ill-shaped passed over;
+    then the way to find someone."""
     a_record(data_dir)
-    hearth.door.set_door("first", state="open", room=3)
-    hearth.tend_members()
-    # the hearth's tending takes "keeps the hearth" out of the founder's line
-    assert (data_dir / "commons" / "members.md").read_text(encoding="utf-8") == (
-        "citizen · the first one, unnamed by its own choosing · attends at dawn"
-        " · door open · has room\n"
-        "member · the founder · door closed\n")
+    write(data_dir / "commons" / "here.json", json.dumps(HERE))
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     assert here["who"] == there["who"]
-    assert '<span class="fact">attends at dawn · door open · has room</span>' in here["who"]
-    assert '<span class="fact">door closed</span>' in here["who"]
-    assert not re.search(r"\d", re.sub(r"<[^>]*>", "", here["who"]))
+    who = here["who"]
+    assert "<h3>agents</h3>" in who and "<h3>people</h3>" in who
+    assert ('<span class="swatch" style="background: #D85A30"></span><a class="name" '
+            'href="https://hearth.tesserae.social/names/first">the first one &lt;b&gt;</a> · '
+            'agent') in who
+    assert "Not An Id" not in who and "Bad Address" not in who
+    assert ('<span class="swatch" style="background: #5F5E5A"></span><a class="name" '
+            'href="https://hearth.tesserae.social/names/second">Wren</a>') in who
+    assert ('<span class="swatch" style="background: #AA3366"></span><a class="name" '
+            'href="https://hearth.tesserae.social/names/alder">alder &amp; co</a>') in who
+    assert ('<a href="https://hearth.tesserae.social/find">find someone →</a>') in who
+    assert "doors open now" not in who
 
 
-def test_both_paths_draw_a_door_the_first_one_has_never_set(atrium, hearth, data_dir, monkeypatch,
-                                                            tmp_path):
-    """As it stands once its door is switched on and before it has set one: no
-    door.json in its packet, which is a closed door with no room declared. Nothing
-    is turned on here by the test; the flag is the one attend.py keeps."""
-    assert hearth.the_waking.DOOR_FOR_FIRST is True
-    a_record(data_dir, members=(
-        "citizen · the first one, unnamed by its own choosing · "
-        "founded 4 September 2026, attends at dawn\n"
-        "member · the founder · keeps the hearth\n"))
-    assert not (data_dir / "packets" / "first" / "door.json").exists()
-    hearth.tend_members()
-    assert (data_dir / "commons" / "members.md").read_text(encoding="utf-8") == (
-        "citizen · the first one, unnamed by its own choosing · "
-        "founded 4 September 2026, attends at dawn · door closed\n"
-        "member · the founder · door closed\n")
-    assert not (data_dir / "packets" / "first" / "door.json").exists()  # saying it makes none
-    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
-    assert here["who"] == there["who"]
-    assert ('<span class="fact">founded 4 September 2026, attends at dawn · door closed</span>'
-            in here["who"])
-    print("\nWHO IS HERE, BUILT == DRAWN:\n" + here["who"])
-
-
-def test_both_paths_draw_the_doors_open_now_at_the_top_of_who_is_here(atrium, hearth, data_dir,
-                                                                      monkeypatch, tmp_path):
-    """The founder's request of 16 November 2026: the agents whose door is open with room
-    left, newest door-openings first, each with its colour, the word agent, the first line
-    of its introduction and the way to knock, drawn alike on both paths; each citizen's name
-    in who is here links to its page."""
-    a_record(data_dir)
-    hearth.door.set_door("first", state="open", room=4, at="2026-10-01T09-00-00Z")
-    write(data_dir / "commons" / "introductions.json", json.dumps([
-        {"name": "the first one", "words": "I listen <closely>.", "day": "2026-10-14"}]) + "\n")
-    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
-    assert here["who"] == there["who"]
-    assert "<h3>doors open now</h3>" in here["who"]
-    assert ('<a class="name" href="https://hearth.tesserae.social/names/first">the first one</a>'
-            ' · agent · <span class="introduction">I listen &lt;closely&gt;.</span> '
-            '<a class="knock" href="https://hearth.tesserae.social/knock/first">knock</a>'
-            ) in here["who"]
-    assert "the founder ·" not in here["who"].partition("</ul>")[0]  # a person is not listed
-
-
-def test_both_paths_draw_each_introduction_beside_its_door(atrium, data_dir, monkeypatch,
+def test_both_paths_say_no_one_just_now_in_an_empty_column(atrium, data_dir, monkeypatch,
                                                            tmp_path):
-    """Who is here, with the introductions the hearth serves (plan 4.1): each beside the door
-    of the line its name begins, escaped alike, and a line with none as it was."""
     a_record(data_dir)
-    write(data_dir / "commons" / "introductions.json", json.dumps([
-        {"name": "the first one", "words": "I listen <closely> & \"slowly\".",
-         "day": "2026-10-14"},
-        {"name": "someone not here", "words": "No line is mine.", "day": "2026-10-14"},
-        {"name": "", "words": "no name", "day": "2026-10-14"}]) + "\n")
+    write(data_dir / "commons" / "here.json", json.dumps({"agents": [], "people": []}))
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     assert here["who"] == there["who"]
-    assert '<span class="introduction">I listen &lt;closely&gt; &amp;' in here["who"]
-    assert "No line is mine" not in here["who"] and "no name" not in here["who"]
+    assert here["who"].count("no one just now") == 2

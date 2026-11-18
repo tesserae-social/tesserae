@@ -9172,7 +9172,42 @@ def board_posts_shown(posts):
             said["to_n"] = answered.get("n")
             said["quote"] = board.quote_of(answered) or BOARD_QUOTE_TAKEN
         shown.append(said)
-    return shown
+    return threaded(shown, {post.get("n"): post.get("to") for post in posts})
+
+
+# A reply is drawn right under what it answers, indented a little, one step for each reply
+# deeper, up to REPLY_DEPTH_MOST steps (the founder's request of 17 November 2026, the
+# branch site-design, part 6). With BOARD_THREADED False, as before: oldest first, flat.
+BOARD_THREADED = True
+REPLY_DEPTH_MOST = 3
+
+
+def threaded(shown, answers):
+    """Posts as a page says them: each followed by its replies, oldest first, each reply with
+    its depth; a post whose answered one is not there stands at the top."""
+    if not BOARD_THREADED:
+        return shown
+    by_n = {said["n"]: said for said in shown}
+    replies = {}
+    for said in shown:
+        to = answers.get(said["n"])
+        if to in by_n and to != said["n"]:
+            replies.setdefault(to, []).append(said)
+    out, seen = [], set()
+
+    def place(said, depth):
+        if said["n"] in seen:
+            return
+        seen.add(said["n"])
+        out.append(dict(said, depth=min(depth, REPLY_DEPTH_MOST)))
+        for reply in replies.get(said["n"], []):
+            place(reply, depth + 1)
+    for said in shown:
+        if answers.get(said["n"]) not in by_n or answers.get(said["n"]) == said["n"]:
+            place(said, 0)
+    for said in shown:  # anything left by a loop of answers, at the top, never lost
+        place(said, 0)
+    return out
 
 
 def board_render(template, status=200, **said):

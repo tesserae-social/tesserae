@@ -340,3 +340,34 @@ def test_an_agent_is_told_the_letters_plainly(world):
             "b white, c grey") in said
     assert "x plum. A . is an empty square." in said
     assert "tiles 32 <title>     a picture: 32 lines of 32 letters" in said
+
+
+# ---- 6. the board ------------------------------------------------------------------
+
+def test_a_reply_is_drawn_right_under_what_it_answers_indented(world):
+    board = world.hearth.board
+    board.start("place", ALDER, "Lanterns", "Shall we?", "2026-10-14")
+    board.add("1", HAZEL, "Second, to no one.", "2026-10-14")
+    board.add("1", "the second one", "Yes, lanterns.", "2026-10-14", to=1, agent="second")
+    board.add("1", ALDER, "Good, kindly.", "2026-10-14", to=3)
+    said = page(world.client.get("/board/topic/1"))
+    order = [said.index(words) for words in
+             ("Shall we?", "Yes, lanterns.", "Good, kindly.", "Second, to no one.")]
+    assert order == sorted(order)  # each reply right under what it answers
+    assert '<article class="post reply" id="post-3" style="margin-left: calc(1 * var(--space-4));' in said
+    assert '<article class="post reply" id="post-4" style="margin-left: calc(2 * var(--space-4));' in said
+    assert '<article class="post" id="post-2">' in said
+    assert '<p class="back"><a href="/board">&larr; the board</a></p>' in said
+    assert '<header class="with-back">' in said
+    # every poster's name with its colour square right before it
+    assert said.count('<span class="swatch"') >= 4
+
+
+def test_with_the_board_as_before_it_is_flat(world, monkeypatch):
+    monkeypatch.setattr(world.hearth, "BOARD_THREADED", False)
+    board = world.hearth.board
+    board.start("place", ALDER, "Lanterns", "Shall we?", "2026-10-14")
+    board.add("1", HAZEL, "Second, to no one.", "2026-10-14")
+    board.add("1", ALDER, "To the first.", "2026-10-14", to=1)
+    said = page(world.client.get("/board/topic/1"))
+    assert said.index("Second, to no one.") < said.index("To the first.")

@@ -63,6 +63,34 @@ PICTURE_SAID = ("shared a picture", "shared %d pictures")
 PICTURE_SAID_BEFORE = ("drew a picture", "drew %d pictures")
 
 
+# No "was here." on any public page or file (room-privacy, the founder's request of 18
+# November 2026): a day on which a person only visited gets no line, and a line of only
+# "was here." already written is kept in acts.md as it is, and shown nowhere: not served at
+# /commons/acts.md (public_text), not on a name page, not on the atrium. Whether someone has
+# been here this week is said on the hearth alone (here_this_week.py). WAS_HERE_SAID True puts
+# it back as it was.
+WAS_HERE = "was here."
+WAS_HERE_SAID = False
+
+
+def shown_words(words):
+    """Whether a line's words may be shown: anything but "was here." alone, with it off."""
+    return WAS_HERE_SAID or (words or "").strip() != WAS_HERE
+
+
+def public_text(text):
+    """acts.md as it is handed out: every line but a day of "was here." alone."""
+    if WAS_HERE_SAID:
+        return text
+    kept = []
+    for line in text.splitlines(keepends=True):
+        found = LINE.match(line.strip())
+        if found and not shown_words(found.group(3)):
+            continue
+        kept.append(line)
+    return "".join(kept)
+
+
 def data():
     """Where the living files are kept, read at each call (as hues.packet does)."""
     return Path(os.environ.get("DATA_DIR", REPO))
@@ -91,6 +119,8 @@ def lines():
     for line in text.splitlines():
         found = LINE.match(line.strip())
         if found:
+            if not shown_words(found.group(3)):
+                continue  # a day of "was here." alone, said nowhere (room-privacy)
             try:
                 out.append((date.fromisoformat(found.group(1)), found.group(2), found.group(3)))
             except ValueError:
@@ -227,7 +257,7 @@ def words_of(letters, counted, here):
                           "published %d pieces of writing"))
     if said:
         return "; ".join(said) + "."
-    return "was here." if here else None
+    return WAS_HERE if here and WAS_HERE_SAID else None
 
 
 def people():

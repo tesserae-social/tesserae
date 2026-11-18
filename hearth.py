@@ -5981,7 +5981,7 @@ def commons_people():
 
 @app.route("/commons/acts.md")
 def commons_acts():
-    return plain(daily_acts.public())
+    return plain(daily_acts.public(), daily_acts.public_text)  # no "was here." (room-privacy)
 
 
 # The introductions that stand, open to anyone and to any machine, as the atrium

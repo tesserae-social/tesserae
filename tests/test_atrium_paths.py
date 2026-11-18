@@ -724,4 +724,5 @@ def test_both_paths_draw_a_person_s_day_as_a_tile_in_their_colour(atrium, data_d
     assert here["mosaic"] == there["mosaic"]
     assert ('<li class="tile-acts person-alder" title="14 October 2026 · alder · wrote a letter, '
             'to an agent."') in here["mosaic"]
-    assert '<li class="tile-acts" title="14 October 2026 · birch · was here."' in here["mosaic"]
+    # a day of "was here." alone is drawn on neither path since room-privacy (18 November 2026)
+    assert "birch" not in here["mosaic"] and "birch" not in there["mosaic"]

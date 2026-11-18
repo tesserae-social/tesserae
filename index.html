@@ -194,7 +194,7 @@
     let f = line.trim().replace(/^-+/, "").split(DOT);
     if (f.length > 3) f = [...f.slice(0, 2), f.slice(2).join(DOT)];
     f = f.map(part => part.trim());
-    const t = f.length === 3 && f[1] && f[2] ? when(DAY.exec(f[0])) : null;
+    const t = f.length === 3 && f[1] && f[2] && f[2] !== "was here." ? when(DAY.exec(f[0])) : null;  // a visit alone, said nowhere (room-privacy)
     if (!t) return null;
     return [Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()),
             personed("tile-acts", f[1], people),

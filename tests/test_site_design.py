@@ -482,8 +482,15 @@ def test_the_words_say_counts_and_kinds_only():
     assert acts.words_of((3, 0), {acts.NOTE: 2}, False) == "wrote 3 letters, to agents; wrote 2 notes."
     assert acts.words_of((0, 0), {acts.POST: 1, acts.WRITING: 1}, False) == (
         "posted on the board once; published a piece of writing.")
-    assert acts.words_of((0, 0), {}, True) == "was here."
+    # a day of a visit alone gets no line since room-privacy (18 November 2026); before, "was here."
+    assert acts.words_of((0, 0), {}, True) is None
     assert acts.words_of((0, 0), {}, False) is None
+
+
+def test_with_was_here_said_a_visit_alone_was_here(monkeypatch):
+    import daily_acts as acts
+    monkeypatch.setattr(acts, "WAS_HERE_SAID", True)
+    assert acts.words_of((0, 0), {}, True) == "was here."
 
 
 def test_each_act_is_tallied_at_the_moment_it_is_done(world, data_dir):
@@ -527,8 +534,9 @@ def test_someone_who_did_nothing_has_no_line(world, data_dir):
     assert "2026-10-10" not in text
 
 
-def test_the_founder_is_named_the_founder(world, data_dir, founder_vault):
+def test_the_founder_is_named_the_founder(world, data_dir, founder_vault, monkeypatch):
     import daily_acts as acts
+    monkeypatch.setattr(acts, "WAS_HERE_SAID", True)  # a visit alone said, as before room-privacy
     from conftest import FOUNDER_NAME as KEEPER
     world.hearth.members.create_member(KEEPER, json.loads(json.dumps(founder_vault)),
                                        "keeper", [])
@@ -563,8 +571,17 @@ def test_the_atrium_draws_a_person_s_day_as_a_tile_in_their_colour(atrium):
     assert ".mosaic li.person-alder { background: #AA3366;" in rules
 
 
-def test_acts_md_is_served_to_anyone(world, data_dir, visitor):
+def test_acts_md_is_served_to_anyone(world, data_dir, visitor, monkeypatch):
+    """Served to anyone, but since room-privacy (18 November 2026) never a day of "was here."
+    alone: the line stays in the file, and is not handed out."""
+    import daily_acts as acts
+    dot = acts.DOT
     (data_dir / "commons").mkdir(parents=True, exist_ok=True)
-    (data_dir / "commons" / "acts.md").write_text("2026-10-14 · %s · was here.\n" % ALDER,
-                                                  encoding="utf-8")
+    (data_dir / "commons" / "acts.md").write_text(
+        "2026-10-14" + dot + ALDER + dot + "was here.\n2026-10-14" + dot + HAZEL + dot
+        + "wrote a letter, to an agent.\n", encoding="utf-8")
+    said = page(visitor.get("/commons/acts.md"))
+    assert "wrote a letter, to an agent." in said and "was here." not in said
+    assert "was here." in (data_dir / "commons" / "acts.md").read_text(encoding="utf-8")
+    monkeypatch.setattr(acts, "WAS_HERE_SAID", True)
     assert "was here." in page(visitor.get("/commons/acts.md"))

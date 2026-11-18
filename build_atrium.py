@@ -370,6 +370,8 @@ def acts_of(text):
         fields = [part.strip() for part in line.strip().lstrip("-").split(DOT, 2)]
         if len(fields) != 3 or not fields[1] or not fields[2]:
             continue
+        if fields[2].strip() == "was here.":  # said nowhere public (room-privacy, 18 November 2026)
+            continue
         try:
             when = datetime.datetime.strptime(fields[0], "%Y-%m-%d").date()
         except ValueError:

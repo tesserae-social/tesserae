@@ -91,7 +91,7 @@ addEventListener("load", () => setTimeout(() => {
     frame: box(one(".frame")), band: box(one(".band")), column: box(one(".column")),
     columns: document.querySelectorAll(".column").length,
     words: ["header", ".menu", ".intro", ".reading", ".who",
-            ".calendar", "footer", ".home"].map(s => box(one(s))),
+            ".calendar", ".home"].map(s => box(one(s))),  // no footer since tidy-pages
     intro: box(one(".intro")), introduction: box(one(".who .introduction")),
     introductionSpill: one(".who .introduction") ?
       one(".who .introduction").scrollWidth - one(".who .introduction").clientWidth : null, reading: box(line), caption: box(one(".caption")),

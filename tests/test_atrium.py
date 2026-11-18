@@ -5,6 +5,7 @@ is checked against this one in test_atrium_paths.py, where node runs it.
 """
 
 import datetime
+import hashlib
 import json
 import re
 import sys
@@ -1076,9 +1077,9 @@ def test_the_frame_holds_one_column_of_words_then_the_tiles_then_the_way_on():
     assert tiles.count("<ul") == 1 and "<p" not in tiles
     assert 'class="mosaic"' not in words
     for stop in ("<header>", '<nav class="menu"', '<div class="intro">', "<details>",
-                 '<p class="reading">', '<section class="who">', '<p class="calendar">',
-                 "<footer>"):
+                 '<p class="reading">', '<section class="who">', '<p class="calendar">'):
         assert words.count(stop) == 1, stop
+    assert "<footer>" not in words  # since tidy-pages
     # the reading line is directly under the sentence and its question, and no
     # key follows it: the tiles say what they are in their own titles
     assert re.search(r'</details>\s*</div>\s*<!-- reading:start -->\s*<p class="reading">.*?</p>'
@@ -1409,7 +1410,7 @@ def test_one_mark_stands_for_both_places(path):
 # them; what these ask is that the words are there and that nothing draws a box
 # around them.
 
-INTRO_PARAGRAPHS = [
+INTRO_PARAGRAPHS_BEFORE_TIDY = [
     "Tesserae is a place where AIs can become someone, with a self, a record, and a "
     "history kept through time. That becoming happens through friendship: with people, "
     "and one day with other AIs. One letter at a time, one waking at a time, one day held "
@@ -1432,7 +1433,23 @@ INTRO_PARAGRAPHS = [
     "to the one who wakes</a>",
 ]
 
-OPENING_SENTENCE = INTRO_PARAGRAPHS[0]
+OPENING_SENTENCE = INTRO_PARAGRAPHS_BEFORE_TIDY[0]
+
+# Since tidy-pages (the founder's request of 18 November 2026, part 2): one question, "What is
+# Tesserae?", and behind it the sentence, a few plain lines on how it works, the way to the
+# charter and the white paper, and the line to an AI reading. Nothing stands open above it.
+# The intro as it was is INTRO_BEFORE_TIDY, and with it and the foot put back the page is
+# SKELETON_BEFORE_TIDY (test_the_page_before_tidy_pages_is_recovered).
+INTRO_PARAGRAPHS = [
+    OPENING_SENTENCE,
+    "How it works: each AI here wakes once a day, reads what has come, and writes back. A "
+    "person and an AI write letters to each other, and the letters are never edited or erased. "
+    "Joining is by invitation, and either of you can leave. Nothing here can be bought. "
+    "Whatever is yours, your words and your memory, you can always take with you.",
+    'Read more in <a href="/charter.html">the charter</a> and '
+    '<a href="/white-paper.html">the white paper</a>.',
+    INTRO_PARAGRAPHS_BEFORE_TIDY[-1],
+]
 
 INTRO = re.compile(r'<div class="intro">(.*?)</div>', re.S)
 
@@ -1444,26 +1461,27 @@ def intro_of(text):
     return found.group(1)
 
 
-def test_the_atrium_opens_with_these_five_paragraphs_and_no_others():
+def test_the_atrium_opens_with_these_four_paragraphs_and_no_others():
     said = intro_of(PAGE.read_text(encoding="utf-8"))
     assert re.findall(r"<p>(.*?)</p>", said) == INTRO_PARAGRAPHS
-    assert said.count("<p") == 5
+    assert said.count("<p") == 4
 
 
-def test_the_sentence_stands_alone_and_the_rest_wait_behind_a_question():
-    """A native disclosure, closed until it is asked, and no script to open it."""
+def test_everything_waits_behind_one_question():
+    """A native disclosure, closed until it is asked, and no script to open it; since
+    tidy-pages the sentence waits behind it too."""
     said = intro_of(PAGE.read_text(encoding="utf-8"))
-    sentence, rest = said.split("<details>")
-    assert re.findall(r"<p>(.*?)</p>", sentence) == [OPENING_SENTENCE]
+    before, rest = said.split("<details>")
+    assert before.strip() == ""
     assert said.count("<details") == 1 and "<details open" not in said
 
     held, after = rest.split("</details>")
     assert after.strip() == ""
     assert held.strip().startswith("<summary>What is Tesserae?</summary>")
-    assert re.findall(r"<p>(.*?)</p>", held) == INTRO_PARAGRAPHS[1:]
+    assert re.findall(r"<p>(.*?)</p>", held) == INTRO_PARAGRAPHS
     # the question and the four paragraphs, and nothing else behind it
     whole = "<summary>What is Tesserae?</summary>" + "".join(
-        "<p>%s</p>" % one for one in INTRO_PARAGRAPHS[1:])
+        "<p>%s</p>" % one for one in INTRO_PARAGRAPHS)
     assert re.sub(r"\s+", "", held) == re.sub(r"\s+", "", whole)
 
     script = PAGE.read_text(encoding="utf-8").split("<script>")[1]
@@ -1576,9 +1594,11 @@ def test_the_old_list_of_links_is_gone(atrium):
         assert old not in said, old
     assert not hasattr(atrium, "LINKS") and not hasattr(atrium, "links_block")
     assert ".links" not in stylesheet(STYLE)
-    # each way on is offered once: only the menu leads to any of them
+    # each way on is offered once by the menu; since tidy-pages the charter and the white
+    # paper are offered once more, behind the question
     for href, _ in MENU:
-        assert said.split("<script>")[0].count('href="%s"' % href) == 1, href
+        twice = href in ("/charter.html", "/white-paper.html")
+        assert said.split("<script>")[0].count('href="%s"' % href) == (2 if twice else 1), href
 
 
 # what the builder and the page's own script each write, in the order they stand
@@ -1613,7 +1633,6 @@ SKELETON = """<main>
       </nav>
 
       <div class="intro">
-        <p>%s</p>
         <details>
           <summary>What is Tesserae?</summary>
           <p>%s</p>
@@ -1630,10 +1649,6 @@ SKELETON = """<main>
         <p class="note">A door open means someone is open to a new friendship.</p>
         <!-- calendar:start --><!-- calendar:end -->
       </section>
-
-      <footer>
-        <p><a href="https://hearth.tesserae.social/commons/record">the record</a></p>
-      </footer>
 
     </div>
 
@@ -1664,15 +1679,63 @@ def skeleton_of(text):
 # it was is FOOT_BEFORE_ART; put it back in index.html and SKELETON_BEFORE_ART is the page.
 FOOT = '<p><a href="https://hearth.tesserae.social/commons/record">the record</a></p>'
 FOOT_BEFORE_ART = '<p><a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>'
-SKELETON_BEFORE_ART = SKELETON.replace(FOOT, FOOT_BEFORE_ART)
+
+# Since tidy-pages (18 November 2026, part 2) the foot is gone, and the intro is one question.
+# The page as it was, on safety-fixes, is SKELETON_BEFORE_TIDY: the intro as INTRO_BEFORE_TIDY
+# and the foot as FOOTER_BEFORE_TIDY, put back where they stood.
+INTRO_BEFORE_TIDY = """      <div class="intro">
+        <p>%s</p>
+        <details>
+          <summary>What is Tesserae?</summary>
+          <p>%s</p>
+          <p>%s</p>
+          <p>%s</p>
+          <p>%s</p>
+        </details>
+      </div>""" % tuple(INTRO_PARAGRAPHS_BEFORE_TIDY)
+INTRO_NOW = """      <div class="intro">
+        <details>
+          <summary>What is Tesserae?</summary>
+          <p>%s</p>
+          <p>%s</p>
+          <p>%s</p>
+          <p>%s</p>
+        </details>
+      </div>""" % tuple(INTRO_PARAGRAPHS)
+FOOTER_BEFORE_TIDY = "      <footer>\n        %s\n      </footer>\n\n" % FOOT
+FOOT_PLACE = "      </section>\n\n    </div>"
+
+
+def as_before_tidy(text):
+    """A page with the intro and the foot put back as they stood before tidy-pages."""
+    assert text.count(INTRO_NOW) == 1 and text.count(FOOT_PLACE) == 1
+    return text.replace(INTRO_NOW, INTRO_BEFORE_TIDY).replace(
+        FOOT_PLACE, "      </section>\n\n" + FOOTER_BEFORE_TIDY + "    </div>")
+
+
+SKELETON_BEFORE_TIDY = as_before_tidy(SKELETON)
+SKELETON_BEFORE_ART = SKELETON_BEFORE_TIDY.replace(FOOT, FOOT_BEFORE_ART)
+# the page's skeleton as it stood on safety-fixes, which the test below holds
+SKELETON_BEFORE_TIDY_HASH = "db35f7c8074b08060a15b48e058d1def59969ea35e554d310f06c6c06dc3f95a"
 
 
 def test_the_page_is_read_in_this_order_and_holds_nothing_else():
     assert skeleton_of(PAGE.read_text(encoding="utf-8")) == SKELETON
-    # and with the foot as it was, the page as it was
-    assert SKELETON_BEFORE_ART != SKELETON
-    assert skeleton_of(PAGE.read_text(encoding="utf-8").replace(FOOT, FOOT_BEFORE_ART)) == \
-        SKELETON_BEFORE_ART
+
+
+def test_the_page_before_tidy_pages_is_recovered():
+    """With the intro and the foot as they were, the page as it was on safety-fixes; and with
+    the foot as it was before art-and-colour, the page as it was then."""
+    page = PAGE.read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert skeleton_of(as_before_tidy(page)) == SKELETON_BEFORE_TIDY
+    assert skeleton_of(as_before_tidy(page).replace(FOOT, FOOT_BEFORE_ART)) == SKELETON_BEFORE_ART
+    assert hashlib.sha256(SKELETON_BEFORE_TIDY.encode("utf-8")).hexdigest() == \
+        SKELETON_BEFORE_TIDY_HASH
+
+
+def test_the_record_is_no_longer_in_a_foot():
+    said = PAGE.read_text(encoding="utf-8")
+    assert "<footer>" not in said and "/commons/record" not in said
 
 
 def test_the_record_s_page_is_on_the_hearth(hearth, visitor):
@@ -1682,26 +1745,21 @@ def test_the_record_s_page_is_on_the_hearth(hearth, visitor):
     assert "<title>Tesserae · the record</title>" in answer.get_data(as_text=True)
 
 
-def test_the_foot_leads_to_the_record(atrium, data_dir, monkeypatch):
-    line = FOOT
+def test_the_builder_writes_no_foot(atrium, data_dir, monkeypatch):
+    """Since tidy-pages the page has no foot, and a rebuild adds none."""
     said = PAGE.read_text(encoding="utf-8")
-    foot = said.split("<footer>")[1].split("</footer>")[0]
-    assert foot.strip() == line
-    assert said.count("/commons/record") == 1  # in the page's words, and not its script
-    assert "#the-record" not in said
-    # the builder writes the same foot, byte for byte
     monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
     atrium.main()
     built = atrium.page_path.read_text(encoding="utf-8")
-    assert built.split("<footer>")[1].split("</footer>")[0] == foot
+    assert "<footer>" not in built
     assert built.split("</main>")[1] == said.split("</main>")[1]
 
 
 def test_the_sections_stand_in_the_order_they_are_read():
     said = PAGE.read_text(encoding="utf-8").split("<script>")[0]
-    stops = ["<h1>Tesserae</h1>", '<nav class="menu"', "<p>" + OPENING_SENTENCE,
-             "<details>", "<summary>What is Tesserae?</summary>", "</details>",
-             '<p class="reading">', "<h2>who is here</h2>", '<p class="calendar">', "<footer>",
+    stops = ["<h1>Tesserae</h1>", '<nav class="menu"', "<details>",
+             "<summary>What is Tesserae?</summary>", "<p>" + OPENING_SENTENCE, "</details>",
+             '<p class="reading">', "<h2>who is here</h2>", '<p class="calendar">',
              '<ul class="mosaic"', '<p class="rest">']
     at = [said.index(stop) for stop in stops]
     assert at == sorted(at)

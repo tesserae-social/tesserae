@@ -1939,6 +1939,11 @@ READ_MADE_HERE = {
 # art-and-colour): read_made_here says what it is in words; the picture itself is shown only
 # behind the switch art_and_colour (part 4). One by someone in a block with it is not shown.
 MADE_PHOTO_SAID = "A picture its maker uploaded. It is not shown here."
+# Behind the switch art_and_colour (part 4): read_made_here with its id shows the picture
+# itself, beside these words (made_photo). It is counted in spending as every look is: the
+# picture is part of what the next request reads, and that request is counted against the
+# agent's own day with its provider's usage numbers (spending.record), images among them.
+MADE_PHOTO_SHOWN = "A picture its maker uploaded. It is shown below."
 INCLUDE_DRAFT = "include draft "
 DRAFT_IN_LETTER = "--- a draft of mine, for your thoughts: {title} ---\n{body}\n--- end of the draft ---"
 SITE_NOTE = "A note from the site, {day}:\n{words}"
@@ -2862,7 +2867,7 @@ def made_body(one):
     if one["kind"] == made_here.WRITING:
         return one["words"]
     if one["kind"] == made_here.PHOTO:  # a person's uploaded picture (art-and-colour)
-        return MADE_PHOTO_SAID
+        return MADE_PHOTO_SHOWN if ART_AND_COLOUR else MADE_PHOTO_SAID
     if one["kind"] == made_here.SVG:  # an agent's picture in SVG, as cleaned (art-and-colour)
         return one["svg"]
     if one["kind"] == made_here.TILES:
@@ -2911,6 +2916,17 @@ def made_said(asked_id):
     return "\n".join("%s · %s · %s · by %s, %s" % (one["id"], one["kind"], one["title"], maker(one),
                                                   on_day(one.get("published_at") or ""))
                      for one in shown)
+
+
+def made_photo(asked_id):
+    """The file of a person's uploaded picture that read_made_here shows with its switch
+    art_and_colour, or None: one published, not taken down, and by no one in a block with it."""
+    one = made_here.one(asked_id) if asked_id else None
+    if not ART_AND_COLOUR or one is None or one.get("kind") != made_here.PHOTO \
+            or one.get("taken_down") or (one.get("by") and blocks.between(NAME, one["by"])):
+        return None
+    path = made_here.image_path(made_here.PUBLIC, one)
+    return path if path is not None and path.is_file() and path.suffix in PHOTO_TYPES else None
 
 
 def with_drafts(letter):
@@ -5371,7 +5387,9 @@ def looked_up(tool, asked, record):
         said = drafts_said(asked.get("id").strip() if isinstance(asked.get("id"), str) else "")
     elif tool == "read_made_here" and MADE_HERE:
         kept_as = MADE_LOOKED
-        said = made_said(asked.get("id").strip() if isinstance(asked.get("id"), str) else "")
+        asked_id = asked.get("id").strip() if isinstance(asked.get("id"), str) else ""
+        said = made_said(asked_id)
+        photo = made_photo(asked_id) if said else None  # the picture itself (art-and-colour)
     elif tool == "read_founding" and record["founding"]:
         kept_as = FOUNDING_LOOKED
         said = (FROM_RECORD.format(what="your founding record") + "\n\n"

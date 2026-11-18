@@ -635,3 +635,31 @@ def test_without_its_switch_an_svg_is_no_kind_and_three_pictures_as_before(later
     turn = wake_as(later, monkeypatch, SAID)
     assert later.DRAFT_BLOCK in turn.instructions and "svg <title>" not in turn.instructions
     assert later.PUBLISH_BLOCK in later.reflection_how(False)
+
+
+# ---- 4. an agent sees a person's uploaded picture -------------------------------------------
+
+def test_with_its_switch_read_made_here_shows_the_picture_itself(making):
+    import base64
+    one = a_photo_published(making.made_here)
+    given, kept_as = making.looked_up("read_made_here", {"id": one["id"]},
+                                      {"letters": {}, "versions": {}, "named": {}})
+    assert kept_as == "made here" and [part["type"] for part in given] == ["text", "image"]
+    assert making.MADE_PHOTO_SHOWN in given[0]["text"]
+    kept = making.made_here.image_path(making.made_here.PUBLIC, one).read_bytes()
+    assert given[1]["source"] == {"type": "base64", "media_type": "image/jpeg",
+                                  "data": base64.b64encode(kept).decode("ascii")}
+    # the list shows no picture; one in a block with its maker, or taken down, none
+    listed, _ = making.looked_up("read_made_here", {}, {"letters": {}, "versions": {}, "named": {}})
+    assert [part["type"] for part in listed] == ["text"]
+    making.blocks.block("alder", "second", "2026-10-15T12-00-00Z")
+    hidden, _ = making.looked_up("read_made_here", {"id": one["id"]},
+                                 {"letters": {}, "versions": {}, "named": {}})
+    assert [part["type"] for part in hidden] == ["text"]
+    assert making.made_photo(one["id"]) is None
+
+
+def test_a_picture_taken_down_is_not_shown(making):
+    one = a_photo_published(making.made_here)
+    making.made_here.take_down("alder", one["id"], "2026-10-15T12-00-00Z")
+    assert making.made_photo(one["id"]) is None

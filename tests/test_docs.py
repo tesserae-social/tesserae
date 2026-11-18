@@ -360,3 +360,84 @@ def test_the_front_page_says_what_a_tile_and_an_open_door_are_where_they_are_met
     assert front.index("<!-- mosaic:end -->") < front.index("One tile for each day's events.")
     door = '<p class="note">A door open means someone is open to a new friendship.</p>'
     assert front.index("<!-- who:end -->") < front.index(door) < front.index("<!-- calendar:start")
+
+
+# ---- about.html: the white paper and the charter on one page --------------
+# (about-page, the founder's request of 18 November 2026)
+
+def body_between(page, start, end):
+    return page.split(start, 1)[1].split(end, 1)[0]
+
+
+def test_about_is_the_page_the_builder_makes():
+    assert said("about.html") == build_docs.about_page(build_docs.shared_head())
+
+
+def test_about_opens_with_a_short_list_of_contents_in_order():
+    page = said("about.html")
+    assert "<title>About Tesserae — Tesserae</title>" in page
+    assert '<p class="home"><a href="/">Tesserae</a></p>' in page
+    contents = re.search(r'<ol class="contents">(.*?)</ol>', page, re.S).group(1)
+    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', contents) == [
+        ("#the-white-paper", "The white paper"), ("#the-charter", "The charter")]
+    at = [page.index(stop) for stop in ('<ol class="contents">', '<section id="the-white-paper">',
+                                         '<h2 class="part">The white paper</h2>',
+                                         '<section id="the-charter">',
+                                         '<h2 class="part">The charter</h2>')]
+    assert at == sorted(at)
+
+
+def test_about_holds_the_white_paper_and_the_charter_in_full_as_their_own_pages_do():
+    """Each part is its own page's article, word for word and mark for mark."""
+    page = said("about.html")
+    for name, place in (("white-paper.md", "the-white-paper"), ("charter.md", "the-charter")):
+        own = body_between(said(build_docs.page_name(name)).replace("\r\n", "\n"),
+                           '<article class="document">\n', "\n  </article>")
+        part = body_between(page.replace("\r\n", "\n"), '<section id="%s">' % place,
+                            "\n  </section>")
+        assert part.split("</h2>\n", 1)[1] == own
+
+
+def test_the_charter_and_the_white_paper_keep_their_own_pages():
+    assert build_docs.DOCUMENTS[:2] == ["charter.md", "white-paper.md"]
+    for page in ("charter.html", "white-paper.html"):
+        assert (REPO / page).is_file()
+    assert "about.md" not in build_docs.DOCUMENTS
+
+
+def test_about_has_no_place_named_twice_and_every_link_leads_somewhere():
+    page = said("about.html")
+    places = re.findall(r'id="([^"]+)"', page)
+    assert len(places) == len(set(places))
+    assert "to-the-one-who-wakes" in places
+    for where in NAMED.findall(page):
+        if re.match(r"[a-z][a-z0-9+.-]*:|//", where):
+            continue
+        path, _, place = where.partition("#")
+        if not path:
+            assert place in places, where
+            continue
+        path = path.lstrip("/") or "index.html"
+        assert (REPO / path).is_file(), where
+
+
+def test_about_carries_both_sources_and_no_chrome():
+    page = said("about.html")
+    foot = re.search(r"<footer>(.*?)</footer>", page, re.S).group(1)
+    for name in ("white-paper.md", "charter.md"):
+        assert build_docs.SOURCE % name in foot
+    assert '<a href="/">tesserae.social</a>' in foot
+    assert "<nav" not in page and "<script" not in page and "<style>" not in page
+
+
+def test_about_left_behind_is_not_let_through(monkeypatch):
+    head = build_docs.shared_head()
+
+    def standing(name):
+        if name == build_docs.ABOUT:
+            return "an older page"
+        return build_docs.page_for(name, head)
+
+    with pytest.raises(SystemExit) as gone:
+        check_against(monkeypatch, standing)
+    assert gone.value.code == "build_docs: about.html behind the record; run python build_docs.py"

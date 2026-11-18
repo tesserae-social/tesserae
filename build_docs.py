@@ -10,6 +10,14 @@ index.html, wearing the atrium's own head and the atrium's own stylesheet:
     docs/what-the-first-citizen-taught.md  ->  what-the-first-citizen-taught.html
     docs/the-door.md                       ->  the-door.html
 
+and one page made of two of them, which keep their own pages too:
+
+    docs/white-paper.md + docs/charter.md  ->  about.html
+
+"About Tesserae" is a short list of contents, then the white paper in full, then
+the charter in full, each under its own heading. Each is the same markup its own
+page has, word for word; the two pages and their addresses stay as they were.
+
 A page is the document and nothing else: the way back to the atrium at the top,
 the words in the middle, and two links under them -- the markdown this page was
 made from, and tesserae.social -- with a third under the charter, to the rites. The
@@ -141,8 +149,10 @@ def escape(words):
 
 
 def page_for(name, head):
-    """One document, as the page it becomes."""
-    text = read_text(os.path.join(DOCS, name))
+    """One document, as the page it becomes; or, asked for about.html, that page."""
+    if name == ABOUT:
+        return about_page(head)
+    text =read_text(os.path.join(DOCS, name))
     title = title_of(text, name)
     return "\n".join([
         "<!DOCTYPE html>",
@@ -174,6 +184,66 @@ def page_for(name, head):
     ])
 
 
+# the one page made of two documents: what it is called, and its parts in order,
+# each with the place on the page it is found at and the heading it stands under
+ABOUT = "about.html"
+ABOUT_TITLE = "About Tesserae"
+ABOUT_PARTS = [
+    ("white-paper.md", "the-white-paper", "The white paper"),
+    ("charter.md", "the-charter", "The charter"),
+]
+
+
+def about_page(head):
+    """The white paper and the charter on one page, under a short list of contents."""
+    contents = ['  <ol class="contents">'] + [
+        '    <li><a href="#%s">%s</a></li>' % (place, escape(heading))
+        for _, place, heading in ABOUT_PARTS] + ["  </ol>"]
+    parts = []
+    for name, place, heading in ABOUT_PARTS:
+        text = read_text(os.path.join(DOCS, name))
+        parts += [
+            "",
+            '  <section id="%s">' % place,
+            '  <h2 class="part">%s</h2>' % escape(heading),
+            body_of(text),
+            "  </section>",
+        ]
+    sources = [(SOURCE % name, "the source of %s" % heading.lower())
+               for name, _, heading in ABOUT_PARTS] + [(ATRIUM, "tesserae.social")]
+    foot = " · ".join('<a href="%s">%s</a>' % (where, words) for where, words in sources)
+    return "\n".join([
+        "<!DOCTYPE html>",
+        '<html lang="en">',
+        "<head>",
+        '<meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1">',
+        "<title>%s — Tesserae</title>" % escape(ABOUT_TITLE),
+        *head,
+        '<link rel="stylesheet" href="%s">' % STYLESHEET,
+        "</head>",
+        "<body>",
+        "<main>",
+        "",
+        '  <p class="home"><a href="%s">Tesserae</a></p>' % ATRIUM,
+        "",
+        '  <article class="document">',
+        "  <h1>%s</h1>" % escape(ABOUT_TITLE),
+        *contents,
+        *parts,
+        "  </article>",
+        "",
+        "  <footer>",
+        "    <p>%s</p>" % foot,
+        "  </footer>",
+        "",
+        "</main>",
+        "</body>",
+        "</html>",
+        "",
+    ])
+
+
 def same_lines(text):
     """A page with its line endings made one kind, so that a checkout that turns
     LF into CRLF (core.autocrlf) does not make a current page look behind."""
@@ -186,8 +256,9 @@ def page_name(name):
 
 
 def standing(name):
-    """What is on the disk for one document today, or None if there is no page yet."""
-    where = os.path.join(ROOT, page_name(name))
+    """What is on the disk for one document today, or None if there is no page yet.
+    The page made of two documents is asked for by its own page name."""
+    where = os.path.join(ROOT, name if name == ABOUT else page_name(name))
     return read_text(where) if os.path.exists(where) else None
 
 
@@ -210,15 +281,23 @@ def main():
             continue
         write_text(os.path.join(ROOT, page_name(name)), made)
 
+    made = about_page(head)
+    if asked.check:
+        there = standing(ABOUT)
+        if there is None or same_lines(there) != same_lines(made):
+            stale.append(ABOUT)
+    else:
+        write_text(os.path.join(ROOT, ABOUT), made)
+
+    written = [page_name(name) for name in DOCUMENTS] + [ABOUT]
     if asked.check:
         if stale:
             sys.exit("build_docs: %s behind the record; run python build_docs.py"
                      % ", ".join(stale))
-        print("documents: %d pages, all of them current" % len(DOCUMENTS))
+        print("documents: %d pages, all of them current" % len(written))
         return
 
-    print("documents: %d pages written (%s)"
-          % (len(DOCUMENTS), ", ".join(page_name(name) for name in DOCUMENTS)))
+    print("documents: %d pages written (%s)" % (len(written), ", ".join(written)))
 
 
 if __name__ == "__main__":

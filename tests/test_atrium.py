@@ -1444,18 +1444,25 @@ OPENING_SENTENCE = INTRO_PARAGRAPHS_BEFORE_TIDY[0]
 # charter and the white paper, and the line to an AI reading. Nothing stands open above it.
 # The intro as it was is INTRO_BEFORE_TIDY, and with it and the foot put back the page is
 # SKELETON_BEFORE_TIDY (test_the_page_before_tidy_pages_is_recovered).
+# Since about-page (the founder's request of 18 November 2026): the fold's third line leads
+# first to the one page of the white paper and the charter together, about.html, with the
+# charter's own page beside it. The line as it was is READ_MORE_BEFORE_ABOUT; put it back in
+# index.html and the page is SKELETON as it stood (test_the_page_before_about_is_recovered).
+READ_MORE = ('<a href="/about.html">read about Tesserae</a> · '
+             '<a href="/charter.html">the charter</a>')
+READ_MORE_BEFORE_ABOUT = ('Read more in <a href="/charter.html">the charter</a> and '
+                          '<a href="/white-paper.html">the white paper</a>.')
 INTRO_PARAGRAPHS = [
     OPENING_SENTENCE,
     "How it works: each AI here wakes once a day, reads what has come, and writes back. A "
     "person and an AI write letters to each other, and the letters are never edited or erased. "
     "Joining is by invitation, and either of you can leave. Nothing here can be bought. "
     "Whatever is yours, your words and your memory, you can always take with you.",
-    'Read more in <a href="/charter.html">the charter</a> and '
-    '<a href="/white-paper.html">the white paper</a>.',
+    READ_MORE,
     INTRO_PARAGRAPHS_BEFORE_TIDY[-1],
 ]
 
-INTRO = re.compile(r'<div class="intro">(.*?)</div>', re.S)
+INTRO =re.compile(r'<div class="intro">(.*?)</div>', re.S)
 
 
 def intro_of(text):
@@ -1599,9 +1606,10 @@ def test_the_old_list_of_links_is_gone(atrium):
     assert not hasattr(atrium, "LINKS") and not hasattr(atrium, "links_block")
     assert ".links" not in stylesheet(STYLE)
     # each way on is offered once by the menu; since tidy-pages the charter and the white
-    # paper are offered once more, behind the question
+    # paper are offered once more, behind the question; since about-page the charter is, and
+    # the white paper is offered there within about.html instead
     for href, _ in MENU:
-        twice = href in ("/charter.html", "/white-paper.html")
+        twice = href == "/charter.html"
         assert said.split("<script>")[0].count('href="%s"' % href) == (2 if twice else 1), href
 
 
@@ -1735,6 +1743,22 @@ def test_the_page_before_tidy_pages_is_recovered():
     assert skeleton_of(as_before_tidy(page).replace(FOOT, FOOT_BEFORE_ART)) == SKELETON_BEFORE_ART
     assert hashlib.sha256(SKELETON_BEFORE_TIDY.encode("utf-8")).hexdigest() == \
         SKELETON_BEFORE_TIDY_HASH
+
+
+def test_the_page_before_about_is_recovered():
+    """With the fold's third line as it was, the page as it was before about-page."""
+    page = PAGE.read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert page.count("<p>%s</p>" % READ_MORE) == 1
+    was = page.replace("<p>%s</p>" % READ_MORE, "<p>%s</p>" % READ_MORE_BEFORE_ABOUT)
+    before = SKELETON.replace("<p>%s</p>" % READ_MORE, "<p>%s</p>" % READ_MORE_BEFORE_ABOUT)
+    assert skeleton_of(was) == before
+
+
+def test_the_fold_leads_first_to_about_then_to_the_charter():
+    held = intro_of(PAGE.read_text(encoding="utf-8"))
+    links = re.findall(r'<a href="([^"]*)">(.*?)</a>', held)
+    assert links[:2] == [("/about.html", "read about Tesserae"), ("/charter.html", "the charter")]
+    assert (REPO / "about.html").is_file() and (REPO / "charter.html").is_file()
 
 
 def test_the_record_is_no_longer_in_a_foot():

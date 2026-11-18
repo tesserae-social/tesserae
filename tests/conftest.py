@@ -1494,8 +1494,10 @@ def knocks_tidy_not_yet(module, monkeypatch):
     place of today's. art_not_yet and own_door_not_yet call it first; it is done once only."""
     from jinja2 import ChoiceLoader, FileSystemLoader
     import knock
+    import types
     for one in {knock, getattr(module, "knock", knock)}:
-        monkeypatch.setattr(one, "TIDY", False)
+        if isinstance(one, types.ModuleType):  # never the function knock.knock
+            monkeypatch.setattr(one, "TIDY", False)
     waking = getattr(module, "the_waking", module)
     if hasattr(waking, "KNOCK_TAKE_BACK"):
         monkeypatch.setattr(waking, "KNOCK_TAKE_BACK", False)

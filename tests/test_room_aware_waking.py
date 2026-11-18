@@ -288,11 +288,13 @@ def a_yes(by, to):
 
 
 def test_the_founder_makes_the_room_of_a_yes_on_tides(world, founder, clock, monkeypatch):
+    import door
     a_member(world, "rowan2")
+    door.set_door("rowan2", state="open", room=1, at="2026-10-14T09-00-00Z")  # room left
     a_yes("rowan2", SECOND)
     answer = post(founder, "/tides/knock/set-up", {"from": "rowan2", "to": SECOND})
     assert answer.status_code == 302
-    made = json.loads((world / "rooms" / "second-rowan2" / "room.json").read_text(
+    made =json.loads((world / "rooms" / "second-rowan2" / "room.json").read_text(
         encoding="utf-8"))
     assert made["kind"] == "person" and made["from_knock"] == "rowan2--second"
     assert made["parties"] == [HEARTH + "rowan2", DID + SECOND]
@@ -304,6 +306,16 @@ def test_the_founder_makes_the_room_of_a_yes_on_tides(world, founder, clock, mon
     clock.shift(hours=24)
     assert "is open: /rooms/second-rowan2" not in wake(module, monkeypatch).shown
     sys.modules.pop("attend", None)
+
+
+def test_a_plain_press_on_tides_makes_nothing_when_over_room(world, founder):
+    """rowan2 has no door, so no room: making the room would put them over it, and a press
+    without 'anyway' makes nothing."""
+    a_member(world, "rowan2")
+    a_yes("rowan2", SECOND)
+    answer = post(founder, "/tides/knock/set-up", {"from": "rowan2", "to": SECOND})
+    assert answer.status_code == 302
+    assert not (world / "rooms" / "second-rowan2").exists()
 
 
 def test_a_yes_for_an_agent_reading_one_room_still_waits(world, monkeypatch):

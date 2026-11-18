@@ -763,6 +763,24 @@ KNOCK_BLOCK = KNOCK_BLOCK.replace(
     "You may knock only at an open door with room left.",
     "You may knock only at an open door with room left, and only while your own door for "
     "them is open with room left.")
+# The founder's request of 18 November 2026 (the branch knocks-tidy), behind its switch
+# knock_take_back (knock.TAKE_BACK_SWITCH): off for the first one until told, so nothing of
+# its reading moves. With it on, its knocks that wait count against its own room for that
+# kind (knock.room_with_waiting), and <<KNOCK>> says so (KNOCK_BLOCK_TIDY); and while a knock
+# of its own waits, <<KNOCK_TAKE_BACK>> is explained: the knock is gone for the other side,
+# as if never sent, and the two may knock again with no wait (knock.take_back).
+KNOCK_TAKE_BACK = KNOCKS and knock.TAKE_BACK_SWITCH in FEATURES
+KNOCK_BLOCK_TIDY = KNOCK_BLOCK.replace(
+    "and only while your own door for them is open with room left.",
+    "and only while your own door for them is open with room left. Your knocks that wait "
+    "count against that room.")
+KNOCK_TAKE_BACK_BLOCK = """<<KNOCK_TAKE_BACK>>
+to: (the name of whoever your knock that waits is at)
+(This takes back your knock while it still waits. They no longer see it. The two of you may knock at each other again with no wait.)
+<<END>>"""
+KNOCK_TAKEN_BACK = "You took back your knock at {name}'s door."
+KNOCK_TAKE_BACK_REFUSED = ('A <<KNOCK_TAKE_BACK>> at your last waking changed nothing: no knock '
+                           'of yours waits for an answer at "{name}".')
 KNOCK_ANSWER_BLOCK = """<<KNOCK_ANSWER>>
 from: (the name of whoever knocked)
 answer: (yes, or not yet)
@@ -793,6 +811,8 @@ KNOCK_REFUSED = {
              "you may not knock at each other for %d days." % knock.AGAIN_AFTER_DAYS),
     "many": ("Your <<KNOCK>> at your last waking was not made: a knock of yours waits "
              "already."),
+    "own_waiting": ("Your <<KNOCK>> at your last waking was not made: your knocks that wait "
+                    "already fill your own door's room for them."),
     "month": ("Your <<KNOCK>> at your last waking was not made: you may knock at a person "
               "once a month."),
     "empty": "Your <<KNOCK>> at your last waking was not made: it had no note.",
@@ -2835,6 +2855,10 @@ def knocks_said(waiting, past):
     for one in last.get("knock_answer_refused") or []:
         if one.get("why") in KNOCK_ANSWER_REFUSED:
             said.append(KNOCK_ANSWER_REFUSED[one["why"]].format(name=one.get("name") or ""))
+    if last.get("knock_taken_back"):
+        said.append(KNOCK_TAKEN_BACK.format(name=last["knock_taken_back"]))
+    if last.get("knock_take_back_refused") is not None:
+        said.append(KNOCK_TAKE_BACK_REFUSED.format(name=last["knock_take_back_refused"]))
     if last.get("knock_made"):
         said.append(KNOCK_MADE.format(name=last["knock_made"]))
     if last.get("knock_refused") in KNOCK_REFUSED:
@@ -3214,6 +3238,17 @@ def knock_make(said, now):
         return None, why
     made = knock.knock(NAME, to, note, now)
     return (knock_name(to), None) if made else (None, "who")
+
+
+def knock_take_back(said, at):
+    """Take back its own knock that waits, as a <<KNOCK_TAKE_BACK>> says: (the name it was
+    at, None), or (None, the name as written)."""
+    heads, _ = board_heads(said, ("to",))
+    named = knock.one_paragraph(heads.get("to"))
+    to = knock.who_is_named(heads.get("to"), founder=knock.sees_the_keeper(NAME))
+    if to and knock.take_back(NAME, to, at):
+        return knock_name(to), None
+    return None, named
 
 
 def knock_answer(said, waiting, at):
@@ -6513,7 +6548,9 @@ def main():
     if HUE_CHOOSING and hue_offered():
         offered.append(hue_block())
     if KNOCKS:
-        offered.append(KNOCK_BLOCK)
+        offered.append(KNOCK_BLOCK_TIDY if KNOCK_TAKE_BACK else KNOCK_BLOCK)
+    if KNOCK_TAKE_BACK and knock.waiting_from(NAME):  # only while a knock of its own waits
+        offered.append(KNOCK_TAKE_BACK_BLOCK)
     if knocking:  # only while a knock waits at its door
         offered.append(KNOCK_ANSWER_BLOCK)
     if REFLECTION_WAKING:
@@ -7111,6 +7148,11 @@ def main():
                                        **({"room_made": True} if made_room else {})})
         else:
             knock_answer_refused.append(knock_answer_why)
+    # a knock of its own taken back comes before a new knock (knocks-tidy)
+    knock_taken_back = knock_take_back_refused = None
+    take_back_said = block(text, "KNOCK_TAKE_BACK") if KNOCK_TAKE_BACK else None
+    if take_back_said is not None:
+        knock_taken_back, knock_take_back_refused = knock_take_back(take_back_said, at)
     knock_said = block(text, "KNOCK") if KNOCKS else None
     knock_made = knock_refused = None
     if knock_said is not None and knock_said.strip():
@@ -7429,6 +7471,10 @@ def main():
         record["knock_answered"] = knock_answered
     if knock_answer_refused:  # and its <<KNOCK_ANSWER>>s that changed nothing, and why
         record["knock_answer_refused"] = knock_answer_refused
+    if knock_taken_back:  # the door it took a knock back from
+        record["knock_taken_back"] = knock_taken_back
+    if knock_take_back_refused is not None:  # or the name its <<KNOCK_TAKE_BACK>> named
+        record["knock_take_back_refused"] = knock_take_back_refused
     if knock_made:  # the door it knocked at
         record["knock_made"] = knock_made
     if knock_refused:  # or why its <<KNOCK>> was not made

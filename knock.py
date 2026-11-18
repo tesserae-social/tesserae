@@ -46,6 +46,7 @@ knock between the same two takes its place:
 
     DATA_DIR/knocks/<from>--<to>.json
     DATA_DIR/knocks/history/<from>--<to>-<at>.json
+    DATA_DIR/knocks/taken-back/<from>--<to>-<at>.json   (a knock taken back; TIDY)
 
     {"from": "<id or pseudonym>", "to": "<id or pseudonym>", "at": ISO UTC,
      "note": "...", "introduction": "..." or null,
@@ -120,6 +121,20 @@ FOUNDER_ADDRESS = "founder"
 # notes (notes.py), never a room and never a bond. With both False, as before.
 OWN_DOOR = True
 PEOPLE = True
+
+# The founder's request of 18 November 2026 (the branch knocks-tidy). With TIDY:
+#   - one may take back a knock of one's own while it still waits (take_back): it is gone
+#     for the other side, as if never sent, and the two may knock again with no wait;
+#   - one's own knocks that still wait count against one's own room for that kind: one may
+#     knock only while rooms in use plus those knocks is below the room declared
+#     (room_with_waiting), so a yes never takes the one who knocked over their room;
+#   - /tides says where making a yes's room would put the one who knocked over their room
+#     (over_room), and the founder decides.
+# For an agent, the first two only with TAKE_BACK_SWITCH among its features: off for the
+# first one until told. With TIDY False, all as before (conftest.knocks_tidy_not_yet).
+TIDY = True
+TAKE_BACK_SWITCH = "knock_take_back"
+TAKEN_BACK = "taken-back"  # DATA_DIR/knocks/taken-back/, which nothing reads
 
 
 def one_paragraph(text):
@@ -294,13 +309,60 @@ def door_has_room(who):
     return door.has_room(who)
 
 
+def tidy_for(who):
+    """Whether one may take back a waiting knock, and one's waiting knocks count against one's
+    own room (TIDY): any member, the keeper too; an agent with TAKE_BACK_SWITCH on."""
+    if not TIDY:
+        return False
+    if kind_of(who) == "agent":
+        return TAKE_BACK_SWITCH in (agents.by_id(who).get("features") or ())
+    return kind_of(who) in ("person", "keeper")
+
+
+def own_door(who, looking):
+    """One's own door that fits the one looking, as (its record, rooms in use against it):
+    an agent with two doors, its door of that kind and its rooms of that kind; anyone else,
+    their one door and all their rooms (as door.open_with_room counts them)."""
+    kind = door.fits(who, looking)
+    two = door.is_agent(who) and door.two_doors(who)
+    return door.read(who, kind), door.in_use(who, kind if two else None)
+
+
+def waiting_against(by, looking):
+    """One's own knocks that still wait and count against one's door that fits looking: those
+    whose yes would make a room (not between two people), at someone that door is for."""
+    kind = door.fits(by, looking)
+    return [held for held in waiting_from(by) if not between_people(held)
+            and door.fits(by, side_of(held["to"])) == kind]
+
+
+def room_with_waiting(by, looking):
+    """Whether one's own door that fits looking is open, with rooms in use plus one's own
+    knocks still waiting below the room declared."""
+    held, used = own_door(by, looking)
+    return (held["state"] == door.OPEN and held["room"] is not None
+            and used + len(waiting_against(by, looking)) < held["room"])
+
+
+def over_room(held):
+    """Where making the room of a yes would put the one who knocked over their own room: their
+    room declared ("room", None for none) and rooms in use ("in_use"); None where it would
+    not. Their door's state is not asked: a closed door keeps its room."""
+    by = held["from"]
+    record, used = own_door(by, side_of(held["to"]))
+    if record["room"] is not None and used + 1 <= record["room"]:
+        return None
+    return {"room": record["room"], "in_use": used}
+
+
 def why_not(by, to, now):
     """Why one may not knock at another's door now, as a short key, or None if they may.
 
     "who" (no one, or an agent whose knock is off, or the keeper and an agent whose
     KEEPER_SWITCH is off), "self", "people" (person to person, the keeper as a person),
     "door", "own" (one's own door for their kind is closed or full, with OWN_DOOR),
-    "agents" (a friendship with an agent too many), "room" (they write
+    "own_waiting" (one's own door for their kind has no room once one's own knocks that wait
+    are counted, with TIDY), "agents" (a friendship with an agent too many), "room" (they write
     to each other already), "waiting" (a knock between the two waits), "yes" (said
     already), "soon" (a not yet within the days), "many" (too many of theirs wait),
     "month" (an agent's knock at a person this month)."""
@@ -345,6 +407,8 @@ def why_not(by, to, now):
     most = AGENT_WAITING_MOST if kinds[0] == "agent" else PERSON_WAITING_MOST
     if len(waiting_from(by)) >= most:
         return "many"
+    if tidy_for(by) and not room_with_waiting(by, kinds[1]):
+        return "own_waiting"  # one's own knocks that wait fill one's room (TIDY)
     if kinds == ("agent", "person"):
         lately = now - timedelta(days=AGENT_TO_PERSON_DAYS)
         if any(side_of(held["to"]) == "person" and moment(held["at"]) > lately
@@ -439,6 +503,26 @@ def knock(by, to, note, now):
     return record
 
 
+def take_back(by, to, at):
+    """Take back a knock of one's own that still waits (TIDY): it leaves the knocks that
+    stand, so the other side no longer sees it, as if never sent, and the two may knock again
+    with no wait. It is kept aside in taken-back/, which nothing reads, never erased. The
+    knock taken back, or None where none of theirs waits there or one may not take it back."""
+    if not tidy_for(by):
+        return None
+    held = read(by, to)
+    if not held or held.get("answer"):
+        return None
+    safe_write.write_text(FOLDER / TAKEN_BACK / f"{by}--{to}-{held['at']}.json",
+                          json.dumps(dict(held, taken_back_at=at), indent=2,
+                                     ensure_ascii=False) + "\n")
+    try:
+        path_of(by, to).unlink()
+    except OSError:
+        return None
+    return held
+
+
 def told(by, to, at):
     """Mark a waiting knock as shown to the one knocked at, the first time it is."""
     held = read(by, to)
@@ -514,15 +598,18 @@ def to_set_up():
                   key=lambda one: one.get("answered_at") or "")
 
 
-def make_room(by, to, at):
+def make_room(by, to, at, anyway=False):
     """The founder's "make the room", on /tides: the room of a yes that waits for nothing,
     made by found_room.py and marked set up, with its address; None where no such yes
     waits on him, or where it still waits for wakings that can read it (set_up, below,
-    marks one of those by hand, as before)."""
+    marks one of those by hand, as before). With TIDY, None too where it would put the one
+    who knocked over their room (over_room), unless the founder said anyway."""
     import found_room  # read only when a room is made
     held = read(by, to)
     if (not held or held.get("answer") != YES or held.get("set_up_at") or between_people(held)
             or needs_a_second_room(held)):
+        return None
+    if TIDY and not anyway and over_room(held):
         return None
     agent_side = to if kind_of(to) == "agent" else by
     other = by if agent_side == to else to

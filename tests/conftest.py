@@ -904,6 +904,7 @@ def own_door_not_yet(module, monkeypatch):
     door was never asked, a person never knocked at a person (knock.OWN_DOOR and knock.PEOPLE
     False), and <<KNOCK>> said nothing of one's own door. Given hearth, it is done to the
     attend.py the hearth wakes."""
+    knocks_tidy_not_yet(module, monkeypatch)  # it came after
     module = getattr(module, "the_waking", module)
     import knock
     monkeypatch.setattr(knock, "OWN_DOOR", False)
@@ -1481,6 +1482,29 @@ def who_fix_not_yet(hearth, monkeypatch):
 
 
 PAGES_BEFORE_ART = Path(__file__).resolve().parent / "pages_before_art"
+PAGES_BEFORE_KNOCKS_TIDY = Path(__file__).resolve().parent / "pages_before_knocks_tidy"
+
+
+def knocks_tidy_not_yet(module, monkeypatch):
+    """Knocks as they were before the branch knocks-tidy (the founder's request of 18 November
+    2026): no knock is taken back, one's knocks that wait do not count against one's room,
+    and /tides says nothing of a room that would put the one who knocked over theirs
+    (knock.TIDY False); an agent's switch knock_take_back is held off; and hearth.html and
+    tides.html as they stood on main, kept in tests/pages_before_knocks_tidy, are drawn in
+    place of today's. art_not_yet and own_door_not_yet call it first; it is done once only."""
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    import knock
+    for one in {knock, getattr(module, "knock", knock)}:
+        monkeypatch.setattr(one, "TIDY", False)
+    waking = getattr(module, "the_waking", module)
+    if hasattr(waking, "KNOCK_TAKE_BACK"):
+        monkeypatch.setattr(waking, "KNOCK_TAKE_BACK", False)
+    if not hasattr(module, "app") or getattr(module, "KNOCKS_TIDY_AS_BEFORE", False):
+        return
+    monkeypatch.setattr(module, "KNOCKS_TIDY_AS_BEFORE", True, raising=False)
+    env = module.app.jinja_env
+    monkeypatch.setattr(env, "loader",
+                        ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_KNOCKS_TIDY)), env.loader]))
 
 
 def seasons_not_yet(monkeypatch):
@@ -1501,6 +1525,7 @@ def art_not_yet(module, monkeypatch):
     who_fix_not_yet calls it first, so every older drawing stands on it too; it is done once
     only."""
     from jinja2 import ChoiceLoader, FileSystemLoader
+    knocks_tidy_not_yet(module, monkeypatch)  # it came after
     seasons_not_yet(monkeypatch)
     days_kept_not_yet(monkeypatch)
     import made_here

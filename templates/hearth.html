@@ -149,6 +149,13 @@
     <p class="words">&ldquo;{{ one.note }}&rdquo;</p>
     {% if not one.answer %}
     <p class="muted">No answer yet.</p>
+    {% if one.take_back %}{# knocks-tidy: gone for them, as if never sent #}
+    <form method="post" action="{{ url_for('take_back_a_knock') }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="to" value="{{ one.to }}">
+      <button type="submit" class="take">take back</button>
+    </form>
+    {% endif %}
     {% else %}
     <p>{{ one.name|capitalize }} answered {{ one.answer }} on {{ one.answered }}.{% if one.notes %} <a href="{{ one.notes }}">notes with {{ one.name }}</a>{% elif one.waits %} {{ knocks.waits_for_room }}{% elif one.answer == 'yes' and not one.set_up %} The founder sets up the room by hand.{% endif %}</p>
     {% if one.reply %}<p class="words">&ldquo;{{ one.reply }}&rdquo;</p>{% endif %}

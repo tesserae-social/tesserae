@@ -135,3 +135,105 @@ def test_drawn_as_before_the_room_is_one_column(hearth, founder, room, monkeypat
     shown = page(founder.get("/rooms/first"))
     assert "columns room" not in shown and "older letters" not in shown
     assert "A September letter" in shown
+
+
+# ---- part 2: the daily email, soon ----------------------------------------------------
+
+@pytest.fixture
+def kept(hearth, founder, monkeypatch):
+    """The keeper, their address confirmed (the emails go at once in a test, not on a thread:
+    conftest.hearth)."""
+    hearth.members.set_email(FOUNDER_NAME, ADDRESS, confirmed_at="2026-10-01T00:00:00Z")
+    return founder
+
+
+def test_a_daily_email_goes_right_after_a_waking(hearth, kept, room, outbox, monkeypatch):
+    monkeypatch.setattr(hearth, "hold_one_attendance", lambda **how: (
+        a_letter(room, "2026-10-15T11-00-00Z"), None)[1])
+    assert hearth.hold_attendance(tide=True) is None
+    assert len(outbox.sent) == 1 and outbox.sent[0]["to"] == ADDRESS
+
+
+def test_a_waking_that_went_wrong_sends_nothing(hearth, kept, room, outbox, monkeypatch):
+    a_letter(room, "2026-10-15T11-00-00Z")
+    monkeypatch.setattr(hearth, "hold_one_attendance", lambda **how: ("wrong", "", 500))
+    hearth.hold_attendance(tide=True)
+    assert outbox.sent == []
+
+
+def test_at_most_one_a_day_and_only_when_something_new_waits(hearth, kept, room, outbox):
+    hearth.emails_soon()
+    assert outbox.sent == []  # nothing waits
+    a_letter(room, "2026-10-15T11-00-00Z")
+    hearth.emails_soon()
+    hearth.emails_soon()
+    assert len(outbox.sent) == 1
+    a_letter(room, "2026-10-15T11-30-00Z")
+    hearth.emails_soon()
+    assert len(outbox.sent) == 1  # a second letter the same Eastern day waits for tomorrow
+    # nor does the round send it the same day
+    assert hearth.send_waiting_emails(datetime(2026, 10, 15, 18, tzinfo=timezone.utc)) == 0
+    # the next Eastern day it goes, by the round or the next waking
+    assert hearth.send_waiting_emails(datetime(2026, 10, 16, 13, tzinfo=timezone.utc)) == 1
+
+
+def test_the_eastern_day_decides_not_the_utc_one(hearth, kept, room, outbox):
+    a_letter(room, "2026-10-15T11-00-00Z")
+    # 23:30 Eastern on the 15th, and 03:30 UTC on the 16th: one day, in the east
+    assert hearth.send_waiting_emails(datetime(2026, 10, 15, 16, tzinfo=timezone.utc)) == 1
+    a_letter(room, "2026-10-15T20-00-00Z")
+    assert hearth.send_waiting_emails(datetime(2026, 10, 16, 3, 30, tzinfo=timezone.utc)) == 0
+    assert hearth.send_waiting_emails(datetime(2026, 10, 16, 4, 30, tzinfo=timezone.utc)) == 1
+
+
+def test_weekly_and_off_are_not_sent_soon(hearth, kept, room, outbox):
+    a_letter(room, "2026-10-15T11-00-00Z")
+    for every in ("weekly", "off"):
+        hearth.members.set_emails(FOUNDER_NAME, every)
+        hearth.emails_soon()
+    assert outbox.sent == []
+    hearth.members.set_emails(FOUNDER_NAME, "weekly")
+    assert hearth.send_waiting_emails(datetime(2026, 10, 15, 18, tzinfo=timezone.utc)) == 1
+
+
+def test_after_a_board_post_only_those_it_mentions_are_emailed(hearth, kept, room, outbox):
+    a_letter(room, "2026-10-15T11-00-00Z")
+    hearth.emails_soon(["someone-else"])
+    assert outbox.sent == []
+    hearth.emails_soon([])
+    assert outbox.sent == []
+    hearth.emails_soon([FOUNDER_NAME])
+    assert len(outbox.sent) == 1
+
+
+def test_soon_still_keeps_ten_of_the_day_s_fifty_for_links(hearth, kept, room, outbox):
+    log = hearth.mail.log_path()
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("2026-10-15T11:00:00Z · confirm · sent\n" * 40, encoding="utf-8")
+    a_letter(room, "2026-10-15T11-00-00Z")
+    hearth.emails_soon()
+    assert outbox.sent == []
+    assert hearth.mail.send("confirm", ADDRESS, "s", "w") == hearth.mail.SENT
+
+
+def test_switched_off_the_daily_email_waits_for_the_round_as_before(
+        hearth, kept, room, outbox, monkeypatch):
+    monkeypatch.setattr(hearth, "EMAILS_SOON", False)
+    a_letter(room, "2026-10-15T11-00-00Z")
+    hearth.emails_soon()
+    assert outbox.sent == []
+    assert hearth.send_waiting_emails(datetime(2026, 10, 15, 18, tzinfo=timezone.utc)) == 1
+    a_letter(room, "2026-10-16T09-00-00Z")
+    # the twenty hours of before, not the Eastern day
+    assert hearth.send_waiting_emails(datetime(2026, 10, 16, 13, tzinfo=timezone.utc)) == 0
+
+
+def test_a_board_post_that_mentions_someone_asks_for_their_email(hearth, kept, monkeypatch):
+    asked = []
+    monkeypatch.setattr(hearth, "emails_soon", lambda only=None: asked.append(only))
+    monkeypatch.setattr(hearth, "board_turned_away", lambda words, subject=None: None)
+    from conftest import post
+    answer = post(kept, "/board/conversation",
+                  data={"subject": "Lanterns", "words": "A word for @%s." % FOUNDER_NAME})
+    assert answer.status_code == 302
+    assert asked and isinstance(asked[-1], list)

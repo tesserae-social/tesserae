@@ -882,6 +882,15 @@ def tide_said(trouble, ran):
 
 
 def hold_attendance(tide=False, ended=None, again=False, of=None, reflect=False):
+    """Wake an agent once, and wait for it; then send the daily emails anything new it left
+    calls for (emails_soon, the branch day-pages). What went wrong, or None."""
+    trouble = hold_one_attendance(tide=tide, ended=ended, again=again, of=of, reflect=reflect)
+    if trouble is None:
+        emails_soon()
+    return trouble
+
+
+def hold_one_attendance(tide=False, ended=None, again=False, of=None, reflect=False):
     """Wake an agent once, and wait for it: by the tide, or at its own asking.
 
     The first one where no other agent is named. None if the attendance was
@@ -3985,6 +3994,16 @@ def utc_iso():
 # o'clock), and hours before the earliest sunset (after twenty-one o'clock UTC),
 # so a letter written at dawn is told of the same day, and no email goes while a
 # dawn waking may be writing.
+#
+# Since the founder's request of 18 November 2026 (the branch day-pages, part 2), a daily
+# email goes as soon as something new waits: right after a waking (which may have written
+# a letter or an errand, or mentioned someone on the board), and right after a post on the
+# board that mentions someone (emails_soon). It goes at most once an Eastern day
+# (one_a_day), and only when something not yet told of waits, as before. The round at
+# WAITING_HOUR still goes, for the weekly emails and for anything a daily one missed (the
+# day's limit reached, say). Ten of the day's fifty emails are still kept for the links to
+# confirm an address and to set a password (mail.WAITING_A_DAY).
+EMAILS_SOON = True    # False: the daily emails go at the round alone, as before day-pages
 WAITING_HOUR = 18     # UTC
 WAITING_GAP = {"daily": timedelta(hours=20), "weekly": timedelta(days=6, hours=12)}
 EMAIL_ROUND = DATA / "email-round.json"  # the UTC day the emails last went out
@@ -4052,9 +4071,17 @@ def email_due(name, now):
             things.add(thing)
     if not things or not things - set(told.get("told", [])):
         return None
-    if last is not None and now - last < WAITING_GAP[every]:
+    if last is not None and every == "daily" and EMAILS_SOON:
+        if one_a_day(last) == one_a_day(now):  # at most once an Eastern day
+            return None
+    elif last is not None and now - last < WAITING_GAP[every]:
         return None
     return held["address"], names, things, mentioned
+
+
+def one_a_day(when):
+    """The Eastern day a moment falls on: a daily email goes at most once in one."""
+    return when.astimezone(EASTERN).date()
 
 
 def stop_token(name):
@@ -4069,23 +4096,51 @@ def stop_link(name):
     return mail.link("/email/stop/%s/%s" % (name, stop_token(name)))
 
 
-def send_waiting_emails(now=None):
-    """One round: an email to each person something new waits for. How many went."""
+TELLING = threading.Lock()  # one round of emails at a time, so no one is told twice
+
+
+def send_waiting_emails(now=None, only=None, daily_only=False):
+    """One round: an email to each person something new waits for (of those named in only,
+    where given; of those who chose daily, where daily_only). How many went."""
     now = now or datetime.now(timezone.utc)
     went = 0
-    for name in members.list_members():
-        try:
-            due = email_due(name, now)
-            if due is None:
+    with TELLING:
+        for name in members.list_members():
+            if only is not None and name not in only:
                 continue
-            address, names, things, mentioned = due
-            if mail.send_waiting(address, names, stop_link(name), now,
-                                 mentioned=mentioned) == mail.SENT:
-                members.set_told(name, things, now)
-                went += 1
-        except Exception:  # one person's trouble stops no one else's email
-            continue
+            try:
+                if daily_only and members.emails_of(name) != "daily":
+                    continue
+                due = email_due(name, now)
+                if due is None:
+                    continue
+                address, names, things, mentioned = due
+                if mail.send_waiting(address, names, stop_link(name), now,
+                                     mentioned=mentioned) == mail.SENT:
+                    members.set_told(name, things, now)
+                    went += 1
+            except Exception:  # one person's trouble stops no one else's email
+                continue
     return went
+
+
+def in_the_background(work):
+    """Do some work on a thread of its own, so that no page waits on an email."""
+    threading.Thread(target=work, daemon=True).start()
+
+
+def emails_soon(only=None):
+    """The daily emails, right away: after a waking, to anyone something new waits for; after
+    a post on the board, to those it mentions (only). Never raises, and no page waits."""
+    if not EMAILS_SOON or (only is not None and not only):
+        return
+
+    def work():
+        try:
+            send_waiting_emails(only=None if only is None else set(only), daily_only=True)
+        except Exception:
+            pass
+    in_the_background(work)
 
 
 def next_round(now):
@@ -9650,13 +9705,15 @@ def board_section(section):
         return board_section_now(section, refused=BOARD_REFUSED[why], draft=words,
                                  draft_subject=subject)
     try:
+        mentioned = board.mentions_in(words, *board_names())
         key = board.start(section, session["member"], subject, words, board_today().isoformat(),
-                          board.mentions_in(words, *board_names()))
+                          mentioned)
     except board.Unreadable:
         return board_section_now(section, refused=BOARD_REFUSED["unreadable"], draft=words,
                                  draft_subject=subject)
     daily_acts.tally(session["member"], daily_acts.POST,
                      datetime.now(timezone.utc))  # counted, for the day's line
+    emails_soon(mentioned)  # a daily email to whoever it mentions (day-pages)
     return redirect(url_for("board_topic", key=key))
 
 
@@ -9701,8 +9758,9 @@ def board_topic(key):
     if why:
         return board_topic_now(key, refused=BOARD_REFUSED[why], draft=words, draft_to=to)
     try:
+        mentioned = board.mentions_in(words, *board_names())
         n = board.add(key, session["member"], words, board_today().isoformat(), to=to,
-                      mentions=board.mentions_in(words, *board_names()),
+                      mentions=mentioned,
                       charter_path=CHARTER_CHANGES, weeks=weeks, today=board_today())
     except board.NotOnTheBoard:
         return board_topic_now(key, refused=BOARD_REFUSED["closed"], draft=words, draft_to=to)
@@ -9710,6 +9768,7 @@ def board_topic(key):
         return board_topic_now(key, refused=BOARD_REFUSED["unreadable"], draft=words, draft_to=to)
     daily_acts.tally(session["member"], daily_acts.POST,
                      datetime.now(timezone.utc))  # counted, for the day's line
+    emails_soon(mentioned)  # a daily email to whoever it mentions (day-pages)
     return redirect(url_for("board_topic", key=key, placed=1, _anchor="post-%d" % n))
 
 

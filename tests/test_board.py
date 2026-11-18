@@ -318,15 +318,29 @@ def test_a_name_that_is_no_one_s_is_no_mention(world, birch, data_dir):
     assert kept(data_dir)["topics"][0]["posts"][0]["mentions"] == []
 
 
-def test_a_mention_joins_the_daily_email_and_no_other(world, birch, alder):
+def test_a_mention_joins_the_daily_email_and_no_other(world, birch, alder, monkeypatch):
     world.members.set_email("alder", "alder@example.org", confirmed_at="2026-11-01T00:00:00Z")
     world.members.set_emails("alder", "daily")
+    # since day-pages, part 2 (18 November 2026), a daily email goes as soon as the mention
+    # is posted; with that held back (hearth.EMAILS_SOON False) it waits for the round
+    monkeypatch.setattr(world, "EMAILS_SOON", False)
     start(birch, "A word for @alder.", "Lanterns")
     at = datetime(2026, 11, 13, 18, tzinfo=timezone.utc)
     due = world.email_due("alder", at)
     assert due is not None and due[3] == ["Lanterns"]
     world.members.set_emails("alder", "weekly")
     assert world.email_due("alder", at) is None
+
+
+def test_a_mention_sends_the_daily_email_at_once(world, birch, alder, outbox):
+    world.members.set_email("alder", "alder@example.org", confirmed_at="2026-11-01T00:00:00Z")
+    world.members.set_emails("alder", "daily")
+    start(birch, "A word for @alder.", "Lanterns")
+    (sent,) = outbox.sent
+    assert sent["to"] == "alder@example.org"
+    assert sent["text"].startswith("You were mentioned on the board in Lanterns.")
+    start(birch, "Another word for @alder.", "Lamps")
+    assert len(outbox.sent) == 1  # at most one an Eastern day
 
 
 def test_the_mention_email_says_where_and_nothing_of_the_words(world, outbox):

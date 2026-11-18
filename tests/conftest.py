@@ -610,6 +610,9 @@ def hearth(env, clock, monkeypatch):
     module = load("hearth")
     clock.pin(module, monkeypatch)
     module.app.config["TESTING"] = True
+    # the daily emails sent soon (day-pages, part 2) are sent at once in a test, never on a
+    # thread that might outlive it
+    monkeypatch.setattr(module, "in_the_background", lambda work: work())
     return module
 
 

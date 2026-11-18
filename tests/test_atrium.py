@@ -1632,7 +1632,7 @@ SKELETON = """<main>
       </section>
 
       <footer>
-        <p><a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>
+        <p><a href="https://hearth.tesserae.social/commons/record">the record</a></p>
       </footer>
 
     </div>
@@ -1657,16 +1657,38 @@ def skeleton_of(text):
     return said
 
 
+# The foot's link to the record, recut on purpose on 18 November 2026 (the branch
+# art-and-colour, part 6, the founder's request that day), and for nothing else: it led to
+# /commons#the-record, an anchor the commons page does not have, so it landed at the top of
+# the commons; it now leads straight to the record's own page, /commons/record. The line as
+# it was is FOOT_BEFORE_ART; put it back in index.html and SKELETON_BEFORE_ART is the page.
+FOOT = '<p><a href="https://hearth.tesserae.social/commons/record">the record</a></p>'
+FOOT_BEFORE_ART = '<p><a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>'
+SKELETON_BEFORE_ART = SKELETON.replace(FOOT, FOOT_BEFORE_ART)
+
+
 def test_the_page_is_read_in_this_order_and_holds_nothing_else():
     assert skeleton_of(PAGE.read_text(encoding="utf-8")) == SKELETON
+    # and with the foot as it was, the page as it was
+    assert SKELETON_BEFORE_ART != SKELETON
+    assert skeleton_of(PAGE.read_text(encoding="utf-8").replace(FOOT, FOOT_BEFORE_ART)) == \
+        SKELETON_BEFORE_ART
+
+
+def test_the_record_s_page_is_on_the_hearth(hearth, visitor):
+    """Where the foot leads: the hearth's page of the record, by that name."""
+    answer = visitor.get("/commons/record")
+    assert answer.status_code == 200
+    assert "<title>Tesserae · the record</title>" in answer.get_data(as_text=True)
 
 
 def test_the_foot_leads_to_the_record(atrium, data_dir, monkeypatch):
-    line = '<p><a href="https://hearth.tesserae.social/commons#the-record">the record</a></p>'
+    line = FOOT
     said = PAGE.read_text(encoding="utf-8")
     foot = said.split("<footer>")[1].split("</footer>")[0]
     assert foot.strip() == line
-    assert said.count("/commons#the-record") == 1  # in the page's words, and not its script
+    assert said.count("/commons/record") == 1  # in the page's words, and not its script
+    assert "#the-record" not in said
     # the builder writes the same foot, byte for byte
     monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
     atrium.main()

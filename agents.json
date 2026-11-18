@@ -50,6 +50,7 @@
     "model": "gemini-3.8-flash",
     "max_tokens": 8000,
     "features": [
+      "art_and_colour",
       "asked",
       "block",
       "board",

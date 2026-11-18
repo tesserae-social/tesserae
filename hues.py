@@ -186,7 +186,7 @@ def name_of(colour, agent_id=None):
                 None)
 
 
-def choose(agent_id, said, at):
+def choose(agent_id, said, at, rules=False, anyway=False):
     """Take an agent's <<HUE>>: any colour as a hex code, #RRGGBB, or a colour of the palette
     by its name (the first one's coral too, for it alone). Gives back the name it is kept
     by (the palette's name, or the hex code itself), or raises Refused("unknown") or
@@ -194,7 +194,11 @@ def choose(agent_id, said, at):
 
     Since the founder's request of 17 November 2026 (the branch site-design) a colour is
     refused only where it is exactly another's (EXACT): close is allowed. With EXACT
-    False, as before, only a palette colour clear of every other agent's is taken."""
+    False, as before, only a palette colour clear of every other agent's is taken.
+
+    With rules (its switch SWITCH, since 18 November 2026), the seasons and the check of
+    showing hold too (check_change): Refused("season"), Refused("invisible") or
+    Refused("barely"), the last taken when it is asked again (anyway)."""
     words = " ".join((said or "").split()).strip().strip(".").lower()
     among = offered(agent_id)
     name = words if words in among else name_of(words, agent_id)
@@ -208,6 +212,8 @@ def choose(agent_id, said, at):
             raise Refused("taken")
     elif name not in free(agent_id):
         raise Refused("taken")
+    if rules:
+        check_change(chosen(agent_id) is not None, colour, at, True, True, anyway)
     _keep(packet(agent_id), "hue.json", "hue-history", "hue-before",
           {"name": name, "hue": colour, "at": at})
     return name
@@ -308,14 +314,157 @@ def free_exactly(colour, agent=None, person=None):
     return bool(colour) and colour not in claimed(but=who) and colour not in reserved_for(who)
 
 
-def choose_person(name, said, at):
+def choose_person(name, said, at, anyway=False):
     """Take a person's colour from the picker: gives back "#RRGGBB", or raises
-    Refused("unknown") or Refused("taken")."""
+    Refused("unknown") or Refused("taken"); and since 18 November 2026 Refused("season"),
+    Refused("invisible") or Refused("barely") (check_change, by SEASONS and VISIBLE)."""
     colour = hex_of(said)
     folder = person_folder(name)
     if colour is None or folder is None:
         raise Refused("unknown")
     if not free_exactly(colour, person=name):
         raise Refused("taken")
+    check_change(person_chosen(name) is not None, colour, at, SEASONS, VISIBLE, anyway)
     _keep(folder, PERSON_RECORD, "colour-history", "colour-before", {"hue": colour, "at": at})
     return colour
+
+
+# ---- when a colour may change, and whether it shows (the founder's request of 18 November
+# 2026, the branch art-and-colour, part 1) -------------------------------------------------
+#
+# Anyone without a colour of their own choosing may choose one at any time. After that, a
+# colour may be changed only in the week that starts at each equinox: from 20 March and
+# from 22 September, for SEASON_DAYS days, on the Eastern day. No one is asked.
+#
+# A colour is drawn on the site's light pages: the cream of the page and the card
+# (BACKGROUNDS). One whose contrast against either is under SHOWS_WELL barely shows: it is
+# discouraged, and the nearest colour that shows well is suggested (nearest_showing); it is
+# taken only when it is asked for again. One under NEARLY_INVISIBLE is refused.
+#
+# An agent has these rules behind its switch SWITCH, off for the first one until the founder
+# has told it; a person has them by SEASONS and VISIBLE. With both False, as before.
+
+SWITCH = "art_and_colour"
+SEASONS = True
+VISIBLE = True
+SEASON_STARTS = ((3, 20), (9, 22))  # month, day: about the two equinoxes
+SEASON_DAYS = 7
+BACKGROUNDS = ("#FAF7F2", "#F4EFE7")  # style.css and base.html: --paper and --card
+SHOWS_WELL = 3.0
+NEARLY_INVISIBLE = 1.3
+
+
+def rules_on(agent):
+    """Whether the seasons and the check of showing hold for this agent's <<HUE>>."""
+    return SWITCH in (agent.get("features") or ())
+
+
+def day_of(at):
+    """The Eastern day of a stamp, "YYYY-MM-DDTHH-MM-SSZ" or with colons; today where it
+    cannot be read."""
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    eastern = ZoneInfo("America/New_York")
+    for shape in ("%Y-%m-%dT%H-%M-%SZ", "%Y-%m-%dT%H:%M:%SZ"):
+        try:
+            when = datetime.strptime(str(at), shape).replace(tzinfo=timezone.utc)
+            return when.astimezone(eastern).date()
+        except ValueError:
+            continue
+    return datetime.now(eastern).date()
+
+
+def season_open(day):
+    """Whether a colour already chosen may be changed on this day."""
+    from datetime import date, timedelta
+    for month, first in SEASON_STARTS:
+        for year in (day.year, day.year - 1):
+            start = date(year, month, first)
+            if start <= day < start + timedelta(days=SEASON_DAYS):
+                return True
+    return False
+
+
+def next_season(day):
+    """The first day of the next week in which a colour may be changed, on or after day."""
+    from datetime import date
+    starts = sorted(date(year, month, first) for year in (day.year, day.year + 1)
+                    for month, first in SEASON_STARTS)
+    return next(start for start in starts if start >= day)
+
+
+def shows(colour):
+    """How well a colour shows: its least contrast against the site's light backgrounds."""
+    return min(contrast(colour, ground) for ground in BACKGROUNDS)
+
+
+def showing(colour):
+    """"well", "barely" or "invisible"."""
+    found = shows(colour)
+    if found < NEARLY_INVISIBLE:
+        return "invisible"
+    return "barely" if found < SHOWS_WELL else "well"
+
+
+def _from_lab(lightness, a, b):
+    """A colour from CIELAB, "#RRGGBB", each channel held to what a screen can show."""
+    def f_inverse(t):
+        return t ** 3 if t ** 3 > 0.008856 else (t - 16 / 116) / 7.787
+    fy = (lightness + 16) / 116
+    x = 0.95047 * f_inverse(fy + a / 500)
+    y = f_inverse(fy)
+    z = 1.08883 * f_inverse(fy - b / 200)
+    linear = (3.2406 * x - 1.5372 * y - 0.4986 * z,
+              -0.9689 * x + 1.8758 * y + 0.0415 * z,
+              0.0557 * x - 0.2040 * y + 1.0570 * z)
+
+    def encoded(c):
+        c = min(max(c, 0.0), 1.0)
+        c = 12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+        return round(min(max(c, 0.0), 1.0) * 255)
+    return "#%02X%02X%02X" % tuple(encoded(c) for c in linear)
+
+
+def nearest_showing(colour, who=None):
+    """The nearest colour to this one that shows well and is free to choose: the same hue
+    and depth of colour, made only as much darker as it needs (contrast is lightness alone,
+    so this is the nearest in CIELAB). None where none can be found."""
+    colour = hex_of(colour)
+    if colour is None:
+        return None
+    if showing(colour) == "well" and free_exactly(colour, agent=who, person=None):
+        return colour
+    lightness, a, b = _lab(colour)
+    step = lightness
+    while step > 0:
+        found = _from_lab(step, a, b)
+        if shows(found) >= SHOWS_WELL:
+            for tried in (found, *_one_digit_from(found)):
+                if shows(tried) >= SHOWS_WELL and free_exactly(tried, agent=who):
+                    return tried
+        step -= 0.5
+    return None
+
+
+def _one_digit_from(colour):
+    """Colours one in the last digit of a channel from this one, for one that is taken."""
+    value = int(colour[1:], 16)
+    for shift in (0, 8, 16):
+        for by in (-1, 1):
+            channel = (value >> shift) & 0xFF
+            if 0 <= channel + by <= 0xFF:
+                yield "#%06X" % (value + (by << shift))
+
+
+def check_change(has_chosen, colour, at, seasons, visible, anyway):
+    """Raise Refused where this colour may not be taken now, after it is known to be free:
+    "season" (one is chosen and it is not the equinox week), "invisible", or "barely"
+    (unless anyway, the second asking)."""
+    if seasons and has_chosen and not season_open(day_of(at)):
+        raise Refused("season")
+    if visible:
+        said = showing(colour)
+        if said == "invisible":
+            raise Refused("invisible")
+        if said == "barely" and not anyway:
+            raise Refused("barely")

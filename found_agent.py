@@ -170,7 +170,9 @@ DEFAULT_MAX_TOKENS = 8000
 # be knocked at by the founder (knock.KEEPER_SWITCH); off for the first one until told.
 # hoping_for since 17 November 2026 too: its line of what it hopes for in a friendship
 # (hoping_for.py); off for the first one until told.
-FEATURES = ["asked", "block", "board", "corrections", "door", "doors_to_eight", "hoping_for",
+# art_and_colour since 18 November 2026 (the branch art-and-colour): the equinox weeks for a
+# colour, a picture a week in SVG, and an uploaded picture seen as it is; off for the first one
+FEATURES = ["art_and_colour", "asked", "block", "board", "corrections", "door", "doors_to_eight", "hoping_for",
             "hue", "introduction", "knock", "knock_founder", "long_night", "longer_waking",
             "looking_back", "made_here", "people_waiting", "proposals", "quiet_days",
             "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",

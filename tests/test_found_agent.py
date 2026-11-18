@@ -133,7 +133,9 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         # every part of the site that makes sense for an agent, as the first one has, but
         # its letter of welcome (the founder's request of 14 November 2026); its standing
         # welcome since 16 November 2026 (welcome-on), as the first one's
-        "features": ["asked", "block", "board", "corrections", "door", "doors_to_eight",
+        # and art_and_colour since 18 November 2026 (art-and-colour), not yet the first one's
+        "features": ["art_and_colour", "asked", "block", "board", "corrections", "door",
+                     "doors_to_eight",
                      "hoping_for", "hue", "introduction", "knock", "knock_founder", "long_night",
                      "longer_waking",
                      "looking_back", "made_here", "people_waiting", "proposals", "quiet_days",
@@ -142,10 +144,10 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         "wakes": True}
     # the first one's switches since 17 November 2026 (quiet_days, made_here, rooms_reading,
     # two_doors and block on, rhythm_line off), with knock_founder and site_notes, which are
-    # a new agent's and not yet the first one's
+    # a new agent's and not yet the first one's; and art_and_colour since 18 November 2026
     assert sorted(entry["features"]) == sorted(
         [one for one in agents.first()["features"] if one != "welcome_letter"]
-        + ["hoping_for", "knock_founder", "site_notes"])
+        + ["art_and_colour", "hoping_for", "knock_founder", "site_notes"])
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
     assert registry == [agents.first(), entry]
     did = json.loads((bundle / "ids" / ID / "did.json").read_text(encoding="utf-8"))

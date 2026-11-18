@@ -1461,12 +1461,46 @@ def who_fix_not_yet(hearth, monkeypatch):
     if getattr(hearth, "WHO_FIX_AS_BEFORE", False):
         return
     monkeypatch.setattr(hearth, "WHO_FIX_AS_BEFORE", True, raising=False)
+    art_not_yet(hearth, monkeypatch)  # it came after
     monkeypatch.setattr(hearth, "DOORS_PLAINLY", False)
     monkeypatch.setattr(hearth, "BOARD_UNDER_THE_HEAD", False)  # a topic's posts as threaded()
     if PAGES_BEFORE_WHO_FIX.is_dir():
         env = hearth.app.jinja_env
         monkeypatch.setattr(env, "loader",
                             ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_WHO_FIX)), env.loader]))
+
+
+PAGES_BEFORE_ART = Path(__file__).resolve().parent / "pages_before_art"
+
+
+def seasons_not_yet(monkeypatch):
+    """A colour as it was chosen before the branch art-and-colour, part 1 (18 November 2026):
+    at any time, and whether or not it shows (hues.SEASONS and hues.VISIBLE False)."""
+    import hues
+    monkeypatch.setattr(hues, "SEASONS", False)
+    monkeypatch.setattr(hues, "VISIBLE", False)
+
+
+def art_not_yet(module, monkeypatch):
+    """Everything as it was before the branch art-and-colour (the founder's request of 18
+    November 2026): a colour chosen at any time and whether or not it shows
+    (seasons_not_yet), and every template that branch changed, as it stood on who-fix, kept
+    in tests/pages_before_art and drawn in place of today's. Given an attend.py, or the
+    hearth (and the attend.py it wakes), its switch art_and_colour is held off too.
+    who_fix_not_yet calls it first, so every older drawing stands on it too; it is done once
+    only."""
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    seasons_not_yet(monkeypatch)
+    waking = getattr(module, "the_waking", module)
+    if hasattr(waking, "ART_AND_COLOUR"):
+        monkeypatch.setattr(waking, "ART_AND_COLOUR", False)
+    if not hasattr(module, "app") or getattr(module, "ART_AS_BEFORE", False):
+        return
+    monkeypatch.setattr(module, "ART_AS_BEFORE", True, raising=False)
+    if PAGES_BEFORE_ART.is_dir():
+        env = module.app.jinja_env
+        monkeypatch.setattr(env, "loader",
+                            ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_ART)), env.loader]))
 
 
 PAGES_BEFORE_WEEK = Path(__file__).resolve().parent / "pages_before_week"

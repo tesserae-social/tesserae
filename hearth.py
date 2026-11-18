@@ -3687,21 +3687,52 @@ COLOUR_REFUSED = {
     "unknown": "That is not a colour; nothing was changed.",
     "taken": ("That colour is exactly someone else's. Choose one that differs in at least "
               "one digit; nothing was changed."),
+    # since 18 November 2026 (art-and-colour, part 1): hues.SEASONS and hues.VISIBLE
+    "season": ("You have chosen your colour. It may be changed only in the week from 20 March "
+               "or from 22 September; nothing was changed."),
+    "invisible": ("That colour would be nearly invisible on the site's pages, so it wasn't "
+                  "taken. Nothing was changed."),
 }
+# A colour that barely shows (hues.showing): said plainly, with the nearest that shows well,
+# and taken only if it is asked for again.
+COLOUR_BARELY = ("That colour barely shows on the site's pages. The nearest colour that shows "
+                 "well is {nearest}. Nothing was changed yet.")
+COLOUR_SEASON_SAID = ("Once you have chosen, your colour may be changed only in the week from "
+                      "20 March and the week from 22 September.")
+COLOUR_CLOSED_SAID = "You may change it next in the week from {day}."
+COLOUR_OPEN_SAID = "This is a week in which you may change it, until {day}."
 
 
 def colour_shown(name):
-    """One's colour as settings shows it: the square and name, and the picker's value."""
+    """One's colour as settings shows it: the square and name, the picker's value, and
+    since 18 November 2026 when it may be changed (hues.SEASONS)."""
     chosen = hues.person_chosen(name)
-    return {"shown": shown_name(name), "value": (chosen or hues.NO_HUE).lower()}
+    shown = {"shown": shown_name(name), "value": (chosen or hues.NO_HUE).lower()}
+    if hues.SEASONS:
+        today = datetime.now(EASTERN).date()
+        shown["seasons"] = COLOUR_SEASON_SAID
+        shown["may"] = not chosen or hues.season_open(today)
+        if chosen and shown["may"]:
+            last = next(day for day in (today + timedelta(days=n) for n in range(8))
+                        if not hues.season_open(day))
+            shown["when"] = COLOUR_OPEN_SAID.format(day=long_day(last - timedelta(days=1)))
+        elif chosen:
+            shown["when"] = COLOUR_CLOSED_SAID.format(day=long_day(hues.next_season(today)))
+    return shown
 
 
 @app.route("/settings/colour", methods=["POST"])
 @member_required
 def my_colour():
+    said = request.form.get("colour", "")
     try:
-        hues.choose_person(session["member"], request.form.get("colour", ""), utc_stamp())
+        hues.choose_person(session["member"], said, utc_stamp(),
+                           anyway=request.form.get("anyway") == "yes")
     except hues.Refused as refused:
+        if refused.args[0] == "barely":
+            nearest = hues.nearest_showing(said, session["member"])
+            return account_page(colour_refused=COLOUR_BARELY.format(nearest=nearest or "a darker one"),
+                                colour_barely={"asked": hues.hex_of(said), "nearest": nearest})
         return account_page(colour_refused=COLOUR_REFUSED[refused.args[0]])
     return redirect(url_for("account", colour_saved=1, _anchor="colour"))
 

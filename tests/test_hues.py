@@ -16,7 +16,8 @@ import pytest
 
 import agents
 import hues
-from conftest import atrium_before_design, block, blocks, colour_picker_not_yet, read_json
+from conftest import (atrium_before_design, block, blocks, colour_picker_not_yet, read_json,
+                      seasons_not_yet)
 from test_any_agent_wakes import wake_as
 from test_later_citizen import LATER, later, scratch_registry  # noqa: F401 - fixtures
 
@@ -266,7 +267,8 @@ def test_the_first_one_keeps_coral_and_may_choose_a_hex_code(attend, wake, data_
     assert hues.colour_of(agents.FIRST["id"]) == agents.FIRST["hue"]
 
 
-def test_a_person_s_colour_is_kept_with_the_one_before(env, data_dir):
+def test_a_person_s_colour_is_kept_with_the_one_before(env, data_dir, monkeypatch):
+    seasons_not_yet(monkeypatch)  # chosen again at any time, as before 18 November 2026
     import members
     (data_dir / "members" / "alder").mkdir(parents=True)
     assert hues.colour_of("alder") == hues.NO_HUE

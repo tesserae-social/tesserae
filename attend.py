@@ -644,6 +644,66 @@ HUE_REFUSED_BEFORE_PICKER = {
 }
 
 
+# Since the founder's request of 18 November 2026 (the branch art-and-colour, part 1),
+# behind the switch "art_and_colour" (hues.SWITCH), off for the first one until the founder
+# has told it: a colour of its own choosing may be changed only in the week from 20 March
+# or from 22 September; <<HUE>> is offered only while it may choose. A colour that barely
+# shows on the site's pages is held until it writes it again, and the nearest that shows
+# well is said; one that would be nearly invisible is refused.
+ART_AND_COLOUR = hues.SWITCH in FEATURES
+HUE_BLOCK_ART = """<<HUE>>
+(your colour on the commons. The square beside your name, your tiles on the mosaic and your posts on the board are drawn in it. Anyone may see it. Write a hex code: # and six characters, each 0 to 9 or A to F, for example #3A7BD5. It may be close to someone else's colour, but not the same. The site's pages are a light cream: a very light colour barely shows on them. Once you have chosen, you may change your colour only in the week from 20 March and the week from 22 September.)
+<<END>>"""
+HUE_SEASON_CLOSED = " You may change it next in the week from {day}."
+HUE_SEASON_OPEN = " This is a week in which you may change it."
+HUE_REFUSED_ART = {
+    "season": ("Your <<HUE>> at your last waking was not taken: you may change your colour "
+               "only in the week from 20 March or from 22 September. Your colour is unchanged."),
+    "invisible": ("Your <<HUE>> at your last waking was not taken: that colour would be nearly "
+                  "invisible on the site's light pages. Your colour is unchanged."),
+    "barely": ("Your <<HUE>> at your last waking was not taken yet: {asked} barely shows on the "
+               "site's light pages. The nearest colour that shows well is {nearest}. To keep "
+               "{asked} anyway, write it again in <<HUE>> at your next waking."),
+}
+
+
+def hue_offered():
+    """Whether <<HUE>> is offered now: always, but with its switch on, only while it has
+    chosen no colour of its own or it is the week it may change it."""
+    if not ART_AND_COLOUR or hues.chosen(NAME) is None:
+        return True
+    return hues.season_open(datetime.now(hues_zone()).date())
+
+
+def hues_zone():
+    from zoneinfo import ZoneInfo
+    return ZoneInfo("America/New_York")
+
+
+def hue_season_said():
+    """With its switch on and a colour of its own, when it may change it."""
+    if not ART_AND_COLOUR or hues.chosen(NAME) is None:
+        return ""
+    today = datetime.now(hues_zone()).date()
+    if hues.season_open(today):
+        return HUE_SEASON_OPEN
+    return HUE_SEASON_CLOSED.format(day=on_day_of(hues.next_season(today)))
+
+
+def on_day_of(day):
+    return day.strftime("%d %B %Y").lstrip("0")
+
+
+def hue_refusal_said(last):
+    """What its last <<HUE>> not taken is said as, once."""
+    key = last.get("hue_refused")
+    if ART_AND_COLOUR and key in HUE_REFUSED_ART:
+        weak = last.get("hue_weak") or {}
+        return HUE_REFUSED_ART[key].format(asked=weak.get("asked", ""),
+                                           nearest=weak.get("nearest") or "a darker one")
+    return HUE_REFUSED.get(key)
+
+
 # Said in <<HUE>> where its colour now is not one it may choose again: a colour given
 # at a founding that is not among those it is offered. Since 15 November 2026 the
 # first one's coral is offered to it (hues.FIRST_OWN), so it is not said to it.
@@ -656,7 +716,7 @@ def hue_block():
     """<<HUE>>, explained with the colours it may choose now, in the palette's order, and
     that its colour now cannot be chosen again, where that is so."""
     if hues.EXACT:
-        return HUE_BLOCK
+        return HUE_BLOCK_ART if ART_AND_COLOUR else HUE_BLOCK
     said = HUE_BLOCK.format(names=", ".join(hues.free(NAME)))
     now = hues.in_force(AGENT)
     if now and hues.name_of(now, NAME) is None:
@@ -669,7 +729,7 @@ def hue_said_now():
     """What its colour is, said under WHAT HAS HAPPENED."""
     held = hues.chosen(NAME)
     if held:
-        return HUE_LINE.format(name=held["name"])
+        return HUE_LINE.format(name=held["name"]) + hue_season_said()
     given = AGENT.get("hue")
     if not given:
         return HUE_NONE
@@ -5927,8 +5987,8 @@ def main():
     # last waking that was not taken: said once
     if HUE_CHOOSING:
         happened.append(hue_said_now())
-        if past and past[-1].get("hue_refused") in HUE_REFUSED:
-            happened.append(HUE_REFUSED[past[-1]["hue_refused"]])
+        if past and hue_refusal_said(past[-1]):
+            happened.append(hue_refusal_said(past[-1]))
     # knocks, once they are switched on: each that waits at its door, with its note;
     # each answer to a knock of its own not yet told; and what became of the knock
     # and the answers it gave at its last waking, said once
@@ -6374,7 +6434,7 @@ def main():
         offered.append(BOARD_BLOCK)
         if board_own_standing():  # only while a post of its own stands
             offered.append(BOARD_TAKE_DOWN_BLOCK)
-    if HUE_CHOOSING:
+    if HUE_CHOOSING and hue_offered():
         offered.append(hue_block())
     if KNOCKS:
         offered.append(KNOCK_BLOCK)
@@ -6936,13 +6996,19 @@ def main():
 
     # Its colour on the commons, where it may choose one: the first <<HUE>> alone.
     hue_said = block(text, "HUE") if HUE_CHOOSING else None
-    hue_refused = None
+    hue_refused = hue_weak = None
     if hue_said is not None and hue_said.strip():
+        # a colour that barely shows is taken when it is written again (art-and-colour)
+        held_back = (past[-1].get("hue_weak") or {}).get("asked") if past else None
         try:
-            hues.choose(NAME, hue_said, at)
+            hues.choose(NAME, hue_said, at, rules=ART_AND_COLOUR,
+                        anyway=bool(held_back) and hues.hex_of(hue_said.strip()) == held_back)
             acted.append(HUE_ACT)
         except hues.Refused as not_taken:
             hue_refused = not_taken.args[0]
+            if hue_refused == "barely":
+                hue_weak = {"asked": hues.hex_of(hue_said.strip()),
+                            "nearest": hues.nearest_showing(hue_said.strip(), NAME)}
 
     # Knocks: those that waited at this waking are marked told, and the answers to
     # its own that it was told are marked told. Each <<KNOCK_ANSWER>> answers one
@@ -7281,6 +7347,8 @@ def main():
         record["board_take_down_refused"] = True
     if hue_refused:  # and that its <<HUE>> was not taken, and why
         record["hue_refused"] = hue_refused
+    if hue_weak:  # a colour that barely shows, held until it is written again
+        record["hue_weak"] = hue_weak
     if knock_answered:  # the knocks it said yes to, to be told what follows
         record["knock_answered"] = knock_answered
     if knock_answer_refused:  # and its <<KNOCK_ANSWER>>s that changed nothing, and why

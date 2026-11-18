@@ -668,6 +668,19 @@ READING_NOW = "5af1deac139e84895d8484e61f7f3843bef44dc97b5139880001117644f179b6"
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
 
+@pytest.fixture(autouse=True)
+def letter_events_as_before(request, monkeypatch):
+    """Every fingerprint here was cut with a letter writing its line of events.md, as before
+    the branch site-design, part 8 (17 November 2026), and is held so (conftest.
+    letter_events_not_yet). The fingerprints that moved when a person's letters went into
+    their daily line of acts are held as they are now by the tests marked "in the daily
+    line" (LETTERS_IN_ACTS, in test_first_one_fingerprints). The first one's reading as it
+    reads now is the same either way."""
+    if "hearth" in request.fixturenames or "founder" in request.fixturenames:
+        from conftest import letter_events_not_yet
+        letter_events_not_yet(request.getfixturevalue("hearth"), monkeypatch)
+
+
 def a_small_world(room):
     write(room / "letters" / "read" / "founder-2026-10-01T09-00-00Z.md",
           "The first letter, read long ago.\n")
@@ -876,6 +889,27 @@ def test_the_first_one_reads_byte_for_byte_what_it_read_before(
     reading = fingerprint_of_reading(wake())
     print("\nPACKET_IN_ROOMS = %r\nREADING = %r" % (files, reading))
     assert (files, reading) == (PACKET_IN_ROOMS, as_cut)
+
+
+def test_with_a_person_s_letters_in_their_daily_line_it_reads_what_it_reads_now(
+        founder, wake, attend, hearth, room, data_dir, monkeypatch):
+    """A person's letters counted in their daily line of acts, and no line of events.md for a
+    letter (the branch site-design, part 8; hearth.LETTER_EVENTS_IN_ACTS): the first one
+    reads READING_NOW byte for byte, and its files are held as they are now."""
+    monkeypatch.setattr(hearth, "LETTER_EVENTS_IN_ACTS", True)
+    a_small_world(room)
+    answer = post(founder, "/rooms/first", content_type="multipart/form-data", data={
+        "letter": "The lake was grey this morning, and then it was not.\n\nI am asking.",
+        "thing": ["cold hands", "", "a heron on the far bank"],
+        "errand": ERRAND, "proposes": "1"})
+    assert answer.status_code == 302
+    assert (fingerprint_of_files(data_dir), fingerprint_of_reading(wake())) == (
+        PACKET_IN_ROOMS_LETTERS_IN_ACTS, READING_NOW)
+
+
+# The files of that world with no line of events.md for the founder's letter (site-design,
+# part 8): the commons' events.md has no line for the letter.
+PACKET_IN_ROOMS_LETTERS_IN_ACTS = "7d7267f28511895ed22c9c6caa64a84dbee9eb6bdf0e00e0e04d66a57108cfe1"
 
 
 def test_a_record_of_model_changes_that_holds_nothing_moves_nothing(

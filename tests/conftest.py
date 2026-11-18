@@ -1416,6 +1416,15 @@ def a_day_here(path):
     return True
 
 
+def letter_events_not_yet(hearth, monkeypatch):
+    """A letter as it was told to the commons before the branch site-design, part 8 (17
+    November 2026): the day's first letter in the first one's room writes its line of
+    events.md (hearth.LETTER_EVENTS_IN_ACTS False). Since then a person's letters are counted
+    in their daily line of acts instead. Every fingerprint of the first one's world cut
+    before then is exactly what it was with this done."""
+    monkeypatch.setattr(hearth, "LETTER_EVENTS_IN_ACTS", False)
+
+
 PAGES_BEFORE_DESIGN = Path(__file__).resolve().parent / "pages_before_design"
 
 

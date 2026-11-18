@@ -23,7 +23,7 @@ from nacl.signing import SigningKey
 import agents
 from conftest import (FOUNDING_LINE, WORD_LINE, Turn, a_private_notebook, block, blocks, load,
                       post, read_json, write, write_json)
-from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_NOW,
+from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS_LETTERS_IN_ACTS, READING_NOW,
                                 a_small_world, fingerprint_of_files, fingerprint_of_reading)
 
 SECOND = {"id": "second", "did": "did:web:tesserae.social:ids:second",
@@ -126,7 +126,8 @@ def test_the_first_one_reads_what_it_read(named, founder, wake, attend, room, da
     assert answer.status_code == 302
     files = fingerprint_of_files(data_dir)
     reading = fingerprint_of_reading(wake())
-    assert (files, reading) == (PACKET_IN_ROOMS, READING_NOW)
+    # no line of events.md for the founder's letter since site-design, part 8
+    assert (files, reading) == (PACKET_IN_ROOMS_LETTERS_IN_ACTS, READING_NOW)
 
 
 def test_the_first_one_s_founding_is_the_earliest(named, attend, commons):

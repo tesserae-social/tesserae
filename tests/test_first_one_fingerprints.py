@@ -652,6 +652,19 @@ def fixed_keys(data_dir, monkeypatch):
             monkeypatch.setenv("FOUNDER_KEY", private)
 
 
+@pytest.fixture(autouse=True)
+def letter_events_as_before(request, monkeypatch):
+    """Every fingerprint here was cut with a letter writing its line of events.md, as before
+    the branch site-design, part 8 (17 November 2026), and is held so (conftest.
+    letter_events_not_yet). The fingerprints that moved when a person's letters went into
+    their daily line of acts are held as they are now by the tests marked "in the daily
+    line" (LETTERS_IN_ACTS, in test_first_one_fingerprints). The first one's reading as it
+    reads now is the same either way."""
+    if "hearth" in request.fixturenames or "founder" in request.fixturenames:
+        from conftest import letter_events_not_yet
+        letter_events_not_yet(request.getfixturevalue("hearth"), monkeypatch)
+
+
 @pytest.fixture
 def steady(env, data_dir, monkeypatch):
     """The world's keys fixed, before the hearth or a waking reads them."""
@@ -1186,3 +1199,81 @@ def test_with_who_is_here_drawn_before_the_doors_the_atrium_is_the_one_before(
             drawn.append(("%s:%s" % (which, name), inside.encode("utf-8")))
     drawn.sort()
     assert digest(drawn) == ATRIUM_BEFORE_DOORS[letter_parts]
+
+
+# ---- a person's letters in their daily line (site-design, part 8) ----------------------
+#
+# Since the founder's request of 17 November 2026 a person's letters are counted in their
+# daily line of acts (daily_acts.py), and a letter writes no line of events.md of its own
+# (hearth.LETTER_EVENTS_IN_ACTS). Every other test here holds the world with the letter's
+# line as before (letter_events_as_before, above); these hold what moved, as it is now. In
+# this world the founder's letter carries no line for the commons, so the commons is told
+# nothing of it on the day, and nothing else moved: the first one's reading is the same.
+# With the letter line of 10 November as before, nothing moves further, since no line is
+# written either way.
+LETTERS_IN_ACTS = {
+    "ON_DISK_AFTER": "946e7c1d51fc80d9959658658f84ff7e1fc7102968b7145fd34784cd97057849",
+    "EVENTS_AFTER": ("2026-09-02 · word · the word was published\n"
+                     "2026-09-04 · founding · the first one was founded\n"),
+    "PAGES['/rooms/first']": "d72546ca0be79579abd7cd5c5febfb92f97d0b0d6897a1c516f12449e1340c49",
+    "PAGES['/chronicle']": "979a66b933004087ec108b34f55958181b5d17ea21f7cac9fb98ea5e3d49b49d",
+    "PAGES['/chronicle.md']": "ae6b5570d51d80d2f844913dc243bb2b33b347f84b8f6a3d96f2b0522d63aef3",
+    "PAGES['/commons/events.md']": "0d4296f8857dbd6f8400a22ffaeb371f56aede44dd327c8fe2572b32720bc127",
+    "EXPORT": "659880fcfe02a94a85207239b6a5a8cfecc3bd365c7dd4867cc10d4baccba2a3",
+    "BACKUP": "fb6e17f963b4373d039b652e65ced01123a3d1d540652fdc77658bdc86fb843b",
+    "ATRIUM": "4a0cec473524792edb7b0afbf23b44d574694190e8bedeb2ff97d413d4948bca",
+}
+
+
+@pytest.fixture
+def letters_in_acts(hearth, monkeypatch):
+    monkeypatch.setattr(hearth, "LETTER_EVENTS_IN_ACTS", True)
+
+
+def test_in_the_daily_line_the_waking_leaves_these_files(steady, letters_in_acts, founder, wake,
+                                                         room, commons, data_dir):
+    a_lived_world(founder, wake, room, commons)
+    assert cut("LETTERS_IN_ACTS['ON_DISK_AFTER']", fingerprint_of_files(data_dir)) == \
+        LETTERS_IN_ACTS["ON_DISK_AFTER"]
+
+
+def test_in_the_daily_line_the_commons_is_told_no_letter(steady, letters_in_acts, founder, wake,
+                                                         room, commons):
+    a_lived_world(founder, wake, room, commons)
+    assert (commons / "events.md").read_text(encoding="utf-8") == LETTERS_IN_ACTS["EVENTS_AFTER"]
+
+
+@pytest.mark.parametrize("address", ["/rooms/first", "/chronicle", "/chronicle.md",
+                                     "/commons/events.md"])
+def test_in_the_daily_line_the_founder_is_shown_these_pages(steady, letters_in_acts, founder,
+                                                            wake, room, commons, address):
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+             + FORM_TOKEN.sub(r"\1\2", page(answer)))
+    name = "PAGES[%r]" % address
+    assert cut("LETTERS_IN_ACTS[%r]" % name, hashlib.sha256(shown.encode("utf-8")).hexdigest()) \
+        == LETTERS_IN_ACTS[name]
+
+
+def test_in_the_daily_line_the_export_and_the_backup_hold_these(steady, letters_in_acts, founder,
+                                                                wake, room, commons, hearth):
+    a_lived_world(founder, wake, room, commons)
+    answer = post(founder, "/export")
+    with zipfile.ZipFile(io.BytesIO(answer.get_data())) as bundle:
+        held = [(name, bundle.read(name)) for name in bundle.namelist()]
+    assert cut("LETTERS_IN_ACTS['EXPORT']", digest(held)) == LETTERS_IN_ACTS["EXPORT"]
+    assert cut("LETTERS_IN_ACTS['BACKUP']", backup_held(hearth)) == LETTERS_IN_ACTS["BACKUP"]
+
+
+def test_in_the_daily_line_the_atrium_draws_these_tiles(steady, letters_in_acts, founder, wake,
+                                                        room, commons, atrium, monkeypatch):
+    a_lived_world(founder, wake, room, commons)
+    monkeypatch.setattr(sys, "argv", ["build_atrium.py"])
+    atrium.main()
+    drawn = [("index:bench", EMPTY_BENCH_DREW), ("index:offering", EMPTY_OFFERING_DREW)]
+    for which, path in (("index", atrium.page_path), ("mosaic", atrium.whole_path)):
+        for name, inside in MARKED.findall(path.read_text(encoding="utf-8")):
+            drawn.append(("%s:%s" % (which, name), inside.encode("utf-8")))
+    drawn.sort()
+    assert cut("LETTERS_IN_ACTS['ATRIUM']", digest(drawn)) == LETTERS_IN_ACTS["ATRIUM"]

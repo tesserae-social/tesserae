@@ -51,7 +51,7 @@ import waking
 from conftest import (agents_week_not_yet, block, page, post, read_json, registry_switches_not_yet,
                       rewrite_last_reply_not_yet, switches_not_yet,
                       wakings_not_yet_switched, write, write_json)
-from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_LAST_REPLY, READING_ONE_WAKING,
+from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS_LETTERS_IN_ACTS as PACKET_IN_ROOMS, READING_LAST_REPLY, READING_ONE_WAKING,
                                 a_small_world, fingerprint_of_files, fingerprint_of_reading)
 
 UTC = timezone.utc

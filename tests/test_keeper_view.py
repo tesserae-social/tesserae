@@ -322,7 +322,9 @@ HELD = ("/", "/rooms/first", "/letters", "/self", "/attendances", "/chronicle", 
 
 
 def test_the_first_one_s_pages_hold_stage_0_s_fingerprints_beside_the_keeper_s_view(
-        hearth, founder, wake, room, commons, data_dir, packet):
+        hearth, founder, wake, room, commons, data_dir, packet, monkeypatch):
+    from conftest import letter_events_not_yet  # the pages held were cut with the letter's line
+    letter_events_not_yet(hearth, monkeypatch)
     a_lived_world(founder, wake, room, commons)
     a_planted_record(data_dir, packet)
     assert {address: shown_with_the_tides(founder.get(address)) for address in HELD} == {

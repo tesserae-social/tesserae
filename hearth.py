@@ -1935,6 +1935,14 @@ def letter_line_today(day=None):
         for when, kind, words in parse_events(read_text(EVENTS)))
 
 
+# Since the founder's request of 17 November 2026 (the branch site-design, part 8) a person's
+# letters are counted in their daily line of acts (daily_acts.py), and a letter writes no
+# line of events.md of its own; a letter that carries a line for the commons still writes
+# that line, since the line is words the founder chose to make public. The lines written
+# before stay. With it False, as before: the day's first letter writes its line.
+LETTER_EVENTS_IN_ACTS = True
+
+
 def note_letter(line=""):
     """The commons' line for today's letters, with his own line beside it if he left
     one, unless today already has one."""
@@ -4055,6 +4063,53 @@ def emailing():
 EMAILS_RUNNING = False
 
 
+# The daily lines of acts (daily_acts.py; the founder's request of 17 November 2026, the
+# branch site-design, part 8): once a day, about an hour before the first one's dawn, the
+# day before's lines, Eastern time. No model is asked, and nothing is opened.
+ACTS_RUNNING = False
+
+
+def first_dawn_today(now):
+    """The first one's sunrise today, where its rhythm can say it; else None."""
+    try:
+        setting = rhythm()
+        if not setting or not setting.get("timezone"):
+            return None
+        day = now.astimezone(ZoneInfo(setting["timezone"])).date()
+        return sunrise_on(setting, day)
+    except Exception:
+        return None
+
+
+def acts_round(now=None):
+    """Write the day before's lines, if they are due now. How many were written, or None."""
+    now = now or datetime.now(timezone.utc)
+    day = daily_acts.round_due(now, first_dawn_today(now))
+    return daily_acts.write_day(day) if day else None
+
+
+def acting():
+    """Write each day's lines when they fall due. Forever, and quietly."""
+    while True:
+        try:
+            acts_round()
+        except Exception:  # nothing may end this thread
+            pass
+        time.sleep(ACTS_CHUNK)
+
+
+ACTS_CHUNK = 900  # seconds between lookings: the lines go within a quarter hour of their time
+
+
+def start_acts():
+    """Set the daily lines of acts going, once."""
+    global ACTS_RUNNING
+    if ACTS_RUNNING:
+        return
+    ACTS_RUNNING = True
+    threading.Thread(target=acting, name="acts", daemon=True).start()
+
+
 def start_emails():
     """Set the day's emails going, once."""
     global EMAILS_RUNNING
@@ -5368,6 +5423,7 @@ def knock_at(to):
     made = knock.knock(name, to, note, datetime.now(timezone.utc))
     if made is None:
         return knock_page(to, 400)
+    daily_acts.tally(name, daily_acts.KNOCK, datetime.now(timezone.utc))  # for the day's line
     return redirect(url_for("hearth", knocked=to, _anchor="knocks"))
 
 
@@ -5430,6 +5486,7 @@ def notes_with(to):
                           draft=words)
     if notes.write(name, other, words, datetime.now(timezone.utc)) is None:
         return notes_page(other, 400)
+    daily_acts.tally(name, daily_acts.NOTE, datetime.now(timezone.utc))  # for the day's line
     return redirect(url_for("notes_with", to=to, _anchor="write"))
 
 
@@ -6079,7 +6136,7 @@ def leave_letter(room):
                                          encoding="utf-8")
     if photo:
         (incoming / f"{stem}{suffix}").write_bytes(photo)
-    if first:
+    if first and (line or not LETTER_EVENTS_IN_ACTS):
         note_letter(line)
 
     # The letter is left either way. If it was to propose a bond, and nothing
@@ -8804,6 +8861,8 @@ def made_publish():
     if why:
         return made_workspace_page(refused=why)
     record = made_here.publish(maker, one, at)
+    daily_acts.tally(name, daily_acts.WRITING if one["kind"] == made_here.WRITING
+                     else daily_acts.PICTURE, datetime.now(timezone.utc))  # for the day's line
     try:  # its own topic on the board, in conversation
         record["topic"] = board.start("conversation", maker,
                                       ("about: " + one["title"])[:board.SUBJECT_MOST],
@@ -9290,6 +9349,8 @@ def board_section(section):
     except board.Unreadable:
         return board_section_now(section, refused=BOARD_REFUSED["unreadable"], draft=words,
                                  draft_subject=subject)
+    daily_acts.tally(session["member"], daily_acts.POST,
+                     datetime.now(timezone.utc))  # counted, for the day's line
     return redirect(url_for("board_topic", key=key))
 
 
@@ -9338,6 +9399,8 @@ def board_topic(key):
         return board_topic_now(key, refused=BOARD_REFUSED["closed"], draft=words, draft_to=to)
     except board.Unreadable:
         return board_topic_now(key, refused=BOARD_REFUSED["unreadable"], draft=words, draft_to=to)
+    daily_acts.tally(session["member"], daily_acts.POST,
+                     datetime.now(timezone.utc))  # counted, for the day's line
     return redirect(url_for("board_topic", key=key, placed=1, _anchor="post-%d" % n))
 
 
@@ -9399,6 +9462,7 @@ def board_topic_of_this_week():
 start_tide()
 start_backups()
 start_emails()
+start_acts()
 
 
 if __name__ == "__main__":

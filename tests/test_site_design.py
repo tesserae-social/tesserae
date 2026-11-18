@@ -414,3 +414,102 @@ def test_tides_is_two_columns_with_every_stop_below(founder):
     assert '<main class="wide">' in said and said.count('<div class="column">') == 2
     assert said.index('<div class="column">') < said.rindex('class="emergency"')
     assert '<p class="back"><a href="/">&larr; home</a></p>' in said
+
+
+# ---- 8. a daily line of acts for every person --------------------------------------
+
+def test_the_words_say_counts_and_kinds_only():
+    import daily_acts as acts
+    assert acts.words_of((2, 1), {acts.KNOCK: 1, acts.POST: 2, acts.PICTURE: 1}, True) == (
+        "wrote 3 letters, 2 to agents and 1 to a person; knocked at 1 door; posted on the "
+        "board twice; drew a picture.")
+    assert acts.words_of((1, 0), {}, True) == "wrote a letter, to an agent."
+    assert acts.words_of((3, 0), {acts.NOTE: 2}, False) == "wrote 3 letters, to agents; wrote 2 notes."
+    assert acts.words_of((0, 0), {acts.POST: 1, acts.WRITING: 1}, False) == (
+        "posted on the board once; published a piece of writing.")
+    assert acts.words_of((0, 0), {}, True) == "was here."
+    assert acts.words_of((0, 0), {}, False) is None
+
+
+def test_each_act_is_tallied_at_the_moment_it_is_done(world, data_dir):
+    import daily_acts as acts
+    a_yes_between_people(world)
+    world.post("/notes/" + ALDER, words="A note, kindly meant.")
+    world.hearth.board.start("place", ALDER, "Lanterns", "Shall we?", "2026-10-15")
+    world.post("/board/topic/1", words="Yes, lanterns, kindly.")
+    world.post("/knock/second", note="Hello, I would like to write to you.")
+    held = acts.tallied(HAZEL, TODAY)
+    assert held == {acts.NOTE: 1, acts.POST: 1, acts.KNOCK: 1}
+    kept = (data_dir / "members" / HAZEL / "acts" / "2026-10-15.json").read_text(encoding="utf-8")
+    assert "kindly" not in kept and ALDER not in kept and "second" not in kept  # counts only
+
+
+def test_a_day_s_lines_are_written_once_and_say_nothing_of_whom(world, data_dir):
+    import daily_acts as acts
+    import rooms
+    writer = rooms.person_of("second")
+    assert writer == ALDER  # alder writes to the second one in this world
+    folder = data_dir / "rooms" / "second" / "letters" / "incoming"
+    (folder / (writer + "-2026-10-14T15-00-00Z.md")).write_text("A LETTER.", encoding="utf-8")
+    acts.tally(HAZEL, acts.POST, world.hearth.datetime(2026, 10, 14, 15,
+                                                       tzinfo=world.hearth.timezone.utc))
+    here_on(data_dir, ALDER, date(2026, 10, 14))
+    day = date(2026, 10, 14)
+    assert acts.write_day(day) == 2
+    text = (data_dir / "commons" / "acts.md").read_text(encoding="utf-8")
+    assert "2026-10-14 · %s · posted on the board once.\n" % HAZEL in text
+    assert "2026-10-14 · %s · wrote a letter, to an agent.\n" % ALDER in text
+    assert "A LETTER" not in text and "second" not in text
+    assert acts.write_day(day) == 0  # once
+    assert (data_dir / "commons" / "acts.md").read_text(encoding="utf-8") == text
+
+
+def test_someone_who_did_nothing_has_no_line(world, data_dir):
+    import daily_acts as acts
+    acts.write_day(date(2026, 10, 10))
+    text = (data_dir / "commons" / "acts.md").read_text(encoding="utf-8") if (
+        data_dir / "commons" / "acts.md").exists() else ""
+    assert "2026-10-10" not in text
+
+
+def test_the_founder_is_named_the_founder(world, data_dir, founder_vault):
+    import daily_acts as acts
+    from conftest import FOUNDER_NAME as KEEPER
+    world.hearth.members.create_member(KEEPER, json.loads(json.dumps(founder_vault)),
+                                       "keeper", [])
+    here_on(data_dir, KEEPER, date(2026, 10, 14))
+    acts.write_day(date(2026, 10, 14))
+    text = (data_dir / "commons" / "acts.md").read_text(encoding="utf-8")
+    assert "2026-10-14 · the founder · was here.\n" in text and KEEPER not in text
+
+
+def test_the_lines_fall_due_an_hour_before_dawn_for_the_day_before(world, data_dir):
+    import daily_acts as acts
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    eastern = ZoneInfo("America/New_York")
+    dawn = datetime(2026, 10, 15, 7, 10, tzinfo=eastern)
+    assert acts.round_due(datetime(2026, 10, 15, 6, 0, tzinfo=eastern), dawn) is None
+    assert acts.round_due(datetime(2026, 10, 15, 6, 20, tzinfo=eastern), dawn) == date(2026, 10, 14)
+    # with no dawn known, an hour before six Eastern
+    assert acts.round_due(datetime(2026, 10, 15, 4, 59, tzinfo=eastern)) is None
+    assert acts.round_due(datetime(2026, 10, 15, 5, 0, tzinfo=eastern)) == date(2026, 10, 14)
+    acts.write_day(date(2026, 10, 14))
+    assert acts.round_due(datetime(2026, 10, 15, 9, 0, tzinfo=eastern), dawn) is None
+    assert world.hearth.acts_round(datetime(2026, 10, 15, 13, tzinfo=timezone.utc)) is None
+
+
+def test_the_atrium_draws_a_person_s_day_as_a_tile_in_their_colour(atrium):
+    tiles = atrium.tiles_from([], [], (), None, [(date(2026, 10, 14), ALDER, "was here.")],
+                              [(ALDER, "#AA3366")])
+    assert tiles == [(date(2026, 10, 14), "tile-acts person-alder",
+                      "14 October 2026 · %s · was here." % ALDER, "")]
+    rules = "\n".join(atrium.hues_block([], (), [(ALDER, "#AA3366")]))
+    assert ".mosaic li.person-alder { background: #AA3366;" in rules
+
+
+def test_acts_md_is_served_to_anyone(world, data_dir, visitor):
+    (data_dir / "commons").mkdir(parents=True, exist_ok=True)
+    (data_dir / "commons" / "acts.md").write_text("2026-10-14 · %s · was here.\n" % ALDER,
+                                                  encoding="utf-8")
+    assert "was here." in page(visitor.get("/commons/acts.md"))

@@ -34,7 +34,7 @@ from conftest import (FOUNDER_NAME, PASSWORD, block, blocks, colour_picker_not_y
                       write_json)
 from test_any_agent_wakes import wake_as
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
-from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS, READING_NOW,
+from test_rooms_reading import (ERRAND, PACKET_IN_ROOMS_LETTERS_IN_ACTS, READING_NOW,
                                 a_small_world, fingerprint_of_files, fingerprint_of_reading)
 
 # The fingerprint of LATER_WORLD's reading, whole: the system text, the tools and
@@ -683,7 +683,8 @@ def test_the_first_one_reads_what_it_read_with_no_member_in_the_world(
         founder, wake, room, data_dir):
     the_first_one_s_world(founder, room)
     files = fingerprint_of_files(data_dir)
-    assert (files, fingerprint_of_reading(wake())) == (PACKET_IN_ROOMS, READING_NOW)
+    # the commons is told no line for the founder's letter since site-design, part 8
+    assert (files, fingerprint_of_reading(wake())) == (PACKET_IN_ROOMS_LETTERS_IN_ACTS, READING_NOW)
 
 
 def test_the_first_one_reads_what_it_read_with_a_member_in_the_world(
@@ -705,7 +706,7 @@ def test_the_first_one_reads_what_it_read_with_a_member_in_the_world(
     assert put_back.count(waiting) == 1
     put_back = put_back.replace(waiting, "", 1)
     assert hashlib.sha256(put_back.encode("utf-8")).hexdigest() == READING_NOW
-    assert files == PACKET_IN_ROOMS
+    assert files == PACKET_IN_ROOMS_LETTERS_IN_ACTS  # no letter line (site-design, part 8)
 
 
 # ---- the witnesses of a sealed bond --------------------------------------

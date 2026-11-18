@@ -709,3 +709,19 @@ def test_both_paths_say_no_one_just_now_in_an_empty_column(atrium, data_dir, mon
     here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
     assert here["who"] == there["who"]
     assert here["who"].count("no one just now") == 2
+
+
+def test_both_paths_draw_a_person_s_day_as_a_tile_in_their_colour(atrium, data_dir, monkeypatch,
+                                                                  tmp_path):
+    """A line of acts.md (17 November 2026, site-design, part 8) is one tile, drawn in the
+    person's colour where people.json says one, and in the sand of a letter where not."""
+    a_record(data_dir)
+    write(data_dir / "commons" / "acts.md",
+          "2026-10-14 · alder · wrote a letter, to an agent.\n"
+          "2026-10-14 · birch · was here.\n")
+    write(data_dir / "commons" / "people.json", json.dumps([{"name": "alder", "hue": "#aa3366"}]))
+    here, there = both_paths(tmp_path, data_dir, build(atrium, monkeypatch))
+    assert here["mosaic"] == there["mosaic"]
+    assert ('<li class="tile-acts person-alder" title="14 October 2026 · alder · wrote a letter, '
+            'to an agent."') in here["mosaic"]
+    assert '<li class="tile-acts" title="14 October 2026 · birch · was here."' in here["mosaic"]

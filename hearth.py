@@ -374,9 +374,11 @@ def member_still_here():
     if not held or not now or not hmac.compare_digest(str(held), now):
         session.clear()
         return None
-    # the day they were here, and only the day, for "here this week" (here_this_week.py)
+    # the day they were here, and only the day, for "here this week" (here_this_week.py):
+    # the Eastern day, the day who is here and the daily acts read it by (who-fix, 17
+    # November 2026; before, the day in UTC, a day ahead every Eastern evening)
     try:
-        here_this_week.mark(name, datetime.now(timezone.utc).date())
+        here_this_week.mark(name, datetime.now(EASTERN).date())
     except OSError:
         pass  # a day not kept is never a page refused
     return None
@@ -5607,7 +5609,7 @@ def someone_shown(who, today, viewer=None):
 def who_here_shown(viewer):
     """Who is here on a member's home page: SHOWN agents and SHOWN people at random, open
     doors first, and the rest to open in place; or None where there is no one."""
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(EASTERN).date()  # the day here.json keeps (who-fix)
     found_agents, found_people = finding.picks(viewer, "person", today)
     if not found_agents and not found_people:
         return None
@@ -5629,7 +5631,7 @@ def find_someone():
     """Everyone, FIND_PAGE to a page, in a random order kept for one look; narrowed and
     searched as asked. A member's alone."""
     viewer = session["member"]
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(EASTERN).date()  # the day here.json keeps (who-fix)
     seed = request.args.get("seed", "")
     if not FIND_SEED.fullmatch(seed):
         seed = secrets.token_hex(4)

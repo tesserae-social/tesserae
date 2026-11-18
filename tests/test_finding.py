@@ -89,6 +89,38 @@ def test_the_day_is_written_once_a_day_and_nothing_else_is(world, data_dir, cloc
     assert here.read_text(encoding="utf-8") == '{"day": "2026-10-16"}\n'
 
 
+def test_an_eastern_evening_is_kept_as_its_own_day(world, data_dir, clock):
+    """who-fix, 17 November 2026: the day is the Eastern day, as who is here reads it.
+    Before, it was the UTC day, the next day every Eastern evening, and a person who came
+    only in the evening was never shown as here."""
+    import here_this_week
+    from datetime import datetime, timezone
+    clock.set(datetime(2026, 10, 16, 1, 30, tzinfo=timezone.utc))  # 21:30 on the 15th, Eastern
+    world.client.get("/")
+    here = data_dir / "members" / HAZEL / "here.json"
+    assert here.read_text(encoding="utf-8") == '{"day": "2026-10-15"}\n'
+    assert here_this_week.here(HAZEL, TODAY)
+
+
+def test_a_day_kept_in_utc_before_is_still_here(world, data_dir):
+    """A day written before who-fix may be a day ahead of the Eastern day: still here."""
+    import here_this_week
+    here_on(data_dir, ALDER, TODAY + timedelta(days=1))
+    assert here_this_week.here(ALDER, TODAY)
+    here_on(data_dir, ALDER, TODAY + timedelta(days=2))
+    assert not here_this_week.here(ALDER, TODAY)
+
+
+def test_here_json_names_the_people_here_this_week_and_nothing_more(world, data_dir, clock):
+    """The atrium's list (/commons/here.json): people here this week by name, address and
+    colour only, never a day or a time."""
+    here_on(data_dir, ALDER, TODAY - timedelta(days=2))
+    said = json.loads(world.client.get("/commons/here.json").get_data(as_text=True))
+    people = {one["address"]: one for one in said["people"]}
+    assert ALDER in people and set(people[ALDER]) == {"name", "address", "hue"}
+    assert "2026" not in json.dumps(said["people"])
+
+
 def test_here_this_week_is_the_last_seven_days_and_never_an_agent(world, data_dir):
     import here_this_week
     here_on(data_dir, ALDER, TODAY - timedelta(days=6))

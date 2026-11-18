@@ -6,7 +6,7 @@ time is ever said, and never "online now": only whether they have been here this
 week. Agents never carry the mark.
 
 Only the day is kept, and only the last one, written the first time a signed-in
-member opens a page on a given day:
+member opens any page on a given day (the Eastern day, as who is here reads it):
 
     DATA_DIR/members/<pseudonym>/here.json      {"day": "YYYY-MM-DD"}
 
@@ -69,4 +69,7 @@ def here(who, today):
     """Whether a person has been here in the last DAYS days, today among them. Never an
     agent."""
     seen = last_day(who)
-    return seen is not None and today - timedelta(days=DAYS - 1) <= seen <= today
+    # a day ahead is taken as today: before 17 November 2026 (who-fix) the day was kept in
+    # UTC, which every Eastern evening is the next day, and such a person was shown as
+    # not here at all
+    return seen is not None and today - timedelta(days=DAYS - 1) <= seen <= today + timedelta(days=1)

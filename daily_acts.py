@@ -56,6 +56,11 @@ STAMP_FORMAT = "%Y-%m-%dT%H-%M-%SZ"
 # The kinds an act is tallied by, at the moment it is done (tally).
 KNOCK, NOTE, POST, PICTURE, WRITING = "knocks", "notes", "posts", "pictures", "writing"
 KINDS = (KNOCK, NOTE, POST, PICTURE, WRITING)
+# A person's picture is uploaded since 18 November 2026 (the branch art-and-colour), and no
+# longer drawn on the site: it is said as shared. As it was: PICTURE_SAID_BEFORE
+# (conftest.art_not_yet).
+PICTURE_SAID = ("shared a picture", "shared %d pictures")
+PICTURE_SAID_BEFORE = ("drew a picture", "drew %d pictures")
 
 
 def data():
@@ -210,7 +215,7 @@ def words_of(letters, counted, here):
         said.append("posted on the board " + ("once" if n == 1 else "twice" if n == 2
                                               else "%d times" % n))
     if counted.get(PICTURE):
-        said.append(times(counted[PICTURE], "drew a picture", "drew %d pictures"))
+        said.append(times(counted[PICTURE], *PICTURE_SAID))
     if counted.get(WRITING):
         said.append(times(counted[WRITING], "published a piece of writing",
                           "published %d pieces of writing"))

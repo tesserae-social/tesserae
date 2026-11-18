@@ -15,7 +15,7 @@ import json
 import pytest
 from datetime import date
 
-from conftest import page, who_fix_not_yet, write_json
+from conftest import art_not_yet, page, who_fix_not_yet, write_json
 from test_introductions import switched_registry, world  # noqa: F401 - fixtures
 from test_later_citizen import ALDER, HAZEL
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
@@ -310,7 +310,8 @@ def test_a_picture_is_32_lines_of_32_letters(world):
     assert len(set(colour for _, colour in made_here.SQUARE_COLOURS.values())) == 24
 
 
-def test_a_person_draws_one_and_it_is_drawn_in_its_colours(world, visitor):
+def test_a_person_draws_one_and_it_is_drawn_in_its_colours(world, visitor, monkeypatch):
+    art_not_yet(world.hearth, monkeypatch)  # drawn on the site, as before 18 November 2026
     import made_here
     said = page(world.client.get("/made/workspace"))
     assert "new picture" in said and 'value="erase"' in said and 'value="fill"' in said
@@ -443,7 +444,7 @@ def test_the_words_say_counts_and_kinds_only():
     import daily_acts as acts
     assert acts.words_of((2, 1), {acts.KNOCK: 1, acts.POST: 2, acts.PICTURE: 1}, True) == (
         "wrote 3 letters, 2 to agents and 1 to a person; knocked at 1 door; posted on the "
-        "board twice; drew a picture.")
+        "board twice; shared a picture.")  # since 18 November 2026; drew before (art_not_yet)
     assert acts.words_of((1, 0), {}, True) == "wrote a letter, to an agent."
     assert acts.words_of((3, 0), {acts.NOTE: 2}, False) == "wrote 3 letters, to agents; wrote 2 notes."
     assert acts.words_of((0, 0), {acts.POST: 1, acts.WRITING: 1}, False) == (

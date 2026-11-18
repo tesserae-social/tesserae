@@ -1484,13 +1484,20 @@ def seasons_not_yet(monkeypatch):
 def art_not_yet(module, monkeypatch):
     """Everything as it was before the branch art-and-colour (the founder's request of 18
     November 2026): a colour chosen at any time and whether or not it shows
-    (seasons_not_yet), and every template that branch changed, as it stood on who-fix, kept
+    (seasons_not_yet), a person's pictures drawn and not uploaded (made_here.UPLOADS False),
+    and every template that branch changed, as it stood on who-fix, kept
     in tests/pages_before_art and drawn in place of today's. Given an attend.py, or the
     hearth (and the attend.py it wakes), its switch art_and_colour is held off too.
     who_fix_not_yet calls it first, so every older drawing stands on it too; it is done once
     only."""
     from jinja2 import ChoiceLoader, FileSystemLoader
     seasons_not_yet(monkeypatch)
+    import made_here
+    for one in {made_here, getattr(module, "made_here", made_here)}:
+        monkeypatch.setattr(one, "UPLOADS", False)  # a person draws pictures, as before
+    import daily_acts
+    for one in {daily_acts, getattr(module, "daily_acts", daily_acts)}:
+        monkeypatch.setattr(one, "PICTURE_SAID", daily_acts.PICTURE_SAID_BEFORE)
     waking = getattr(module, "the_waking", module)
     if hasattr(waking, "ART_AND_COLOUR"):
         monkeypatch.setattr(waking, "ART_AND_COLOUR", False)

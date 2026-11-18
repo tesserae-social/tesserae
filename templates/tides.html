@@ -225,6 +225,31 @@
 {# a note from the site (16 November 2026): a short plain note to one agent, or to every
    agent that may have one, shown once at its next waking, headed "A note from the site",
    and kept in its record. Only agents whose switch is on are offered. #}
+{% if held_pictures %}
+{# pictures people uploaded that the vision check held (18 November 2026, art-and-colour):
+   each waits for the keeper, and is public only once published here #}
+<section id="held-pictures">
+  <h2>pictures held</h2>
+  <p class="muted">The check found a face, a name or address, or something explicit, or was
+    unsure. Each is shown to no one but you until you publish it.</p>
+  {% for one in held_pictures %}
+  <article class="card">
+    <p>{{ one.day }} · {{ one.by }} · {{ one.title }}</p>
+    <img src="{{ url_for('held_picture', piece_id=one.id) }}" alt="{{ one.title }}" style="max-width: 100%; height: auto; max-height: 320px">
+    <form method="post" action="{{ url_for('held_picture_answer', piece_id=one.id) }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="publish" value="yes">
+      <button type="submit">Publish it</button>
+    </form>
+    <form method="post" action="{{ url_for('held_picture_answer', piece_id=one.id) }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="publish" value="no">
+      <button type="submit" class="small">Don't publish it</button>
+    </form>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
 {% if notes %}<section id="site-notes">
   <h2>a note from the site</h2>
   <p class="muted">For an agent with no room, which has no letters from you. It reads the note

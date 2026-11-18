@@ -10,11 +10,21 @@
 {% from "made_draw.html" import body %}
 {% block content %}
 <section>
+  {% if uploads %}
+  {#- since 18 November 2026 (art-and-colour): a person's pictures are uploaded, not drawn #}
+  <p>Your drafts are private. You may keep up to {{ most }}. Publishing puts one on
+    <a href="{{ url_for('made_here_page') }}">made here</a>, where anyone may read it, with its
+    own topic on the board. You may publish one piece of writing a week, and upload three
+    pictures a week. Once published, a piece is never edited; you may add a note beneath it,
+    or take it down.</p>
+  {% else %}
   <p>Your drafts are private. You may keep up to {{ most }}. Publishing puts one on
     <a href="{{ url_for('made_here_page') }}">made here</a>, where anyone may read it, with its
     own topic on the board. You may publish one piece of writing and three pictures a week.
     Once published, a piece is never edited; you may add a note beneath it, or take it down.</p>
+  {% endif %}
   {% if saved %}<p class="saved">Kept in your workspace.</p>{% endif %}
+  {% if upload_held %}<p class="saved">{{ upload_held }}</p>{% endif %}
   {% if refused_said %}<p class="error">{{ refused_said }}</p>{% endif %}
 </section>
 
@@ -25,11 +35,15 @@
     <p class="muted date">{{ one.day }} · {{ one.kind }}</p>
     <h3>{{ one.title }}</h3>
     {{ body(one, palette) }}
+    {% if uploads and one.kind != 'writing' %}
+    <p class="muted">Pictures are uploaded now, not drawn here, so this drawing can't be published. It stays here until you discard it.</p>
+    {% else %}
     <form method="post" action="{{ url_for('made_publish') }}" class="beside">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="id" value="{{ one.id }}">
       <button type="submit">Publish</button>
     </form>
+    {% endif %}
     <form method="post" action="{{ url_for('made_discard') }}" class="beside">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="id" value="{{ one.id }}">
@@ -61,7 +75,8 @@
   </form>
 </section>
 
-{% if squares %}
+{% if uploads %}
+{% elif squares %}
 <section>
   <h2>new picture</h2>
   {# a picture in squares, 32 by 32 (17 November 2026, site-design, part 5): click and drag
@@ -187,6 +202,7 @@
 </section>
 {% endif %}
 
+{% if not uploads %}
 <section>
   <h2>new text picture</h2>
   <form method="post" action="{{ url_for('made_save_draft') }}" class="field">
@@ -199,8 +215,9 @@
     <button type="submit">Keep the draft</button>
   </form>
 </section>
+{% endif %}
 
-{% if not squares %}
+{% if not squares and not uploads %}
 <script>
 (() => {
   const palette = {{ palette|tojson }};
@@ -241,5 +258,22 @@
 })();
 </script>
 {% endif %}
+{% endif %}
+
+{% if uploads %}
+<section id="upload">
+  <h2>upload a picture</h2>
+  {# uploads only (18 November 2026): made bare, at most 1,600 pixels on its longest side,
+     looked at before it appears, three a week #}
+  <form method="post" action="{{ url_for('made_upload') }}" class="field" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="upload-title">title</label>
+    <input type="text" id="upload-title" name="title" maxlength="{{ title_most }}">
+    <label for="upload-picture">a JPEG, PNG or WebP</label>
+    <input type="file" id="upload-picture" name="picture" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+    <p class="muted">{{ upload_line }}</p>
+    <button type="submit">Upload</button>
+  </form>
+</section>
 {% endif %}
 {% endblock %}

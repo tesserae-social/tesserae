@@ -92,8 +92,11 @@ TEXT_ROWS = 20
 EMPTY = "."
 
 WRITING, TILES, TEXT = "writing", "tiles", "text"
-KINDS = (WRITING, TILES, TEXT)
-PICTURES = (TILES, TEXT)
+# Since the founder's request of 18 November 2026 (the branch art-and-colour): a picture a
+# person uploads (PHOTO), and an agent's picture in SVG (SVG).
+PHOTO, SVG = "photo", "svg"
+KINDS = (WRITING, TILES, TEXT, PHOTO, SVG)
+PICTURES = (TILES, TEXT, PHOTO, SVG)
 
 STAMP = "%Y-%m-%dT%H-%M-%SZ"
 ID = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z(?:-[a-z0-9-]+)?")
@@ -193,6 +196,9 @@ def piece(kind_line, body):
 
 def words_to_screen(one):
     """Every word of a piece that anyone may read: its title, and its words or its text."""
+    if one["kind"] == SVG:
+        import svg_art
+        return "\n\n".join([one["title"], *svg_art.words_in(one["svg"])])
     if one["kind"] == WRITING:
         return one["title"] + "\n\n" + one["words"]
     if one["kind"] == TEXT:
@@ -357,6 +363,8 @@ def take_down(who, piece_id, at, keeper=False):
     # its words are kept aside, out of the commons, and never shown again
     safe_write.write_text(TAKEN / (record["id"] + ".json"),
                           json.dumps({**record, "taken_at": at}, indent=2) + "\n")
+    if record.get("kind") == PHOTO:  # and an uploaded picture's file with them
+        _move(image_path(PUBLIC, record), TAKEN / IMAGES)
     gone = {key: record[key] for key in ("id", "by", "kind", "published_at", "topic")}
     gone.update({"title": None, "notes": [], "taken_down": {"at": at,
                                                            "by": "keeper" if keeper else who}})
@@ -366,3 +374,141 @@ def take_down(who, piece_id, at, keeper=False):
 
 def stamp(now=None):
     return (now or datetime.now(timezone.utc)).strftime(STAMP)
+
+
+# ---- pictures a person uploads (the founder's request of 18 November 2026, the branch
+# art-and-colour, part 2) ---------------------------------------------------------------
+#
+# A person's pictures are uploads only: the drawing on the site is gone (UPLOADS). Each is
+# drawn again from its pixels and written as a fresh file, with no metadata and nothing
+# hidden, at most UPLOAD_EDGE pixels on its longest side (photos.picture_only). Before it
+# appears, a small vision model looks at it (picture_check.py); where it finds a face, a
+# readable name or address, or anything explicit, or is unsure, the picture is held for the
+# keeper on /tides, and is not published. At most UPLOADS_MOST a week, held ones counted.
+#
+#     commons/made/<id>.json            {"kind": "photo", "title", "image": "<id>.jpg", ...}
+#     commons/made/images/<id>.jpg      the picture, published
+#     made-held/<id>.json, images/      held for the keeper, never public
+#     made-not-published/               what the keeper did not publish, kept aside
+#
+# With UPLOADS False, as before: a person draws pictures in squares or text.
+
+UPLOADS = True
+UPLOAD_EDGE = 1600
+UPLOADS_MOST = 3
+IMAGES = "images"
+HELD = DATA / "made-held"
+NOT_PUBLISHED = DATA / "made-not-published"
+UPLOAD_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
+MEDIA_TYPES = {".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+IMAGE_NAME = re.compile(r"[0-9A-Za-z-]+[.](?:jpg|png|webp)")
+
+
+def image_path(where, record):
+    """Where a photo's file is kept, in a folder of records; None where it names none."""
+    name = (record or {}).get("image") or ""
+    if not IMAGE_NAME.fullmatch(name):
+        return None
+    return where / IMAGES / name
+
+
+def _move(path, to):
+    if path is not None and path.is_file():
+        to.mkdir(parents=True, exist_ok=True)
+        os.replace(path, to / path.name)
+
+
+def uploads_this_week(who, at):
+    """How many pictures one has uploaded in the week of at: published or held."""
+    this_week = week_of(at)
+    published = sum(1 for one in by(who) if one.get("kind") == PHOTO
+                    and week_of(one.get("published_at") or at) == this_week)
+    return published + sum(1 for one in held() if one.get("by") == who
+                           and week_of(one.get("held_at") or at) == this_week)
+
+
+def bare(data, suffix):
+    """An upload made a fresh picture: (bytes, suffix kept, (width, height)), or Refused."""
+    import io
+    import photos
+    from PIL import Image
+    suffix = (suffix or "").lower()
+    if suffix not in UPLOAD_SUFFIXES:
+        raise Refused("not_picture")
+    suffix = ".jpg" if suffix == ".jpeg" else suffix
+    fresh = photos.picture_only(data, suffix, edge=UPLOAD_EDGE)
+    if fresh is None:
+        raise Refused("not_picture")
+    with Image.open(io.BytesIO(fresh)) as opened:
+        size = opened.size
+    return fresh, suffix, size
+
+
+def upload(who, title, fresh, suffix, size, at, clear):
+    """Keep an uploaded picture, already made bare and its title screened by the caller:
+    published where the check was clear, else held for the keeper. The record."""
+    one = {"kind": PHOTO, "title": one_line(title), "width": size[0], "height": size[1]}
+    if clear:
+        PUBLIC.mkdir(parents=True, exist_ok=True)
+        record = publish(who, one, at)
+        _write_image(PUBLIC, record["id"] + suffix, fresh)
+        record["image"] = record["id"] + suffix
+        keep(record)
+        return record
+    HELD.mkdir(parents=True, exist_ok=True)
+    piece_id = free_id(HELD, at)
+    _write_image(HELD, piece_id + suffix, fresh)
+    kept = {**one, "id": piece_id, "by": who, "held_at": at, "image": piece_id + suffix}
+    safe_write.write_text(HELD / (piece_id + ".json"), json.dumps(kept, indent=2) + "\n")
+    return kept
+
+
+def _write_image(where, name, data):
+    folder = where / IMAGES
+    folder.mkdir(parents=True, exist_ok=True)
+    beside = folder / (name + ".tmp")
+    beside.write_bytes(data)
+    os.replace(beside, folder / name)
+
+
+def held():
+    """Every picture held for the keeper, oldest first."""
+    if not HELD.is_dir():
+        return []
+    found = [read_json(path) for path in HELD.glob("*.json")]
+    return sorted((one for one in found if one and one.get("kind") == PHOTO),
+                  key=lambda one: (one.get("held_at") or "", one.get("id") or ""))
+
+
+def held_one(piece_id):
+    if not ID.fullmatch(piece_id or ""):
+        return None
+    return read_json(HELD / (piece_id + ".json"))
+
+
+def release(piece_id, at):
+    """The keeper publishes a held picture: the record published, or Refused("none")."""
+    kept = held_one(piece_id)
+    path = image_path(HELD, kept)
+    if kept is None or path is None or not path.is_file():
+        raise Refused("none")
+    record = publish(kept["by"], {key: kept[key] for key in ("kind", "title", "width",
+                                                            "height")}, at)
+    _write_image(PUBLIC, record["id"] + path.suffix, path.read_bytes())
+    record["image"] = record["id"] + path.suffix
+    keep(record)
+    path.unlink()
+    (HELD / (piece_id + ".json")).unlink()
+    return record
+
+
+def hold_back(piece_id, at):
+    """The keeper does not publish a held picture: it is moved aside, never shown."""
+    kept = held_one(piece_id)
+    if kept is None:
+        raise Refused("none")
+    NOT_PUBLISHED.mkdir(parents=True, exist_ok=True)
+    safe_write.write_text(NOT_PUBLISHED / (piece_id + ".json"),
+                          json.dumps({**kept, "not_published_at": at}, indent=2) + "\n")
+    _move(image_path(HELD, kept), NOT_PUBLISHED / IMAGES)
+    (HELD / (piece_id + ".json")).unlink()

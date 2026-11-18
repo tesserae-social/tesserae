@@ -163,6 +163,8 @@ import knock
 import notes
 import site_notes
 import made_here
+# The look a small vision model gives a picture uploaded to made here (18 November 2026).
+import picture_check
 import kept_words
 # The members' board (plan 4.3).
 import board
@@ -7353,7 +7355,9 @@ def tides_page(**told):
                            knocks=knocks_to_set_up(),
                            screens_spent_out=screens_spent_out_note(),
                            troubles=tides_troubles(), change=model_change_shown(),
-                           comings=comings_shown(), notes=site_notes_shown(), **told)
+                           comings=comings_shown(), notes=site_notes_shown(),
+                           held_pictures=held_pictures_shown() if made_here.UPLOADS else None,
+                           **told)
 
 
 @app.route("/tides")
@@ -8738,7 +8742,18 @@ MADE_REFUSED_PAGE = {
     "unchecked": public_screen.COULD_NOT_CHECK,
     "tries": TOO_MANY_TRIES,
     "note_long": "A note beneath a piece is one line, up to 500 characters.",
+    # since 18 November 2026 (art-and-colour, part 2): a person's pictures are uploads only
+    "drawn": "Pictures are uploaded now, not drawn here. Nothing was kept.",
+    "drawn_publish": ("Pictures are uploaded now, not drawn here, so this drawing can't be "
+                      "published. It stays in your workspace until you discard it."),
+    "not_picture": "That file is not a picture. Please upload a JPEG, PNG, or WebP.",
+    "too_big": "That picture is larger than 25 MB. Please upload a smaller one.",
+    "uploads_week": "You have uploaded three pictures this week. You may again next week.",
 }
+# Said by the upload button (the founder's words of 18 November 2026).
+UPLOAD_LINE = "Your own photos or art. No faces, no names or addresses, nothing that shows where you live."
+UPLOAD_HELD = ("Your picture is waiting for the keeper to look at it. It appears on made here "
+               "only if the keeper publishes it.")
 
 
 def made_maker():
@@ -8788,9 +8803,20 @@ def made_refused_for(name, one):
     return None if verdict == public_screen.CLEAR else "unchecked"
 
 
+def made_hidden(one):
+    """Whether a piece is not shown to whoever is signed in: an uploaded picture by someone
+    in a block with them, either way (art-and-colour, part 2). The keeper sees every one."""
+    viewer = session.get("member")
+    if not viewer or keeper_here():
+        return False
+    by = one.get("by") or ""
+    return (one.get("kind") == made_here.PHOTO and bool(viewer) and viewer != by
+            and blocks.between(viewer, by))
+
+
 @app.route("/made")
 def made_here_page():
-    shown = [made_shown(one) for one in made_here.every()]
+    shown = [made_shown(one) for one in made_here.every() if not made_hidden(one)]
     return render_template("made.html", how=MADE_HOW, pieces=shown,
                            palette=made_here.drawing_palette(),
                            member_here_now=bool(session.get("member")))
@@ -8799,7 +8825,7 @@ def made_here_page():
 @app.route("/made/<piece_id>")
 def made_piece(piece_id):
     one = made_here.one(piece_id)
-    if one is None:
+    if one is None or made_hidden(one):
         abort(404)
     maker = made_maker() if session.get("member") else None
     return render_template("made_piece.html", piece=made_shown(one),
@@ -8844,6 +8870,9 @@ def made_workspace_page(status=200, **told):
     refused = told.pop("refused", None)
     if made_here.SQUARES and refused in ("kind", "tiles"):  # since 17 November 2026
         refused += "_32"
+    if made_here.UPLOADS:  # since 18 November 2026: a person's pictures are uploads only
+        told.update(uploads=True, upload_line=UPLOAD_LINE,
+                    upload_held=UPLOAD_HELD if told.pop("held", None) else None)
     return render_template("made_workspace.html", drafts=drafts,
                            palette=made_here.drawing_palette() if made_here.SQUARES
                            else hues.PALETTE,
@@ -8862,7 +8891,8 @@ def made_workspace_page(status=200, **told):
 @member_required
 def made_workspace():
     return made_workspace_page(saved=request.args.get("saved"),
-                               published=request.args.get("published"))
+                               published=request.args.get("published"),
+                               held=request.args.get("held"))
 
 
 def made_from_form():
@@ -8879,6 +8909,8 @@ def made_from_form():
 @member_required
 def made_save_draft():
     line, body = made_from_form()
+    if made_here.UPLOADS and (request.form.get("kind") or "") != made_here.WRITING:
+        return made_workspace_page(400, refused="drawn")  # uploads only, since 18 November
     try:
         made_here.save_draft(session["member"], made_here.piece(line, body), utc_stamp())
     except made_here.Refused as refused:
@@ -8907,6 +8939,8 @@ def made_publish():
     if kept is None:
         return made_workspace_page(400, refused="none")
     one = {key: kept[key] for key in kept if key not in ("id", "at")}
+    if made_here.UPLOADS and one["kind"] in made_here.PICTURES:  # uploads only, since 18 November
+        return made_workspace_page(refused="drawn_publish")
     why = made_here.may_publish(maker, one["kind"], at)
     if not why and one["kind"] == made_here.WRITING and \
             made_here.words_in(one["words"]) > made_here.PIECE_WORDS_MOST:
@@ -8927,6 +8961,106 @@ def made_publish():
         pass
     made_here.discard(name, kept["id"], at)  # published: out of the workspace
     return redirect(url_for("made_piece", piece_id=record["id"]))
+
+
+def made_topic(record, maker):
+    """A piece's own topic on the board, in conversation; the piece stands without one."""
+    try:
+        record["topic"] = board.start("conversation", maker,
+                                      ("about: " + record["title"])[:board.SUBJECT_MOST],
+                                      "A piece made here, by %s." % maker,
+                                      datetime.now(timezone.utc).date().isoformat())
+        made_here.keep(record)
+    except Exception:
+        pass
+
+
+@app.route("/made/workspace/upload", methods=["POST"])
+@member_required
+def made_upload():
+    """A picture uploaded (art-and-colour, part 2): made bare, at most 1,600 pixels on its
+    longest side, three a week; its title screened as every public line is; and the picture
+    looked at by a small vision model, which publishes it or holds it for the keeper."""
+    if not made_here.UPLOADS:
+        abort(404)
+    name, maker, at = session["member"], made_maker(), utc_stamp()
+    title = made_here.one_line(request.form.get("title") or "")
+    upload = request.files.get("picture")
+    data = upload.read() if upload and upload.filename else b""
+    if not title or len(title) > made_here.TITLE_MOST:
+        return made_workspace_page(400, refused="title")
+    if not data:
+        return made_workspace_page(400, refused="not_picture")
+    if len(data) > PHOTO_LIMIT:
+        return made_workspace_page(400, refused="too_big")
+    if made_here.uploads_this_week(maker, at) >= made_here.UPLOADS_MOST:
+        return made_workspace_page(refused="uploads_week")
+    try:
+        fresh, suffix, size = made_here.bare(data, Path(upload.filename).suffix)
+    except made_here.Refused as refused:
+        return made_workspace_page(400, refused=refused.args[0])
+    why = made_refused_for(name, {"kind": made_here.PHOTO, "title": title})
+    if why:
+        return made_workspace_page(refused=why)
+    clear = picture_check.verdict(fresh, made_here.MEDIA_TYPES[suffix]) == picture_check.CLEAR
+    record = made_here.upload(maker, title, fresh, suffix, size, at, clear)
+    if not clear:
+        return redirect(url_for("made_workspace", held=1))
+    daily_acts.tally(name, daily_acts.PICTURE, datetime.now(timezone.utc))  # for the day's line
+    made_topic(record, maker)
+    return redirect(url_for("made_piece", piece_id=record["id"]))
+
+
+@app.route("/made/<piece_id>/picture")
+def made_picture(piece_id):
+    """An uploaded picture's file, as published; nothing for one taken down or hidden."""
+    one = made_here.one(piece_id)
+    if one is None or one.get("kind") != made_here.PHOTO or one.get("taken_down") \
+            or made_hidden(one):
+        abort(404)
+    path = made_here.image_path(made_here.PUBLIC, one)
+    if path is None or not path.is_file():
+        abort(404)
+    answer = send_file(path, mimetype=made_here.MEDIA_TYPES[path.suffix])
+    answer.headers["X-Content-Type-Options"] = "nosniff"
+    return answer
+
+
+# Pictures held for the keeper (art-and-colour, part 2): each shown on /tides with who
+# uploaded it and when, to publish or not. Nothing of one is public until it is published.
+def held_pictures_shown():
+    return [{"id": one["id"], "title": one.get("title") or "", "by": shown_name(one["by"])
+             if one.get("by") != THE_FOUNDER else THE_FOUNDER,
+             "day": said_day((one.get("held_at") or "")[:10])} for one in made_here.held()]
+
+
+@app.route("/tides/held/<piece_id>/picture")
+@founder_required
+def held_picture(piece_id):
+    one = made_here.held_one(piece_id)
+    path = made_here.image_path(made_here.HELD, one)
+    if path is None or not path.is_file():
+        abort(404)
+    answer = send_file(path, mimetype=made_here.MEDIA_TYPES[path.suffix])
+    answer.headers["X-Content-Type-Options"] = "nosniff"
+    answer.headers["Cache-Control"] = "no-store"
+    return answer
+
+
+@app.route("/tides/held/<piece_id>", methods=["POST"])
+@founder_required
+def held_picture_answer(piece_id):
+    at = utc_stamp()
+    try:
+        if request.form.get("publish") == "yes":
+            kept = made_here.held_one(piece_id) or {}
+            record = made_here.release(piece_id, at)
+            made_topic(record, kept.get("by") or THE_FOUNDER)
+        elif request.form.get("publish") == "no":
+            made_here.hold_back(piece_id, at)
+    except made_here.Refused:
+        pass
+    return redirect(url_for("tides", _anchor="held-pictures"))
 
 
 # ---- what every public line is checked with ---------------------------------

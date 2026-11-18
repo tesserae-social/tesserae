@@ -36,17 +36,18 @@ TELLING = ("exif", "xmp", "XML:com.adobe.xmp", "icc_profile", "comment", "photos
            "iptc", "Description", "Author", "Comment", "Software", "Title")
 
 
-def fitted(image):
-    """The same picture, no longer than PHOTO_EDGE on its longest side."""
-    if max(image.size) <= PHOTO_EDGE:
+def fitted(image, edge=PHOTO_EDGE):
+    """The same picture, no longer than edge (PHOTO_EDGE) on its longest side."""
+    if max(image.size) <= edge:
         return image  # a small photograph is already the size it should be
-    return ImageOps.contain(image, (PHOTO_EDGE, PHOTO_EDGE), Image.LANCZOS)
+    return ImageOps.contain(image, (edge, edge), Image.LANCZOS)
 
 
-def picture_only(data, suffix):
+def picture_only(data, suffix, edge=PHOTO_EDGE):
     """The same photograph, made smaller and re-encoded with no metadata.
 
-    None if it won't open, or if it is not of a kind kept here.
+    None if it won't open, or if it is not of a kind kept here. A picture uploaded to made
+    here is made no longer than made_here.UPLOAD_EDGE (18 November 2026).
     """
     fmt = PHOTO_FORMATS.get(suffix.lower())
     if fmt is None:
@@ -54,7 +55,7 @@ def picture_only(data, suffix):
     try:
         with Image.open(io.BytesIO(data)) as opened:
             # the orientation tag is about to be lost, so turn the picture upright first
-            upright = fitted(ImageOps.exif_transpose(opened))
+            upright = fitted(ImageOps.exif_transpose(opened), edge)
             transparent = (upright.mode in ("RGBA", "LA", "PA")
                            or (upright.mode == "P" and "transparency" in upright.info))
             flat = upright.convert("RGBA" if transparent and fmt != "JPEG" else "RGB")

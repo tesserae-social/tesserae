@@ -126,9 +126,13 @@ def test_a_day_kept_in_utc_before_is_still_here(world, data_dir):
     assert not here_this_week.here(ALDER, TODAY)
 
 
-def test_here_json_names_the_people_here_this_week_and_nothing_more(world, data_dir, clock):
+def test_here_json_names_the_people_here_this_week_and_nothing_more(world, data_dir, clock,
+                                                                    monkeypatch):
     """The atrium's list (/commons/here.json): people here this week by name, address and
-    colour only, never a day or a time."""
+    colour only, never a day or a time. As before safety-fixes (18 November 2026), whose
+    people are drawn from every member (test_safety_fixes): with many members, alder would
+    not always be among the ten."""
+    monkeypatch.setattr(world.hearth, "PEOPLE_AT_RANDOM", False)
     here_on(data_dir, ALDER, TODAY - timedelta(days=2))
     said = json.loads(world.client.get("/commons/here.json").get_data(as_text=True))
     people = {one["address"]: one for one in said["people"]}

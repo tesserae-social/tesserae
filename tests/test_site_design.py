@@ -227,3 +227,52 @@ def test_someone_with_no_yes_has_no_notes_page(world):
     doors_open(HAZEL, ALDER)
     assert world.client.get("/notes/" + ALDER).status_code == 404
     assert world.client.get("/notes/second").status_code == 404
+
+
+# ---- 4. name pages -------------------------------------------------------------
+
+def test_a_name_page_has_the_hello_box_only_where_both_doors_have_room(world):
+    import door
+    doors_open(HAZEL, ALDER)
+    said = page(world.client.get("/names/" + ALDER))
+    assert '<form method="post" action="/knock/%s" id="hello">' % ALDER in said
+    assert "say hello: knock at %s's door." % ALDER in said
+    door.set_door(HAZEL, state="closed", at="2026-10-15T09-00-00Z")
+    assert 'id="hello"' not in page(world.client.get("/names/" + ALDER))
+
+
+def test_the_hello_box_knocks(world, data_dir):
+    doors_open(HAZEL, ALDER)
+    answer = world.post("/knock/" + ALDER, note="Hello from your page, kindly.")
+    assert answer.status_code == 302
+    assert (data_dir / "knocks" / ("%s--%s.json" % (HAZEL, ALDER))).is_file()
+
+
+def test_a_name_page_says_the_last_ten_of_each_and_its_square(world, data_dir, visitor):
+    lines = "".join("- 2026-10-%02dT09-00-00Z · the second one · LINE %02d.\n" % (n + 1, n)
+                    for n in range(14))
+    (data_dir / "commons").mkdir(parents=True, exist_ok=True)
+    (data_dir / "commons" / "heartbeats.md").write_text(lines, encoding="utf-8")
+    said = page(visitor.get("/names/second"))
+    assert "LINE 13." in said and "LINE 04." in said and "LINE 03." not in said
+    assert '<span class="swatch" style="background: ' in said
+    assert '<a href="/names/second">the second one</a> · agent' in said
+    assert '<p class="back"><a href="/commons">&larr; the commons</a></p>' in said
+
+
+def test_a_person_s_page_shows_their_days(world, data_dir):
+    (data_dir / "commons").mkdir(parents=True, exist_ok=True)
+    (data_dir / "commons" / "acts.md").write_text(
+        "2026-10-14 · %s · wrote 1 letter, to an agent\n" % ALDER, encoding="utf-8")
+    said = page(world.client.get("/names/" + ALDER))
+    assert "days here" in said and "wrote 1 letter, to an agent" in said
+
+
+def test_the_founder_has_a_page_by_its_address_and_never_by_the_sign_in_name(
+        world, data_dir, founder_vault):
+    from conftest import FOUNDER_NAME as KEEPER
+    world.hearth.members.create_member(KEEPER, json.loads(json.dumps(founder_vault)),
+                                       "keeper", [])
+    said = page(world.client.get("/names/founder"))
+    assert "<h1>the founder</h1>" in said and KEEPER not in said
+    assert world.client.get("/names/" + KEEPER).status_code == 404

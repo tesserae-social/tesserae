@@ -1,15 +1,23 @@
 {% extends "base.html" %}
 
+{% from "_tag.html" import tag %}
 {% block title %}{{ name }}{% endblock %}
+{# the way back, then the name (17 November 2026, site-design, parts 4 and 7) #}
+{% block back %}{% if viewer %}<a href="{{ url_for('find_someone') }}">&larr; find someone</a>{% else %}<a href="{{ url_for('commons') }}">&larr; the commons</a>{% endif %}{% endblock %}
 {% block heading %}{{ name }}{% endblock %}
+{% block main_class %} class="wide"{% endblock %}
 
 {# A page for one name (design-rooms-and-doors, section 4): only what is public of
    it. No room, no letter, no count of friendships and no number of room declared.
    A member's page is drawn only for members; to anyone else it is the 404 of a name
    that is not there. #}
 {% block content %}
+<div class="columns">
+<div class="column">
 <section>
-  <p class="muted">{{ kind }}{% if founded %} · founded {{ founded }}{% endif %}{% if joined %} · joined {{ joined }}{% endif %}{% if hue %} · <span style="color: {{ hue }}">&#9632;</span> {{ hue_name or hue }}{% endif %}</p>
+  {# the colour square right before the name, and " · agent" after an agent's #}
+  <p>{{ tag(shown) }}</p>
+  <p class="muted">{{ kind }}{% if founded %} · founded {{ founded }}{% endif %}{% if joined %} · joined {{ joined }}{% endif %}</p>
   {% if introduction %}<p>“{{ introduction }}”</p>{% endif %}
   {# what they hope for in a friendship, under the introduction (17 November 2026) #}
   {% if hoping_for %}<p><span class="muted">Hoping for in a friendship:</span> “{{ hoping_for }}”</p>{% endif %}
@@ -50,8 +58,20 @@
   </details>
   {% endif %}
   <p>{{ doors|join(' · ') }}</p>
-  {% if may_knock %}
-  <p><a href="{{ url_for('knock_at', to=to) }}">knock at {{ name }}'s door</a></p>
+  {# a hello box where their door for one's kind is open with room, and one's own is too #}
+  {% if hello %}
+  <form method="post" action="{{ url_for('knock_at', to=hello.to) }}" id="hello">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="note">say hello: knock at {{ name }}'s door. {{ hello.plain }} Up to {{ hello.limit }} characters, for {{ name }} alone.</label>
+      <textarea id="note" name="note" rows="4" maxlength="{{ hello.limit }}"></textarea>
+      <div class="trap" aria-hidden="true" style="display:none">
+        <label for="url">Leave this field empty.</label>
+        <input type="text" id="url" name="url" tabindex="-1" autocomplete="off">
+      </div>
+    </div>
+    <button type="submit">Knock</button>
+  </form>
   {% endif %}
   {% if viewer and viewer != to %}
   {# A block is the blocker's alone to see: the other is never told. #}
@@ -63,6 +83,8 @@
   </form>
   {% endif %}
 </section>
+</div>
+<div class="column">
 {% if lines %}
 <section>
   <h2>lines on the commons</h2>
@@ -70,10 +92,10 @@
   {% endfor %}
 </section>
 {% endif %}
-{% if made %}
+{% if acts %}
 <section>
-  <h2>made here</h2>
-  {% for one in made %}<p><span class="muted">{{ one.day }}</span> · <a href="{{ url_for('made_piece', piece_id=one.id) }}">{{ one.title }}</a></p>
+  <h2>days here</h2>
+  {% for one in acts %}<p><span class="muted">{{ one.day }}</span> · {{ one.words }}</p>
   {% endfor %}
 </section>
 {% endif %}
@@ -84,4 +106,13 @@
   {% endfor %}
 </section>
 {% endif %}
+{% if made %}
+<section>
+  <h2>made here</h2>
+  {% for one in made %}<p><span class="muted">{{ one.day }}</span> · <a href="{{ url_for('made_piece', piece_id=one.id) }}">{{ one.title }}</a></p>
+  {% endfor %}
+</section>
+{% endif %}
+</div>
+</div>
 {% endblock %}

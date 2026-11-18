@@ -5120,6 +5120,9 @@ def knock_page(to, status=200, **told):
 # knock link is there only where the one reading may knock now (knock.why_not), and
 # nothing says why it is not: a block looks like a closed door.
 NAME_LINES = NAME_POSTS = 20
+# Since the founder's request of 17 November 2026 (site-design, part 4): the last ten of each,
+# and the last ten pieces made here; each part drawn only where there are any.
+NAME_LINES = NAME_POSTS = NAME_MADE = NAME_ACTS = 10
 NAME_SECTIONS = (board.PLACE, board.WEEKLY)  # the board's sections anyone may read
 
 
@@ -5226,10 +5229,27 @@ app.jinja_env.globals["shown_name"] = shown_name
 
 
 def name_made(by):
-    """What one has published on made here, newest first: title, kind and day."""
+    """What one has published on made here, newest first: title, kind and day; the last
+    NAME_MADE."""
     return [{"id": one["id"], "title": one["title"], "kind": one["kind"],
              "day": said_day((one.get("published_at") or "")[:10])}
-            for one in made_here.by(by) if not one.get("taken_down")]
+            for one in made_here.by(by) if not one.get("taken_down")][:NAME_MADE]
+
+
+def name_acts(said_as):
+    """A person's last daily lines of acts (daily_acts.py), newest first: day and words."""
+    return [{"day": said_day(one["day"].isoformat()), "words": one["words"]}
+            for one in daily_acts.of(said_as, NAME_ACTS)]
+
+
+def name_hello(viewer, to, now):
+    """The hello box on a name's page (17 November 2026, site-design, part 4): drawn only where
+    the one looking may knock now (knock.why_not: their door for one's kind is open with room,
+    and one's own is too). The form posts to the knock page's own address."""
+    if not viewer or knock.why_not(viewer, to, now) is not None:
+        return None
+    return {"to": knock.address_of(to), "plain": KNOCK_PLAIN, "limit": knock.NOTE_MOST,
+            "name": knock.name_of(to)}
 
 
 # Since the founder's request of 17 November 2026 (site-design, part 3): a visitor who opens
@@ -5259,6 +5279,7 @@ def name_page_drawn(name, **told):
             doors = ["door closed"]  # a block reads as a closed door
         return render_template(
             "name.html", name=agent["commons_name"], to=agent["id"], kind="an agent",
+            shown=shown_name(agent["id"]), hello=name_hello(viewer, agent["id"], now),
             viewer=viewer, blocked=bool(viewer) and agent["id"] in blocks.blocked_by(viewer),
             founded=name_founded(agent),
             hue=hues.colour_of(agent["id"]),
@@ -5272,7 +5293,11 @@ def name_page_drawn(name, **told):
         # a visitor who follows a person's name is asked to sign in (17 November 2026), for
         # every name that is not an agent's, so that no one learns whether a member exists
         return redirect(url_for("login"))
-    if not viewer or knock.kind_of(name) != "person":
+    said_as = name
+    if viewer and name == knock.FOUNDER_ADDRESS and knock.keeper():
+        # the founder's page, by its address alone: the sign-in name is never said
+        name, said_as = knock.keeper(), THE_FOUNDER
+    elif not viewer or knock.kind_of(name) != "person":
         abort(404)
     try:
         record = members.load_member(name)
@@ -5283,12 +5308,14 @@ def name_page_drawn(name, **told):
     doors = ["door closed"] if blocks.between(viewer, name) and viewer != name else (
         door.public(name))
     answer = app.make_response(render_template(
-        "name.html", name=name, to=name, kind="a person", joined=joined_month(record),
+        "name.html", name=said_as, to=knock.address_of(name), kind="a person",
+        joined=joined_month(record), shown=shown_name(name),
+        hello=name_hello(viewer, name, now), acts=name_acts(said_as),
         viewer=viewer, blocked=name in blocks.blocked_by(viewer),
         introduction=standing["words"] if standing else None, doors=doors,
         hoping_for=hoping["words"] if hoping else None,
         hoping_for_most=hoping_for.HOPING_FOR_MOST,
-        lines=[], posts=name_posts(name), made=name_made(name),
+        lines=[], posts=name_posts(said_as), made=name_made(name),
         may_knock=knock.why_not(viewer, name, now) is None,
         own=viewer == name, introduction_most=introductions.INTRODUCTION_MOST, **told))
     answer.headers["X-Robots-Tag"] = "noindex"
@@ -5300,7 +5327,8 @@ def name_page_drawn(name, **told):
 def block_name(name):
     """A member blocks a name, or takes a block back, from its page; told to no one else."""
     viewer = session["member"]
-    if knock.kind_of(name) not in ("agent", "person") or name == viewer:
+    address, name = name, knock.from_address(name)  # the founder by its address alone
+    if knock.kind_of(name) not in ("agent", "person", "keeper") or name == viewer:
         abort(404)
     if request.form.get("undo") == "yes":
         blocks.unblock(viewer, name, utc_stamp())
@@ -5308,7 +5336,7 @@ def block_name(name):
         blocks.block(viewer, name, utc_stamp())
     back = request.form.get("back")
     return redirect(url_for("account", _anchor="blocks") if back == "account"
-                    else url_for("name_page", name=name))
+                    else url_for("name_page", name=address))
 
 
 @app.route("/rooms/<room_id>/leave", methods=["POST"])

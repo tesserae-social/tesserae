@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 from nacl.pwhash import argon2id
 
-from conftest import FOUNDER_NAME, PASSWORD, REPO, block, load, page, post, write
+from conftest import FOUNDER_NAME, PASSWORD, REPO, block, load, page, post, who_fix_not_yet, write
 from test_hearth_bonds import answered_yes, propose, sealed, through_the_threshold
 
 MEMBER = "birch"
@@ -72,6 +72,24 @@ def menus(said):
             re.findall(r'<nav class="menu[^"]*" aria-label="([^"]+)">(.*?)</nav>', said, re.S)}
 
 
+# who-fix, 17 November 2026: the site's menu comes first, before the header, and is
+# marked "menu top"; before it, it was "menu" and stood under the header
+TOP_LINE = {False: r'<nav class="menu top" aria-label="pages">(.*?)</nav>',
+            True: r'<nav class="menu" aria-label="pages">(.*?)</nav>'}
+NOW_AND_BEFORE = pytest.mark.parametrize("as_before", [False, True], ids=["now", "before_who_fix"])
+
+
+def drawn(hearth, monkeypatch, as_before):
+    """Draw the pages as now, or, with as_before, as before who-fix."""
+    if as_before:
+        who_fix_not_yet(hearth, monkeypatch)
+
+
+def top_line(said, as_before=False):
+    """The menu at the top of a page: what is inside its nav."""
+    return re.search(TOP_LINE[as_before], said, re.S).group(1)
+
+
 def section(said, name):
     """One section of a page, by its id."""
     return re.search(r'<section id="%s">(.*?)</section>' % name, said, re.S).group(1)
@@ -119,16 +137,18 @@ def test_a_visitor_is_shown_one_line_and_the_way_in(visitor, path):
         assert own not in said, own
 
 
-def test_the_line_leads_where_it_says(visitor, member):
+@NOW_AND_BEFORE
+def test_the_line_leads_where_it_says(hearth, monkeypatch, visitor, member, as_before):
+    drawn(hearth, monkeypatch, as_before)
     said = page(visitor.get("/board"))
-    line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
+    line = top_line(said, as_before)
     assert re.findall(r'href="([^"]+)"', line) == ["https://tesserae.social", "/login", "/commons"]
     said = page(visitor.get("/commons"))
-    line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
+    line = top_line(said, as_before)
     assert '<span class="here">the commons</span>' in line  # where you stand is no link
 
     said = page(member.get("/board"))
-    line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
+    line = top_line(said, as_before)
     assert re.findall(r'href="([^"]+)"', line) == ["https://tesserae.social", "/", "/settings", "/commons"]
     # the old destinations are in no menu: the commons is the way to both
     for old in ('href="/bonds"', 'href="/offerings"', "the hearth"):
@@ -144,25 +164,34 @@ def test_a_plain_member_is_shown_one_line_and_never_the_keepers(member):
             assert own not in said, (path, own)
 
 
-def test_the_keeper_is_shown_both_and_the_second_at_the_very_foot(founder):
+@NOW_AND_BEFORE
+def test_the_keeper_is_shown_both_and_the_second_at_the_very_foot(hearth, monkeypatch, founder,
+                                                                 as_before):
+    drawn(hearth, monkeypatch, as_before)
     for path in KEEPER_PAGES:
         said = page(founder.get(path))
         assert menus(said) == {"pages": A_MEMBER, "keeping": KEEPING}, path
-        # the one line sits under the heading; the keeper's is last of all, after any
-        # footer a page has
-        assert (said.index("</header>") < said.index('aria-label="pages"')
-                < said.index('aria-label="keeping"')), path
+        # the one line comes first of all, before the header (who-fix; before it, under
+        # the heading); the keeper's is last of all, after any footer a page has
+        if as_before:
+            assert (said.index("</header>") < said.index('aria-label="pages"')
+                    < said.index('aria-label="keeping"')), path
+        else:
+            assert (said.index('aria-label="pages"') < said.index("<header")
+                    < said.index("</header>") < said.index('aria-label="keeping"')), path
         assert said.find("</footer>") < said.index('aria-label="keeping"'), path
         assert said.split('aria-label="keeping"')[1].split("</nav>", 1)[1].split() == [
             "</main>", "</body>", "</html>"], path
         assert said.count("<nav") == 2, path
 
 
-def test_the_chronicle_is_in_no_menu_and_in_the_room(founder):
+@NOW_AND_BEFORE
+def test_the_chronicle_is_in_no_menu_and_in_the_room(hearth, monkeypatch, founder, as_before):
     # the founder's decision of 10 November 2026: the keeper's line is tides and backups,
     # and an agent's self, its chronicle and a copy are reached from its room, under "more"
+    drawn(hearth, monkeypatch, as_before)
     said = page(founder.get("/"))
-    top = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
+    top = top_line(said, as_before)
     foot = re.search(r'<nav class="menu keeping" aria-label="keeping">(.*?)</nav>', said, re.S).group(1)
     assert "chronicle" not in top
     assert re.findall(r'href="([^"]+)"', foot) == ["/tides", "/backups"]
@@ -182,9 +211,11 @@ def test_the_page_you_stand_on_is_marked_and_is_no_link(visitor, member):
     assert '<a href="/">home</a>' in page(member.get("/settings"))
 
 
-def test_logging_out_is_a_post_drawn_as_a_link(member):
+@NOW_AND_BEFORE
+def test_logging_out_is_a_post_drawn_as_a_link(hearth, monkeypatch, member, as_before):
+    drawn(hearth, monkeypatch, as_before)
     said = page(member.get("/"))
-    line = re.search(r'<nav class="menu" aria-label="pages">(.*?)</nav>', said, re.S).group(1)
+    line = top_line(said, as_before)
     assert '<form method="post" action="/logout" class="as-link">' in line
     assert '<button type="submit" class="as-link">log out</button>' in line
     assert 'href="/logout"' not in said

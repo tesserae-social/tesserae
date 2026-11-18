@@ -888,7 +888,8 @@ SCALE = {"--space-1": "4px", "--space-2": "8px", "--space-3": "16px", "--space-4
          "--space-5": "40px", "--space-6": "64px", "--space-7": "96px"}
 NOT_GAPS = {".book .mark", "input[type=\"text\"], input[type=\"password\"], input[type=\"date\"]",
             "select", "button", "button.small", ".saved, .error", ".mosaic", ".frame",
-            "button.as-link, button.as-link:hover, button.as-link:focus"}
+            "button.as-link, button.as-link:hover, button.as-link:focus",
+            ".fold > summary"}  # the board's folded form: drawn as a button, its padding
 ON_THE_SCALE = re.compile(r"^(0|auto|var\(--space-\d\)|var\(--gap\)|var\(--gap, 4px\))$")
 
 

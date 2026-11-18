@@ -137,12 +137,14 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         # and knock_take_back since 18 November 2026 (knocks-tidy), not yet the first one's,
         # and made_here_agents and american_spelling since 18 November 2026 (tidy-pages), not
         # yet the first one's
-        "features": ["american_spelling", "art_and_colour", "asked", "block", "board", "corrections", "door",
+        # and copy_said and private_reflections since 18 November 2026 (room-privacy)
+        "features": ["american_spelling", "art_and_colour", "asked", "block", "board", "copy_said",
+                     "corrections", "door",
                      "doors_to_eight",
                      "hoping_for", "hue", "introduction", "knock", "knock_founder", "knock_take_back",
                      "long_night", "longer_waking",
                      "looking_back", "made_here", "made_here_agents", "people_waiting",
-                     "proposals", "quiet_days",
+                     "private_reflections", "proposals", "quiet_days",
                      "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
                      "two_doors", "weekly_question"],
         "wakes": True}
@@ -152,8 +154,8 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
     # 18 November 2026, and made_here_agents since then too (tidy-pages)
     assert sorted(entry["features"]) == sorted(
         [one for one in agents.first()["features"] if one != "welcome_letter"]
-        + ["american_spelling", "art_and_colour", "hoping_for", "knock_founder",
-           "knock_take_back", "made_here_agents", "site_notes"])
+        + ["american_spelling", "art_and_colour", "copy_said", "hoping_for", "knock_founder",
+           "knock_take_back", "made_here_agents", "private_reflections", "site_notes"])
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
     assert registry == [agents.first(), entry]
     did = json.loads((bundle / "ids" / ID / "did.json").read_text(encoding="utf-8"))

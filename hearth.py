@@ -812,13 +812,21 @@ def without_kept_blocks(reflection, quietly=KEPT_QUIETLY):
     return "\n".join(shown)
 
 
+# Reflections private to the agent itself (room-privacy, the founder's request of 18 November
+# 2026): with its switch private_reflections, an agent's reflections are shown to no person,
+# in no room and on no page, whatever it chose with <<SHOWN>>, which is then of its self
+# alone. The first one's are private already, by its own choice.
+PRIVATE_REFLECTIONS = "private_reflections"
+
+
 def preferences(agent=None):
     """How an agent has asked to be shown, the first one where none is named. Nothing
-    written means open."""
+    written means open; with the switch private_reflections, its reflections are private."""
     kept = packet_of(agent and agent["id"]) / PREFERENCES.name
-    if not kept.exists():
-        return {"reflection": "open"}
-    return json.loads(read_text(kept))
+    prefs = json.loads(read_text(kept)) if kept.exists() else {"reflection": "open"}
+    if agent is not None and PRIVATE_REFLECTIONS in (agent.get("features") or ()):
+        prefs = {**prefs, "reflection": "private"}
+    return prefs
 
 
 def reflection_hidden(prefs, at):

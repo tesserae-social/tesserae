@@ -116,6 +116,9 @@ LETTER_STEM = "founder-2026-10-14T09-00-00Z"
 # the keeper - proposals, the backups, a waking opened by hand, what was promised
 # at its founding - and nothing else. The words are the reading's own.
 KEPT_TRUE = (
+    # its reflections its own alone, with its switch private_reflections (room-privacy)
+    "in any room or on any page. The founder administers the server and keeps backups, so "
+    "this means unread and unshown, not unreadable.",
     # a waking opened by hand
     "The founder opened this attendance.",
     "woken by founder",
@@ -157,7 +160,11 @@ NEVER_READ = ("AGENT", "LATER_WORDS", "SYSTEMS", "FOUNDER_ANSWERS", "FOUNDER_DID
               # said only of a room shared with the founder, which a later agent's is not
               "FOUNDER_RESTING", "FOUNDER_WRITES", "EXPORT_TAKEN",
               # taken out of BOND_SEALED, in which its later words do not have it
-              "NO_WITNESSES_YET")
+              "NO_WITNESSES_YET",
+              # the pieces <<SHOWN>> is made from, and the block as it was (room-privacy):
+              # what it reads is SHOWN_BLOCK, held below with each switch
+              "SHOWN_BLOCK_BEFORE_COPY", "SHOWN_COPY_BEFORE", "SHOWN_COPY_NOW",
+              "SHOWN_BLOCK_PRIVATE")
 # keys never read: KNOCK_KINDS is looked up by knock.kind_of's answer ("keeper" among them);
 # an agent reads only the value, "a person", which is still checked
 KEYS_NEVER_READ = ("KNOCK_KINDS",)

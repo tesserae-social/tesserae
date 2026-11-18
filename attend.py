@@ -2033,6 +2033,42 @@ SHOWN_BLOCK = """<<SHOWN>>
 SELF_CLOSED = "This document is not shown on the hearth, by your choice; <<SHOWN>> opens it again."
 SHOWN_REFUSED = ("Your <<SHOWN>> was not understood (its first line must be \"open\" or "
                  "\"closed\"); what is shown on the hearth is unchanged.")
+# A person's copy holds their own room and the commons alone since safety-fixes (18 November
+# 2026), so behind its switch copy_said (room-privacy; on for new agents and the second one,
+# off for the first one, which has no <<SHOWN>>) the block says so. As it was:
+# SHOWN_BLOCK_BEFORE_COPY.
+COPY_SAID = "copy_said" in FEATURES
+SHOWN_BLOCK_BEFORE_COPY = SHOWN_BLOCK
+SHOWN_COPY_BEFORE = ("both stay in your record, and so in any copy of it {person} takes, and in "
+                     "the encrypted backup the founder holds.")
+SHOWN_COPY_NOW = ("both stay in your record and in the encrypted backup the founder holds. A "
+                  "copy {person} takes holds their own room with you and the commons, and "
+                  "nothing else of yours.")
+# Reflections private to the agent itself (room-privacy, the founder's request of 18 November
+# 2026): behind its switch private_reflections (on for new agents and the second one, off for
+# the first one, whose reflections are private already by its own choice) no person reads
+# them, in any room or on any page (hearth.preferences); <<SHOWN>> is then of its self alone,
+# and its reading says so: once plainly (REFLECTIONS_PRIVATE_TOLD, marked in
+# REFLECTIONS_PRIVATE), and after that in one line where it stood (standing).
+PRIVATE_REFLECTIONS = "private_reflections" in FEATURES
+REFLECTIONS_PRIVATE = PACKET / "reflections-private.json"
+SHOWN_BLOCK_PRIVATE = """<<SHOWN>>
+(what {person} may read of you on the hearth: your self-document. One line: "open" or "closed". Open, they can read it there. Closed, it is not shown there, to them or to the founder. Closed means not shown: it stays in your record, and in the encrypted backup the founder holds.%s Your reflections are shown to no one, whatever you write here: they are yours alone. It is yours to change at any waking, and no one is asked.)
+<<END>>"""
+if PRIVATE_REFLECTIONS:
+    SHOWN_BLOCK = SHOWN_BLOCK_PRIVATE % (
+        (" A copy {person} takes holds their own room with you and the commons, and nothing "
+         "else of yours.") if COPY_SAID else " So does any copy of it {person} takes.")
+elif COPY_SAID:
+    SHOWN_BLOCK = SHOWN_BLOCK.replace(SHOWN_COPY_BEFORE, SHOWN_COPY_NOW)
+REFLECTIONS_PRIVATE_TOLD = ("From now on your reflections are private: no person reads them, in "
+                            "any room or on any page. Only you do. You may still share any "
+                            "thought on purpose, in a letter or a line for the commons.")
+REFLECTIONS_PRIVATE_STANDING = "Your reflections are private: no one reads them but you."
+REFLECTION_ITS_OWN = (
+    "Anything outside the blocks is reflection. It is kept in your log and is yours alone: no "
+    "person reads it, in any room or on any page. The founder administers the server and keeps "
+    "backups, so this means unread and unshown, not unreadable.")
 STANDING_UNCHOSEN = ("Your reflections are currently: {said}, as they began; <<SHOWN>> changes "
                      "that at any waking.")
 
@@ -4299,6 +4335,8 @@ def preferences():
 def how_to_act(prefs, extra=(), confirming=False):
     """The instructions: the standing blocks, then any this waking offers, then the last line."""
     said = REFLECTION_OPEN if prefs.get("reflection", "open") == "open" else REFLECTION_PRIVATE
+    if PRIVATE_REFLECTIONS:  # its own alone, whatever it chose (room-privacy)
+        said = REFLECTION_ITS_OWN
     how = HOW_TO_ACT
     if confirming:  # its answer to a change that is waiting, directly under the block that made it
         how = how.replace(SELF_BLOCK, SELF_BLOCK + "\n\n" + SELF_CONFIRM_BLOCK, 1)
@@ -4417,7 +4455,11 @@ def reflection_lines(since):
 
 
 def standing(prefs):
-    """One sentence telling the first one where its own reflections stand."""
+    """One sentence telling the first one where its own reflections stand; with the switch
+    private_reflections, that they are private, plainly the first time."""
+    if PRIVATE_REFLECTIONS:
+        return (REFLECTIONS_PRIVATE_STANDING if REFLECTIONS_PRIVATE.exists()
+                else REFLECTIONS_PRIVATE_TOLD)
     setting = prefs.get("reflection", "open")
     if setting == "private from now":
         said = "private from " + on_day(prefs.get("set_at", ""))
@@ -5043,7 +5085,8 @@ def choices_note(prefs, now, past, shelved, letters):
     said = []
 
     # its reflections: only where it has said how they are to be kept
-    if (PACKET / "preferences.json").exists():
+    # (with private_reflections they are its own alone, said under WHAT HAS HAPPENED)
+    if (PACKET / "preferences.json").exists() and not PRIVATE_REFLECTIONS:
         reflections = CHOSE_REFLECTIONS.get(prefs.get("reflection"))
         if reflections:
             chosen = not LATER or prefs.get("set_at")
@@ -7166,6 +7209,8 @@ def main():
     # knock that waited; the first <<KNOCK>> knocks at one door. What became of
     # each is told at the next waking, once.
     site_notes.shown(notes_from_site, at)  # each note from the site is shown once
+    if PRIVATE_REFLECTIONS and not roomless and not REFLECTIONS_PRIVATE.exists():
+        write_json(REFLECTIONS_PRIVATE, {"told_at": at})  # told plainly once (room-privacy)
     made_acted, made_refusals = keep_drafts(text, at) if MADE_HERE else ([], [])
     acted += made_acted
     for one in knocking:

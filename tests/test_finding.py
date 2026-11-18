@@ -21,7 +21,7 @@ from datetime import date, timedelta
 import pytest
 
 import agents
-from conftest import page, write, write_json
+from conftest import days_kept_not_yet, page, write, write_json
 from test_introductions import make_world
 from test_later_citizen import ALDER, HAZEL, LATER
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
@@ -67,15 +67,26 @@ def section(home):
 def test_a_page_opened_signed_in_keeps_the_day_and_only_the_day(world, data_dir):
     world.client.get("/")
     kept = json.loads((data_dir / "members" / HAZEL / "here.json").read_text(encoding="utf-8"))
-    assert kept == {"day": "2026-10-15"}
+    # the day, and since 18 November 2026 the days of the last seven (art-and-colour, part 5)
+    assert kept == {"day": "2026-10-15", "days": ["2026-10-15"]}
+
+
+def test_the_day_alone_as_before(world, data_dir, monkeypatch, clock):
+    days_kept_not_yet(monkeypatch)
+    world.client.get("/")
+    here = data_dir / "members" / HAZEL / "here.json"
+    assert here.read_text(encoding="utf-8") == '{"day": "2026-10-15"}\n'
+    clock.shift(days=1)
+    world.client.get("/")
+    assert here.read_text(encoding="utf-8") == '{"day": "2026-10-16"}\n'
 
 
 def test_the_day_is_written_once_a_day_and_nothing_else_is(world, data_dir, clock):
-    """Only {"day": ...}: no time, no address, nothing else; and at most once a day."""
+    """Only days: no time, no address, nothing else; and at most once a day."""
     here = data_dir / "members" / HAZEL / "here.json"
     world.client.get("/")
     first = (here.read_bytes(), here.stat().st_mtime_ns)
-    assert here.read_text(encoding="utf-8") == '{"day": "2026-10-15"}\n'
+    assert here.read_text(encoding="utf-8") == '{"day": "2026-10-15", "days": ["2026-10-15"]}\n'
     files = {path: path.stat().st_mtime_ns for path in data_dir.rglob("*") if path.is_file()}
     clock.shift(hours=3)  # later the same day: nothing is written
     for address in ("/", "/settings", "/find"):
@@ -84,9 +95,13 @@ def test_the_day_is_written_once_a_day_and_nothing_else_is(world, data_dir, cloc
     assert {path: path.stat().st_mtime_ns for path in data_dir.rglob("*")
             if path.is_file()} == files
     assert not list(here.parent.glob("here.json.tmp"))
-    clock.shift(days=1)  # the next day, the day alone, written over the last
+    clock.shift(days=1)  # the next day, with the day before kept (art-and-colour, part 5)
     world.client.get("/")
-    assert here.read_text(encoding="utf-8") == '{"day": "2026-10-16"}\n'
+    assert here.read_text(encoding="utf-8") == (
+        '{"day": "2026-10-16", "days": ["2026-10-15", "2026-10-16"]}\n')
+    clock.shift(days=7)  # a week on, only the last seven days are kept
+    world.client.get("/")
+    assert here.read_text(encoding="utf-8") == '{"day": "2026-10-23", "days": ["2026-10-23"]}\n'
 
 
 def test_an_eastern_evening_is_kept_as_its_own_day(world, data_dir, clock):
@@ -98,7 +113,7 @@ def test_an_eastern_evening_is_kept_as_its_own_day(world, data_dir, clock):
     clock.set(datetime(2026, 10, 16, 1, 30, tzinfo=timezone.utc))  # 21:30 on the 15th, Eastern
     world.client.get("/")
     here = data_dir / "members" / HAZEL / "here.json"
-    assert here.read_text(encoding="utf-8") == '{"day": "2026-10-15"}\n'
+    assert here.read_text(encoding="utf-8") == '{"day": "2026-10-15", "days": ["2026-10-15"]}\n'
     assert here_this_week.here(HAZEL, TODAY)
 
 

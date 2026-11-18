@@ -1395,14 +1395,25 @@ def here_not_yet(hearth, monkeypatch):
     monkeypatch.setattr(hearth.here_this_week, "mark", lambda who, today: None)
 
 
+# A person's days here, as here.json may keep them: the day alone (17 November 2026), or
+# since 18 November 2026 (art-and-colour, part 5) the day and the days of the last seven.
+HERE_KEPT = re.compile(r'\{"day": "\d{4}-\d{2}-\d{2}"'
+                       r'(?:, "days": \["\d{4}-\d{2}-\d{2}"(?:, "\d{4}-\d{2}-\d{2}"){0,6}\])?\}\n')
+
+
+def days_kept_not_yet(monkeypatch):
+    """here.json as it was before the branch art-and-colour, part 5 (18 November 2026): the
+    last day alone (here_this_week.DAYS_KEPT False)."""
+    import here_this_week
+    monkeypatch.setattr(here_this_week, "DAYS_KEPT", False)
+
+
 def here_files(data_dir):
-    """Each here.json under members/, each held to be the day alone and nothing else
+    """Each here.json under members/, each held to be days and nothing else
     (here_this_week.py): what a signed-in page may leave behind since 17 November 2026."""
-    import re
     found = set(data_dir.joinpath("members").glob("*/here.json"))
     for one in found:
-        assert re.fullmatch(r'\{"day": "\d{4}-\d{2}-\d{2}"\}\n',
-                            one.read_text(encoding="utf-8")), one
+        assert HERE_KEPT.fullmatch(one.read_text(encoding="utf-8")), one
     return found
 
 
@@ -1412,8 +1423,7 @@ def a_day_here(path):
     path = Path(path)
     if path.name != "here.json" or path.parent.parent.name != "members":
         return False
-    import re
-    assert re.fullmatch(r'\{"day": "\d{4}-\d{2}-\d{2}"\}\n', path.read_text(encoding="utf-8")), path
+    assert HERE_KEPT.fullmatch(path.read_text(encoding="utf-8")), path
     return True
 
 
@@ -1484,7 +1494,7 @@ def seasons_not_yet(monkeypatch):
 def art_not_yet(module, monkeypatch):
     """Everything as it was before the branch art-and-colour (the founder's request of 18
     November 2026): a colour chosen at any time and whether or not it shows
-    (seasons_not_yet), a person's pictures drawn and not uploaded (made_here.UPLOADS False),
+    (seasons_not_yet), the last day here alone (days_kept_not_yet), a person's pictures drawn and not uploaded (made_here.UPLOADS False),
     and every template that branch changed, as it stood on who-fix, kept
     in tests/pages_before_art and drawn in place of today's. Given an attend.py, or the
     hearth (and the attend.py it wakes), its switch art_and_colour is held off too.
@@ -1492,6 +1502,7 @@ def art_not_yet(module, monkeypatch):
     only."""
     from jinja2 import ChoiceLoader, FileSystemLoader
     seasons_not_yet(monkeypatch)
+    days_kept_not_yet(monkeypatch)
     import made_here
     for one in {made_here, getattr(module, "made_here", made_here)}:
         monkeypatch.setattr(one, "UPLOADS", False)  # a person draws pictures, as before

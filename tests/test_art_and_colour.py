@@ -663,3 +663,42 @@ def test_a_picture_taken_down_is_not_shown(making):
     one = a_photo_published(making.made_here)
     making.made_here.take_down("alder", one["id"], "2026-10-15T12-00-00Z")
     assert making.made_photo(one["id"]) is None
+
+
+# ---- 5. was here: the last 7 days -------------------------------------------------------------
+
+def here_now():
+    """here_this_week, read where the data is now."""
+    from conftest import load
+    load("members")
+    return load("here_this_week")
+
+
+def test_a_second_visit_before_the_morning_run_keeps_the_day_before(env, data_dir):
+    import daily_acts
+    here_this_week = here_now()
+    (data_dir / "members" / "alder").mkdir(parents=True)
+    here_this_week.mark("alder", date(2026, 11, 17))  # an evening
+    here_this_week.mark("alder", date(2026, 11, 18))  # again, before the run for the 17th
+    assert daily_acts.was_here("alder", date(2026, 11, 17))
+    assert daily_acts.was_here("alder", date(2026, 11, 18))
+    assert not daily_acts.was_here("alder", date(2026, 11, 16))
+    assert here_this_week.last_day("alder") == date(2026, 11, 18)
+    for day in range(19, 27):
+        here_this_week.mark("alder", date(2026, 11, day))
+    kept = read_json(data_dir / "members" / "alder" / "here.json")
+    assert kept["day"] == "2026-11-26" and len(kept["days"]) == 7  # the last seven, days only
+    assert kept["days"][0] == "2026-11-20" and set(kept) == {"day", "days"}
+
+
+def test_a_day_kept_alone_before_is_still_read(env, data_dir):
+    import json
+    import daily_acts
+    here_this_week = here_now()
+    (data_dir / "members" / "alder").mkdir(parents=True)
+    (data_dir / "members" / "alder" / "here.json").write_text(
+        json.dumps({"day": "2026-11-17"}) + "\n", encoding="utf-8")
+    assert daily_acts.was_here("alder", date(2026, 11, 17))
+    here_this_week.mark("alder", date(2026, 11, 18))
+    assert read_json(data_dir / "members" / "alder" / "here.json")["days"] == [
+        "2026-11-17", "2026-11-18"]

@@ -177,13 +177,19 @@ def letters_on(name, day):
 
 
 def was_here(name, day):
+    """Whether a person was here on a day: the last day kept, or since 18 November 2026 any
+    of the last seven (here_this_week.DAYS_KEPT), so that a visit on the next day before this
+    runs does not lose it."""
     import here_this_week
     try:
         held = json.loads((data() / "members" / name / here_this_week.RECORD).read_text(
             encoding="utf-8"))
     except (OSError, ValueError, AttributeError):
         return False
-    return isinstance(held, dict) and held.get("day") == day.isoformat()
+    if not isinstance(held, dict):
+        return False
+    days = held.get("days") if isinstance(held.get("days"), list) else []
+    return held.get("day") == day.isoformat() or day.isoformat() in days
 
 
 def times(n, one, many):

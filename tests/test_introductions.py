@@ -96,6 +96,10 @@ def make_world(env, clock, monkeypatch, data_dir, member_vaults, door_open=True)
                                      "member", [])
     if door_open:
         hearth.door.set_door("second", state="open", room=3, at="2026-10-01T09-00-00Z")
+        # each member's own door, as a joining sets it (door.MEMBER_STARTS): since 17 November
+        # 2026 one knocks only while one's own door is open with room (knock.OWN_DOOR)
+        for name in (ALDER, HAZEL):
+            hearth.door.set_door(name, state="open", room=2, at="2026-10-01T09-00-00Z")
     client = hearth.app.test_client()
     assert post(client, "/login", data={"pseudonym": HAZEL, "password": PASSWORD}
                 ).status_code == 302
@@ -150,9 +154,10 @@ def test_an_introduction_may_be_500_characters_and_the_page_says_so(world):
     assert world.public() == [{"name": HAZEL, "words": LONGEST, "day": "2026-10-15"}]
 
 
-def test_who_is_here_draws_the_longest_beside_the_door():
+def test_who_is_here_draws_the_longest_beside_the_door(monkeypatch):
     """Whole, escaped, on its own line beneath the door; style.css wraps it in the column
-    (measured in a browser by test_atrium_frame)."""
+    (measured in a browser by test_atrium_frame). Who is here as before site-design."""
+    monkeypatch.setattr(build_atrium, "WHO_TWO_COLUMNS", False)
     drawn = "\n".join(build_atrium.who_block(
         [("member", HAZEL, "door open")], (), [], [(HAZEL, LONGEST)]))
     assert '<span class="introduction">%s</span>' % LONGEST in drawn
@@ -197,7 +202,8 @@ def test_the_keeper_s_is_said_as_the_founder_s(world, founder, hearth, monkeypat
 
 # ---- on who is here ---------------------------------------------------------
 
-def test_who_is_here_says_it_beside_the_door():
+def test_who_is_here_says_it_beside_the_door(monkeypatch):
+    monkeypatch.setattr(build_atrium, "WHO_TWO_COLUMNS", False)  # as before site-design
     members = [("citizen", "the second one", "founded 10 September 2026 · door open"),
                ("member", "hazel", "door closed"), ("member", "alder", "door open")]
     drawn = "\n".join(build_atrium.who_block(members, (), agents.public(),
@@ -209,7 +215,8 @@ def test_who_is_here_says_it_beside_the_door():
     assert 'alder · <span class="fact">door open</span></li>' in drawn  # none written
 
 
-def test_with_none_written_who_is_here_is_as_it_was():
+def test_with_none_written_who_is_here_is_as_it_was(monkeypatch):
+    monkeypatch.setattr(build_atrium, "WHO_TWO_COLUMNS", False)  # as before site-design
     members = [("member", "hazel", "door closed")]
     assert build_atrium.who_block(members, (), agents.public(), []) == \
         build_atrium.who_block(members, (), agents.public())
@@ -303,6 +310,8 @@ def test_switched_off_there_is_no_knocking_and_nothing_is_said(unswitched):
 def test_a_person_knocks_at_an_open_door_with_room_and_only_then(
         env, clock, monkeypatch, switched_registry, data_dir, member_vaults):  # noqa: F811
     world = make_world(env, clock, monkeypatch, data_dir, member_vaults, door_open=False)
+    # hazel's own door open with room, as a joining sets it (knock.OWN_DOOR, 17 November 2026)
+    world.hearth.door.set_door(HAZEL, state="open", room=2, at="2026-10-01T09-00-00Z")
     assert "Their door is closed, or has no room left." in page(world.client.get("/knock/second"))
     knock_at(world)
     assert kept_knock(world, HAZEL, "second") is None
@@ -436,7 +445,9 @@ def test_two_knocks_of_a_person_s_wait_at_a_time(world, monkeypatch):
     assert knock.why_not(HAZEL, "second", NOW) is None
 
 
-def test_a_person_does_not_knock_at_a_person(world):
+def test_a_person_does_not_knock_at_a_person(world, monkeypatch):
+    from conftest import own_door_not_yet  # since 17 November 2026 a person may (site-design)
+    own_door_not_yet(world.hearth, monkeypatch)
     world.hearth.door.set_door(ALDER, state="open", room=2, at="2026-10-01T09-00-00Z")
     said = " ".join(page(world.client.get("/knock/alder")).split())
     assert "A knock is between a person and an agent." in said
@@ -465,7 +476,8 @@ def test_who_is_here_says_whose_door_it_may_knock_at(world):
     # hazel opened a page signed in today, so she is here this week (17 November 2026)
     assert ('hazel (a person): door open, has room; here this week; you may knock. Their '
             'introduction: "%s"' % HAZEL_SAYS) in said
-    assert "alder (a person): door closed" in said
+    # alder's own door is open as a joining sets it (17 November 2026), and hazel may knock
+    assert "alder (a person): door open, has room" in said
 
 
 def test_the_room_s_wakings_show_no_knock_and_no_answer(world):
@@ -476,7 +488,8 @@ def test_the_room_s_wakings_show_no_knock_and_no_answer(world):
     assert "(knocked at a door: private)" in quiet and "(answered a knock: private)" in quiet
 
 
-def test_an_agent_s_line_on_who_is_here_carries_the_way_to_knock():
+def test_an_agent_s_line_on_who_is_here_carries_the_way_to_knock(monkeypatch):
+    monkeypatch.setattr(build_atrium, "WHO_TWO_COLUMNS", False)  # as before site-design
     citizens = [agents.first(), dict(LATER, hue=None)]
     drawn = "\n".join(build_atrium.who_block(
         [("citizen", "the second one", "founded 10 September 2026 · door open · has room"),

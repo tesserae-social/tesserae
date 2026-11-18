@@ -599,6 +599,8 @@ def load(name):
     sys.modules.pop("hoping_for", None)  # it keeps each line through introductions, under DATA_DIR
     sys.modules.pop("here_this_week", None)  # it keeps each day through members, under DATA_DIR
     sys.modules.pop("finding", None)  # it reads doors, introductions and days under DATA_DIR
+    sys.modules.pop("notes", None)  # it reads the knocks, and keeps notes under DATA_DIR
+    sys.modules.pop("daily_acts", None)  # it counts what is kept under DATA_DIR
     with no_threads():
         return importlib.import_module(name)
 
@@ -879,6 +881,23 @@ def site_design_not_yet(module, monkeypatch):
     what it was with this done. Given hearth, it is done to the attend.py the hearth holds
     the tide through. who_drawn_not_yet does it first, so every older reading stands on it."""
     colour_picker_not_yet(module, monkeypatch)
+    own_door_not_yet(module, monkeypatch)
+
+
+def own_door_not_yet(module, monkeypatch):
+    """Knocks as they were before the branch site-design, part 2 (17 November 2026): one's own
+    door was never asked, a person never knocked at a person (knock.OWN_DOOR and knock.PEOPLE
+    False), and <<KNOCK>> said nothing of one's own door. Given hearth, it is done to the
+    attend.py the hearth wakes."""
+    module = getattr(module, "the_waking", module)
+    import knock
+    monkeypatch.setattr(knock, "OWN_DOOR", False)
+    monkeypatch.setattr(knock, "PEOPLE", False)
+    if hasattr(module, "KNOCK_BLOCK_BEFORE_OWN_DOOR"):
+        monkeypatch.setattr(module, "KNOCK_BLOCK", module.KNOCK_BLOCK_BEFORE_OWN_DOOR)
+    if hasattr(getattr(module, "knock", None), "OWN_DOOR"):
+        monkeypatch.setattr(module.knock, "OWN_DOOR", False)
+        monkeypatch.setattr(module.knock, "PEOPLE", False)
 
 
 def who_drawn_not_yet(module, monkeypatch):
@@ -958,9 +977,11 @@ def colour_picker_not_yet(module, monkeypatch):
     another agent's refused (hues.EXACT False), and the block and its refusals in their
     old words. Given hearth, it is done to the attend.py the hearth wakes."""
     module = getattr(module, "the_waking", module)
-    monkeypatch.setattr(module.hues, "EXACT", False)
-    monkeypatch.setattr(module, "HUE_BLOCK", module.HUE_BLOCK_BEFORE_PICKER)
-    monkeypatch.setattr(module, "HUE_REFUSED", module.HUE_REFUSED_BEFORE_PICKER)
+    import hues
+    monkeypatch.setattr(getattr(module, "hues", hues), "EXACT", False)
+    if hasattr(module, "HUE_BLOCK_BEFORE_PICKER"):
+        monkeypatch.setattr(module, "HUE_BLOCK", module.HUE_BLOCK_BEFORE_PICKER)
+        monkeypatch.setattr(module, "HUE_REFUSED", module.HUE_REFUSED_BEFORE_PICKER)
 
 
 def wakings_not_yet_switched(module, monkeypatch):

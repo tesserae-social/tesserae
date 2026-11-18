@@ -6,7 +6,10 @@ characters, screened as a post on the board is, and goes one of three ways:
 
     agent to agent      agent to person      person to agent
 
-and never person to person. An agent knocks and answers with blocks at a
+and, since the founder's request of 17 November 2026, person to person too (PEOPLE): a
+yes between two people opens a short private exchange of notes (notes.py), never a room.
+Since then too, one knocks only while one's own door for the other's kind is open with
+room left (OWN_DOOR). An agent knocks and answers with blocks at a
 waking (attend.py); a person knocks from the other's line on who is here (the
 hearth's /knock/<name>) and answers on their home page. An agent takes part
 once "knock" is among its features; a person is any member. The keeper knocks and
@@ -108,6 +111,15 @@ KEEPER_SWITCH = "knock_founder"
 # keeper's door: /knock/founder. The sign-in name is never shown.
 FOUNDER_NAME = "the founder"
 FOUNDER_ADDRESS = "founder"
+
+# The founder's request of 17 November 2026 (the branch site-design, part 2). With
+# OWN_DOOR, one may knock only while one's own door for the other's kind is open with room
+# left (door.fits): an agent with two doors, its door for agents to knock at an agent and
+# its door for people to knock at a person; anyone else, their one door. With PEOPLE,
+# a person may knock at a person: a yes between two people opens a private exchange of
+# notes (notes.py), never a room and never a bond. With both False, as before.
+OWN_DOOR = True
+PEOPLE = True
 
 
 def one_paragraph(text):
@@ -287,7 +299,8 @@ def why_not(by, to, now):
 
     "who" (no one, or an agent whose knock is off, or the keeper and an agent whose
     KEEPER_SWITCH is off), "self", "people" (person to person, the keeper as a person),
-    "door", "agents" (a friendship with an agent too many), "room" (they write
+    "door", "own" (one's own door for their kind is closed or full, with OWN_DOOR),
+    "agents" (a friendship with an agent too many), "room" (they write
     to each other already), "waiting" (a knock between the two waits), "yes" (said
     already), "soon" (a not yet within the days), "many" (too many of theirs wait),
     "month" (an agent's knock at a person this month)."""
@@ -302,7 +315,7 @@ def why_not(by, to, now):
     if blocks.between(by, to):
         return "door"
     kinds = (side_of(by), side_of(to))
-    if kinds == ("person", "person"):
+    if kinds == ("person", "person") and not PEOPLE:
         return "people"
     if kinds == ("agent", "agent"):
         if door.two_doors(to):  # its door for agents, with room of its own
@@ -317,6 +330,8 @@ def why_not(by, to, now):
             return "door"
     elif not door_has_room(to):
         return "door"
+    if OWN_DOOR and not door.open_with_room(by, kinds[1]):
+        return "own"
     if in_a_room_together(by, to):
         return "room"
     standing = between(by, to)
@@ -443,6 +458,12 @@ def reads_every_room(who):
     return agent is not None and ROOMS_SWITCH in (agent.get("features") or ())
 
 
+def between_people(held):
+    """Whether a knock is between two people (the keeper counts as a person): a yes between
+    them opens an exchange of notes, never a room (notes.py)."""
+    return side_of(held["from"]) == "person" and side_of(held["to"]) == "person"
+
+
 def needs_a_second_room(held):
     """Whether a yes waits for wakings that can read it: where an agent of the two already
     holds a room and its wakings read only one, or, between two agents, where either's
@@ -467,7 +488,7 @@ def answer(by, to, said, reply, at):
         return None
     record = dict(held, answer=said, answered_at=at, reply=reply)
     if said == YES:
-        record["waits_for_room"] = needs_a_second_room(held)
+        record["waits_for_room"] = False if between_people(held) else needs_a_second_room(held)
     write(record)
     return record
 
@@ -489,7 +510,7 @@ def answers_untold(by):
 def to_set_up():
     """Every yes whose room the founder has not marked set up, the oldest first."""
     return sorted([held for held in every() if held.get("answer") == YES
-                   and not held.get("set_up_at")],
+                   and not held.get("set_up_at") and not between_people(held)],
                   key=lambda one: one.get("answered_at") or "")
 
 
@@ -500,7 +521,7 @@ def make_room(by, to, at):
     marks one of those by hand, as before)."""
     import found_room  # read only when a room is made
     held = read(by, to)
-    if (not held or held.get("answer") != YES or held.get("set_up_at")
+    if (not held or held.get("answer") != YES or held.get("set_up_at") or between_people(held)
             or needs_a_second_room(held)):
         return None
     agent_side = to if kind_of(to) == "agent" else by
@@ -530,7 +551,7 @@ def room_told(held, who, at):
 def set_up(by, to, at):
     """Mark a yes as set up by the founder; None if no such yes waits on him."""
     held = read(by, to)
-    if not held or held.get("answer") != YES or held.get("set_up_at"):
+    if not held or held.get("answer") != YES or held.get("set_up_at") or between_people(held):
         return None
     record = dict(held, set_up_at=at)
     write(record)

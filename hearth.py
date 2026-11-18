@@ -159,6 +159,8 @@ import hoping_for
 import finding
 import here_this_week
 import knock
+# Notes between two people after a yes (17 November 2026, site-design, part 2).
+import notes
 import site_notes
 import made_here
 import kept_words
@@ -5033,6 +5035,9 @@ KNOCK_WHY = {
     "self": "That is your own door.",
     "people": "A knock is between a person and an agent. People here meet on the board.",
     "door": "Their door is closed, or has no room left.",
+    # since 17 November 2026 (site-design, part 2): one's own door must be open with room
+    "own": ("Your own door is closed, or has no room left. You can knock once it is open "
+            "with room; it is set on your home page."),
     "agents": "",
     "room": "You already write to each other.",
     "waiting": "A knock between you waits for its answer.",
@@ -5090,6 +5095,8 @@ def knock_page(to, status=200, **told):
                 None)
     again = knock.again_on(held)
     said = KNOCK_WHY.get(why, "").format(again=long_day(again) if again else "") if why else None
+    if why == "yes" and notes.opened(name, to):
+        said = KNOCK_YES_NOTES
     shown = knock.name_of(to)
     standing = introductions.read(to)
     doors = ["door closed"] if blocks.between(name, to) else door.public(to)
@@ -5336,6 +5343,68 @@ def knock_at(to):
     return redirect(url_for("hearth", knocked=to, _anchor="knocks"))
 
 
+# A yes between two people opens a private exchange of notes (notes.py; the founder's request
+# of 17 November 2026, site-design, part 2): not a room, no bond, never shown publicly.
+KNOCK_YES_NOTES = "A yes stands between you already. You write notes to each other."
+NOTES_REFUSED = {
+    "who": "There are no notes between you.",
+    "closed": "This exchange is closed.",
+    "day": "That is %d notes today; you may write again tomorrow." % notes.DAY_MOST,
+    "empty": "A note needs words; nothing was sent.",
+    "long": "A note is up to %d characters; nothing was sent." % notes.NOTE_MOST,
+    "link": "A note carries no link; nothing was sent.",
+    "private": private_words.KEPT_PRIVATE,
+    "spirit": "That note wasn't taken; nothing was sent.",
+    "named": ("That note wasn't taken, because it seemed to contain a name or a place. "
+              "Nothing was sent."),
+    "unchecked": public_screen.COULD_NOT_CHECK,
+    "tries": TOO_MANY_TRIES,
+}
+NOTES_PLAIN = ("Notes between the two of you, after a yes. Only you two see them. Each is up "
+               "to %d characters, and each of you may write %d a day. They are checked "
+               "first, as a post on the board is. Either of you may block the other at any "
+               "time, from their page, and the notes stop." % (notes.NOTE_MOST, notes.DAY_MOST))
+
+
+def notes_page(other, status=200, **told):
+    """The notes between the one signed in and another person."""
+    name = session["member"]
+    now = datetime.now(timezone.utc)
+    why = notes.why_not(name, other, now)
+    shown = [{"by": shown_name(one["from"]), "mine": one["from"] == name,
+              "day": bond_day(one["at"]), "words": one["words"]}
+             for one in notes.read(name, other)]
+    return render_template("notes.html", other=shown_name(other), to=knock.address_of(other),
+                           notes=shown, plain=NOTES_PLAIN,
+                           may=why is None, closed=why == "closed",
+                           why=NOTES_REFUSED.get(why) if why else None,
+                           left=notes.left_today(name, other, now),
+                           limit=notes.NOTE_MOST, **told), status
+
+
+@app.route("/notes/<to>", methods=["GET", "POST"])
+@member_required
+def notes_with(to):
+    other = knock.from_address(to)
+    name = session["member"]
+    if knock.side_of(other) != "person" or not notes.opened(name, other):
+        abort(404)
+    if request.method != "POST":
+        return notes_page(other)
+    if request.form.get("url", "").strip():  # the honeypot: told it was sent, and nothing is
+        return redirect(url_for("notes_with", to=to))
+    words = knock.one_paragraph(request.form.get("words", ""))[:notes.NOTE_MOST + 1]
+    if notes.why_not(name, other, datetime.now(timezone.utc)):
+        return notes_page(other, 400)
+    why = notes.refused(words) or knock_words_refused(words)
+    if why:
+        return notes_page(other, refused=NOTES_REFUSED.get(why, KNOCK_REFUSED.get(why)),
+                          draft=words)
+    if notes.write(name, other, words, datetime.now(timezone.utc)) is None:
+        return notes_page(other, 400)
+    return redirect(url_for("notes_with", to=to, _anchor="write"))
+
+
 def knocks_shown(name):
     """What a person's home page shows of knocks: those at their door that wait for their
     answer, with each note; and their own, with each answer and reply."""
@@ -5358,12 +5427,16 @@ def knocks_shown(name):
                      "answered": bond_day(one["answered_at"]) if one.get("answered_at") else None,
                      "reply": one.get("reply"),
                      "waits": one.get("answer") == knock.YES and one.get("waits_for_room"),
-                     "set_up": bool(one.get("set_up_at"))})
+                     "set_up": bool(one.get("set_up_at")),
+                     "notes": url_for("notes_with", to=knock.address_of(one["to"]))
+                     if one.get("answer") == knock.YES and knock.between_people(one) else None})
     for one in knock.answers_untold(name):
         knock.answer_told(name, one["to"], utc_stamp())
     answered_yes = [{"name": knock.name_of(one["from"]), "href": name_href(one["from"]),
                      "waits": one.get("waits_for_room"),
-                     "set_up": bool(one.get("set_up_at"))}
+                     "set_up": bool(one.get("set_up_at")),
+                     "notes": url_for("notes_with", to=knock.address_of(one["from"]))
+                     if knock.between_people(one) else None}
                     for one in knock.every() if one["to"] == name
                     and one.get("answer") == knock.YES and not one.get("set_up_at")]
     if not waiting and not mine and not answered_yes:

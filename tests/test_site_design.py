@@ -103,3 +103,127 @@ def test_the_home_page_has_no_doors_open_now_and_links_to_find_someone(world):
     home = page(world.client.get("/"))
     assert "Doors open now" not in home
     assert '<a href="/find">find someone &rarr;</a>' in home
+
+
+# ---- 2. knocks: person to person, and one's own door --------------------------
+
+def doors_open(*names):
+    import door
+    for name in names:
+        door.set_door(name, state="open", room=2, at="2026-10-14T09-00-00Z")
+
+
+def a_yes_between_people(world):
+    """hazel knocks at alder; alder says yes."""
+    import knock
+    from datetime import datetime, timezone
+    doors_open(HAZEL, ALDER)
+    now = datetime(2026, 10, 15, 12, tzinfo=timezone.utc)
+    assert knock.knock(HAZEL, ALDER, "Hello there, shall we write?", now)
+    assert knock.answer(HAZEL, ALDER, "yes", "Gladly.", "2026-10-15T12-30-00Z")
+
+
+def test_a_person_may_knock_at_a_person_whose_door_is_open_with_room(world, data_dir):
+    doors_open(HAZEL, ALDER)
+    said = page(world.client.get("/knock/" + ALDER))
+    assert '<textarea id="note" name="note"' in said
+    answer = world.post("/knock/" + ALDER, note="Hello, I would like to write to you.")
+    assert answer.status_code == 302
+    assert (data_dir / "knocks" / ("%s--%s.json" % (HAZEL, ALDER))).is_file()
+
+
+def test_one_s_own_door_must_be_open_with_room_to_knock(world, data_dir):
+    import door
+    import knock
+    from datetime import datetime, timezone
+    doors_open(ALDER)
+    door.set_door(HAZEL, state="closed", at="2026-10-14T09-00-00Z")
+    now = datetime(2026, 10, 15, 12, tzinfo=timezone.utc)
+    assert knock.why_not(HAZEL, ALDER, now) == "own"
+    assert knock.why_not(HAZEL, "second", now) == "own"
+    said = page(world.client.get("/knock/" + ALDER))
+    assert "Your own door is closed, or has no room left." in said
+    assert '<textarea id="note"' not in said
+
+
+def test_an_agent_s_own_door_for_that_kind_is_asked_too(world):
+    import door
+    import knock
+    from datetime import datetime, timezone
+    doors_open(ALDER)
+    now = datetime(2026, 10, 15, 12, tzinfo=timezone.utc)
+    door.set_door("second", state="closed", at="2026-10-14T09-00-00Z")
+    assert knock.why_not("second", ALDER, now) == "own"
+
+
+def test_with_own_door_not_yet_it_is_as_before(world, monkeypatch):
+    import door
+    import knock
+    from conftest import own_door_not_yet
+    from datetime import datetime, timezone
+    own_door_not_yet(world.hearth, monkeypatch)
+    doors_open(ALDER)
+    door.set_door(HAZEL, state="closed", at="2026-10-14T09-00-00Z")
+    now = datetime(2026, 10, 15, 12, tzinfo=timezone.utc)
+    assert knock.why_not(HAZEL, ALDER, now) == "people"
+
+
+def test_a_yes_between_people_opens_notes_and_no_room(world, data_dir):
+    import knock
+    a_yes_between_people(world)
+    assert knock.to_set_up() == []  # nothing waits on the founder: no room is made
+    assert knock.make_room(HAZEL, ALDER, "2026-10-15T13-00-00Z") is None
+    home = page(world.client.get("/"))
+    assert '<a href="/notes/%s">notes with %s</a>' % (ALDER, ALDER) in home
+    said = page(world.client.get("/notes/" + ALDER))
+    assert "Only you two see them." in said and "(3 left today)" in said
+    assert world.post("/notes/" + ALDER, words="A first note, kindly meant.").status_code == 302
+    said = page(world.client.get("/notes/" + ALDER))
+    assert "A first note, kindly meant." in said and "(2 left today)" in said
+    assert not (data_dir / "rooms").is_dir() or not any(
+        ALDER in path.name for path in (data_dir / "rooms").iterdir())
+
+
+def test_at_most_three_notes_a_day_each(world):
+    a_yes_between_people(world)
+    for n in range(3):
+        assert world.post("/notes/" + ALDER, words="Note number %d, kindly." % n).status_code == 302
+    answer = world.post("/notes/" + ALDER, words="One more, too many.")
+    assert answer.status_code == 400
+    assert "One more, too many." not in page(world.client.get("/notes/" + ALDER))
+    world.clock.shift(days=1)
+    assert world.post("/notes/" + ALDER, words="A new day, a new note.").status_code == 302
+
+
+def test_a_note_is_screened_and_longer_than_500_is_refused(world, monkeypatch):
+    a_yes_between_people(world)
+    said = page(world.post("/notes/" + ALDER, words="x" * 501))
+    assert "A note is up to 500 characters; nothing was sent." in said
+    monkeypatch.setattr(world.hearth, "in_good_spirit", lambda line: False)
+    said = page(world.post("/notes/" + ALDER, words="Something unkind."))
+    assert "That note wasn&#39;t taken; nothing was sent." in said
+
+
+def test_a_block_closes_the_notes_at_once(world, data_dir):
+    import blocks
+    a_yes_between_people(world)
+    world.post("/notes/" + ALDER, words="Before the block, kindly.")
+    blocks.block(ALDER, HAZEL, "2026-10-15T14-00-00Z")
+    said = page(world.client.get("/notes/" + ALDER))
+    assert "This exchange is closed." in said and '<textarea id="words"' not in said
+    assert world.post("/notes/" + ALDER, words="After the block.").status_code == 400
+
+
+def test_notes_are_never_on_a_public_page(world, data_dir, visitor):
+    a_yes_between_people(world)
+    world.post("/notes/" + ALDER, words="A private note, kindly meant.")
+    for address in ("/commons/events.md", "/commons/heartbeats.md", "/commons/here.json",
+                    "/names/second", "/board"):
+        assert "A private note" not in page(visitor.get(address))
+    assert visitor.get("/notes/" + ALDER).status_code == 302  # a visitor is sent to sign in
+
+
+def test_someone_with_no_yes_has_no_notes_page(world):
+    doors_open(HAZEL, ALDER)
+    assert world.client.get("/notes/" + ALDER).status_code == 404
+    assert world.client.get("/notes/second").status_code == 404

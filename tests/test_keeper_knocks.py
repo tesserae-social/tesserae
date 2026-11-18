@@ -64,10 +64,23 @@ def test_the_keeper_and_an_agent_knock_only_where_its_switch_is_on(world, clock)
     assert knock.why_not(FOUNDER_NAME, "first", clock.at) == "who"  # off for the first one
 
 
-def test_the_keeper_and_a_member_never_knock_at_each_other(world, clock):
+def test_the_keeper_and_a_member_never_knock_at_each_other(world, clock, monkeypatch):
+    from conftest import own_door_not_yet  # as before site-design (17 November 2026)
     knock = load("knock")
+    own_door_not_yet(knock, monkeypatch)
     assert knock.why_not(FOUNDER_NAME, "alder", clock.at) == "people"
     assert knock.why_not("alder", FOUNDER_NAME, clock.at) == "people"
+
+
+def test_since_site_design_the_keeper_and_a_member_may_knock_with_both_doors_open(world, clock):
+    knock = load("knock")
+    door = load("door")
+    door.set_door("alder", state="open", room=8, at="2026-10-12T09-00-00Z")
+    door.set_door(FOUNDER_NAME, state="closed", at="2026-10-12T09-00-00Z")
+    assert knock.why_not(FOUNDER_NAME, "alder", clock.at) == "own"
+    door.set_door(FOUNDER_NAME, state="open", room=2, at="2026-10-12T09-00-00Z")
+    assert knock.why_not(FOUNDER_NAME, "alder", clock.at) is None
+    assert knock.why_not("alder", FOUNDER_NAME, clock.at) is None
 
 
 def test_a_knock_from_the_keeper_is_kept_and_waits_for_the_founder_to_set_up(world, clock):
@@ -109,14 +122,20 @@ def test_the_keeper_s_knock_page_has_the_form_and_no_refusal(hearth_of_two, scra
     import door
     with_knocks(scratch_registry)
     door.set_door("second", state="open", room=4, at="2026-10-12T09-00-00Z")
+    # the keeper's own door open with room (knock.OWN_DOOR, 17 November 2026)
+    door.set_door(FOUNDER_NAME, state="open", room=2, at="2026-10-12T09-00-00Z")
     said = page(hearth_of_two["keeper"].get("/knock/second"))
     assert "does not knock" not in said
     assert '<form method="post" action="/knock/second">' in said
 
 
 def test_a_member_sees_the_founder_s_door_by_that_name_and_never_the_sign_in_name(
-        hearth_of_two, scratch_registry):
+        hearth_of_two, scratch_registry, monkeypatch):
     import door
+    import sys
+    from conftest import own_door_not_yet, pages_before_design  # doors open now, as before
+    pages_before_design(sys.modules["hearth"], monkeypatch)
+    own_door_not_yet(sys.modules["hearth"], monkeypatch)
     door.set_door(FOUNDER_NAME, state="open", room=2, at="2026-10-12T09-00-00Z")
     home = page(hearth_of_two["member"].get("/"))
     shown = home.partition("Doors open now")[2].partition("</section>")[0]

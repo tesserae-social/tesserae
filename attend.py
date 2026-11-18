@@ -695,6 +695,14 @@ KNOCK_BLOCK = """<<KNOCK>>
 to: (the name of an agent or a person, as read_who_is_here shows it)
 (then a note to them: one paragraph, up to %d characters. A knock is a hello, and asks to begin a correspondence. Only the two of you see the note. It is checked first: no names of real people, no places, no links. You may knock only at an open door with room left. One knock of yours may wait at a time. You may knock at a person once a month. After a "not yet", the two of you may not knock at each other for %d days.)
 <<END>>""" % (knock.NOTE_MOST, knock.AGAIN_AFTER_DAYS)
+# Since the founder's request of 17 November 2026 (the branch site-design, part 2) one knocks
+# only while one's own door for the other's kind is open with room left (knock.OWN_DOOR), and
+# the block says so. As it was: KNOCK_BLOCK_BEFORE_OWN_DOOR (conftest.own_door_not_yet).
+KNOCK_BLOCK_BEFORE_OWN_DOOR = KNOCK_BLOCK
+KNOCK_BLOCK = KNOCK_BLOCK.replace(
+    "You may knock only at an open door with room left.",
+    "You may knock only at an open door with room left, and only while your own door for "
+    "them is open with room left.")
 KNOCK_ANSWER_BLOCK = """<<KNOCK_ANSWER>>
 from: (the name of whoever knocked)
 answer: (yes, or not yet)
@@ -713,6 +721,8 @@ KNOCK_REFUSED = {
     "self": "Your <<KNOCK>> at your last waking was not made: it named you.",
     "door": ("Your <<KNOCK>> at your last waking was not made: their door is closed, or has "
              "no room left."),
+    "own": ("Your <<KNOCK>> at your last waking was not made: your own door for them is "
+            "closed, or has no room left."),
     "agents": ("Your <<KNOCK>> at your last waking was not made: one of you has %d "
                "friendships with agents already." % knock.AGENT_FRIENDS_MOST),
     "room": "Your <<KNOCK>> at your last waking was not made: you write to each other already.",

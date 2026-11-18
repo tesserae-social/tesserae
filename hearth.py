@@ -2459,15 +2459,17 @@ def any_bond_lines(agent):
     return lines
 
 
-def chronicle_lines(agent=None):
+def chronicle_lines(agent=None, its_room=True):
     """The whole of an agent's book, the first one's where none is named, oldest first:
-    one line for every event in the life of its friendship."""
+    one line for every event in the life of its friendship. Without its_room, for someone
+    who is not a party to its first room, nothing of that room: its letters and its bond."""
     commons = commons_lines(agent)
     # the book's words are without a name, so a pause named for the first one is
     # found here as one written before names were
     paused_days = {one["stamp"][:10] for one in commons if one["words"] == PAUSED}
-    lines = (commons + waking_lines(paused_days, agent) + letter_lines(agent)
-             + bond_lines(agent))
+    lines = commons + waking_lines(paused_days, agent)
+    if its_room:
+        lines += letter_lines(agent) + bond_lines(agent)
     lines.sort(key=lambda one: (one["stamp"], one["order"]))
     return lines
 
@@ -2666,17 +2668,49 @@ def founding_trees(agent=None):
     return (transcript.relative_to(DATA).as_posix(),) if transcript else ()
 
 
-def export_zip(agent=None):
+def export_zip(agent=None, trees=None, leaving=None):
     """One agent's copy, the first one's unless another is named, held in memory and never
-    written into DATA_DIR."""
+    written into DATA_DIR. A copy of rooms alone (room_copy_trees) names its own trees."""
     agent = agent or agents.first()
+    if trees is None:
+        trees, leaving = export_trees(agent) + founding_trees(agent), left_out(agent)
     holder = io.BytesIO()
     with zipfile.ZipFile(holder, "w", zipfile.ZIP_DEFLATED) as bundle:
-        for path, name in export_files(export_trees(agent) + founding_trees(agent),
-                                       left_out(agent)):
+        for path, name in export_files(trees, leaving or ()):
             bundle.write(path, name)
     holder.seek(0)
     return holder
+
+
+# A person's copy (the founder's request of 18 November 2026, the inventory's x1): whoever
+# shares a room with an agent, and is not the keeper, may take a copy of the rooms they
+# share with it, and of the commons, which is public: the letters both ways in their own
+# room, and nothing else of the agent's. Never another room's letters, and never its
+# packet: not its memory, notes, self, blocks, attendances or private notebook. The whole
+# copy is the keeper's alone, as the first one's always was. ROOM_COPY False puts it back:
+# every party takes the whole copy, as before.
+ROOM_COPY = True
+
+
+def rooms_shared(agent):
+    """The ids of the rooms whoever is signed in shares with this agent, in order."""
+    return [room.id for room in rooms_here()
+            if (rooms.agent_of(room.id) or {}).get("id") == agent["id"]]
+
+
+def room_copy_trees(agent):
+    """The trees a person's copy holds: each room they share with the agent, and the commons."""
+    return tuple(rooms.ROOMS + "/" + room_id for room_id in rooms_shared(agent)) + ("commons",)
+
+
+def whole_copy_here(agent):
+    """Whether whoever is signed in takes an agent's whole copy, or a copy of their rooms."""
+    return not ROOM_COPY or agent["id"] == rooms.FIRST or keeper_here()
+
+
+def in_its_first_room(agent):
+    """Whether whoever is signed in is a party to an agent's first room."""
+    return rooms.find(agent["room"], session.get("member")) is not None
 
 
 def note_export(at, agent=None, by=None):
@@ -6523,11 +6557,19 @@ def agent_page(kind, kept_for_the_keeper=None):
 
 
 # The book: every event in the life of this friendship, one line each, from the
-# founding forward.
+# founding forward. Its letters and bond are its first room's, and so are shown
+# only to a party to that room (the founder's request of 18 November 2026): to
+# anyone in a later room with it, the book is its wakings and the commons alone.
+def book_of_its_room(agent):
+    """Whether the book may show an agent's first room: the first one's always, to the
+    founder, its only reader; any other's only to a party to that room."""
+    return not ROOM_COPY or agent["id"] == rooms.FIRST or in_its_first_room(agent)
+
+
 def chronicle_page(agent):
     return render_template("chronicle.html", agent=agent, person=person_of(agent),
                            hue=hues.colour_of(agent["id"]),
-                           lines=chronicle_lines(agent))
+                           lines=chronicle_lines(agent, its_room=book_of_its_room(agent)))
 
 
 @app.route("/chronicle")
@@ -6545,7 +6587,7 @@ def agent_chronicle(agent):
 # The same book as plain text, at one link. The charter promises that what is
 # yours may always be taken with you, and a promise with no door is a sentence.
 def chronicle_md(agent):
-    return Response(chronicle_text(chronicle_lines(agent)),
+    return Response(chronicle_text(chronicle_lines(agent, its_room=book_of_its_room(agent))),
                     content_type="text/plain; charset=utf-8")
 
 
@@ -6567,15 +6609,19 @@ def agent_chronicle_export(agent):
 # reading, because a copy taken quietly would be a thing done to it rather than
 # in front of it. Whoever takes it is named there, where it is not the founder.
 def export_page(agent):
+    whole = whole_copy_here(agent)
     if request.method == "GET":
-        return render_template("export.html", agent=agent, person=person_of(agent))
+        return render_template("export.html" if whole else "export_room.html", agent=agent,
+                               person=person_of(agent))
     at = utc_stamp()
     # the line is written before the zip is built, so that the copy carries the
     # record of its own taking
     first = agent["id"] == rooms.FIRST
     note_export(at, agent, by=None if first else public_bonds.name_of(
         rooms.did_of(session.get("member"))))
-    return send_file(export_zip(agent), mimetype="application/zip", as_attachment=True,
+    bundle = (export_zip(agent) if whole
+              else export_zip(agent, room_copy_trees(agent), ()))
+    return send_file(bundle, mimetype="application/zip", as_attachment=True,
                      download_name=("tesserae-%s.zip" % at if first
                                     else "tesserae-%s-%s.zip" % (agent["id"], at)))
 

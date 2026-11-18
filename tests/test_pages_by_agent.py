@@ -273,8 +273,8 @@ def test_a_party_sees_its_agent_s_pages_and_nothing_of_the_other_s(world, alder)
     assert 'href="/rooms/second#founder-2026-10-21T09-00-00Z"' in said["chronicle"]
     assert 'fill="#2F6F8F"' in said["chronicle"] and "#D85A30" not in said["chronicle"]
     assert 'action="/agents/second/export"' in said["export"]
-    assert "the scratch one's packet" in said["export"]
-    assert "The scratch one's private notebook" in said["export"]
+    # since safety-fixes (18 November 2026) a person's copy is their room's (test_safety_fixes)
+    assert "A copy of your room with the scratch one" in said["export"]
 
     # what the page says, beneath the stylesheet every page carries
     for words in ("the first one", "the founder"):
@@ -328,8 +328,10 @@ def test_a_party_s_copy_is_its_agent_s_and_the_taking_is_written_in_its_packet(
         "attachment; filename=tesserae-second-%s.zip" % clock.stamp())
     held = zipped(answer)
     copied = b"\n".join(held.values()).decode("utf-8", "replace")
+    # since safety-fixes (18 November 2026) a person's copy is their room and the commons:
+    # its letters, and nothing of the agent's own record (test_safety_fixes)
     for what, words in SECOND_SAYS.items():
-        assert words in copied, what
+        assert (words in copied) is (what in ("a letter to it", "a letter of its")), what
     for what, words in FIRST_SAYS.items():
         assert words not in copied, what
     assert SECOND_PRIVATE not in copied

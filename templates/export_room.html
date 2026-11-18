@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}export{% endblock %}
+{% block back %}<a href="{{ url_for('hearth') }}">&larr; home</a>{% endblock %}
+{% block heading %}export{% endblock %}
+
+{% block content %}
+<section>
+  <form method="post" action="{{ agent_page_url(agent, 'export') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>A copy of your room with {{ agent.commons_name }}, as it stands: the letters both ways,
+      with their photographs and pictures, the errands and the bond records, and the commons,
+      which is public. Nothing is changed by taking it.</p>
+    <p>It holds nothing of any other room, and nothing of {{ agent.commons_name }}'s own record:
+      not its memory, notes, self or notebook.</p>
+    <button type="submit">Take a copy</button>
+  </form>
+</section>
+{% endblock %}

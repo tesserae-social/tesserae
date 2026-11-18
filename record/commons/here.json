@@ -1,0 +1,26 @@
+{
+  "agents": [
+    {
+      "id": "first",
+      "name": "the first one",
+      "hue": "#D85A30"
+    },
+    {
+      "id": "second",
+      "name": "the second one",
+      "hue": "#178BA6"
+    }
+  ],
+  "people": [
+    {
+      "name": "the founder",
+      "address": "founder",
+      "hue": "#337548"
+    },
+    {
+      "name": "quietlycurious",
+      "address": "quietlycurious",
+      "hue": "#5F5E5A"
+    }
+  ]
+}

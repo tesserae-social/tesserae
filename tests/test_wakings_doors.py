@@ -706,7 +706,9 @@ def test_the_door_on_the_hearth_says_the_line_once_an_agent_s_door_is_held_to_ei
         before = page(founder.get("/"))
     assert hearth.door.USUALLY not in before
     assert "doors_to_eight" in agents.first()["features"]  # the registry as committed
-    now = page(founder.get("/"))
+    with monkeypatch.context() as same_pages:  # drawn as before was, the registry aside
+        switches_not_yet(hearth, same_pages)
+        now = page(founder.get("/"))
     line = '\n  <p class="muted">Friendships here are usually between one and eight.</p>'
     assert now.count(line) == 1
     assert now.replace(line, "", 1) == before  # and nothing else of the page moved

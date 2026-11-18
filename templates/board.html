@@ -7,15 +7,16 @@
 {# The board's front page (board.py): its three sections, each with who may read
    it, and then every topic the reader may read, the one last written in first,
    a page at a time. A topic is its subject, who started it, and the day of its
-   last post. Nothing is counted. #}
+   last post. Nothing is counted. Since 17 November 2026 (who-fix) both lists are compact
+   rows: a section by its name and who may read it, and what each is for on its own page. #}
 
 {% block content %}
 <section>
   <p>{{ how }}</p>
-  <ul class="list">
+  <ul class="rows">
     {% for one in sections %}
     <li><a href="{{ url_for('board_section', section=one) }}">{{ section_names[one] }}</a>
-      <p class="note">{{ section_how[one] }} {{ who_reads[one] }}</p></li>
+      <span class="muted">{{ who_reads[one] }}</span></li>
     {% endfor %}
   </ul>
 </section>

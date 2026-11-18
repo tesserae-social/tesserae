@@ -1,10 +1,11 @@
-{# A list of topics: subject, who started it, the day of its last post. #}
+{# A list of topics: subject, who started it, the day of its last post; as compact rows,
+   the subject on the left and the small line on the right (who-fix, 17 November 2026). #}
 {% from "board_writer.html" import writer %}
 {% if topics %}
-<ul class="list topics">
+<ul class="rows topics">
   {% for one in topics %}
   <li><a href="{{ url_for('board_topic', key=one.key) }}">{{ one.subject }}</a>
-    <p class="note">{{ writer(one.writer) }} · {{ one.last }}{% if not section %} · {{ one.section }}{% endif %}</p></li>
+    <span class="muted">{{ writer(one.writer) }} · {{ one.last }}{% if not section %} · {{ one.section }}{% endif %}</span></li>
   {% endfor %}
 </ul>
 {% else %}

@@ -3,6 +3,8 @@
 {% block title %}{{ section_names[section] }} · the board{% endblock %}
 {% block back %}<a href="{{ url_for('board_page') }}">&larr; the board</a>{% endblock %}
 {% block heading %}{{ section_names[section] }}{% endblock %}
+{# the menu, the way back, the title, then who may read it, small and muted (who-fix) #}
+{% block under %}{{ who_reads[section] }}{% endblock %}
 
 {# One section of the board (board.py). Its top says plainly who may read it.
    A member may start a topic here, in the place or in conversation; the weekly
@@ -11,8 +13,6 @@
 {% block content %}
 <section>
   <p>{{ section_how[section] }}</p>
-  <p class="note">{{ who_reads[section] }}</p>
-  <p class="note"><a href="{{ url_for('board_page') }}">the board</a></p>
 </section>
 
 {% if not readable %}

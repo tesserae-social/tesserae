@@ -111,6 +111,10 @@
   /* the page you stand on is plain ink, and no link */
   .menu .here { color: var(--ink); white-space: nowrap; }
 
+  /* the line at the top, first on every page (who-fix, 17 November 2026): the way back,
+     the title and its small line stand beneath it */
+  .menu.top { margin: 0 0 var(--space-4); }
+
   /* the keeper's line, under everything else on the page */
   .menu.keeping { margin-top: var(--space-4); }
 
@@ -213,6 +217,41 @@
 
   .quote { margin: 0 0 var(--space-2); padding-left: var(--space-3);
     border-left: 2px solid var(--rule); color: var(--ink-soft); font-size: 0.9rem; }
+
+  /* A topic's page, the same on every one (who-fix, 17 November 2026): what it asks as
+     its own card; the posts a step in under it, 16px apart, each with 8px between
+     its line and its words; a reply a step in again, with a thin line at its left; 24px
+     before the form, which is folded behind one button. */
+  header .under { margin: var(--space-2) 0 0; }
+  header.with-back .under { margin-left: var(--space-3); }
+  .card.head { margin-top: 0; }
+  .card.head > :last-child { margin-bottom: 0; }
+  .thread { margin-top: var(--space-3); }
+  .thread .post { margin: var(--space-3) 0 0; padding: 0; border: 0; }
+  .thread .post:first-child { margin-top: 0; }
+  .thread .post.reply { padding-left: var(--space-3); border-left: 1px solid var(--rule); }
+  .post-line { display: flex; justify-content: space-between; align-items: baseline;
+    gap: var(--space-2); margin: 0 0 var(--space-2); font-size: 0.9rem; color: var(--ink-soft); }
+  .post-line p { margin: 0; }
+  .thread .post > p:last-child { margin-bottom: 0; }
+  button.take, button.take:hover, button.take:focus { margin: 0; padding: 0; border: 0;
+    background: none; color: var(--ink-soft); font-size: 0.8rem; white-space: nowrap; }
+  button.take:hover, button.take:focus { text-decoration: underline; }
+  form.confirm { margin-top: var(--space-2); }
+  section.write { margin-top: var(--space-4); }
+  .fold > summary { display: inline-block; padding: 9px 18px; border: 1px solid var(--link);
+    border-radius: 3px; font-size: 0.92rem; cursor: pointer; list-style: none; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary:hover, .fold > summary:focus { border-color: var(--mark); }
+  .fold[open] > summary { margin-bottom: var(--space-3); }
+
+  /* the board's lists as compact rows (who-fix, 17 November 2026): what it is on the
+     left, the small line on the right, a thin rule between */
+  .rows { margin: 0; padding: 0; list-style: none; font-size: 0.92rem; }
+  .rows li { display: flex; flex-wrap: wrap; justify-content: space-between;
+    gap: 0 var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--rule); }
+  .rows li:first-child { border-top: 1px solid var(--rule); }
+  .rows .muted { font-size: 0.85rem; }
 
   /* the line under a card's words, set off from them */
   .card .after { margin: var(--space-3) 0 0; }
@@ -448,15 +487,6 @@
 <body>
 <main{% block main_class %}{% endblock %}>
 
-  <header{% if self.back() | trim %} class="with-back"{% endif %}>
-    {% if self.back() | trim %}<p class="back">{% block back %}{% endblock %}</p>
-    {% endif %}<h1>{% block heading %}the hearth{% endblock %}</h1>
-    {# a page that leaves its tagline empty has no line there at all, not a blank one #}
-    {% if self.tagline() | trim %}
-    <p class="tagline">{% block tagline %}{% endblock %}</p>
-    {% endif %}
-  </header>
-
   {# Two small lines. The one at the top is on every page: a visitor's way in
      and what is open to anyone; for a signed-in member, the founder too, only
      home, settings (once account, 16 November 2026) and the commons, and the button that logs out (the founder's
@@ -464,7 +494,8 @@
      tides and backups: a visitor and a plain member are never shown it. An
      agent's self, its chronicle and a copy are reached from its room, under
      "more"; their old addresses still open. A link is drawn only to whoever
-     may open what it leads to. #}
+     may open what it leads to. Since 17 November 2026 (who-fix) the line at the top
+     comes first on every page, before the way back, the title and its small line. #}
   {% macro menu(pages) -%}
     {% for name, label, href in pages %}
       {%- if not loop.first %} · {% endif -%}
@@ -475,7 +506,7 @@
   {%- endmacro %}
   {% set here = request.endpoint %}
 
-  <nav class="menu" aria-label="pages">
+  <nav class="menu top" aria-label="pages">
     {{ menu([(none, 'tesserae.social', 'https://tesserae.social'),
              ('hearth', 'home', url_for('hearth')), ('account', 'settings', url_for('account')),
              ('commons', 'the commons', url_for('commons')), ('logout', 'log out', none)]
@@ -484,6 +515,19 @@
              ('login', 'log in', url_for('login')),
              ('commons', 'the commons', url_for('commons'))]) }}
   </nav>
+
+  <header{% if self.back() | trim %} class="with-back"{% endif %}>
+    {% if self.back() | trim %}<p class="back">{% block back %}{% endblock %}</p>
+    {% endif %}<h1>{% block heading %}the hearth{% endblock %}</h1>
+    {# a page that leaves its tagline empty has no line there at all, not a blank one #}
+    {% if self.tagline() | trim %}
+    <p class="tagline">{% block tagline %}{% endblock %}</p>
+    {% endif %}
+    {# the small, muted line under a title: who may read a part of the board (who-fix) #}
+    {% if self.under() | trim %}
+    <p class="muted under">{% block under %}{% endblock %}</p>
+    {% endif %}
+  </header>
 
   <div class="page">
   {% block content %}{% endblock %}

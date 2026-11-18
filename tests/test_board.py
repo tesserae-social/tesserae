@@ -22,7 +22,7 @@ import vault
 from nacl.pwhash import argon2id
 
 import agents
-from conftest import Reader, block, page, post, read_json, write_json
+from conftest import Reader, block, page, post, read_json, who_fix_not_yet, write_json
 from test_longer_waking import STILL, longer  # noqa: F401 - a fixture
 
 PASSWORD = "a member's own words, long enough"
@@ -174,9 +174,25 @@ def test_fifteen_to_a_page_and_older_below(world, birch):
     assert "Topic number 0" in later and world.BOARD_END in later
 
 
-def test_a_reply_names_who_it_answers_with_a_short_quote(world, birch, alder, data_dir):
+def test_a_reply_is_drawn_under_what_it_answers(world, birch, alder, data_dir):
+    """who-fix, 17 November 2026: a reply's line is who wrote it and the day, no more; it
+    stands under what it answers, and the posts stand a step in under the first post."""
     key = key_of(start(birch, "Shall we plant a hedge along the north side? " * 4))
     write(alder, key, "Yes, a hedge.", to=1)
+    shown = page(alder.get("/board/topic/" + key))
+    assert "replying to" not in shown
+    assert shown.index("Shall we plant a hedge") < shown.index("Yes, a hedge.")
+    assert '<article class="post" id="post-1">' in shown
+    assert '<article class="post" id="post-2" style="margin-left: calc(1 * var(--space-3))">' in shown
+    assert kept(data_dir)["topics"][0]["posts"][1]["to"] == 1
+
+
+def test_a_reply_named_who_it_answered_with_a_short_quote_before_who_fix(
+        world, birch, alder, data_dir, monkeypatch):
+    who_fix_not_yet(world, monkeypatch)
+    key = key_of(start(birch, "Shall we plant a hedge along the north side? " * 4))
+    write(alder, key, "Yes, a hedge.", to=1)
+    monkeypatch.setattr(world, "BOARD_THREADED", False)  # the quote was drawn on a flat board
     shown = said(alder, "/board/topic/" + key)
     # a member's name, to a member, with their colour square before it (17 November 2026)
     reply = shown.partition("replying to ")[2]
@@ -341,7 +357,8 @@ def test_a_member_takes_down_their_own_post_and_its_words_are_gone(world, birch,
     assert not (data_dir / "board-removed.json").exists()
     shown = said(alder, "/board/topic/" + key)
     assert "birch took this post down, 13 November 2026" in shown
-    assert "(taken down)" in shown  # where alder quoted it
+    # alder's answer stands right under the post taken down (who-fix, 17 November 2026)
+    assert shown.index("birch took this post down") < shown.index("Answering the first.")
     assert "a topic whose first post was taken down" in shown
     assert "a topic whose first post was taken down" in said(alder, "/board/place")
     assert "And a reply to keep." in shown
@@ -506,7 +523,9 @@ def test_an_agent_s_post_shows_its_colour_and_the_word_agent_and_a_person_s_its_
     for client in (visitor, birch):
         shown = page(client.get("/board/topic/1"))
         # its post, and the reply to it, each linked to its page (16 November 2026)
-        assert shown.count('<a href="/names/first">the first one</a> · agent') >= 2
+        # once, on its post's line: a reply's line no longer names what it answers (who-fix)
+        assert shown.count('<a href="/names/first">the first one</a> · agent') >= 1
+        assert shown.index("Yes, lanterns.") < shown.index("Good.")
         assert 'class="swatch"' in shown and "background: #D85A30" in shown
         assert "birch · agent" not in shown and "birch</a> · agent" not in shown
     # a person's name links to their page for a member, and for a visitor not at all
@@ -564,3 +583,59 @@ def test_it_starts_no_topic_in_the_weekly_question(attend, wake, data_dir):
 
 def test_the_weekly_question_says_agents_post_too(world, visitor):
     assert "Members and agents may post." in said(visitor, "/board/weekly")
+
+
+# ---- who-fix: the same pattern on every topic page (17 November 2026) -----------------
+
+def test_a_weekly_topic_has_its_question_as_a_card_and_its_form_folded(
+        world, birch, alder, data_dir):
+    """The menu, then the way back, then the title, then who may read it; the question as
+    its own card, not a post by the site; the answers a step in under it; the form behind
+    "answer the question", with the reply line only once there are posts, and one line."""
+    write_json(data_dir / "weekly-questions.json", {"waiting": [
+        {"words": "What did you notice this week?", "by": "alder", "at": "2026-11-10T00:00:00Z"}],
+        "weeks": {}})
+    shown = page(birch.get("/board/topic/week-2026-W46"))
+    order = [shown.index(one) for one in ('<nav class="menu top"', '<p class="back">',
+                                          "<h1>", '<p class="muted under">', '<div class="card head">')]
+    assert order == sorted(order)
+    tagline = shown.partition('<p class="muted under">')[2].partition("</p>")[0]
+    assert world.BOARD_WHO_READS["weekly"] in tagline
+    card = shown.partition('<div class="card head">')[2].partition("</div>")[0]
+    assert "What did you notice this week?" in card and "the site" not in card
+    assert "the site" not in shown.partition("<main")[2]
+    assert '<details class="fold">' in shown and "<summary>answer the question</summary>" in shown
+    assert "in reply to (optional)" not in shown  # no posts yet
+    assert "Up to 500 characters. Checked before it appears. Can&#39;t be edited." in shown
+    write(alder, "week-2026-W46", "The light on the water.")
+    shown = page(birch.get("/board/topic/week-2026-W46"))
+    assert '<article class="post" id="post-1" style="margin-left: calc(1 * var(--space-3))">' in shown
+    assert "in reply to (optional)" in shown
+    # take down at the right of one's own posts only
+    assert "take down" not in shown
+    assert "take down" in page(alder.get("/board/topic/week-2026-W46"))
+
+
+def test_a_topic_s_form_is_write_a_post_and_opens_when_turned_away(world, birch):
+    key = key_of(start(birch))
+    shown = page(birch.get("/board/topic/" + key))
+    assert "<summary>write a post</summary>" in shown and '<details class="fold">' in shown
+    assert '<div class="post-line"><p>' in shown
+    turned = page(write(birch, key, "See example.com for more."))
+    assert '<details class="fold" open>' in turned
+
+
+def test_the_board_s_front_page_is_compact_rows(world, birch, visitor):
+    start(birch, subject="Lanterns")
+    shown = page(visitor.get("/board"))
+    assert shown.count('<ul class="rows') == 2
+    assert '<a href="/board/topic/1">Lanterns</a>' in shown
+    for line in world.BOARD_WHO_READS.values():
+        assert '<span class="muted">%s</span>' % line in shown
+
+
+@pytest.mark.parametrize("address", ["/", "/settings", "/commons", "/board", "/board/place",
+                                     "/find", "/bonds", "/made"])
+def test_every_page_has_the_menu_first(world, birch, address):
+    shown = page(birch.get(address))
+    assert shown.index('<nav class="menu top"') < shown.index("<header")

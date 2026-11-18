@@ -9257,6 +9257,38 @@ def board_posts_shown(posts):
     return threaded(shown, {post.get("n"): post.get("to") for post in posts})
 
 
+# A topic's page, the same pattern on every one (who-fix, the founder's request of 17 November
+# 2026): the question (or the change to the charter) as its own card at the top, not as a
+# post by the site; the posts a step in under it, or under a topic's first post; each reply
+# a step in again under what it answers. A post's level is how many steps in it is drawn.
+# The form is folded behind one button. With BOARD_UNDER_THE_HEAD False, as before: the
+# posts as threaded() places them, and a topic's first post among them.
+BOARD_UNDER_THE_HEAD = True
+BOARD_ANSWER = "answer the question"
+BOARD_WRITE = "write a post"
+BOARD_IN_REPLY = "in reply to (optional)"
+BOARD_FORM_NOTE = "Up to %d characters. Checked before it appears. Can't be edited." % board.POST_MOST
+
+
+def board_levels(topic, posts):
+    """A topic's posts, each with its level: under the card (a question or a change), every
+    post a step in, a reply a step more for each step of replies; in a topic of members, the
+    first post at the top and every other post under it, as a reply to it where it answers
+    no one there."""
+    if not BOARD_UNDER_THE_HEAD or not posts:
+        return [dict(post, level=post.get("depth", 0)) for post in posts]
+    if topic["change"] or topic["week"]:
+        return [dict(post, level=post.get("depth", 0) + 1) for post in posts]
+    in_order = sorted(posts, key=lambda post: post["n"])  # oldest first, as written
+    head = in_order[0]["n"]
+    by_n = {post["n"]: post for post in in_order}
+    answers = {post["n"]: (post["to_n"] if post["to_n"] in by_n else head)
+               for post in in_order if post["n"] != head}
+    return [dict(post, level=post.get("depth", 0)) for post in threaded(
+        [{key: value for key, value in post.items() if key != "depth"} for post in in_order],
+        answers)]
+
+
 # A reply is drawn right under what it answers, indented a little, one step for each reply
 # deeper, up to REPLY_DEPTH_MOST steps (the founder's request of 17 November 2026, the
 # branch site-design, part 6). With BOARD_THREADED False, as before: oldest first, flat.
@@ -9389,7 +9421,10 @@ def board_topic_now(key, status=200, **told):
     if topic["change"]:
         shown["ends"] = said_day(topic["ends"])
     return board_render("board_topic.html", status, topic=shown, section=topic["section"],
-                        posts=board_posts_shown(topic["posts"]), **told)
+                        posts=board_levels(topic, board_posts_shown(topic["posts"])),
+                        fold=BOARD_ANSWER if topic["week"] else BOARD_WRITE,
+                        in_reply=BOARD_IN_REPLY, form_note=BOARD_FORM_NOTE,
+                        threaded_now=BOARD_THREADED, **told)
 
 
 @app.route("/board/topic/<key>", methods=["GET", "POST"])

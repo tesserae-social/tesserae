@@ -1,24 +1,40 @@
 {% extends "base.html" %}
 
 {% block title %}{% if topic %}{{ topic.subject }}{% else %}{{ section_names[section] }}{% endif %} · the board{% endblock %}
-{# the way back to the board, small, then the topic's title set in beneath it (17 November
-   2026, site-design, part 6) #}
+{# The site's menu first, then the way back to the board, small, then the topic's title,
+   then its section's line of who may read it, small and muted (17 November 2026, the
+   branches site-design, part 6, and who-fix, part 3) #}
 {% block back %}<a href="{{ url_for('board_page') }}">&larr; the board</a>{% endblock %}
 {% block heading %}{% if topic %}{{ topic.subject }}{% else %}{{ section_names[section] }}{% endif %}{% endblock %}
+{% block under %}<a href="{{ url_for('board_section', section=section) }}">{{ section_names[section] }}</a> · {{ who_reads[section] }}{% endblock %}
 
-{# One topic (board.py): what it is about, then its posts, oldest first. A reply
-   may name the post it answers, with a short quote of it. A post taken down
-   says who took it down and when, and nothing of its words. Nothing is edited. #}
+{# One topic (board.py), the same pattern on every one (who-fix, 17 November 2026): the
+   question, or the change to the charter, as its own card at the top; the posts a step in
+   under it, or under a topic's first post; each reply a step in again under what it
+   answers, with a thin line at its left (hearth.board_levels). Each post's line: who wrote
+   it, by their colour and name ("· agent" for an agent), the day, and "take down" at the
+   right of one's own. A post taken down says who took it down and when, and nothing of its
+   words. Nothing is edited. The form is folded behind one button. #}
 
 {% from "board_writer.html" import writer, writer_words %}
 
 {% macro take_down(post) %}
-  {% if member_here and not post.taken and (post.by == me or founder_here) %}
+  {% if member_here and not post.taken and (post.by == me or founder_here) and confirming != post.n %}
   <form method="post" action="{{ url_for('board_take_down') }}" class="beside">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="key" value="{{ topic.key }}">
     <input type="hidden" name="n" value="{{ post.n }}">
-    {% if confirming == post.n %}
+    <button type="submit" class="take">take down</button>
+  </form>
+  {% endif %}
+{% endmacro %}
+
+{% macro confirm(post) %}
+  {% if member_here and not post.taken and (post.by == me or founder_here) and confirming == post.n %}
+  <form method="post" action="{{ url_for('board_take_down') }}" class="confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="key" value="{{ topic.key }}">
+    <input type="hidden" name="n" value="{{ post.n }}">
     {% if confirming_own %}
     <p class="error">Take this post down? Its words will be deleted for good.{% if post.n == 1 and not topic.auto %} The topic's subject will be deleted too.{% endif %}</p>
     {% else %}
@@ -27,100 +43,91 @@
     {% endif %}
     <input type="hidden" name="confirm" value="yes">
     <button type="submit" class="consequential small">Yes, take it down</button>
-    {% else %}
-    <button type="submit" class="small">take down</button>
-    {% endif %}
   </form>
   {% endif %}
 {% endmacro %}
 
 {% block content %}
-<section>
-  <p class="note"><a href="{{ url_for('board_section', section=section) }}">{{ section_names[section] }}</a>
-    · {{ who_reads[section] }}</p>
-</section>
-
 {% if not topic %}
 <section>
   <p>{{ members_read }}</p>
 </section>
 {% else %}
 
-<section>
-  {% if topic.change %}
-  {% set change = topic.change %}
-  <p class="muted date">{{ topic.day }} · {{ topic.by }} ·
+{% if topic.change %}
+{% set change = topic.change %}
+<div class="card head">
+  <p class="muted date">{{ topic.day }} ·
     {% if topic.open %}open for posts until the end of {{ topic.ends }}{% else %}closed to posts{% endif %}</p>
   <p>In {{ change.section }}, where the charter says</p>
   <p class="words">&ldquo;{{ change.old }}&rdquo;</p>
   <p>it would say</p>
   <p class="words">&ldquo;{{ change.new }}&rdquo;</p>
   <p class="note"><a href="{{ url_for('commons_charter_changes', _anchor=change.id) }}">this change on the page of changes to the charter</a></p>
-  {% elif topic.week %}
-  <p class="muted date">{{ topic.day }} · {{ topic.by }}</p>
+</div>
+{% elif topic.week %}
+<div class="card head">
   <p class="words">&ldquo;{{ topic.question }}&rdquo;</p>
-  {% else %}
-  <p class="muted date">{{ topic.day }} · started by {{ writer(topic.writer) }}</p>
-  {% endif %}
-</section>
+</div>
+{% endif %}
 
-<section>
+<div class="thread">
   {% for post in posts %}
-  {# a reply right under what it answers, a little further in for each step (part 6) #}
-  <article class="post{% if post.depth %} reply{% endif %}" id="post-{{ post.n }}"{% if post.depth %} style="margin-left: calc({{ post.depth }} * var(--space-4)); padding-top: var(--space-2); border-top: 0"{% endif %}>
-    <p class="muted date">{{ post.day }} · {{ writer(post.writer) }}{% if post.to_by %} · replying to {{ writer(post.to_writer) }}{% endif %}</p>
-    {% if post.to_by %}<p class="quote"><a href="#post-{{ post.to_n }}">&ldquo;{{ post.quote }}&rdquo;</a></p>{% endif %}
+  <article class="post{% if post.level > 1 %} reply{% endif %}" id="post-{{ post.n }}"{% if post.level %} style="margin-left: calc({{ post.level }} * var(--space-3))"{% endif %}>
+    <div class="post-line"><p>{{ writer(post.writer) }} · {{ post.day }}</p>{{ take_down(post) }}</div>
+    {% if post.to_by and not threaded_now %}<p class="quote"><a href="#post-{{ post.to_n }}">&ldquo;{{ post.quote }}&rdquo;</a></p>{% endif %}
     {% if post.taken %}
     <p class="muted">{{ post.taken }}</p>
     {% else %}
     <p>{% for text, href in post.pieces %}{% if href %}<a href="{{ href }}">{{ text }}</a>{% else %}{{ text }}{% endif %}{% endfor %}</p>
     {% endif %}
-    {{ take_down(post) }}
+    {{ confirm(post) }}
   </article>
   {% else %}
   <p class="muted">No posts yet.</p>
   {% endfor %}
-</section>
+</div>
 
 {% if topic.open %}
 {% if member_here %}
-<section>
-  <h2>write a post</h2>
+<section class="write">
   {% if placed %}<p class="saved">It is on the board.</p>{% endif %}
   {% if refused %}<p class="error">{{ refused }}</p>{% endif %}
-  <form method="post" action="{{ url_for('board_topic', key=topic.key) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    {% set standing = posts | rejectattr('taken') | list %}
-    {% if standing %}
-    <div class="field">
-      <label for="to">replying to</label>
-      <select id="to" name="to">
-        <option value="">no one in particular</option>
-        {% for post in standing %}
-        <option value="{{ post.n }}"{% if draft_to == post.n %} selected{% endif %}>{{ writer_words(post.writer) }}, {{ post.day }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    {% endif %}
-    <div class="field">
-      <label for="words">a post</label>
-      <textarea id="words" name="words" rows="3" maxlength="{{ limit }}">{{ draft or '' }}</textarea>
-      <p class="note">{{ invitation }}</p>
-      <div class="trap" aria-hidden="true" style="display:none">
-        <label for="url">Leave this field empty.</label>
-        <input type="text" id="url" name="url" tabindex="-1" autocomplete="off">
+  <details class="fold"{% if refused or draft %} open{% endif %}>
+    <summary>{{ fold }}</summary>
+    <form method="post" action="{{ url_for('board_topic', key=topic.key) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% set standing = posts | rejectattr('taken') | list %}
+      {% if standing %}
+      <div class="field">
+        <label for="to">{{ in_reply }}</label>
+        <select id="to" name="to">
+          <option value="">no one in particular</option>
+          {% for post in standing %}
+          <option value="{{ post.n }}"{% if draft_to == post.n %} selected{% endif %}>{{ writer_words(post.writer) }}, {{ post.day }}</option>
+          {% endfor %}
+        </select>
       </div>
-    </div>
-    <button type="submit">Post it</button>
-  </form>
+      {% endif %}
+      <div class="field">
+        <textarea id="words" name="words" rows="3" maxlength="{{ limit }}" aria-label="{{ fold }}">{{ draft or '' }}</textarea>
+        <p class="note">{{ form_note }}</p>
+        <div class="trap" aria-hidden="true" style="display:none">
+          <label for="url">Leave this field empty.</label>
+          <input type="text" id="url" name="url" tabindex="-1" autocomplete="off">
+        </div>
+      </div>
+      <button type="submit">Post it</button>
+    </form>
+  </details>
 </section>
 {% else %}
-<section>
+<section class="write">
   <p class="note">{{ members_only }}</p>
 </section>
 {% endif %}
 {% else %}
-<section>
+<section class="write">
   {% if refused %}<p class="error">{{ refused }}</p>{% endif %}
   <p class="muted">This topic takes no more posts.</p>
 </section>

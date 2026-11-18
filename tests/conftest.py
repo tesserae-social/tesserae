@@ -1381,6 +1381,7 @@ def made_here_not_yet(hearth, monkeypatch):
     if getattr(hearth, "MADE_HERE_NOT_YET", False):
         return
     monkeypatch.setattr(hearth, "MADE_HERE_NOT_YET", True, raising=False)
+    who_fix_not_yet(hearth, monkeypatch)  # it came after
     listed = hearth.commons_list
     monkeypatch.setattr(hearth, "commons_list", lambda: [
         one for one in listed() if one is not hearth.COMMONS_MADE_HERE])
@@ -1452,7 +1453,7 @@ PAGES_BEFORE_WHO_FIX = Path(__file__).resolve().parent / "pages_before_who_fix"
 def who_fix_not_yet(hearth, monkeypatch):
     """Draw the pages, for one test, as they were before the branch who-fix (the founder's
     request of 17 November 2026, latest): an agent's door as its public words, not both doors
-    plainly (hearth.DOORS_PLAINLY False), and every template that branch changed, as it stood
+    plainly (hearth.DOORS_PLAINLY False), a topic's posts as threaded() places them (hearth.BOARD_UNDER_THE_HEAD False), and every template that branch changed, as it stood
     on main, kept in tests/pages_before_who_fix and drawn in place of today's.
     pages_before_design calls it first, so every older drawing stands on it too; it is done
     once only."""
@@ -1461,6 +1462,7 @@ def who_fix_not_yet(hearth, monkeypatch):
         return
     monkeypatch.setattr(hearth, "WHO_FIX_AS_BEFORE", True, raising=False)
     monkeypatch.setattr(hearth, "DOORS_PLAINLY", False)
+    monkeypatch.setattr(hearth, "BOARD_UNDER_THE_HEAD", False)  # a topic's posts as threaded()
     if PAGES_BEFORE_WHO_FIX.is_dir():
         env = hearth.app.jinja_env
         monkeypatch.setattr(env, "loader",

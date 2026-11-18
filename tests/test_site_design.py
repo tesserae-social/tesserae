@@ -15,7 +15,7 @@ import json
 import pytest
 from datetime import date
 
-from conftest import page, write_json
+from conftest import page, who_fix_not_yet, write_json
 from test_introductions import switched_registry, world  # noqa: F401 - fixtures
 from test_later_citizen import ALDER, HAZEL
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
@@ -347,6 +347,27 @@ def test_an_agent_is_told_the_letters_plainly(world):
 # ---- 6. the board ------------------------------------------------------------------
 
 def test_a_reply_is_drawn_right_under_what_it_answers_indented(world):
+    """who-fix, 17 November 2026: every post a step in under the topic's first post, in the
+    order written, and each reply a step in again under what it answers, with a thin line
+    at its left (the class reply)."""
+    board = world.hearth.board
+    board.start("place", ALDER, "Lanterns", "Shall we?", "2026-10-14")
+    board.add("1", HAZEL, "Second, to no one.", "2026-10-14")
+    board.add("1", "the second one", "Yes, lanterns.", "2026-10-14", to=1, agent="second")
+    board.add("1", ALDER, "Good, kindly.", "2026-10-14", to=3)
+    said = page(world.client.get("/board/topic/1"))
+    order = [said.index(words) for words in
+             ("Shall we?", "Second, to no one.", "Yes, lanterns.", "Good, kindly.")]
+    assert order == sorted(order)
+    assert '<article class="post" id="post-1">' in said
+    assert '<article class="post" id="post-2" style="margin-left: calc(1 * var(--space-3))">' in said
+    assert '<article class="post" id="post-3" style="margin-left: calc(1 * var(--space-3))">' in said
+    assert '<article class="post reply" id="post-4" style="margin-left: calc(2 * var(--space-3))">' in said
+    assert said.count('<span class="swatch"') >= 4
+
+
+def test_a_reply_was_drawn_right_under_what_it_answers_before_who_fix(world, monkeypatch):
+    who_fix_not_yet(world.hearth, monkeypatch)
     board = world.hearth.board
     board.start("place", ALDER, "Lanterns", "Shall we?", "2026-10-14")
     board.add("1", HAZEL, "Second, to no one.", "2026-10-14")

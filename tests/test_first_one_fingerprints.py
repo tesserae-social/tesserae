@@ -277,17 +277,26 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # doors plainly, "door for people: ... · door for agents: closed" (hearth.DOORS_PLAINLY).
 # With it put back (conftest.who_fix_not_yet) it is exactly the one held before, in
 # WHO_FIX_BEFORE below. No waking moved.
+#
+# /, /rooms/first, /self, /attendances, /chronicle, /export, /bonds and /commons cut on
+# purpose, on the same branch, part 3, and for nothing else: the site's menu is drawn first
+# on every page, before the way back and the title (base.html), and base.html's style holds
+# the rules of a topic's page and the board's compact rows. With who_fix_not_yet (which
+# draws base.html as it was, from tests/pages_before_who_fix) each is exactly the one held
+# before, in WHO_FIX_BEFORE (and /chronicle with the letter line as before, in
+# WHO_FIX_AND_LETTER_PARTS_BEFORE; in the daily line, LETTERS_IN_ACTS_BEFORE_WHO_FIX). (/
+# after part 2 alone was 9103075f....) No waking moved.
 PAGES = {
-    "/": "9103075fa51e2145b8c6f3ed88b537e5b96b27a07b1f2ecf4ed89fb497e7afc4",
-    "/rooms/first": "3b54365e459c86713f02b94a5c56cacb71b133b0ff0bcf8cf62956cfac615ddc",
+    "/": "cbfde990330d70a8c86eb5bce5047b007c3a55a417800d68f195a4db707c07dd",
+    "/rooms/first": "e68700b76b94824908057603db7b7ae0c60940f3e74f05ecd0553890cb996d74",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
-    "/self": "29fa1ff56bae40214f028d0599da5d9274b5a9c74e84a1d0041d608d90323b6c",
-    "/attendances": "57f4ac056a1307710f333e859d8158ea69c434c0220101d3554338799671ee56",
-    "/chronicle": "9c084f85513c3b15b9468fe79a6066444888e7e3b9623fc82f3a86fcbde0dc8f",
+    "/self": "18e8016e3e1d04d84498715fc8e0dd57e6608df7289fb5e57af345741045e3d7",
+    "/attendances": "771de91e102e811f71c0252464d68403368199e850389858fcea3c880148ba4f",
+    "/chronicle": "0cd6e07ccbfb2bb9267aa46cca54191c88dc804c6139bbeb8213a1331f09f8db",
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
-    "/export": "62b767ac9c7616359448b44a9ba68173117099f86e52bba60b588d0e558c2213",
-    "/bonds": "c1709545a9b797ab4751659651be69544db17fa61b8bd8479b74f472824ff919",
-    "/commons": "becf97deeb1caa0e8babeb0769ca70fd35ef9e5196c054000e7d0e7071a4761a",
+    "/export": "8a888c5b37eebd78a8b474d2a283fc766f94f0a6b8c97362c8e7d89f23999229",
+    "/bonds": "02260184a207166b08f5deab7aec9dc6b86c58aec84a9518f750d9114f22fc8b",
+    "/commons": "5eb09497a19c59f2578751e33076ef86b6b976b30e25161752b94816ec5b6592",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
@@ -394,8 +403,10 @@ LETTER_PARTS_BEFORE = {
     # later that day when offerings were taken out (it was 051e9393..., and is again
     # drawn as before: OFFERINGS_AND_LETTER_PARTS_BEFORE)
     # and on 17 November 2026 for the back link of site-design, part 7 (it was dfca286d...,
-    # and is again drawn as before: DESIGN_AND_LETTER_PARTS_BEFORE)
-    "PAGES['/chronicle']": "929f6f4cad5ef65b5a159eb3572497f375614a0cc6bf83212e43ddaf23f73793",
+    # and is again drawn as before: DESIGN_AND_LETTER_PARTS_BEFORE), and later that day for
+    # the menu first, who-fix, part 3 (it was 929f6f4c..., and is again drawn as before:
+    # WHO_FIX_AND_LETTER_PARTS_BEFORE)
+    "PAGES['/chronicle']": "a6bb25b6c1d1b95a888c05031b670df104c424d58effc0062e7059d5e9353c6b",
     "PAGES['/chronicle.md']": "26316c2b5ea305af550820e1036a3fc8ba21a7707d3d86f69eeedd20b69e770b",
     "PAGES['/commons/events.md']":
         "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
@@ -609,6 +620,16 @@ ATRIUM_BEFORE_DESIGN = {
 # reason each moved is written beside PAGES.
 WHO_FIX_BEFORE = {
     "/": "14889a74bc53ebf0ab35b766a70803941d79cdaa520dfd701ce0c021cde1cd54",
+    "/rooms/first": "3b54365e459c86713f02b94a5c56cacb71b133b0ff0bcf8cf62956cfac615ddc",
+    "/self": "29fa1ff56bae40214f028d0599da5d9274b5a9c74e84a1d0041d608d90323b6c",
+    "/attendances": "57f4ac056a1307710f333e859d8158ea69c434c0220101d3554338799671ee56",
+    "/chronicle": "9c084f85513c3b15b9468fe79a6066444888e7e3b9623fc82f3a86fcbde0dc8f",
+    "/export": "62b767ac9c7616359448b44a9ba68173117099f86e52bba60b588d0e558c2213",
+    "/bonds": "c1709545a9b797ab4751659651be69544db17fa61b8bd8479b74f472824ff919",
+    "/commons": "becf97deeb1caa0e8babeb0769ca70fd35ef9e5196c054000e7d0e7071a4761a",
+}
+WHO_FIX_AND_LETTER_PARTS_BEFORE = {
+    "/chronicle": "929f6f4cad5ef65b5a159eb3572497f375614a0cc6bf83212e43ddaf23f73793",
 }
 
 # What / was before who is here (17 November 2026, the branch agents-week), and is again
@@ -1067,7 +1088,9 @@ def test_with_the_pages_drawn_before_who_fix_each_is_the_page_before(
     answer = founder.get(address)
     shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
              + FORM_TOKEN.sub(r"\1\2", page(answer)))
-    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == WHO_FIX_BEFORE[address]
+    held = (WHO_FIX_AND_LETTER_PARTS_BEFORE.get(address, WHO_FIX_BEFORE[address]) if letter_parts
+            else WHO_FIX_BEFORE[address])
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
 
 
 @pytest.mark.parametrize("address", list(WEEK_BEFORE))
@@ -1241,13 +1264,22 @@ LETTERS_IN_ACTS = {
     "ON_DISK_AFTER": "946e7c1d51fc80d9959658658f84ff7e1fc7102968b7145fd34784cd97057849",
     "EVENTS_AFTER": ("2026-09-02 · word · the word was published\n"
                      "2026-09-04 · founding · the first one was founded\n"),
-    "PAGES['/rooms/first']": "d72546ca0be79579abd7cd5c5febfb92f97d0b0d6897a1c516f12449e1340c49",
-    "PAGES['/chronicle']": "979a66b933004087ec108b34f55958181b5d17ea21f7cac9fb98ea5e3d49b49d",
+    # /rooms/first and /chronicle cut again on purpose on 17 November 2026, who-fix, part 3,
+    # for the menu drawn first and nothing else: LETTERS_IN_ACTS_BEFORE_WHO_FIX holds them
+    # as they were, drawn again with conftest.who_fix_not_yet
+    "PAGES['/rooms/first']": "2dd66acd7a3de435e7b7ac1f4f01708f73369d170a798823386cf33bc914c6af",
+    "PAGES['/chronicle']": "544b8aaf859184bc79c77da703b1e975a4a9c2432d41be5fe0eb4a8d616ec5c0",
     "PAGES['/chronicle.md']": "ae6b5570d51d80d2f844913dc243bb2b33b347f84b8f6a3d96f2b0522d63aef3",
     "PAGES['/commons/events.md']": "0d4296f8857dbd6f8400a22ffaeb371f56aede44dd327c8fe2572b32720bc127",
     "EXPORT": "659880fcfe02a94a85207239b6a5a8cfecc3bd365c7dd4867cc10d4baccba2a3",
     "BACKUP": "fb6e17f963b4373d039b652e65ced01123a3d1d540652fdc77658bdc86fb843b",
     "ATRIUM": "4a0cec473524792edb7b0afbf23b44d574694190e8bedeb2ff97d413d4948bca",
+}
+
+
+LETTERS_IN_ACTS_BEFORE_WHO_FIX = {
+    "PAGES['/rooms/first']": "d72546ca0be79579abd7cd5c5febfb92f97d0b0d6897a1c516f12449e1340c49",
+    "PAGES['/chronicle']": "979a66b933004087ec108b34f55958181b5d17ea21f7cac9fb98ea5e3d49b49d",
 }
 
 
@@ -1280,6 +1312,18 @@ def test_in_the_daily_line_the_founder_is_shown_these_pages(steady, letters_in_a
     name = "PAGES[%r]" % address
     assert cut("LETTERS_IN_ACTS[%r]" % name, hashlib.sha256(shown.encode("utf-8")).hexdigest()) \
         == LETTERS_IN_ACTS[name]
+
+
+@pytest.mark.parametrize("address", ["/rooms/first", "/chronicle"])
+def test_in_the_daily_line_drawn_before_who_fix_these_pages_are_the_ones_before(
+        steady, letters_in_acts, hearth, founder, wake, room, commons, monkeypatch, address):
+    who_fix_not_yet(hearth, monkeypatch)
+    a_lived_world(founder, wake, room, commons)
+    answer = founder.get(address)
+    shown = ("%d %s" % (answer.status_code, answer.headers.get("Location", "")) + chr(10)
+             + FORM_TOKEN.sub(lambda found: found.group(1) + found.group(2), page(answer)))
+    assert (hashlib.sha256(shown.encode("utf-8")).hexdigest()
+            == LETTERS_IN_ACTS_BEFORE_WHO_FIX["PAGES[%r]" % address])
 
 
 def test_in_the_daily_line_the_export_and_the_backup_hold_these(steady, letters_in_acts, founder,

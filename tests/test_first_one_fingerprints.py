@@ -297,16 +297,16 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # place (conftest.day_pages_not_yet, which who_fix_not_yet and every older drawing call
 # first) it is exactly the one held before, in DAY_PAGES_BEFORE below. No waking moved.
 PAGES = {
-    "/": "cbfde990330d70a8c86eb5bce5047b007c3a55a417800d68f195a4db707c07dd",
-    "/rooms/first": "c328a86fc4e8f91a699631f63302247835d775e6dbe2cced58437c1ae87d06a8",
+    "/": "7cf09c06f2e6faed311ead754cd2437f48bb5aa3439438d2639b7ac5f9bdae30",
+    "/rooms/first": "23edee18355083752022804c54e54194f4e183f05364c548860ca20c5bd981d1",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
-    "/self": "305e6d499476d50914348f06ef0f4f215e3762113fe571ee6a2ca42fead2bd00",
-    "/attendances": "22858d3f13ef04419b377b0bee2631a78f8208392af5024518fcdd8a364259a1",
-    "/chronicle": "7981fbecaa19125d848d8fb49fb6f10b366f869c6c58e7cbc88745718350b325",
+    "/self": "a7c75625e572919e63f355ef42b599a44f7a88d4c519abaa5863562ae44dcf3f",
+    "/attendances": "8fc86fdfda3e0c0deaf07eca49d2ed87b97322ff5079f03cfcf17f541db86513",
+    "/chronicle": "fc8650736fc0feafbf560924cd3722ca102621084e8be56507e3b3f1966576f2",
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
-    "/export": "a5bbbfb684b3eaa932a7c30631ea7cd77a8b3c7d76925b659f781d8cdae5cd3e",
-    "/bonds": "a4af342de9f2dc9d00b63ccc4a4f5165bb4a4a10d04574f1f8b8a8bff9265e65",
-    "/commons": "5eb09497a19c59f2578751e33076ef86b6b976b30e25161752b94816ec5b6592",
+    "/export": "adef082e6618c9c83d93423e59809225bd9265ebd3de1db34333ff1131c27f2f",
+    "/bonds": "1441fe490814230aa935f2b500fc14981b39574e8860cb85f5dffc9b20f8cdbc",
+    "/commons": "4b79822e4e9add1c7da9cc8be121c641ff6462036c2fb27ff8f9393de23badd6",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
     "/commons/members.md": "78d37d076e8d2f3e4075f3b764d06296ddef7e7ac30589dea5e7e65eedb2515a",
@@ -416,7 +416,7 @@ LETTER_PARTS_BEFORE = {
     # and is again drawn as before: DESIGN_AND_LETTER_PARTS_BEFORE), and later that day for
     # the menu first, who-fix, part 3 (it was 929f6f4c..., and is again drawn as before:
     # WHO_FIX_AND_LETTER_PARTS_BEFORE)
-    "PAGES['/chronicle']": "4bc961945169732e4e33f4e7b94d3993ae7a93e55769d8544e3f7cbcae68ede0",
+    "PAGES['/chronicle']": "bb4149453bab1e775feeabaef99dc41f4d220d0d60c7fcde0717355db61a88d8",
     "PAGES['/chronicle.md']": "26316c2b5ea305af550820e1036a3fc8ba21a7707d3d86f69eeedd20b69e770b",
     "PAGES['/commons/events.md']":
         "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
@@ -1301,8 +1301,8 @@ LETTERS_IN_ACTS = {
     # letters folded by month, and nothing else (the reason is beside PAGES):
     # LETTERS_IN_ACTS_BEFORE_DAY_PAGES holds it as it was, drawn again with
     # conftest.day_pages_not_yet
-    "PAGES['/rooms/first']": "39304cdff08131331b4af2c5f9a7c6f1ec5075c42a5587c14071ab7989233eb6",
-    "PAGES['/chronicle']": "d786342b0668fa5b30543e221bc9daa650c751fa8664c20165f101ac9cb0ebe0",
+    "PAGES['/rooms/first']": "e3e3a76f144512a20262eb90bd3d2a38bffe5f09f107fe8c8f965506a553c065",
+    "PAGES['/chronicle']": "75a4e8ca2878741a83b326546dbcd57c445d8008c7c303f24a6b683b32c2e084",
     "PAGES['/chronicle.md']": "ae6b5570d51d80d2f844913dc243bb2b33b347f84b8f6a3d96f2b0522d63aef3",
     "PAGES['/commons/events.md']": "0d4296f8857dbd6f8400a22ffaeb371f56aede44dd327c8fe2572b32720bc127",
     "EXPORT": "659880fcfe02a94a85207239b6a5a8cfecc3bd365c7dd4867cc10d4baccba2a3",
@@ -1333,6 +1333,8 @@ TIDY_PAGES_BEFORE = {
     "/chronicle": "0cd6e07ccbfb2bb9267aa46cca54191c88dc804c6139bbeb8213a1331f09f8db",
     "/export": "8a888c5b37eebd78a8b474d2a283fc766f94f0a6b8c97362c8e7d89f23999229",
     "/bonds": "02260184a207166b08f5deab7aec9dc6b86c58aec84a9518f750d9114f22fc8b",
+    "/": "cbfde990330d70a8c86eb5bce5047b007c3a55a417800d68f195a4db707c07dd",
+    "/commons": "5eb09497a19c59f2578751e33076ef86b6b976b30e25161752b94816ec5b6592",
 }
 LETTER_PARTS_BEFORE_TIDY = {
     "PAGES['/chronicle']": "a6bb25b6c1d1b95a888c05031b670df104c424d58effc0062e7059d5e9353c6b",

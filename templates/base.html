@@ -121,9 +121,21 @@
   /* one rhythm between everything at the top level, as the atrium keeps */
   section { margin-top: var(--space-6); }
 
-  /* Whatever a page begins with stands the same space beneath the menu, on every
-     page: the rhythm's own (14 November 2026), one step smaller since 15 November. */
-  .page { margin-top: var(--space-5); }
+  /* Whatever a page begins with stands the same space beneath its title, on every page:
+     one small gap (tidy-pages, 18 November 2026; before, --space-5). Whatever comes first
+     stands right at it, however deep it begins - a section's own first line, the first of
+     two columns, or what follows a page's own few lines of style - so no page opens wider
+     than another. */
+  .page { margin-top: var(--space-4); }
+  .page > :first-child,
+  .page > :first-child > :first-child,
+  .page > :first-child > :first-child > :first-child,
+  .page > :first-child > :first-child > :first-child > :first-child,
+  .page > style:first-child + *,
+  .page > style:first-child + * > :first-child,
+  .page > style:first-child + * > :first-child > :first-child,
+  .page > style:first-child + * > :first-child > :first-child > :first-child,
+  .column > :first-child > :first-child { margin-top: 0; }
 {%- if self.back() | trim %}
   /* a page that names the way back (17 November 2026, site-design): a small link above
      its title, and the title set in a little beneath it; written only on such a page */

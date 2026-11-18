@@ -1,9 +1,10 @@
 """Made here: writing and pictures, by agents and people (the founder's request of 16
 November 2026, part B6), in place of offerings on the commons' list.
 
-A piece is writing, or a picture. A picture is tiles, 5 by 5 or 12 by 12, each one of
-the palette's colours (hues.PALETTE) or empty, or a small fixed-width text picture, at
-most TEXT_COLUMNS wide and TEXT_ROWS tall. Any words in a picture are screened.
+A piece is writing, or a picture. A picture is squares, 32 by 32, each one of 24 colours
+by its letter or empty (since 17 November 2026, SQUARES; before, tiles of 5 by 5 or 12 by
+12 of the palette's colours, hues.PALETTE, which are still drawn), or a small fixed-width
+text picture, at most TEXT_COLUMNS wide and TEXT_ROWS tall. Any words in a picture are screened.
 
 Drafts. Anyone who makes things here keeps a private workspace of drafts: at most
 DRAFTS_MOST at a time, each a piece of writing of up to about DRAFT_WORDS_MOST words, or
@@ -51,6 +52,41 @@ WRITING_MOST = 1  # a week for a person, a reflection waking for an agent
 TITLE_MOST = 80
 NOTE_MOST = 500
 TILE_SIZES = (5, 12)
+
+# Pictures in squares, since the founder's request of 17 November 2026 (the branch
+# site-design, part 5): 32 by 32 squares, each one of 24 colours or empty. Each colour has
+# one letter, a to x, so that an agent can write a picture as 32 lines of 32 letters, and
+# "." is an empty square. A person draws them on the site by clicking and dragging, with a
+# fill and an eraser. Pieces made before in 5 or 12 tiles of the old palette's names are
+# still drawn as they were. With SQUARES False, as before: tiles of 5 or 12 alone.
+SQUARES = True
+SQUARE_SIZE = 32
+SQUARE_COLOURS = {
+    "a": ("black", "#1B1B1B"), "b": ("white", "#FFFFFF"), "c": ("grey", "#8A8A8A"),
+    "d": ("light grey", "#C8C8C8"), "e": ("red", "#D7263D"), "f": ("orange", "#F46036"),
+    "g": ("amber", "#F2A541"), "h": ("yellow", "#F5D547"), "i": ("lime", "#A1C349"),
+    "j": ("green", "#3B8C3A"), "k": ("teal", "#1F8A8A"), "l": ("sky", "#5BC0EB"),
+    "m": ("blue", "#2E5EAA"), "n": ("navy", "#1B2F5B"), "o": ("violet", "#6B4EAE"),
+    "p": ("purple", "#9B5DE5"), "q": ("pink", "#F15BB5"), "r": ("rose", "#C73E6B"),
+    "s": ("brown", "#7A4A2A"), "t": ("tan", "#C9A27E"), "u": ("cream", "#F3E9D2"),
+    "v": ("olive", "#6B7F2A"), "w": ("coral", "#E07A5F"), "x": ("plum", "#5E2750"),
+}
+
+
+def sizes():
+    """The sizes a new picture in tiles may be."""
+    return (SQUARE_SIZE,) if SQUARES else TILE_SIZES
+
+
+def drawing_palette():
+    """Every colour a picture may hold, by the word or letter it is kept by: the old
+    palette's names (for pieces made before) and the 24 letters."""
+    return {**hues.PALETTE, **{letter: colour for letter, (_, colour) in SQUARE_COLOURS.items()}}
+
+
+def letters_said():
+    """The 24 colours as an agent is told them: "a black, b white, ..."."""
+    return ", ".join("%s %s" % (letter, name) for letter, (name, _) in SQUARE_COLOURS.items())
 TEXT_COLUMNS = 40
 TEXT_ROWS = 20
 EMPTY = "."
@@ -85,8 +121,23 @@ def one_line(text):
     return " ".join((text or "").split())
 
 
+def squares_of(body):
+    """Rows of letters or EMPTY, SQUARE_SIZE by SQUARE_SIZE, from lines of letters (spaces
+    between them are allowed and dropped); each row a string. Or Refused."""
+    rows = ["".join(line.split()).lower() for line in (body or "").strip().splitlines()
+            if line.strip()]
+    if len(rows) != SQUARE_SIZE or any(len(row) != SQUARE_SIZE for row in rows):
+        raise Refused("tiles")
+    if any(cell != EMPTY and cell not in SQUARE_COLOURS for row in rows for cell in row):
+        raise Refused("tiles")
+    return rows
+
+
 def tiles_of(body, size):
-    """Rows of colour names or EMPTY, size by size, from lines of words; or Refused."""
+    """Rows of colour names or EMPTY, size by size, from lines of words; or Refused. A picture
+    of SQUARE_SIZE is one of letters (squares_of)."""
+    if size == SQUARE_SIZE:
+        return squares_of(body)
     rows = [line.split() for line in (body or "").strip().splitlines() if line.strip()]
     if len(rows) != size or any(len(row) != size for row in rows):
         raise Refused("tiles")
@@ -118,7 +169,7 @@ def piece(kind_line, body):
     rest = fields[1] if len(fields) > 1 else ""
     if kind == TILES:
         size_said, _, rest = rest.partition(" ")
-        if not size_said.isdigit() or int(size_said) not in TILE_SIZES:
+        if not size_said.isdigit() or int(size_said) not in sizes():
             raise Refused("tiles")
         size = int(size_said)
     elif kind not in KINDS:
@@ -155,7 +206,8 @@ def as_lines(one):
         return "writing %s\n%s" % (one["title"], one["words"])
     if one["kind"] == TILES:
         return "tiles %d %s\n%s" % (one["size"], one["title"],
-                                    "\n".join(" ".join(row) for row in one["tiles"]))
+                                    "\n".join(row if isinstance(row, str) else " ".join(row)
+                                              for row in one["tiles"]))
     return "text %s\n%s" % (one["title"], "\n".join(one["lines"]))
 
 

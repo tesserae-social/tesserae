@@ -8609,6 +8609,9 @@ MADE_REFUSED_PAGE = {
     "long": "A draft of writing is up to about 2,000 words.",
     "piece_long": "Writing published here is up to about 1,500 words.",
     "tiles": "Tiles are 5 by 5 or 12 by 12, each a colour of the palette or empty.",
+    # since 17 November 2026 (site-design, part 5): pictures in squares, 32 by 32
+    "tiles_32": "A picture in squares is 32 by 32, each square one of the 24 colours or empty.",
+    "kind_32": "A piece is writing, a picture in squares, or a text picture.",
     "text": "A text picture is up to 40 characters wide and 20 lines.",
     "full": "You keep 5 drafts already. Discard one first.",
     "none": "There is no draft or piece of yours by that name.",
@@ -8678,7 +8681,8 @@ def made_refused_for(name, one):
 def made_here_page():
     shown = [made_shown(one) for one in made_here.every()]
     return render_template("made.html", how=MADE_HOW, pieces=shown,
-                           palette=hues.PALETTE, member_here_now=bool(session.get("member")))
+                           palette=made_here.drawing_palette(),
+                           member_here_now=bool(session.get("member")))
 
 
 @app.route("/made/<piece_id>")
@@ -8687,7 +8691,8 @@ def made_piece(piece_id):
     if one is None:
         abort(404)
     maker = made_maker() if session.get("member") else None
-    return render_template("made_piece.html", piece=made_shown(one), palette=hues.PALETTE,
+    return render_template("made_piece.html", piece=made_shown(one),
+                           palette=made_here.drawing_palette(),
                            mine=bool(maker) and one.get("by") == maker,
                            keeper=keeper_here(), note_most=made_here.NOTE_MOST,
                            refused=request.args.get("refused"))
@@ -8725,12 +8730,20 @@ def made_take_down(piece_id):
 def made_workspace_page(status=200, **told):
     name = session["member"]
     drafts = [{**one, "day": said_day(one["at"][:10])} for one in made_here.drafts(name)]
-    return render_template("made_workspace.html", drafts=drafts, palette=hues.PALETTE,
-                           most=made_here.DRAFTS_MOST, sizes=made_here.TILE_SIZES,
+    refused = told.pop("refused", None)
+    if made_here.SQUARES and refused in ("kind", "tiles"):  # since 17 November 2026
+        refused += "_32"
+    return render_template("made_workspace.html", drafts=drafts,
+                           palette=made_here.drawing_palette() if made_here.SQUARES
+                           else hues.PALETTE,
+                           squares=[(letter, name, colour) for letter, (name, colour)
+                                    in made_here.SQUARE_COLOURS.items()]
+                           if made_here.SQUARES else None,
+                           most=made_here.DRAFTS_MOST, sizes=made_here.sizes(),
                            columns=made_here.TEXT_COLUMNS, rows=made_here.TEXT_ROWS,
                            words_most=made_here.DRAFT_WORDS_MOST,
                            title_most=made_here.TITLE_MOST,
-                           refused_said=MADE_REFUSED_PAGE.get(told.pop("refused", None)),
+                           refused_said=MADE_REFUSED_PAGE.get(refused),
                            **told), status
 
 

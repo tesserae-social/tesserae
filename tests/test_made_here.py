@@ -13,7 +13,7 @@ import json
 
 import pytest
 
-from conftest import agents_week_not_yet, block, blocks, page, post
+from conftest import agents_week_not_yet, block, blocks, page, post, squares_not_yet
 from test_any_agent_wakes import wake_as
 from test_later_citizen import (LATER, a_later_world, hearth_of_two, later,  # noqa: F401
                                 scratch_registry)
@@ -32,8 +32,9 @@ def fresh():
     return load("made_here")
 
 
-def test_a_piece_is_writing_tiles_or_a_text_picture(env):
+def test_a_piece_is_writing_tiles_or_a_text_picture(env, monkeypatch):
     made_here = fresh()
+    monkeypatch.setattr(made_here, "SQUARES", False)  # tiles of 5 and 12, as before 17 November
     assert made_here.piece("writing A morning", POEM) == {
         "kind": "writing", "title": "A morning", "words": POEM}
     tiles = made_here.piece("tiles 5 A window", TILES_5)
@@ -61,8 +62,9 @@ def test_five_drafts_at_most_and_one_set_aside_is_kept_aside(env, data_dir):
     made_here.save_draft("first", made_here.piece("writing six", POEM), "2026-10-15T10-00-00Z")
 
 
-def test_a_person_publishes_one_writing_and_three_pictures_a_week(env):
+def test_a_person_publishes_one_writing_and_three_pictures_a_week(env, monkeypatch):
     made_here = fresh()
+    monkeypatch.setattr(made_here, "SQUARES", False)  # tiles of 5 and 12, as before 17 November
     at = "2026-10-15T09-00-00Z"  # a Thursday
     assert made_here.may_publish("alder", "writing", at) is None
     made_here.publish("alder", made_here.piece("writing A", POEM), at)
@@ -165,8 +167,9 @@ def test_the_keeper_takes_a_piece_down_and_the_ledger_says_so(hearth_of_two, dat
     assert "a piece on made here was taken down by the keeper" in ledger
 
 
-def test_tiles_are_drawn_from_the_palette(hearth_of_two, visitor):
+def test_tiles_are_drawn_from_the_palette(hearth_of_two, visitor, monkeypatch):
     import made_here
+    squares_not_yet(made_here, monkeypatch)  # tiles of 5 and 12, as before 17 November
     one = made_here.publish("alder", made_here.piece("tiles 5 A window", TILES_5),
                             "2026-10-15T09-00-00Z")
     said = page(visitor.get("/made/" + one["id"]))
@@ -200,6 +203,7 @@ def test_the_first_one_s_switch_is_on_since_17_november(attend, wake):
 def test_an_agent_keeps_drafts_at_any_waking_and_reads_them_with_a_tool(later, monkeypatch,
                                                                          data_dir):
     monkeypatch.setattr(later, "MADE_HERE", True)
+    squares_not_yet(later, monkeypatch)  # tiles of 5 and 12, as before 17 November
     turn = wake_as(later, monkeypatch, blocks(block("DRAFT", "writing A morning\n" + POEM),
                                               block("DRAFT", "tiles 5 A window\n" + TILES_5)))
     assert "<<DRAFT>>" in turn.instructions and "<<PUBLISH>>" not in turn.instructions

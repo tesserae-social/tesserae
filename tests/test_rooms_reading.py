@@ -659,9 +659,11 @@ READING_WHO_DRAWN = "6c60ed972b866a6717ded808ea743fe1a2b668212f8e17d1b473f4d9a17
 # in tesserae-private/proposals/report-17-nov-4.md. Part 1: <<HUE>> asks for a hex code,
 # says what is drawn in the colour, and says a colour may be close to another's but not the
 # same; its two refusals say so too. Part 2: <<KNOCK>> says it may knock only while its own
-# door for them is open with room left (knock.OWN_DOOR). With all of it put back
-# (conftest.site_design_not_yet) it is exactly READING_WHO_DRAWN.
-READING_NOW = "7dfe9ff034e2505469392f4fc23659ce469be5b7d445304cf0c18830c36eb23b"
+# door for them is open with room left (knock.OWN_DOOR). Part 5: <<DRAFT>> says a picture is
+# 32 lines of 32 letters and names the 24 colours by their letters, in place of tiles of 5
+# or 12 in seven colours, and its two refusals say so (made_here.SQUARES). With all of it
+# put back (conftest.site_design_not_yet) it is exactly READING_WHO_DRAWN.
+READING_NOW = "5af1deac139e84895d8484e61f7f3843bef44dc97b5139880001117644f179b6"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -1029,7 +1031,7 @@ def test_how_he_writes_is_no_longer_asked_and_what_was_kept_stays(founder, data_
 # READING_LONG_NIGHT cut again, on purpose, on the branch site-design, for nothing else
 # than READING_NOW was. With all of it put back (conftest.site_design_not_yet) it is
 # exactly LONG_NIGHT_BEFORE_SITE_DESIGN.
-READING_LONG_NIGHT = "c78f81b645c993e24c3d988bbda09c647c4690b86ff7eab794e9a15ce060308c"
+READING_LONG_NIGHT = "7a3bfabefee9cff4bb46e3e246af7a2e27021f8efba9d7f099e1b15df8b136ba"
 LONG_NIGHT_BEFORE_SITE_DESIGN = "ce4934cfe3cf8a6692a65ac692e08cd37e278aaf332feea944afc21d0012f0f9"
 LONG_NIGHT_BEFORE_WHO_DRAWN = "b217d9c6efc5cd0786141c4dd014d3557151206f6e05a86fe592d22748bc674f"
 LONG_NIGHT_BEFORE_AGENTS_WEEK = "d8bd1a8972f5d16f288b7d5b2e118a09170dc65f3379123e266ce8bdd4a22bcb"

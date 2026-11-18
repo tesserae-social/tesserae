@@ -3,6 +3,8 @@
    lines. The same on every page that shows one. #}
 {% macro body(one, palette, cell=14) -%}
 {%- if one.kind == 'tiles' -%}
+{#- a picture of 32 squares is drawn at the width of one of 12 (17 November 2026) -#}
+{%- set cell = cell if one.size <= 12 else [cell * 12 // one.size, 4]|max -%}
 <svg class="tiles" width="{{ one.size * cell }}" height="{{ one.size * cell }}" viewBox="0 0 {{ one.size }} {{ one.size }}" role="img" aria-label="{{ one.title }}, a picture in tiles">
   {%- for row in one.tiles %}{% set y = loop.index0 %}{% for colour in row %}{% if colour != '.' %}<rect x="{{ loop.index0 }}" y="{{ y }}" width="1" height="1" fill="{{ palette[colour] }}"/>{% endif %}{% endfor %}{% endfor -%}
 </svg>

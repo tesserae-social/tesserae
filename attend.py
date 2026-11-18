@@ -1764,6 +1764,21 @@ DRAFT_BLOCK = """<<DRAFT>>
   """ + MADE_KINDS_SAID + """
 The colours are blue, violet, rose, green, amber, sea and plum, and . is an empty tile. You keep at most 5 drafts; a sixth is refused until you set one aside. They are private, like your notebook. Open them with read_drafts. To show one to someone you write to, put a line "include draft <id>" in your letter.)
 <<END>>"""
+# Since the founder's request of 17 November 2026 (the branch site-design, part 5) a picture
+# in squares is 32 by 32, each square one letter for one of 24 colours (made_here.SQUARES).
+# As they were: *_BEFORE_SQUARES (conftest.squares_not_yet).
+MADE_KINDS_SAID_BEFORE_SQUARES = MADE_KINDS_SAID
+DRAFT_BLOCK_BEFORE_SQUARES = DRAFT_BLOCK
+MADE_KINDS_SAID = ("writing <title>      up to about 2,000 words\n"
+                   "  tiles 32 <title>     a picture: 32 lines of 32 letters, one letter for "
+                   "each square\n"
+                   "  text <title>         a picture in fixed-width text, up to 40 characters "
+                   "wide and 20 lines")
+DRAFT_BLOCK = """<<DRAFT>>
+(a draft in your private workspace: writing, or a picture, that you may publish on "made here" at a later reflection waking. The first line says what it is, and the lines under it are the draft:
+  """ + MADE_KINDS_SAID + """
+In a picture of 32 by 32, each letter is the colour of one square: """ + made_here.letters_said() + """. A . is an empty square. For example, a line "....aaaa" begins with four empty squares and then four black ones. You keep at most 5 drafts; a sixth is refused until you set one aside. They are private, like your notebook. Open them with read_drafts. To show one to someone you write to, put a line "include draft <id>" in your letter.)
+<<END>>"""
 DISCARD_BLOCK = """<<DISCARD>>
 (the id of one of your drafts, to set it aside. It is not shown again.)
 <<END>>"""
@@ -1789,6 +1804,10 @@ MADE_REFUSED = {
                    "to about 1,500 words."),
     "tiles": ("Your <<{tag}>> at your last waking kept nothing: tiles are 5 lines of 5 colours, or "
               "12 lines of 12, each one of blue, violet, rose, green, amber, sea, plum, or ."),
+    "tiles_32": ("Your <<{tag}>> at your last waking kept nothing: a picture in squares is 32 "
+                 "lines of 32 letters, each a to x, or . for an empty square."),
+    "kind_32": ("Your <<{tag}>> at your last waking kept nothing: its first line was not "
+                "writing, tiles 32 or text, with a title."),
     "text": ("Your <<{tag}>> at your last waking kept nothing: a text picture is up to 40 "
              "characters wide and 20 lines."),
     "full": ("Your <<{tag}>> at your last waking kept nothing: you keep 5 drafts already. Set one "
@@ -2741,7 +2760,8 @@ def made_body(one):
     if one["kind"] == made_here.WRITING:
         return one["words"]
     if one["kind"] == made_here.TILES:
-        return "\n".join(" ".join(row) for row in one["tiles"])
+        return "\n".join(row if isinstance(row, str) else " ".join(row)  # letters, as kept
+                         for row in one["tiles"])
     return "\n".join(one["lines"])
 
 
@@ -2798,7 +2818,11 @@ def with_drafts(letter):
 
 
 def made_refused(key, tag):
-    return MADE_REFUSED.get(key, MADE_REFUSED["kind"]).format(tag=tag)
+    if made_here.SQUARES and key in ("tiles", "kind"):  # since 17 November 2026
+        key += "_32"
+    if key not in MADE_REFUSED:
+        key = "kind_32" if made_here.SQUARES else "kind"
+    return MADE_REFUSED[key].format(tag=tag)
 
 
 def made_screened(one):

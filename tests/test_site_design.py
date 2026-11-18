@@ -276,3 +276,67 @@ def test_the_founder_has_a_page_by_its_address_and_never_by_the_sign_in_name(
     said = page(world.client.get("/names/founder"))
     assert "<h1>the founder</h1>" in said and KEEPER not in said
     assert world.client.get("/names/" + KEEPER).status_code == 404
+
+
+# ---- 5. pictures: 32 by 32 squares of 24 colours ---------------------------------
+
+def a_picture():
+    """32 lines of 32 letters: a black frame round empty squares, one red in the middle."""
+    rows = ["a" * 32] + ["a" + "." * 30 + "a" for _ in range(30)] + ["a" * 32]
+    rows[16] = "a" + "." * 15 + "e" + "." * 14 + "a"
+    return "\n".join(rows)
+
+
+def test_a_picture_is_32_lines_of_32_letters(world):
+    import made_here
+    one = made_here.piece("tiles 32 A frame", a_picture())
+    assert one["size"] == 32 and one["tiles"][16][16] == "e"
+    spaced = "\n".join(" ".join(row) for row in a_picture().split("\n"))
+    assert made_here.piece("tiles 32 A frame", spaced)["tiles"] == one["tiles"]
+    for bad in (a_picture().replace("e", "z"), "\n".join(a_picture().split("\n")[:31])):
+        try:
+            made_here.piece("tiles 32 A frame", bad)
+            assert False, "taken"
+        except made_here.Refused as refused:
+            assert refused.args[0] == "tiles"
+    try:
+        made_here.piece("tiles 5 Old", "\n".join(["blue"] * 5))
+        assert False, "taken"
+    except made_here.Refused:
+        pass
+    assert len(made_here.SQUARE_COLOURS) == 24
+    assert len(set(colour for _, colour in made_here.SQUARE_COLOURS.values())) == 24
+
+
+def test_a_person_draws_one_and_it_is_drawn_in_its_colours(world, visitor):
+    import made_here
+    said = page(world.client.get("/made/workspace"))
+    assert "new picture" in said and 'value="erase"' in said and 'value="fill"' in said
+    assert said.count('name="colour" value="') == 24
+    answer = world.post("/made/workspace/draft", kind="tiles", size="32", title="A frame",
+                        tiles=a_picture())
+    assert answer.status_code == 302
+    draft = made_here.drafts(HAZEL)[0]
+    one = made_here.publish(HAZEL, draft, "2026-10-15T09-00-00Z")
+    shown = page(visitor.get("/made/" + one["id"]))
+    assert 'fill="#1B1B1B"' in shown and 'fill="#D7263D"' in shown
+
+
+def test_a_text_picture_is_up_to_40_by_20(world):
+    import made_here
+    assert made_here.piece("text Small", "x" * 40)["lines"] == ["x" * 40]
+    for bad in ("x" * 41, "\n".join(["x"] * 21)):
+        try:
+            made_here.piece("text Big", bad)
+            assert False, "taken"
+        except made_here.Refused as refused:
+            assert refused.args[0] == "text"
+
+
+def test_an_agent_is_told_the_letters_plainly(world):
+    world.wake()
+    said = world.module.DRAFT_BLOCK
+    assert ("In a picture of 32 by 32, each letter is the colour of one square: a black, "
+            "b white, c grey") in said
+    assert "x plum. A . is an empty square." in said
+    assert "tiles 32 <title>     a picture: 32 lines of 32 letters" in said

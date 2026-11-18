@@ -60,6 +60,108 @@
   </form>
 </section>
 
+{% if squares %}
+<section>
+  <h2>new picture</h2>
+  {# a picture in squares, 32 by 32 (17 November 2026, site-design, part 5): click and drag
+     to draw, fill a space of one colour, or erase. Kept as 32 lines of 32 letters. #}
+  <form method="post" action="{{ url_for('made_save_draft') }}" class="field" id="tiles-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="kind" value="tiles">
+    <input type="hidden" name="size" value="{{ sizes[0] }}">
+    <input type="hidden" name="tiles" id="tiles-field">
+    <label for="tiles-title">title</label>
+    <input type="text" id="tiles-title" name="title" maxlength="{{ title_most }}">
+    <p class="muted">Choose a colour, then click or drag across the squares. Fill colours a
+      whole space of one colour. The eraser empties squares.</p>
+    <p id="tiles-tools">
+      <label><input type="radio" name="tool" value="draw" checked> draw</label>
+      <label><input type="radio" name="tool" value="fill"> fill</label>
+      <label><input type="radio" name="tool" value="erase"> eraser</label>
+      <button type="button" id="tiles-clear" class="small">clear all</button>
+    </p>
+    <p id="tiles-palette" class="squares-palette">
+      {%- for letter, name, colour in squares %}
+      <label title="{{ name }}"><input type="radio" name="colour" value="{{ letter }}"{% if loop.first %} checked{% endif %}><span style="display: inline-block; width: 16px; height: 16px; vertical-align: -3px; border: 1px solid #ccc; background: {{ colour }}" aria-hidden="true"></span> {{ name }}</label>
+      {%- endfor %}
+    </p>
+    <div id="tiles-grid" role="grid" aria-label="the picture, {{ sizes[0] }} by {{ sizes[0] }} squares"
+         style="display: grid; grid-template-columns: repeat({{ sizes[0] }}, 1fr); width: 100%; max-width: 448px; aspect-ratio: 1; border: 1px solid #ccc; touch-action: none; user-select: none"></div>
+    <button type="submit">Keep the draft</button>
+  </form>
+</section>
+<script>
+(() => {
+  const palette = {{ palette|tojson }};
+  const n = {{ sizes[0] }};
+  const grid = document.getElementById("tiles-grid");
+  const field = document.getElementById("tiles-field");
+  const cells = Array(n * n).fill(".");
+  const squares = [];
+  const chosen = () => document.querySelector('#tiles-palette input:checked').value;
+  const tool = () => document.querySelector('#tiles-tools input:checked').value;
+  const write = () => {
+    const rows = [];
+    for (let y = 0; y < n; y++) rows.push(cells.slice(y * n, y * n + n).join(""));
+    field.value = rows.join("\n");
+  };
+  const paint = (i, value) => {
+    cells[i] = value;
+    squares[i].style.background = value === "." ? "#fff" : palette[value];
+  };
+  const fill = (start, value) => {
+    const from = cells[start];
+    if (from === value) return;
+    const stack = [start];
+    while (stack.length) {
+      const i = stack.pop();
+      if (cells[i] !== from) continue;
+      paint(i, value);
+      const x = i % n, y = Math.floor(i / n);
+      if (x > 0) stack.push(i - 1);
+      if (x < n - 1) stack.push(i + 1);
+      if (y > 0) stack.push(i - n);
+      if (y < n - 1) stack.push(i + n);
+    }
+  };
+  const act = i => {
+    if (tool() === "fill") fill(i, chosen());
+    else paint(i, tool() === "erase" ? "." : chosen());
+    write();
+  };
+  let down = false;
+  for (let i = 0; i < n * n; i++) {
+    const square = document.createElement("div");
+    square.dataset.i = i;
+    square.style.cssText = "background: #fff; outline: 1px solid #f1ede6";
+    squares.push(square);
+    grid.appendChild(square);
+  }
+  const under = event => {
+    const found = document.elementFromPoint(event.clientX, event.clientY);
+    return found && found.parentNode === grid ? Number(found.dataset.i) : null;
+  };
+  grid.addEventListener("pointerdown", event => {
+    const i = under(event);
+    if (i === null) return;
+    down = tool() !== "fill";
+    act(i);
+    event.preventDefault();
+  });
+  grid.addEventListener("pointermove", event => {
+    if (!down) return;
+    const i = under(event);
+    if (i !== null) act(i);
+  });
+  window.addEventListener("pointerup", () => { down = false; });
+  document.getElementById("tiles-clear").addEventListener("click", () => {
+    for (let i = 0; i < n * n; i++) paint(i, ".");
+    write();
+  });
+  write();
+})();
+</script>
+{% else %}
 <section>
   <h2>new tiles</h2>
   <form method="post" action="{{ url_for('made_save_draft') }}" class="field" id="tiles-form">
@@ -82,6 +184,7 @@
     <button type="submit">Keep the draft</button>
   </form>
 </section>
+{% endif %}
 
 <section>
   <h2>new text picture</h2>
@@ -96,6 +199,7 @@
   </form>
 </section>
 
+{% if not squares %}
 <script>
 (() => {
   const palette = {{ palette|tojson }};
@@ -135,5 +239,6 @@
   draw();
 })();
 </script>
+{% endif %}
 {% endif %}
 {% endblock %}

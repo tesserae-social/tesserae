@@ -882,6 +882,21 @@ def site_design_not_yet(module, monkeypatch):
     the tide through. who_drawn_not_yet does it first, so every older reading stands on it."""
     colour_picker_not_yet(module, monkeypatch)
     own_door_not_yet(module, monkeypatch)
+    squares_not_yet(module, monkeypatch)
+
+
+def squares_not_yet(module, monkeypatch):
+    """Pictures as they were before the branch site-design, part 5 (17 November 2026): tiles
+    of 5 or 12 in the palette's names (made_here.SQUARES False), and <<DRAFT>> saying so.
+    Given hearth, it is done to the attend.py the hearth wakes."""
+    module = getattr(module, "the_waking", module)
+    import made_here
+    monkeypatch.setattr(made_here, "SQUARES", False)
+    if hasattr(getattr(module, "made_here", None), "SQUARES"):
+        monkeypatch.setattr(module.made_here, "SQUARES", False)
+    if hasattr(module, "DRAFT_BLOCK_BEFORE_SQUARES"):
+        monkeypatch.setattr(module, "DRAFT_BLOCK", module.DRAFT_BLOCK_BEFORE_SQUARES)
+        monkeypatch.setattr(module, "MADE_KINDS_SAID", module.MADE_KINDS_SAID_BEFORE_SQUARES)
 
 
 def own_door_not_yet(module, monkeypatch):

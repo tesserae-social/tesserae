@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}your workspace{% endblock %}
+{% block heading %}your workspace{% endblock %}
+
+{# A member's private workspace (made_here.py): up to five drafts, each writing or one
+   picture, seen by no one else. A draft is published from here: one piece of writing a
+   week and three pictures a week. Nothing is taken out of it but by its maker. #}
+{% from "made_draw.html" import body %}
+{% block content %}
+<section>
+  <p>Your drafts are private. You may keep up to {{ most }}. Publishing puts one on
+    <a href="{{ url_for('made_here_page') }}">made here</a>, where anyone may read it, with its
+    own topic on the board. You may publish one piece of writing and three pictures a week.
+    Once published, a piece is never edited; you may add a note beneath it, or take it down.</p>
+  {% if saved %}<p class="saved">Kept in your workspace.</p>{% endif %}
+  {% if refused_said %}<p class="error">{{ refused_said }}</p>{% endif %}
+</section>
+
+<section>
+  <h2>drafts</h2>
+  {% for one in drafts %}
+  <article class="card" id="draft-{{ one.id }}">
+    <p class="muted date">{{ one.day }} · {{ one.kind }}</p>
+    <h3>{{ one.title }}</h3>
+    {{ body(one, palette) }}
+    <form method="post" action="{{ url_for('made_publish') }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="id" value="{{ one.id }}">
+      <button type="submit">Publish</button>
+    </form>
+    <form method="post" action="{{ url_for('made_discard') }}" class="beside">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="id" value="{{ one.id }}">
+      {% if confirming == one.id %}
+      <input type="hidden" name="confirm" value="yes">
+      <p class="error">Discard this draft? It is not shown again.</p>
+      <button type="submit" class="consequential small">Yes, discard it</button>
+      {% else %}
+      <button type="submit" class="small">Discard</button>
+      {% endif %}
+    </form>
+  </article>
+  {% else %}
+  <p class="muted">No drafts yet.</p>
+  {% endfor %}
+</section>
+
+{% if drafts|length < most %}
+<section>
+  <h2>new writing</h2>
+  <form method="post" action="{{ url_for('made_save_draft') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="kind" value="writing">
+    <label for="writing-title">title</label>
+    <input type="text" id="writing-title" name="title" maxlength="{{ title_most }}" value="{{ draft_title or '' }}">
+    <label for="writing-body">your writing, up to about {{ words_most }} words</label>
+    <textarea id="writing-body" name="body" rows="12">{{ draft_body or '' }}</textarea>
+    <button type="submit">Keep the draft</button>
+  </form>
+</section>
+
+<section>
+  <h2>new tiles</h2>
+  <form method="post" action="{{ url_for('made_save_draft') }}" class="field" id="tiles-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="kind" value="tiles">
+    <input type="hidden" name="tiles" id="tiles-field">
+    <label for="tiles-title">title</label>
+    <input type="text" id="tiles-title" name="title" maxlength="{{ title_most }}">
+    <label for="tiles-size">size</label>
+    <select id="tiles-size" name="size">
+      {%- for n in sizes %}<option value="{{ n }}">{{ n }} by {{ n }}</option>{% endfor %}
+    </select>
+    <p class="muted">Choose a colour, then click squares. Click a square again with the same colour to empty it.</p>
+    <p id="tiles-palette">
+      {%- for name, colour in palette.items() %}
+      <label><input type="radio" name="colour" value="{{ name }}"{% if loop.first %} checked{% endif %}> <span style="display: inline-block; width: 12px; height: 12px; background: {{ colour }}" aria-hidden="true"></span> {{ name }}</label>
+      {%- endfor %}
+    </p>
+    <div id="tiles-grid" role="grid" aria-label="the tiles"></div>
+    <button type="submit">Keep the draft</button>
+  </form>
+</section>
+
+<section>
+  <h2>new text picture</h2>
+  <form method="post" action="{{ url_for('made_save_draft') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="kind" value="text">
+    <label for="text-title">title</label>
+    <input type="text" id="text-title" name="title" maxlength="{{ title_most }}">
+    <label for="text-body">a picture in fixed-width text, up to {{ columns }} characters wide and {{ rows }} lines</label>
+    <textarea id="text-body" name="body" rows="{{ rows }}" style="font-family: monospace"></textarea>
+    <button type="submit">Keep the draft</button>
+  </form>
+</section>
+
+<script>
+(() => {
+  const palette = {{ palette|tojson }};
+  const grid = document.getElementById("tiles-grid");
+  const size = document.getElementById("tiles-size");
+  const field = document.getElementById("tiles-field");
+  let cells = [];
+  const write = () => {
+    const n = Number(size.value);
+    const rows = [];
+    for (let y = 0; y < n; y++) rows.push(cells.slice(y * n, y * n + n).join(" "));
+    field.value = rows.join("\n");
+  };
+  const draw = () => {
+    const n = Number(size.value);
+    cells = Array(n * n).fill(".");
+    grid.innerHTML = "";
+    grid.style.display = "grid";
+    grid.style.gridTemplateColumns = `repeat(${n}, 20px)`;
+    grid.style.gap = "2px";
+    for (let i = 0; i < n * n; i++) {
+      const square = document.createElement("button");
+      square.type = "button";
+      square.setAttribute("aria-label", "square " + (i + 1));
+      square.style.cssText = "width: 20px; height: 20px; padding: 0; border: 1px solid #ccc; background: #fff";
+      square.addEventListener("click", () => {
+        const chosen = document.querySelector('#tiles-palette input:checked').value;
+        cells[i] = cells[i] === chosen ? "." : chosen;
+        square.style.background = cells[i] === "." ? "#fff" : palette[cells[i]];
+        write();
+      });
+      grid.appendChild(square);
+    }
+    write();
+  };
+  size.addEventListener("change", draw);
+  draw();
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}find someone{% endblock %}
+{% block back %}<a href="{{ url_for('hearth') }}">&larr; home</a>{% endblock %}
 {% block heading %}find someone{% endblock %}
+{# two columns on a wide screen, one on a phone (17 November 2026, site-design, part 7) #}
+{% block main_class %} class="wide"{% endblock %}
 
 {# Everyone, 20 to a page, in a random order kept for this look by its seed (the founder's
    request of 17 November 2026). It may be narrowed, and searched over what people say about
@@ -29,7 +32,7 @@
 </section>
 <section>
   {% if shown %}
-  <ul class="list">
+  <ul class="list" style="columns: 2 320px; column-gap: var(--space-6)">
     {%- for one in shown %}
     {% include "someone.html" %}
     {%- endfor %}

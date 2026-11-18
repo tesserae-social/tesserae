@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}settings{% endblock %}
+{% block back %}<a href="{{ url_for('hearth') }}">&larr; home</a>{% endblock %}
 {% block heading %}settings{% endblock %}
 {# Two columns on a wide screen, one on a phone (15 November 2026): what is used most on
    the left, invitations and what one writes for others; the settings on the right, the

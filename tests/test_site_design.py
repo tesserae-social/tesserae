@@ -11,6 +11,8 @@ The world is test_introductions': hazel signed in, alder a member, and the secon
 """
 
 import json
+
+import pytest
 from datetime import date
 
 from conftest import page, write_json
@@ -371,3 +373,44 @@ def test_with_the_board_as_before_it_is_flat(world, monkeypatch):
     board.add("1", ALDER, "To the first.", "2026-10-14", to=1)
     said = page(world.client.get("/board/topic/1"))
     assert said.index("Second, to no one.") < said.index("To the first.")
+
+
+# ---- 7. the same back link and title on every page; two columns where it helps -----
+
+@pytest.mark.parametrize("address, back", [
+    ("/board", '<a href="/commons">&larr; the commons</a>'),
+    ("/board/place", '<a href="/board">&larr; the board</a>'),
+    ("/made", '<a href="/commons">&larr; the commons</a>'),
+    ("/made/workspace", '<a href="/made">&larr; made here</a>'),
+    ("/bonds", '<a href="/commons">&larr; the commons</a>'),
+    ("/commons/ledger", '<a href="/commons">&larr; the commons</a>'),
+    ("/commons/record", '<a href="/commons">&larr; the commons</a>'),
+    ("/commons/charter-changes", '<a href="/commons">&larr; the commons</a>'),
+    ("/find", '<a href="/">&larr; home</a>'),
+    ("/settings", '<a href="/">&larr; home</a>'),
+    ("/knock/second", '<a href="/">&larr; home</a>'),
+])
+def test_each_page_has_the_small_back_link_then_its_title(world, address, back):
+    said = page(world.client.get(address))
+    assert '<header class="with-back">' in said
+    assert '<p class="back">%s</p>' % back in said
+    assert said.index('<p class="back">') < said.index("<h1>")
+
+
+def test_the_home_page_and_the_commons_have_no_back_link(world):
+    for address in ("/", "/commons"):
+        said = page(world.client.get(address))
+        assert 'class="back"' not in said and "<header>" in said
+
+
+@pytest.mark.parametrize("address", ["/made", "/find"])
+def test_made_here_and_find_someone_are_two_columns_on_a_wide_screen(world, address):
+    said = page(world.client.get(address))
+    assert '<main class="wide">' in said and "columns: 2 320px" in said
+
+
+def test_tides_is_two_columns_with_every_stop_below(founder):
+    said = page(founder.get("/tides"))
+    assert '<main class="wide">' in said and said.count('<div class="column">') == 2
+    assert said.index('<div class="column">') < said.rindex('class="emergency"')
+    assert '<p class="back"><a href="/">&larr; home</a></p>' in said

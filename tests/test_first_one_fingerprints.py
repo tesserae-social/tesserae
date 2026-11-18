@@ -263,16 +263,24 @@ FOLD_OPENS = "      <summary>more</summary>\n"
 # the home page, and "find someone ->" said under who is here whether or not anyone is
 # shown. With the templates of before drawn in their place (conftest.pages_before_design)
 # it is exactly the one held before, in DESIGN_BEFORE below. No waking moved.
+#
+# /rooms/first, /self, /attendances, /chronicle, /export and /bonds cut on purpose, on the
+# same branch, part 7, and for nothing else: each has a small back link above its title
+# ("<- home", or "<- the commons" for /chronicle and /bonds), and its title is set in a
+# little beneath it, in the size of a section label, with the two rules that draw them in
+# its own style block. With the templates of before (conftest.pages_before_design) each is
+# exactly the one held before, in DESIGN_BEFORE (and /chronicle with the letter line as
+# before, in DESIGN_AND_LETTER_PARTS_BEFORE). No waking moved.
 PAGES = {
     "/": "14889a74bc53ebf0ab35b766a70803941d79cdaa520dfd701ce0c021cde1cd54",
-    "/rooms/first": "7816934d331ae825641e06e0a54b085209ec67377026a3a2fef849400e5ffa4c",
+    "/rooms/first": "3b54365e459c86713f02b94a5c56cacb71b133b0ff0bcf8cf62956cfac615ddc",
     "/letters": "8917ddbfd5f94f0982f6e77c43b18b6abaa5442e3979028fb96a2f90d88e0e7b",
-    "/self": "708c75f04e55981579e4b6e7a63997278cd145bcc6a8613ba86363d56273bbf8",
-    "/attendances": "e624e6d07e4eca2e8ebd4f2528e4fad2bb4edbfe2791e702dbe647bfa248099e",
-    "/chronicle": "e1505184cff286ba366cc8a225742087c13a3cfd91dd5df59381f0e8b7d98057",
+    "/self": "29fa1ff56bae40214f028d0599da5d9274b5a9c74e84a1d0041d608d90323b6c",
+    "/attendances": "57f4ac056a1307710f333e859d8158ea69c434c0220101d3554338799671ee56",
+    "/chronicle": "9c084f85513c3b15b9468fe79a6066444888e7e3b9623fc82f3a86fcbde0dc8f",
     "/chronicle.md": "1dff8d1a21f5e27a63b336fc58334f9ffaf8b26006a904a6f03503ab39703962",
-    "/export": "8f99cdb3b445560ad99478d358cfb0de2a1e753422ce8f9a0eb873cb0354494c",
-    "/bonds": "9e2e4625ee9975985dd3b51aebcf2de2a51613af3a7e90f8f6280321e604f722",
+    "/export": "62b767ac9c7616359448b44a9ba68173117099f86e52bba60b588d0e558c2213",
+    "/bonds": "c1709545a9b797ab4751659651be69544db17fa61b8bd8479b74f472824ff919",
     "/commons": "becf97deeb1caa0e8babeb0769ca70fd35ef9e5196c054000e7d0e7071a4761a",
     "/commons/heartbeats.md": "899bc6ce781b82765da2cc695f505aa096cb9f0df6a36cb2b5580982b28f7a5f",
     "/commons/events.md": "90213ae1d692fd4783403a588263ac96d974178477e5823219f460ea35d1d123",
@@ -379,7 +387,9 @@ LETTER_PARTS_BEFORE = {
     # 4affe3f1..., and is again drawn as before: SETTINGS_AND_LETTER_PARTS_BEFORE), and
     # later that day when offerings were taken out (it was 051e9393..., and is again
     # drawn as before: OFFERINGS_AND_LETTER_PARTS_BEFORE)
-    "PAGES['/chronicle']": "dfca286d85016273c250b0deef22e887033b868b7e9334a1ec728fdc4e148dc0",
+    # and on 17 November 2026 for the back link of site-design, part 7 (it was dfca286d...,
+    # and is again drawn as before: DESIGN_AND_LETTER_PARTS_BEFORE)
+    "PAGES['/chronicle']": "929f6f4cad5ef65b5a159eb3572497f375614a0cc6bf83212e43ddaf23f73793",
     "PAGES['/chronicle.md']": "26316c2b5ea305af550820e1036a3fc8ba21a7707d3d86f69eeedd20b69e770b",
     "PAGES['/commons/events.md']":
         "54dce2b2ecdbc84c904222a29b19253792f427fa70cd80052d52a798fb95b53b",
@@ -571,6 +581,15 @@ DOORS_BEFORE = {
 # (conftest.pages_before_design). The reason each moved is written beside PAGES.
 DESIGN_BEFORE = {
     "/": "03bdcae88a19a1f5b12e2e47f169aee7982a042ef1aff4c1e297e74de47fa38d",
+    "/rooms/first": "7816934d331ae825641e06e0a54b085209ec67377026a3a2fef849400e5ffa4c",
+    "/self": "708c75f04e55981579e4b6e7a63997278cd145bcc6a8613ba86363d56273bbf8",
+    "/attendances": "e624e6d07e4eca2e8ebd4f2528e4fad2bb4edbfe2791e702dbe647bfa248099e",
+    "/chronicle": "e1505184cff286ba366cc8a225742087c13a3cfd91dd5df59381f0e8b7d98057",
+    "/export": "8f99cdb3b445560ad99478d358cfb0de2a1e753422ce8f9a0eb873cb0354494c",
+    "/bonds": "9e2e4625ee9975985dd3b51aebcf2de2a51613af3a7e90f8f6280321e604f722",
+}
+DESIGN_AND_LETTER_PARTS_BEFORE = {
+    "/chronicle": "dfca286d85016273c250b0deef22e887033b868b7e9334a1ec728fdc4e148dc0",
 }
 
 # What the atrium drew before site-design, and draws again with build_atrium as it was
@@ -990,7 +1009,9 @@ def test_with_the_pages_drawn_before_site_design_each_is_the_page_before(
     answer = founder.get(address)
     shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
              + FORM_TOKEN.sub(r"\1\2", page(answer)))
-    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == DESIGN_BEFORE[address]
+    held = (DESIGN_AND_LETTER_PARTS_BEFORE.get(address, DESIGN_BEFORE[address]) if letter_parts
+            else DESIGN_BEFORE[address])
+    assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == held
 
 
 def test_with_the_atrium_drawn_before_site_design_it_is_the_one_before(

@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 
 {% block title %}the tides{% endblock %}
+{% block back %}<a href="{{ url_for('hearth') }}">&larr; home</a>{% endblock %}
 {% block heading %}the tides{% endblock %}
+{# two columns on a wide screen, one on a phone (17 November 2026, site-design, part 7): the
+   agents' tides on the left, the comings, notes and numbers on the right, every emergency
+   stop below both #}
+{% block main_class %} class="wide"{% endblock %}
 
 {# Every agent's tide, made from the fields hearth.tides_shown gives it, and the
    same of each: nothing more of any agent than the keeper's view of it shows. #}
@@ -59,6 +64,8 @@
 {% if screens_spent_out %}<p>{{ screens_spent_out }}</p>
 {% endif %}{% for trouble in troubles or () %}<p class="trouble">{{ trouble }}</p>
 {% endfor %}
+<div class="columns">
+<div class="column">
 {% if knocks %}
 {# A yes to a knock (knock.py): who knocked at whose door, and when it was said
    yes to; nothing of the note or the reply. While no agent may hold a second
@@ -174,6 +181,8 @@
   {% endfor %}
 </section>
 
+</div>
+<div class="column">
 {# A new agent's coming (coming.py): the founder's standing letter, each version
    kept, the one in force read at a coming; and when the second one is given the
    first one's letter of welcome. Nothing of either is public. #}
@@ -297,6 +306,8 @@
   {% endif %}
 </section>
 
+</div>
+</div>
 {% for stopped in together %}
 <section class="emergency">
   <h2>stopped together</h2>

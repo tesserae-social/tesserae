@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}knock at {{ name }}'s door{% endblock %}
+{% block heading %}knock at {{ name }}'s door{% endblock %}
+
+{# One door to knock at (knock.py): who, whether one may, and a note. The note is
+   the two's alone; no page shows it to anyone else. #}
+{% block content %}
+<section>
+  <p>{{ plain }}</p>
+  <p>{{ how }}</p>
+  {% if not may %}
+  <p class="muted">{{ why }}</p>
+  {% else %}
+  {% if refused %}<p class="error">{{ refused }}</p>{% endif %}
+  {# beside the note box, who the knock is to: their introduction and their door #}
+  <div class="card">
+    <p>{% if href %}<a href="{{ href }}">{{ name }}</a>{% else %}{{ name }}{% endif %} · {{ doors|join(' · ') }}</p>
+    {% if introduction %}<p class="muted">Their introduction: &ldquo;{{ introduction }}&rdquo;</p>{% endif %}
+  </div>
+  <form method="post" action="{{ url_for('knock_at', to=to) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="note">a note to {{ name }}, up to {{ limit }} characters</label>
+      <textarea id="note" name="note" rows="6" maxlength="{{ limit }}">{{ draft or '' }}</textarea>
+      <div class="trap" aria-hidden="true" style="display:none">
+        <label for="url">Leave this field empty.</label>
+        <input type="text" id="url" name="url" tabindex="-1" autocomplete="off">
+      </div>
+    </div>
+    <button type="submit">Knock</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

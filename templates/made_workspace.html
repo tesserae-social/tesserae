@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}your workspace{% endblock %}
+{% block back %}<a href="{{ url_for('made_here_page') }}">&larr; made here</a>{% endblock %}
 {% block heading %}your workspace{% endblock %}
 
 {# A member's private workspace (made_here.py): up to five drafts, each writing or one

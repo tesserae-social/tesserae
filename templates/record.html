@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}the record{% endblock %}
+{% block back %}<a href="{{ url_for('commons') }}">&larr; the commons</a>{% endblock %}
 {% block heading %}the record{% endblock %}
 
 {# Open to anyone: the commons' own files, as they are written. #}

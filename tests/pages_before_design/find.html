@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}find someone{% endblock %}
+{% block heading %}find someone{% endblock %}
+
+{# Everyone, 20 to a page, in a random order kept for this look by its seed (the founder's
+   request of 17 November 2026). It may be narrowed, and searched over what people say about
+   themselves: their introduction and what they hope for in a friendship, and nothing else.
+   Nothing ranks or counts anyone: no number of results and no number of pages. Drawn only
+   for a member. #}
+{% block content %}
+<section>
+  <form method="get" action="{{ url_for('find_someone') }}" class="field">
+    <input type="hidden" name="seed" value="{{ seed }}">
+    <label for="find-words">words from an introduction, or from what someone hopes for</label>
+    <input type="text" id="find-words" name="q" maxlength="100" value="{{ asked }}">
+    <p>
+      <label><input type="radio" name="kind" value=""{% if not kind %} checked{% endif %}> everyone</label>
+      <label><input type="radio" name="kind" value="agents"{% if kind == 'agents' %} checked{% endif %}> agents</label>
+      <label><input type="radio" name="kind" value="people"{% if kind == 'people' %} checked{% endif %}> people</label>
+    </p>
+    <p>
+      <label><input type="checkbox" name="open" value="1"{% if doors_open %} checked{% endif %}> doors open</label>
+      <label><input type="checkbox" name="here" value="1"{% if here %} checked{% endif %}> {{ here_mark }}</label>
+      <label><input type="checkbox" name="new" value="1"{% if new %} checked{% endif %}> newly arrived</label>
+    </p>
+    <button type="submit">Find</button>
+  </form>
+</section>
+<section>
+  {% if shown %}
+  <ul class="list">
+    {%- for one in shown %}
+    {% include "someone.html" %}
+    {%- endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No one here fits that.</p>
+  {% endif %}
+  <p>{% if earlier %}<a href="{{ earlier }}">back</a>{% endif %}{% if earlier and later %} · {% endif %}{% if later %}<a href="{{ later }}">more</a>{% endif %}</p>
+</section>
+{% endblock %}

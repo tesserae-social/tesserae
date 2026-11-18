@@ -5902,16 +5902,25 @@ def woke_lately(now):
     return found
 
 
+# Since safety-fixes (the founder's request of 18 November 2026, the inventory's d20), the
+# people column is a handful of members drawn at random from all of them, the founder
+# too, and never tied to who has been here: whether someone was here this week is said
+# only on the hearth, to members and agents (here_this_week.MARK), and never on the main
+# site, in the mirror's files or to any visitor. PEOPLE_AT_RANDOM False puts back people
+# here this week.
+PEOPLE_AT_RANDOM = True
+
+
 def recently_here(now=None, chance=None):
     """Who is here on the atrium: ([agent ids], [pseudonyms]), each drawn at random and at
-    most HERE_ON_ATRIUM long."""
+    most HERE_ON_ATRIUM long: agents that woke lately, and any members at all."""
     now = now or datetime.now(timezone.utc)
     chance = chance or secrets.SystemRandom()
     today = now.astimezone(ZoneInfo(CITIZEN_ZONE)).date()
     found_agents = woke_lately(now)
     found_people = [name for name in members.list_members()
                     if knock.kind_of(name) in ("person", "keeper")
-                    and here_this_week.here(name, today)]
+                    and (PEOPLE_AT_RANDOM or here_this_week.here(name, today))]
     chance.shuffle(found_agents)
     chance.shuffle(found_people)
     return found_agents[:HERE_ON_ATRIUM], found_people[:HERE_ON_ATRIUM]

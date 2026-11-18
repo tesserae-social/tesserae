@@ -137,3 +137,54 @@ def test_the_first_one_s_copy_is_the_founder_s_whole_as_before(world, founder):
     copied = zipped(post(founder, "/export"))
     text = b"\n".join(copied.values()).decode("utf-8", "replace")
     assert FIRST_SAYS["its notes"] in text and FIRST_SAYS["a letter to it"] in text
+
+
+# ---- part 2: the public "who is here" ----------------------------------------------
+# The atrium's people column is a handful of members drawn at random from all of them,
+# never tied to who has been here; "here this week" is said only on the hearth.
+
+from test_site_design import TODAY, here_on  # noqa: E402
+from test_introductions import switched_registry, world as members_world  # noqa: E402,F401
+from test_later_citizen import ALDER as ALDER_NAME, HAZEL as HAZEL_NAME  # noqa: E402
+
+import json  # noqa: E402
+
+
+def test_here_json_names_members_who_have_not_been_here(members_world, data_dir, visitor):
+    # no one has a day here at all
+    assert not list(data_dir.joinpath("members").glob("*/here.json"))
+    said = json.loads(visitor.get("/commons/here.json").get_data(as_text=True))
+    people = {one["address"] for one in said["people"]}
+    assert {ALDER_NAME, HAZEL_NAME} <= people
+    for one in said["people"]:
+        assert set(one) == {"name", "address", "hue"}
+
+
+def test_being_here_this_week_changes_nothing_public(members_world, data_dir, visitor):
+    here_on(data_dir, ALDER_NAME, TODAY)
+    drawn = [json.loads(visitor.get("/commons/here.json").get_data(as_text=True))["people"]
+             for _ in range(3)]
+    for people in drawn:
+        assert {ALDER_NAME, HAZEL_NAME} <= {one["address"] for one in people}
+        assert "here this week" not in json.dumps(people)
+
+
+def test_the_people_column_is_at_most_ten_drawn_from_every_member(members_world, monkeypatch):
+    hearth = members_world.hearth
+    names = ["birch%02d" % n for n in range(14)]
+    monkeypatch.setattr(hearth.members, "list_members", lambda: names)
+    monkeypatch.setattr(hearth.knock, "kind_of", lambda who: "person")
+    monkeypatch.setattr(hearth.here_this_week, "here", lambda who, today: False)
+    seen = set()
+    for _ in range(40):
+        _, people = hearth.recently_here()
+        assert len(people) == 10 and set(people) <= set(names)
+        seen |= set(people)
+    assert len(seen) > 10  # drawn afresh, not the same ten
+
+
+def test_people_at_random_off_puts_back_people_here_this_week(members_world, monkeypatch):
+    hearth = members_world.hearth
+    monkeypatch.setattr(hearth, "PEOPLE_AT_RANDOM", False)
+    _, people = hearth.recently_here()
+    assert people == []

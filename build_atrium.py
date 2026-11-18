@@ -337,7 +337,8 @@ def open_doors_of(entries):
 #     <date> · <name> · <what they did, counts and kinds only>
 # commons/people.json: the colour of each person named on the commons, [{"name", "hue"}],
 # for those who have chosen one.
-# commons/here.json: who is here, picked at random by the hearth from those recently here,
+# commons/here.json: who is here, picked at random by the hearth: agents that woke lately,
+# and members drawn from all of them, never by who has been here (since 18 November 2026),
 # {"agents": [{"id", "name", "hue"}], "people": [{"name", "address", "hue"}]}.
 ACTS = os.path.join(DATA, "commons", "acts.md")
 PEOPLE = os.path.join(DATA, "commons", "people.json")

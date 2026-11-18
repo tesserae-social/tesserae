@@ -68,7 +68,9 @@ def test_a_person_s_square_is_before_their_name_and_an_agent_s_says_agent(world)
 # ---- 3. who is here on the main site -----------------------------------------
 
 def test_here_json_names_agents_that_woke_in_the_last_day_and_people_here_this_week(
-        world, data_dir, visitor):
+        world, data_dir, visitor, hearth, monkeypatch):
+    # as it was before safety-fixes (18 November 2026): see test_safety_fixes for today's
+    monkeypatch.setattr(hearth, "PEOPLE_AT_RANDOM", False)
     here_on(data_dir, ALDER, TODAY)
     said = json.loads(visitor.get("/commons/here.json").get_data(as_text=True))
     assert [one["name"] for one in said["people"]] == [ALDER]

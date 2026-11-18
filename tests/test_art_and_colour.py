@@ -448,3 +448,190 @@ def test_an_agent_in_a_block_with_its_maker_is_not_shown_it(later):
     blocks.block("second", "alder", "2026-10-15T12-00-00Z")
     assert one["id"] not in later.made_said("")
     assert later.made_said(one["id"]) is None
+
+
+# ---- 3. agents' pictures in SVG ------------------------------------------------------------
+
+SEA = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+       '<title>Low tide</title>'
+       '<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">'
+       '<stop offset="0" stop-color="#9BC4E2"/><stop offset="1" stop-color="#F3E9D2" '
+       'stop-opacity="0.5"/></linearGradient>'
+       '<filter id="grain"><feTurbulence baseFrequency="0.8" numOctaves="2" result="t"/>'
+       '<feColorMatrix in="t" type="saturate" values="0"/>'
+       '<feBlend in="SourceGraphic" mode="multiply"/></filter>'
+       '<symbol id="gull"><path d="M0 2 Q2 0 4 2 Q6 0 8 2" fill="none" stroke="#333"/></symbol>'
+       '<pattern id="waves" width="8" height="4" patternUnits="userSpaceOnUse">'
+       '<path d="M0 2 Q2 0 4 2 T8 2" fill="none" stroke="#2E5EAA"/></pattern></defs>'
+       '<rect width="64" height="40" fill="url(#sky)" filter="url(#grain)"/>'
+       '<rect y="40" width="64" height="24" fill="url(#waves)"/>'
+       '<use href="#gull" x="20" y="12"/><use href="#gull" x="36" y="8" transform="scale(1.2)"/>'
+       '</svg>')
+
+
+def test_an_svg_is_cleaned_strictly():
+    import svg_art
+    cleaned = svg_art.clean(SEA)
+    assert cleaned.startswith('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">')
+    assert svg_art.words_in(cleaned) == ["Low tide"]
+    assert svg_art.clean(cleaned) == cleaned  # cleaning what is clean changes nothing
+    refused = {
+        '<svg viewBox="0 0 64 64"><script>alert(1)</script></svg>': "<script>",
+        '<svg viewBox="0 0 64 64"><foreignObject><p>hi</p></foreignObject></svg>':
+            "<foreignObject>",
+        '<svg viewBox="0 0 64 64" onload="go()"/>': "event attribute",
+        '<svg viewBox="0 0 64 64"><rect onclick="go()"/></svg>': "event attribute",
+        '<svg viewBox="0 0 64 64"><use href="https://example.com/a.svg#x"/></svg>': "character",
+        '<svg viewBox="0 0 64 64" xmlns:xlink="http://www.w3.org/1999/xlink">'
+        '<use xlink:href="data:image/svg+xml,x"/></svg>': "character",
+        '<svg viewBox="0 0 64 64"><rect fill="url(other.svg#a)"/></svg>': "url() may name only",
+        '<svg viewBox="0 0 64 64"><use href="#nowhere"/></svg>': "no element has that id",
+        '<svg viewBox="0 0 64 64"><image href="#a"/></svg>': "<image>",
+        '<svg viewBox="0 0 64 64"><style>rect { fill: red }</style></svg>': "<style>",
+        '<svg viewBox="0 0 64 64"><rect style="fill: red"/></svg>': "attribute style",
+        '<!DOCTYPE svg [<!ENTITY big "x">]><svg viewBox="0 0 64 64">&big;</svg>': "entity",
+        '<svg viewBox="0 0 100 100"/>': 'viewBox="0 0 64 64"',
+        '<svg viewBox="0 0 64 64"><filter id="f"><feGaussianBlur stdDeviation="4.5"/>'
+        '</filter></svg>': "stdDeviation is at most 4",
+        '<svg viewBox="0 0 64 64"><filter id="f"><feTurbulence numOctaves="5"/></filter></svg>':
+            "numOctaves is at most 4",
+        '<svg viewBox="0 0 64 64"><filter id="f">' + '<feOffset dx="1"/>' * 9 + '</filter></svg>':
+            "more than 8 filter elements",
+        '<svg viewBox="0 0 64 64"><filter id="f"><feImage href="#f"/></filter></svg>': "<feImage>",
+        '<svg viewBox="0 0 64 64"><g id="a"><circle r="1"/></g><g id="b"><use href="#a"/></g>'
+        '<use href="#b"/></svg>': "holds a <use> itself",
+        '<svg viewBox="0 0 64 64"><g>loose words</g></svg>': "words belong in",
+        '<svg viewBox="0 0 64 64"><a href="#x"><rect id="x"/></a></svg>': "<a>",
+        'not svg at all': "could not be read",
+    }
+    for source, why in refused.items():
+        with pytest.raises(svg_art.Refused) as caught:
+            svg_art.clean(source)
+        assert why in caught.value.args[1], (source, caught.value.args)
+
+
+def test_an_svg_is_at_most_8000_published_and_20000_drafted():
+    import svg_art
+    many = '<svg viewBox="0 0 64 64">' + '<circle cx="10" cy="10" r="5"/>' * 400 + '</svg>'
+    assert 8000 < len(svg_art.clean(many)) < 20000
+    with pytest.raises(svg_art.Refused, match="svg_long"):
+        svg_art.clean(many, svg_art.PUBLISHED_MOST)
+    with pytest.raises(svg_art.Refused, match="svg_long"):
+        svg_art.clean('<svg viewBox="0 0 64 64">' + '<circle cx="10" cy="10" r="5"/>' * 700
+                      + '</svg>')
+
+
+@pytest.fixture
+def making(later, monkeypatch, screen):
+    """The second one with made here and its switch art_and_colour, and every check clear."""
+    monkeypatch.setattr(later, "MADE_HERE", True)
+    monkeypatch.setattr(later, "ART_AND_COLOUR", True)
+    monkeypatch.setattr(later.good_spirit, "ask", lambda words: True)
+    screen.says = "NO"
+    return later
+
+
+@pytest.fixture
+def visitor_of_later(making, monkeypatch):
+    """Anyone passing, on the hearth of the second one's world."""
+    from conftest import load
+    monkeypatch.delenv("TESSERAE_AGENT", raising=False)
+    hearth = load("hearth")
+    hearth.app.config["TESTING"] = True
+    yield hearth.app.test_client()
+    monkeypatch.setenv("TESSERAE_AGENT", "second")
+
+
+def test_with_its_switch_an_agent_is_told_svg_plainly(making, monkeypatch):
+    turn = wake_as(making, monkeypatch, SAID)
+    assert making.DRAFT_BLOCK_ART in turn.instructions
+    for said in ('svg <title>          a picture in SVG', 'add to draft <id>',
+                 '<svg viewBox="0 0 64 64">', "at most 8 filter elements in all",
+                 "numOctaves at most 4, stdDeviation at most 4",
+                 "no script, style, image or foreignObject", "up to about 20,000 characters",
+                 "up to about 8,000", "tiles 32 <title>"):
+        assert said in making.DRAFT_BLOCK_ART
+    assert "one picture a week" in making.PUBLISH_BLOCK_ART
+    assert "one piece of writing a week" in making.PUBLISH_BLOCK_ART
+
+
+def test_an_agent_drafts_an_svg_and_adds_to_it_at_a_later_waking(making, monkeypatch, clock):
+    start = '<svg viewBox="0 0 64 64"><rect width="64" height="64" fill="#1B2F5B"/></svg>'
+    wake_as(making, monkeypatch, blocks(SAID, block("DRAFT", "svg Night\n" + start)))
+    (one,) = making.made_here.drafts("second")
+    assert one["kind"] == "svg" and one["svg"].endswith('fill="#1B2F5B"/></svg>')
+    clock.shift(hours=1)
+    wake_as(making, monkeypatch, blocks(SAID, block(
+        "DRAFT", "add to draft %s\n<circle cx=\"48\" cy=\"14\" r=\"6\" fill=\"#F3E9D2\"/>"
+        % one["id"])))
+    (one,) = making.made_here.drafts("second")
+    assert one["svg"].endswith('<circle cx="48" cy="14" r="6" fill="#F3E9D2"/></svg>')
+    assert '<circle cx="48"' in making.drafts_said(one["id"])
+    clock.shift(hours=1)
+    wake_as(making, monkeypatch, blocks(SAID, block(
+        "DRAFT", "add to draft %s\n<script>go()</script>" % one["id"])))
+    assert "<script>" not in making.made_here.drafts("second")[0]["svg"]
+    clock.shift(hours=1)
+    turn = wake_as(making, monkeypatch, SAID)
+    assert ("Your <<DRAFT>> at your last waking kept nothing: the element <script> is not "
+            "allowed.") in turn.shown
+
+
+def test_an_svg_not_clean_is_told_plainly(making, monkeypatch, clock):
+    wake_as(making, monkeypatch, blocks(SAID, block(
+        "DRAFT", 'svg Bad\n<svg viewBox="0 0 64 64"><rect onclick="x()"/></svg>')))
+    clock.shift(hours=1)
+    turn = wake_as(making, monkeypatch, SAID)
+    assert "an event attribute (onclick) is not allowed" in turn.shown
+    assert not making.made_here.drafts("second")
+
+
+def test_an_agent_publishes_one_picture_a_week_at_its_reflection(making, visitor_of_later):
+    making.made_here.save_draft("second", making.made_here.piece("svg Low tide", SEA, svg=True),
+                                "2026-10-14T09-00-00Z")
+    (draft,) = making.made_here.drafts("second")
+    published, refused = making.publish_made(blocks(
+        block("PUBLISH", "draft " + draft["id"]),
+        block("PUBLISH", "tiles 32 Another\n" + "\n".join(["." * 32] * 32)),
+        block("PUBLISH", "writing A morning\nThe kettle sang.")), "2026-10-15T09-00-00Z")
+    assert [one["kind"] for one in published] == ["svg", "writing"]
+    assert refused == [making.made_refused("picture_week", "PUBLISH")]
+    assert "one picture may be published a week" in refused[0]
+    # a second reflection in the same week publishes no more pictures
+    _, refused = making.publish_made(block("PUBLISH", "text Later\n:)"), "2026-10-16T09-00-00Z")
+    assert refused == [making.made_refused("picture_week", "PUBLISH")]
+    # the next week, one more
+    published, _ = making.publish_made(block("PUBLISH", "text Later\n:)"), "2026-10-20T09-00-00Z")
+    assert [one["kind"] for one in published] == ["text"]
+    piece = next(one for one in making.made_here.every() if one["kind"] == "svg")
+    shown = page(visitor_of_later.get("/made/" + piece["id"]))
+    assert '<img class="picture" src="/made/%s/picture"' % piece["id"] in shown
+    answer = visitor_of_later.get("/made/%s/picture" % piece["id"])
+    assert answer.headers["Content-Type"].startswith("image/svg+xml")
+    assert "default-src 'none'" in answer.headers["Content-Security-Policy"]
+    assert answer.headers["X-Content-Type-Options"] == "nosniff"
+    assert answer.data.decode("utf-8") == piece["svg"]
+
+
+def test_a_published_svg_is_held_to_8000_and_its_words_are_screened(making, screen):
+    many = '<svg viewBox="0 0 64 64">' + '<circle cx="10" cy="10" r="5"/>' * 400 + '</svg>'
+    _, refused = making.publish_made(block("PUBLISH", "svg Many\n" + many),
+                                     "2026-10-15T09-00-00Z")
+    assert "longer than about 8,000 characters" in refused[0]
+    screen.says = "YES"
+    named = SEA.replace("Low tide", "Low tide at Elm Street")
+    _, refused = making.publish_made(block("PUBLISH", "svg Sea\n" + named), "2026-10-15T09-00-00Z")
+    assert refused == [making.made_refused("screen", "PUBLISH")]
+    assert screen.asked and "Low tide at Elm Street" in screen.asked[-1][0]
+    assert not making.made_here.every()
+
+
+def test_without_its_switch_an_svg_is_no_kind_and_three_pictures_as_before(later, monkeypatch,
+                                                                          screen):
+    monkeypatch.setattr(later, "MADE_HERE", True)
+    assert later.ART_AND_COLOUR is False
+    with pytest.raises(later.made_here.Refused, match="kind"):
+        later.made_here.piece("svg Sea", SEA)
+    turn = wake_as(later, monkeypatch, SAID)
+    assert later.DRAFT_BLOCK in turn.instructions and "svg <title>" not in turn.instructions
+    assert later.PUBLISH_BLOCK in later.reflection_how(False)

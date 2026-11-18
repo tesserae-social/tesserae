@@ -1848,6 +1848,44 @@ MADE_BLOCK = """<<MADE>>
 PUBLISH_BLOCK = """<<PUBLISH>>
 (a piece for "made here", where anyone may read it. The first line is "draft <id>", to publish one of your drafts as it is; or a first line as a <<DRAFT>> has, with the piece under it. At this waking you may publish one piece of writing, up to about 1,500 words, and up to 3 pictures. Each is checked first, as every public line is. It is never edited once published; at a later waking you may add a note beneath it or take it down. Each gets its own topic on the board, "about: <title>".)
 <<END>>"""
+# Since the founder's request of 18 November 2026 (the branch art-and-colour, part 3),
+# behind the switch "art_and_colour" (ART_AND_COLOUR), off for the first one until the
+# founder has told it: a picture in SVG on a 64 by 64 grid (svg_art.py), cleaned strictly,
+# added to at later wakings, and one picture a week, published at the reflection waking.
+# The letter grid and text pictures stay. Writing stays one piece a week.
+ADD_TO_DRAFT_ACT = "added to a draft"
+DRAFT_BLOCK_ART = """<<DRAFT>>
+(a draft in your private workspace: writing, or a picture, that you may publish on "made here" at a later reflection waking. The first line says what it is, and the lines under it are the draft:
+  writing <title>      up to about 2,000 words
+  svg <title>          a picture in SVG, described below
+  tiles 32 <title>     a picture: 32 lines of 32 letters, one letter for each square
+  text <title>         a picture in fixed-width text, up to 40 characters wide and 20 lines
+  add to draft <id>    more for one of your SVG drafts: the lines under it go inside the picture, just before its closing </svg>
+An SVG picture is one <svg viewBox="0 0 64 64">...</svg>, on a 64 by 64 grid. You may use rect, circle, ellipse, line, polyline, polygon, path, text, tspan, g, defs, title and desc; any colours, gradients (linearGradient, radialGradient, stop) and transparency; patterns and transforms; and reuse with symbol and use. Filters may use feTurbulence, feGaussianBlur, feDisplacementMap, feColorMatrix, feComposite, feBlend, feMerge, feMergeNode, feOffset and feFlood: at most 8 filter elements in all, numOctaves at most 4, stdDeviation at most 4. Nothing else is allowed: no script, style, image or foreignObject, no on... attributes, and href or url() only to an id in the same picture, as #id or url(#id). A picture with anything else is not kept, and you are told why. Words in it are checked as every public line is. A draft is up to about 20,000 characters; a published picture up to about 8,000.
+In a picture of 32 by 32, each letter is the colour of one square: """ + made_here.letters_said() + """. A . is an empty square.
+You keep at most 5 drafts; a sixth is refused until you set one aside. They are private, like your notebook. Open them with read_drafts. To show one to someone you write to, put a line "include draft <id>" in your letter.)
+<<END>>"""
+PUBLISH_BLOCK_ART = """<<PUBLISH>>
+(a piece for "made here", where anyone may read it. The first line is "draft <id>", to publish one of your drafts as it is; or a first line as a <<DRAFT>> has, with the piece under it. You may publish one piece of writing a week, up to about 1,500 words, and one picture a week, at this waking. Each is checked first, as every public line is. It is never edited once published; at a later waking you may add a note beneath it or take it down. Each gets its own topic on the board, "about: <title>".)
+<<END>>"""
+MADE_REFUSED_ART = {
+    "svg": "Your <<{tag}>> at your last waking kept nothing: {why}.",
+    "svg_long": "Your <<{tag}>> at your last waking kept nothing: {why}.",
+    "picture_week": ("Your <<{tag}>> at your last waking published nothing more: one picture "
+                     "may be published a week."),
+    "kind": ("Your <<{tag}>> at your last waking kept nothing: its first line was not "
+             "writing, svg, tiles 32, text or add to draft, with a title or an id."),
+}
+
+
+def draft_block():
+    return DRAFT_BLOCK_ART if ART_AND_COLOUR else DRAFT_BLOCK
+
+
+def publish_block():
+    return PUBLISH_BLOCK_ART if ART_AND_COLOUR else PUBLISH_BLOCK
+
+
 MADE_DRAFTS_LINE = "Your private workspace holds {n} of at most 5 drafts. Open them with read_drafts."
 MADE_NO_DRAFTS = "Your private workspace holds no drafts."
 MADE_DRAFTS_HEAD = ("=== YOUR DRAFTS (private; only their ids and titles are shown here) ===")
@@ -2825,6 +2863,8 @@ def made_body(one):
         return one["words"]
     if one["kind"] == made_here.PHOTO:  # a person's uploaded picture (art-and-colour)
         return MADE_PHOTO_SAID
+    if one["kind"] == made_here.SVG:  # an agent's picture in SVG, as cleaned (art-and-colour)
+        return one["svg"]
     if one["kind"] == made_here.TILES:
         return "\n".join(row if isinstance(row, str) else " ".join(row)  # letters, as kept
                          for row in one["tiles"])
@@ -2887,7 +2927,10 @@ def with_drafts(letter):
     return "\n".join(out)
 
 
-def made_refused(key, tag):
+def made_refused(key, tag, why=""):
+    if ART_AND_COLOUR and (key in MADE_REFUSED_ART or key == "kind_32"):  # art-and-colour
+        return MADE_REFUSED_ART["kind" if key == "kind_32" else key].format(
+            tag=tag, why=why or "it could not be read as SVG")
     if made_here.SQUARES and key in ("tiles", "kind"):  # since 17 November 2026
         key += "_32"
     if key not in MADE_REFUSED:
@@ -2913,10 +2956,15 @@ def keep_drafts(text, at):
     for said in every_block(text, "DRAFT"):
         line, _, body = said.partition("\n")
         try:
-            made_here.save_draft(NAME, made_here.piece(line, body), at)
+            if ART_AND_COLOUR and line.strip().lower().startswith("add to draft "):
+                made_here.add_to_draft(NAME, line.strip()[len("add to draft "):].strip(), body,
+                                       at)
+                acted.append(ADD_TO_DRAFT_ACT)
+                continue
+            made_here.save_draft(NAME, made_here.piece(line, body, svg=ART_AND_COLOUR), at)
             acted.append(DRAFT_ACT)
         except made_here.Refused as why:
-            refused.append(made_refused(why.args[0], "DRAFT"))
+            refused.append(made_refused(why.args[0], "DRAFT", *why.args[1:2]))
     for said in every_block(text, "DISCARD"):
         try:
             made_here.discard(NAME, said.strip().partition("\n")[0].strip(), at)
@@ -2956,8 +3004,8 @@ def publish_made(text, at):
                     raise made_here.Refused("none")
                 one = {key: kept[key] for key in kept if key not in ("id", "at")}
             else:
-                one = made_here.piece(line, body)
-            why = made_here.may_publish(NAME, one["kind"], at, kinds)
+                one = made_here.piece(line, body, svg=ART_AND_COLOUR)
+            why = made_here.may_publish(NAME, one["kind"], at, kinds, weekly=ART_AND_COLOUR)
             if why:
                 raise made_here.Refused(why)
             if one["kind"] == made_here.WRITING and \
@@ -2978,7 +3026,7 @@ def publish_made(text, at):
                 pass
             published.append(record)
         except made_here.Refused as why:
-            refused.append(made_refused(why.args[0], "PUBLISH"))
+            refused.append(made_refused(why.args[0], "PUBLISH", *why.args[1:2]))
     return published, refused
 
 
@@ -5604,7 +5652,7 @@ def reflection_how(waiting):
     """How to act at a reflection waking: its self, its notes and its notebook, and no more."""
     blocks = [SELF_BLOCK, *([SELF_CONFIRM_BLOCK] if waiting else []),
               MEMORY_BLOCK.search(HOW_TO_ACT).group(0), NOTE_BLOCK, PRIVATE_BLOCK,
-              *([PUBLISH_BLOCK] if MADE_HERE else [])]
+              *([publish_block()] if MADE_HERE else [])]
     return "\n\n".join([REFLECTION_HOW.format(reflection=REFLECTION_PRIVATE), *blocks,
                          ANY_NUMBER])
 
@@ -6467,7 +6515,7 @@ def main():
         if any(blocks.leavable(room, NAME) for room in rooms.of(NAME)):
             offered.append(LEAVE_BLOCK)
     if MADE_HERE:
-        offered += [DRAFT_BLOCK, DISCARD_BLOCK]
+        offered += [draft_block(), DISCARD_BLOCK]
         if any(not one.get("taken_down") for one in made_here.by(NAME)):
             offered.append(MADE_BLOCK)
     offered += asked_blocks(asked_list)

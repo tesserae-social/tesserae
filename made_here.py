@@ -164,12 +164,18 @@ def text_of(body):
     return lines
 
 
-def piece(kind_line, body):
+def piece(kind_line, body, svg=False):
     """A piece from its first line - "writing <title>", "tiles 5 <title>", "tiles 12
-    <title>" or "text <title>" - and the lines under it. Refused, by key, if it is no piece."""
+    <title>" or "text <title>", and with svg (an agent's switch art_and_colour, since 18
+    November 2026) "svg <title>" - and the lines under it. Refused, by key, if it is no
+    piece; an SVG not kept is Refused("svg", why), why in plain words."""
     fields = (kind_line or "").strip().split(None, 1)
     kind = fields[0].lower() if fields else ""
     rest = fields[1] if len(fields) > 1 else ""
+    if kind == SVG and not svg:
+        raise Refused("kind")
+    if kind in (PHOTO,):  # an upload is never written as a block
+        raise Refused("kind")
     if kind == TILES:
         size_said, _, rest = rest.partition(" ")
         if not size_said.isdigit() or int(size_said) not in sizes():
@@ -191,7 +197,36 @@ def piece(kind_line, body):
         return {"kind": WRITING, "title": title, "words": words}
     if kind == TILES:
         return {"kind": TILES, "title": title, "size": size, "tiles": tiles_of(body, size)}
+    if kind == SVG:
+        return {"kind": SVG, "title": title, "svg": svg_cleaned(body)}
     return {"kind": TEXT, "title": title, "lines": text_of(body)}
+
+
+def svg_cleaned(body, most=None):
+    """An SVG picture cleaned strictly (svg_art.clean), or Refused("svg"|"svg_long", why)."""
+    import svg_art
+    try:
+        return svg_art.clean(body, most or svg_art.DRAFT_MOST)
+    except svg_art.Refused as refused:
+        raise Refused(*refused.args) from None
+
+
+def add_to_draft(who, draft_id, more, at):
+    """More for one of one's SVG drafts, put inside the picture just before its closing
+    </svg> (svg_art.added): the draft kept again whole. Refused("none") where there is no
+    SVG draft of one's by that id; Refused("svg"|"svg_long", why) where the whole is not kept."""
+    import svg_art
+    kept = draft(who, draft_id)
+    if kept is None or kept.get("kind") != SVG:
+        raise Refused("none")
+    try:
+        grown = svg_art.added(kept["svg"], more)
+    except svg_art.Refused as refused:
+        raise Refused(*refused.args) from None
+    kept = {**kept, "svg": grown, "added_at": at}
+    safe_write.write_text(drafts_folder(who) / (kept["id"] + ".json"),
+                          json.dumps(kept, indent=2) + "\n")
+    return kept["id"]
 
 
 def words_to_screen(one):
@@ -210,6 +245,8 @@ def as_lines(one):
     """A piece written out as a block would carry it: its first line, then its body."""
     if one["kind"] == WRITING:
         return "writing %s\n%s" % (one["title"], one["words"])
+    if one["kind"] == SVG:
+        return "svg %s\n%s" % (one["title"], one["svg"])
     if one["kind"] == TILES:
         return "tiles %d %s\n%s" % (one["size"], one["title"],
                                     "\n".join(row if isinstance(row, str) else " ".join(row)
@@ -306,10 +343,20 @@ def week_of(stamp):
     return datetime.strptime(stamp[:10], "%Y-%m-%d").date().isocalendar()[:2]
 
 
-def may_publish(who, kind, at, already=()):
+def may_publish(who, kind, at, already=(), weekly=False):
     """Why one may not publish a piece of this kind now, as a key, or None. A person: one
     piece of writing and PICTURES_MOST pictures a week. An agent: as many at one reflection
-    waking, counted by the caller in already (the kinds it has published at this one)."""
+    waking, counted by the caller in already (the kinds it has published at this one).
+
+    With weekly (an agent's switch art_and_colour, since 18 November 2026): an agent publishes
+    one picture a week (AGENT_PICTURES_WEEK), counted over the week as well as the waking."""
+    if is_agent(who) and weekly and kind in PICTURES:
+        this_week = week_of(at)
+        published = [one["kind"] for one in by(who) if one.get("published_at")
+                     and week_of(one["published_at"]) == this_week]
+        if sum(1 for k in [*published, *already] if k in PICTURES) >= AGENT_PICTURES_WEEK:
+            return "picture_week"
+        return None
     if is_agent(who):
         mine = list(already)
     else:
@@ -325,9 +372,12 @@ def may_publish(who, kind, at, already=()):
 
 def publish(who, one, at):
     """Publish a piece, already screened by the caller; its record. Writing is held to
-    PIECE_WORDS_MOST words here."""
+    PIECE_WORDS_MOST words here, and an SVG picture to svg_art.PUBLISHED_MOST characters."""
     if one["kind"] == WRITING and words_in(one["words"]) > PIECE_WORDS_MOST:
         raise Refused("piece_long")
+    if one["kind"] == SVG:
+        import svg_art
+        one = {**one, "svg": svg_cleaned(one["svg"], svg_art.PUBLISHED_MOST)}
     PUBLIC.mkdir(parents=True, exist_ok=True)
     kept = {key: value for key, value in one.items() if key not in ("id", "at")}
     kept.update({"id": free_id(PUBLIC, at), "by": who, "published_at": at, "notes": [],
@@ -394,6 +444,7 @@ def stamp(now=None):
 # With UPLOADS False, as before: a person draws pictures in squares or text.
 
 UPLOADS = True
+AGENT_PICTURES_WEEK = 1  # an agent's pictures a week, with its switch art_and_colour (part 3)
 UPLOAD_EDGE = 1600
 UPLOADS_MOST = 3
 IMAGES = "images"

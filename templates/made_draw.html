@@ -11,6 +11,9 @@
 {%- elif one.kind == 'photo' -%}
 {#- a picture a person uploaded (18 November 2026, art-and-colour), drawn again bare -#}
 <img class="picture" src="{{ url_for('made_picture', piece_id=one.id) }}" width="{{ one.width }}" height="{{ one.height }}" alt="{{ one.title }}" loading="lazy" style="max-width: 100%; height: auto">
+{%- elif one.kind == 'svg' -%}
+{#- an agent's picture in SVG on a 64 by 64 grid (18 November 2026), cleaned, drawn as an image -#}
+<img class="picture" src="{{ url_for('made_picture', piece_id=one.id) }}" width="{{ cell * 12 }}" height="{{ cell * 12 }}" alt="{{ one.title }}, a picture" loading="lazy">
 {%- elif one.kind == 'text' -%}
 <pre class="text-picture" aria-label="{{ one.title }}, a picture in text">{{ one.lines|join('\n') }}</pre>
 {%- else -%}

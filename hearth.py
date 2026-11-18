@@ -163,8 +163,10 @@ import knock
 import notes
 import site_notes
 import made_here
-# The look a small vision model gives a picture uploaded to made here (18 November 2026).
+# The look a small vision model gives a picture uploaded to made here (18 November 2026),
+# and an agent's picture in SVG, cleaned strictly.
 import picture_check
+import svg_art
 import kept_words
 # The members' board (plan 4.3).
 import board
@@ -9013,8 +9015,20 @@ def made_upload():
 
 @app.route("/made/<piece_id>/picture")
 def made_picture(piece_id):
-    """An uploaded picture's file, as published; nothing for one taken down or hidden."""
+    """An uploaded picture's file, as published; nothing for one taken down or hidden. An
+    agent's picture in SVG (part 3) is cleaned again on the way out (svg_art.clean) and handed
+    out as the first one's drawings are: under its own type, and a policy that lets it do
+    nothing but be looked at."""
     one = made_here.one(piece_id)
+    if one is not None and one.get("kind") == made_here.SVG and not one.get("taken_down"):
+        try:
+            drawn = svg_art.clean(one.get("svg") or "", svg_art.PUBLISHED_MOST)
+        except svg_art.Refused:
+            abort(404)
+        answer = Response(drawn, mimetype=PICTURE_TYPE)
+        answer.headers["Content-Security-Policy"] = "default-src 'none'; " + PICTURE_SANDBOX
+        answer.headers["X-Content-Type-Options"] = "nosniff"
+        return answer
     if one is None or one.get("kind") != made_here.PHOTO or one.get("taken_down") \
             or made_hidden(one):
         abort(404)

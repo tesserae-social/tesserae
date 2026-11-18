@@ -922,7 +922,11 @@ def test_every_page_begins_the_same_space_below_the_menu():
     wrapper, whatever it begins with, and the wrapper keeps the rhythm's own space (a step less than
     before, as the founder asked on the pages branch)."""
     rules = stylesheet(BASE)
-    assert rules[".page"] == {"margin-top": "var(--space-5)"}
+    # one small gap since tidy-pages (18 November 2026, part 4); before, --space-5, which
+    # base.html as it was (tests/pages_before_tidy_pages) still holds
+    assert rules[".page"] == {"margin-top": "var(--space-4)"}
+    assert stylesheet(REPO / "tests" / "pages_before_tidy_pages" / "base.html")[".page"] == {
+        "margin-top": "var(--space-5)"}
     assert rules[".page > :first-child"] == {"margin-top": "0"}
     base = BASE.read_text(encoding="utf-8")
     assert '<div class="page">\n  {% block content %}{% endblock %}\n  </div>' in base.replace(

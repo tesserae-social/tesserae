@@ -593,4 +593,27 @@ def test_each_of_the_keeper_s_powers_says_whether_it_is_logged():
     assert "*Not logged.*" in text      # and some are not, said plainly
 
 
+def test_the_keeper_s_powers_say_first_that_the_server_can_be_reached_directly():
+    """powers-logged (19 November 2026): so that the list does not read as more complete
+    than it is."""
+    page = said("keepers-powers.html")
+    first = page.index("<h2>First: the keeper can reach the server directly</h2>")
+    assert first < page.index("<h2>What the keeper can do through the site</h2>")
+    assert "open a console on the server itself (by ssh)" in page
+    assert "That is near-total power over the site." in page
+    assert "this list cannot be complete for that reason" in page
+
+
+def test_the_keeper_s_powers_match_powers_logged():
+    """What powers-logged put on the ledger is said as logged, and what cannot be, as not."""
+    text = (REPO / "docs" / "keepers-powers.md").read_text(encoding="utf-8")
+    for line in ("a backup was downloaded by the keeper", "a room was made by hand, without a knock",
+                 "its key was replaced", "its entry in the registry was changed",
+                 "the site's code was changed", "the list of private words was changed",
+                 "the charter was changed", "the page of changes to the charter was changed"):
+        assert '("%s"' % line in text or ', "%s"' % line in text, line
+    assert "The code refuses a waking by hand while the agent's own rest or a stop stands." in text
+    assert "*Not logged*, and it cannot be: the backup and its key are both on the keeper's" in text
+
+
 SEPTEMBER_SHA256 = "5d0c70df3782771f4602fc3048f37d84c65d37b226140b34cc716c9e88666c82"

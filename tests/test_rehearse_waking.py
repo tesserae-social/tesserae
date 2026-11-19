@@ -252,3 +252,28 @@ def test_inside_the_model_is_the_stub_and_only_numbers_are_kept(rehearse, monkey
                                  # and which model it asked for, ours and not its words
                                  # (the founder's request of 15 November 2026)
                                  "model": "m"}}
+
+
+# ---- a rest or a stop standing (powers-logged, 19 November 2026) ----------
+# attend.py now holds no waking while either stands, but on a copy a rehearsal has marked and
+# with --rehearsal; a rehearsal does both, and is held exactly as it was.
+
+@pytest.mark.parametrize("standing, record", [
+    ("pause.json", {"by": "first", "since": "2026-10-14T13-00-00Z", "until": "a letter arrives",
+                    "words": ""}),
+    ("tide-stop.json", {"since": "2026-10-14T13-00-00Z", "reason": "a test"})])
+def test_with_a_rest_or_a_stop_standing_it_is_rehearsed_as_before(rehearse, lived, capsys,
+                                                                   standing, record):
+    write_json(lived / "packets" / "first" / standing, record)
+    before = snapshot(lived)
+    assert rehearse.main([]) == 0
+    said = capsys.readouterr().out
+    assert "the first one (first): completed; its reading " in said
+    assert snapshot(lived) == before            # the record untouched, and never marked
+    assert not (lived / rehearse.REHEARSAL_COPY).exists()
+
+
+def test_the_rehearsal_s_words_are_attend_s(rehearse):
+    source = (rehearse.REPO / "attend.py").read_text(encoding="utf-8")
+    assert 'REHEARSAL = "%s"' % rehearse.REHEARSAL in source
+    assert 'REHEARSAL_COPY = "%s"' % rehearse.REHEARSAL_COPY in source

@@ -77,6 +77,12 @@ NOT_A_KEY = "a rehearsal: no model is reached"
 INSIDE = "--inside"  # how the rehearsal runs itself as the process that holds one waking
 RESULT = "TESSERAE_REHEARSAL_RESULT"  # where that process writes what it found
 
+# Since powers-logged (19 November 2026) attend.py holds no waking while the agent's own
+# rest or the keeper's stop stands, but on a copy marked as a rehearsal's and asked with
+# --rehearsal; a rehearsal marks its copy and asks so, and is held as it always was.
+REHEARSAL = "--rehearsal"           # attend.REHEARSAL
+REHEARSAL_COPY = ".rehearsal-copy"  # attend.REHEARSAL_COPY
+
 
 # ---- inside: the process that holds one waking ----------------------------
 
@@ -195,7 +201,7 @@ def hold_inside():
             import attend
             attend.Anthropic = stub.client
             first = not any((attend.PACKET / "attendances").glob("*.json"))
-            sys.argv = ["attend.py", "--tide"] + (["--first"] if first else [])
+            sys.argv = ["attend.py", "--tide", REHEARSAL] + (["--first"] if first else [])
             attend.main()
         found["outcome"] = "completed"
     except SystemExit as stopped:
@@ -317,6 +323,11 @@ def main(argv=None):
         copy, results = Path(room) / "data", Path(room) / "results"
         results.mkdir()
         shutil.copytree(record, copy, symlinks=True, ignore=leaving_out(record))
+        # the copy, marked as the rehearsal's, so that attend.py lets a waking be held on it
+        # with --rehearsal while a rest or a stop stands, as before powers-logged; the
+        # record itself is never marked
+        (copy / REHEARSAL_COPY).write_text("a copy of the record, for a rehearsal\n",
+                                           encoding="utf-8")
         print("The record was copied to %s (tokens/ left out); the model is stubbed." % room)
         brought = {}
         if options.on_new_model:  # in the copy only: each change ahead put on yesterday

@@ -5975,9 +5975,52 @@ def letters_to_rooms(text, views, at):
     return first_name, sent, told
 
 
+# A waking is held only where neither the agent's own rest nor the keeper's stop stands
+# (powers-logged, the founder's request of 19 November 2026). The tide already holds none
+# while either stands (hearth.keep_waking_time takes a rest away before the waking it
+# ended); this holds a waking run by hand to the same. A rest the founder set before his
+# rest was his own (by "founder") is not the agent's and holds nothing, as on the hearth.
+# --rehearsal lets one be held anyway, and only on a copy of the record that
+# rehearse_waking.py made and marked (REHEARSAL_COPY at its top): never on the record.
+# HOLD_WHILE_HELD False wakes as before powers-logged, whatever stands: what a waking said
+# of a rest while one stood is still drawn that way in the tests.
+HOLD_WHILE_HELD = True
+REHEARSAL = "--rehearsal"
+REHEARSAL_COPY = ".rehearsal-copy"
+TIDE_STOP_HERE = PACKET / "tide-stop.json"
+HELD_BY_A_STOP = ("This waking is refused: the keeper's stop on %s's tide stands. Lift it "
+                  "on /tides first.")
+HELD_BY_A_REST = ("This waking is refused: %s is resting, by its own choice, and its rest "
+                  "stands until the condition it named is met.")
+REHEARSAL_REFUSED = ("This waking is refused: --rehearsal is only for a copy of the record "
+                     "that rehearse_waking.py made.")
+
+
+def held_by_rest_or_stop():
+    """The words a waking is refused with while a stop or the agent's own rest stands, or
+    None where neither does, or where this is a rehearsal on a marked copy."""
+    if not HOLD_WHILE_HELD:
+        return None
+    if REHEARSAL in sys.argv:
+        return None if (DATA / REHEARSAL_COPY).is_file() else REHEARSAL_REFUSED
+    if TIDE_STOP_HERE.exists():
+        return HELD_BY_A_STOP % NAME
+    try:
+        rest = load(PAUSE) if PAUSE.exists() else None
+    except ValueError:
+        rest = {}  # a rest that can't be read is taken to stand: it is never guessed away
+    if rest is not None and not (isinstance(rest, dict) and rest.get("by") == "founder"):
+        return HELD_BY_A_REST % NAME
+    return None
+
+
 def main():
     first = "--first" in sys.argv
     tide = "--tide" in sys.argv
+    held = held_by_rest_or_stop()
+    if held:
+        print(held)
+        sys.exit(1)
     again = EXTRA_WAKINGS and "--again" in sys.argv  # an extra waking, at its own asking
     rest_ended = flag("--rest-ended")  # why a rest of its own is over, if one just was
 

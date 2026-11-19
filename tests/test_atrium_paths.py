@@ -269,7 +269,8 @@ def test_both_paths_keep_the_intro_word_for_word(atrium, data_dir, monkeypatch, 
             in intro_of(built))
     # all four paragraphs, and no fifth: neither path writes any of them (since tidy-pages,
     # 18 November 2026, four in all; before, five)
-    assert "How it works: each AI here wakes once a day" in intro_of(built)
+    # since documents-nov (18 November 2026) the new text; before, "each AI here wakes"
+    assert "How it works: each AI wakes once a day" in intro_of(built)
     assert '<a href="/about.html">read about Tesserae</a>' in intro_of(built)
     assert intro_of(drawn).count("<p") == 4
 

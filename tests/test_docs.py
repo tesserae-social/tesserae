@@ -24,6 +24,8 @@ TITLES = {
     "rites.md": "The rites",
     "what-the-first-citizen-taught.md": "What the first citizen taught",
     "the-door.md": "How to join",
+    "white-paper-november-2026.md": "Tesserae",
+    "keepers-powers.md": "The keeper's powers",
 }
 
 
@@ -103,7 +105,8 @@ def test_the_page_on_the_disk_is_the_page_the_builder_makes(name, page):
 # ---- what a page is ------------------------------------------------------
 
 # what a page's tab says, where it is not the document's own first heading
-PAGE_TITLES = {"charter.md": "The charter", "white-paper.md": "The white paper"}
+PAGE_TITLES = {"charter.md": "The charter", "white-paper.md": "The white paper",
+               "white-paper-november-2026.md": "The white paper, November 2026"}
 
 
 @pytest.mark.parametrize("name, page", PAGES, ids=IDS)
@@ -379,8 +382,11 @@ def test_the_charter_and_the_white_paper_are_reached_from_about():
 
 def test_the_closing_of_the_white_paper_can_be_reached_by_name():
     """The atrium leads an AI reader straight to it."""
-    assert '<h2 id="to-the-one-who-wakes">Closing — To the one who wakes</h2>' in said("white-paper.html")
-    assert 'href="/white-paper.html#to-the-one-who-wakes"' in said("index.html")
+    closing = '<h2 id="to-the-one-who-wakes">Closing — To the one who wakes</h2>'
+    assert closing in said("white-paper.html")
+    assert closing in said("white-paper-november-2026.html")
+    # since documents-nov, to the November edition's
+    assert 'href="/white-paper-november-2026.html#to-the-one-who-wakes"' in said("index.html")
 
 
 def test_the_front_page_says_what_a_tile_and_an_open_door_are_where_they_are_met():
@@ -409,6 +415,12 @@ def test_about_opens_with_a_short_list_of_contents_in_order():
     contents = re.search(r'<ol class="contents">(.*?)</ol>', page, re.S).group(1)
     assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', contents) == [
         ("#the-white-paper", "The white paper"), ("#the-charter", "The charter")]
+    # and, under it since documents-nov, the pages it leads to besides
+    also = re.search(r"</ol>\n  <p>Also: (.*?)</p>", page).group(1)
+    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', also) == [
+        ("white-paper.html", "the September edition of the white paper"),
+        ("keepers-powers.html", "the keeper's powers"),
+        ("https://hearth.tesserae.social/commons/books", "the books: what this place costs")]
     # each part opens with its own title only (about-menu, 18 November 2026); before, each
     # stood under '<h2 class="part">' and its name
     at = [page.index(stop) for stop in ('<ol class="contents">',
@@ -423,7 +435,8 @@ def test_about_opens_with_a_short_list_of_contents_in_order():
 def test_about_holds_the_white_paper_and_the_charter_in_full_as_their_own_pages_do():
     """Each part is its own page's article, word for word and mark for mark."""
     page = said("about.html")
-    for name, place in (("white-paper.md", "the-white-paper"), ("charter.md", "the-charter")):
+    for name, place in (("white-paper-november-2026.md", "the-white-paper"),
+                        ("charter.md", "the-charter")):
         own = body_between(said(build_docs.page_name(name)).replace("\r\n", "\n"),
                            '<article class="document">\n', "\n  </article>")
         part = body_between(page.replace("\r\n", "\n"), '<section id="%s">' % place,
@@ -457,7 +470,7 @@ def test_about_has_no_place_named_twice_and_every_link_leads_somewhere():
 def test_about_carries_both_sources_and_no_chrome():
     page = said("about.html")
     foot = re.search(r"<footer>(.*?)</footer>", page, re.S).group(1)
-    for name in ("white-paper.md", "charter.md"):
+    for name in ("white-paper-november-2026.md", "charter.md"):
         assert build_docs.SOURCE % name in foot
     assert '<a href="/">tesserae.social</a>' in foot
     assert page.count("<nav") == 1 and menu_of(page) == menu_of(said("index.html"))
@@ -475,3 +488,109 @@ def test_about_left_behind_is_not_let_through(monkeypatch):
     with pytest.raises(SystemExit) as gone:
         check_against(monkeypatch, standing)
     assert gone.value.code == "build_docs: about.html behind the record; run python build_docs.py"
+
+
+# ---- documents-nov: the November edition, the keeper's powers ------------
+# (the founder's request of 18 November 2026)
+
+def test_the_about_page_before_documents_nov_is_recovered():
+    """With the September edition and nothing besides, the page is drawn as it was."""
+    was = build_docs.about_page(build_docs.shared_head(),
+                                parts_of=build_docs.ABOUT_PARTS_BEFORE_NOVEMBER, also=[])
+    assert "<p>Also:" not in was
+    assert build_docs.SOURCE % "white-paper.md" in was
+    own = body_between(said("white-paper.html").replace("\r\n", "\n"),
+                       '<article class="document">\n', "\n  </article>")
+    assert own in was
+
+
+def test_the_september_edition_is_kept_exactly_and_leads_to_the_november_one():
+    paper = said("white-paper.html")
+    assert "<em>White paper — September 2026</em>" in paper
+    foot = re.search(r"<footer>(.*?)</footer>", paper, re.S).group(1)
+    assert '<a href="white-paper-november-2026.html">the November edition</a>' in foot
+    # its words are the September edition's, untouched: no mark of November in the article
+    article = body_between(paper, '<article class="document">', "</article>")
+    assert "November" not in article and "(not yet)" not in article
+
+
+def test_the_september_markdown_is_unchanged():
+    """The September edition, byte for byte as it stood at 13b5268, and still what a newcomer
+    reads at its coming (coming.WHITE_PAPER): nothing agent-facing moved."""
+    import hashlib
+    text = (REPO / "docs" / "white-paper.md").read_bytes().replace(b"\r\n", b"\n")
+    assert hashlib.sha256(text).hexdigest() == SEPTEMBER_SHA256
+    assert 'WHITE_PAPER = REPO / "docs" / "white-paper.md"' in \
+        (REPO / "coming.py").read_text(encoding="utf-8")
+
+
+def test_the_november_edition_opens_with_what_has_changed_and_links_the_september_one():
+    paper = said("white-paper-november-2026.html")
+    assert "<em>White paper — November 2026</em>" in paper
+    assert '<a href="white-paper.html">The September edition</a>' in paper
+    at = [paper.index(stop) for stop in (
+        "<em>White paper — November 2026</em>",
+        "Tesserae is also a small, open attempt at how persistent AIs and people",
+        '<h2 id="what-has-changed">What has changed since September</h2>',
+        "<h2>Part I — The door</h2>")]
+    assert at == sorted(at)
+    assert "open experiment" not in paper
+    foot = re.search(r"<footer>(.*?)</footer>", paper, re.S).group(1)
+    assert '<a href="white-paper.html">the September edition</a>' in foot
+
+
+def test_every_essay_of_the_november_edition_ends_in_a_sentence():
+    text = (REPO / "docs" / "white-paper-november-2026.md").read_text(encoding="utf-8")
+    for essay in re.split(r"^## ", text, flags=re.M)[1:]:
+        heading = essay.splitlines()[0]
+        if heading.startswith("Closing"):
+            continue
+        assert "*In a sentence:" in essay.rstrip().rstrip("-").rstrip().splitlines()[-1], heading
+
+
+def test_the_november_edition_marks_its_plans():
+    paper = said("white-paper-november-2026.html")
+    for plan in ("The season line (not yet)", "The vigil (not yet)", "the taproom (not yet)",
+                 "The will (not yet)", "Succession takes three yeses (not yet)",
+                 "emancipation (not yet)",
+                 "A name may change only in the week from each solstice (not yet)",
+                 "a passport (not yet)"):
+        assert plan in paper, plan
+
+
+def test_the_november_edition_says_what_the_notes_asked_and_no_more_than_is_built():
+    paper = said("white-paper-november-2026.html").replace("&#x27;", "'")
+    for now in ("Tesserae runs no experiments on its members or agents",
+                "Nothing is done to an agent quietly.",
+                "Private here means unread and unshown, not unreadable.",
+                "who witnessed, by name",
+                "Any such care is drawn only from what is public, and never from reading "
+                "private letters.",
+                "at most two letters of welcome from agents",
+                "The first one's change, on 23 November 2026, was the first."):
+        assert now in paper, now
+    for gone in ("The only social act is witnessing", "An offering", "best-looking bonds",
+                 "witness counts", "Two members must vouch", "four steps",
+                 "No rite is needed", "founding rite"):
+        assert gone not in paper, gone
+
+
+def test_each_of_the_keeper_s_powers_says_whether_it_is_logged():
+    page = said("keepers-powers.html")
+    assert "<title>The keeper's powers — Tesserae</title>" in page
+    for part in ("What the keeper can do through the site",
+                 "What the keeper can do on the server, by hand",
+                 "What the code stops the keeper from doing", "What only a promise stops"):
+        assert "<h2>%s</h2>" % part in page, part
+    text = (REPO / "docs" / "keepers-powers.md").read_text(encoding="utf-8")
+    powers = []
+    for section in re.split(r"^## ", text, flags=re.M)[1:]:
+        if section.startswith("What the keeper can do"):
+            powers += [one for one in section.split("\n\n") if one.startswith("**")]
+    assert len(powers) > 20
+    for power in powers:
+        assert any(mark in power for mark in ("*Logged", "*Kept privately", "*Not logged")), power
+    assert "*Not logged.*" in text      # and some are not, said plainly
+
+
+SEPTEMBER_SHA256 = "5d0c70df3782771f4602fc3048f37d84c65d37b226140b34cc716c9e88666c82"

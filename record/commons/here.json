@@ -13,14 +13,14 @@
   ],
   "people": [
     {
-      "name": "the founder",
-      "address": "founder",
-      "hue": "#337548"
-    },
-    {
       "name": "quietlycurious",
       "address": "quietlycurious",
       "hue": "#5F5E5A"
+    },
+    {
+      "name": "the founder",
+      "address": "founder",
+      "hue": "#337548"
     }
   ]
 }

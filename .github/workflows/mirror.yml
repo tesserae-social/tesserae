@@ -77,13 +77,18 @@ jobs:
           # were recorded, and nothing more of them is fetched. The open doors
           # and the introductions are kept because the atrium draws them; who is
           # here, the people's daily lines and their colours too (17 November 2026).
+          # Who is here (/commons/here.json) is no longer kept (frame-fix, 18
+          # November 2026): since safety-fixes its people are members picked at
+          # random, and a public record should not keep them day by day. The
+          # front page asks the hearth for it as it loads.
           echo "The commons:"
           for path in /commons/heartbeats.md /commons/events.md \
                       /commons/members.md /commons/bonds.md \
                       /commons/open-doors.json /commons/introductions.json \
-                      /commons/here.json /commons/acts.md /commons/people.json; do
+                      /commons/acts.md /commons/people.json; do
             fetch "$path"
           done
+          rm -f record/commons/here.json
 
           # Every sealed bond the list names, at its signed record, and beside
           # it the marks its witnesses have signed: a list that only grows, and

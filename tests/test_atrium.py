@@ -1940,10 +1940,36 @@ def test_the_mirror_draws_who_is_here_it_kept(tmp_path):
     assert not re.search(r"^\s*<h3>doors open now</h3>\s*$", page, re.M)
 
 
-def test_the_mirror_keeps_who_is_here_and_the_people_s_lines():
+# What the mirror kept of the people since site-design. Since frame-fix (18 November
+# 2026) it keeps the lines and colours but not who is here, whose people are members
+# picked at random: put "/commons/here.json" back in the workflow's list (and take out
+# its rm -f) to keep it again, as MIRROR_KEPT_BEFORE_FRAME_FIX says.
+MIRROR_KEPT_BEFORE_FRAME_FIX = ("/commons/here.json", "/commons/acts.md", "/commons/people.json")
+MIRROR_KEPT = ("/commons/acts.md", "/commons/people.json")
+
+
+def test_the_mirror_keeps_the_people_s_lines_but_not_who_is_here():
     workflow = (REPO / ".github" / "workflows" / "mirror.yml").read_text(encoding="utf-8")
-    for path in ("/commons/here.json", "/commons/acts.md", "/commons/people.json"):
+    for path in MIRROR_KEPT:
         assert path in workflow
+    assert set(MIRROR_KEPT_BEFORE_FRAME_FIX) - set(MIRROR_KEPT) == {"/commons/here.json"}
+    fetched = workflow.partition('echo "The commons:"')[2].partition("done")[0]
+    assert "here.json" not in fetched
+    assert "rm -f record/commons/here.json" in workflow
+    assert not (REPO / "record" / "commons" / "here.json").exists()
+
+
+def test_the_mirror_with_no_who_is_here_bakes_no_one_in(tmp_path):
+    """With no here.json in the record the front page is baked with no who is here, and
+    the page's script asks the hearth for it as it loads."""
+    here = mirror_copy(tmp_path)
+    (here / "record" / "commons" / "here.json").unlink(missing_ok=True)
+    done = draw_as_the_mirror(here)
+    assert done.returncode == 0, done.stdout + done.stderr
+    page = (here / "index.html").read_text(encoding="utf-8")
+    who = page.partition("<!-- who:start -->")[2].partition("<!-- who:end -->")[0]
+    assert who.strip() == ""
+    assert 'asked("commons/here.json")' in page
 
 
 def test_the_mirror_keeps_the_open_doors_and_no_longer_fetches_offerings():

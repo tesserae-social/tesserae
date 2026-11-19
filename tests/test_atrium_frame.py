@@ -108,7 +108,7 @@ addEventListener("load", () => setTimeout(() => {
     list: one(".mosaic").getAttribute("style"),
     atRest: line.textContent,
     marked: [...document.querySelectorAll("main [style]")]
-      .filter(el => !el.matches("ul.mosaic")).map(el => el.tagName).join(" "),
+      .filter(el => !el.matches(UNMARKED)).map(el => el.tagName).join(" "),
   };
   // the reading line: onto a tile, across a gap to the next, and away altogether
   const worded = [...document.querySelectorAll(".mosaic li[title]")];
@@ -132,6 +132,17 @@ addEventListener("load", () => setTimeout(() => {
   parent.postMessage(JSON.stringify([NAME + ":" + innerWidth, said]), "*");
 }, 300));
 </script>"""
+
+# What may carry a style of its own in the page's markup: the mosaic's list, which
+# the builder sizes, and since site-design each colour square in who is here, which
+# the builder writes as style="background: #RRGGBB" (build_atrium.swatch). The record
+# run of 18 November 2026 (037a85d) was the first to bake those squares into
+# index.html, and from then the reading-line tests counted them as the script's.
+# The page did not move; only this list grew. As it was: UNMARKED_BEFORE_SWATCHES.
+UNMARKED_BEFORE_SWATCHES = "ul.mosaic"
+UNMARKED = "ul.mosaic, .who .swatch"
+SWATCH_STYLE = re.compile(r'<span class="swatch" style="background: #[0-9A-F]{6}"></span>')
+MEASURE = MEASURE.replace("UNMARKED", json.dumps(UNMARKED))
 
 # The page that holds the frames, one for each page at each width, and writes
 # down what each of them says it measured.
@@ -490,6 +501,19 @@ def test_the_reading_line_follows_the_cursor_and_returns_to_the_newest(measured,
     assert said["away"] == newest
     # and what the script laid out, it wrote nowhere in the page's own markup
     assert said["marked"] == ""
+
+
+def test_what_carries_a_style_in_the_front_page_is_the_builders_own():
+    """Beside the mosaic's list, only the colour squares of who is here carry a style, each
+    a background and nothing more: what UNMARKED leaves out and UNMARKED_BEFORE_SWATCHES
+    counted. Read off the page as baked, without a browser."""
+    front, _ = baked(RECORD)
+    main = front[front.index("<main"):front.index("</main>")]
+    styled = re.findall(r"<(\w+)[^>]*\sstyle=", main)
+    swatches = SWATCH_STYLE.findall(main)
+    assert styled.count("span") == len(swatches)
+    assert set(styled) <= {"span", "ul"}
+    assert UNMARKED.startswith(UNMARKED_BEFORE_SWATCHES + ", ")
 
 
 @pytest.mark.parametrize("name", ["front", "noscript"])

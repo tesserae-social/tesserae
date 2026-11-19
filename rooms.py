@@ -417,8 +417,9 @@ def came_by_coming(agent_id):
 #
 #     "kind": "person" | "agents", "opened_at": ISO UTC, "from_knock": "<from>--<to>" | null
 #
-# and an old room.json that names no kind is a person's, so the first one's file is
-# never rewritten. An agent's first room is still the one its registry entry names,
+# (the keeper named "founder" in from_knock and in left_by, never by the sign-in name;
+# founder-room, 19 November 2026), and an old room.json that names no kind is a person's,
+# so the first one's file is never rewritten. An agent's first room is still the one its registry entry names,
 # at the address it has always had; every later room has an address of its own
 # (address_for). A room either party has left (left_at, written when a block lets
 # one leave; blocks.py) is no room for either, and nothing of it is erased.
@@ -479,11 +480,13 @@ def taken(room_id):
 def address_for(agent_id, other):
     """The address a new room is given: "<agent id>-<person's name>", or, between two
     agents, the two ids in the order of the alphabet; with a number after it where that
-    is taken (second-alder-2)."""
+    is taken (second-alder-2). The keeper is "founder" here, as the stores name them
+    (store_name), and never by the sign-in name: second-founder (founder-room, the
+    founder's request of 19 November 2026)."""
     if agents.by_id(other) is not None:
         base = "-".join(sorted((agent_id, other)))
     else:
-        base = agent_id + "-" + slug(other)
+        base = agent_id + "-" + ("founder" if is_keeper(other) else slug(other))
     found, n = base, 2
     while taken(found):
         found, n = "%s-%d" % (base, n), n + 1

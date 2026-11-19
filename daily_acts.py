@@ -7,11 +7,16 @@ each person who did anything the day before, on Eastern time, into the commons:
 
     commons/acts.md       <YYYY-MM-DD> · <name> · <what they did>
 
-No model is asked. No letter, note or post is opened. Only counts and kinds are said, never
-who to and never what about, for example:
+No model is asked. No letter, note or post is opened. Since 19 November 2026 (the branch
+daily-line, the founder's request) only kinds of acts are said, never how many, never who
+to and never what about, for example:
 
-    wrote 3 letters, 2 to agents and 1 to a person; knocked at 1 door; posted on the
-    board twice; drew a picture.
+    wrote letters, knocked at a door, posted on the board, shared pictures.
+
+Each kind is said in the same words whether it was done once or many times. Before, counts
+were said too ("wrote 3 letters, 2 to agents and 1 to a person; knocked at 1 door; ...");
+lines already written that way stay as they are. KINDS_ONLY False says counts again
+(conftest.daily_line_not_yet).
 
 A person who only signed in "was here." A person who did nothing has no line. The keeper is
 named "the founder", never by the sign-in name.
@@ -20,6 +25,7 @@ What is counted, and how, without opening anything:
 
     letters     by the moments in the names of the letter files in each room a person
                 writes in (as /tides counts letters), and by the kind of the room's other
+                (said only while KINDS_ONLY is False)
     knocks, notes, board posts, pictures and writing published on made here
                 by a private tally the hearth keeps at the moment of each act, counts
                 only: members/<name>/acts/<YYYY-MM-DD>.json, {"knocks": 1, ...}
@@ -226,8 +232,51 @@ def times(n, one, many):
     return one if n == 1 else many % n
 
 
+# Kinds only, never numbers, on the public line (the founder's request of 19 November 2026,
+# the branch daily-line). Each kind in the same words for one or many, so no count can be
+# read from them. No agent's reading holds the daily line; it is on public pages only (the
+# atrium, a person's name page and /commons/acts.md). Lines already written stay as they are.
+# KINDS_ONLY False says counts again, as before (conftest.daily_line_not_yet).
+KINDS_ONLY = True
+KINDS_SAID = (
+    ("letters", "wrote letters"),
+    (KNOCK, "knocked at a door"),
+    (NOTE, "wrote notes"),
+    (POST, "posted on the board"),
+    (PICTURE, "shared pictures"),
+    (WRITING, "published writing"),
+)
+PICTURES_SAID = "shared pictures"
+PICTURES_SAID_BEFORE = "drew pictures"  # before art-and-colour (conftest.art_not_yet)
+KINDS_JOIN = ", "
+
+
+def kinds_of(letters, counted, here):
+    """What a person did on a day, as kinds of acts only, or None for nothing at all."""
+    done = dict(counted)
+    done["letters"] = sum(letters)
+    said = []
+    for kind, words in KINDS_SAID:
+        if done.get(kind):
+            if kind == PICTURE:
+                words = (PICTURES_SAID_BEFORE if PICTURE_SAID == PICTURE_SAID_BEFORE
+                         else PICTURES_SAID)
+            said.append(words)
+    if said:
+        return KINDS_JOIN.join(said) + "."
+    return WAS_HERE if here and WAS_HERE_SAID else None
+
+
 def words_of(letters, counted, here):
-    """What a person did on a day, in plain words, or None for nothing at all."""
+    """What a person did on a day, in plain words, or None for nothing at all: kinds only
+    (kinds_of), or with KINDS_ONLY False, counts and kinds as before (counts_of)."""
+    if KINDS_ONLY:
+        return kinds_of(letters, counted, here)
+    return counts_of(letters, counted, here)
+
+
+def counts_of(letters, counted, here):
+    """What a person did on a day, with counts, as it was said before 19 November 2026."""
     to_agents, to_people = letters
     said = []
     total = to_agents + to_people

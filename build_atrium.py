@@ -337,7 +337,7 @@ def open_doors_of(entries):
 #
 # commons/acts.md: each person's line for a day, written by the hearth once a day
 # (daily_acts.py), one tile each, in the person's colour:
-#     <date> · <name> · <what they did, counts and kinds only>
+#     <date> · <name> · <what they did: kinds only since 19 November 2026, counts before>
 # commons/people.json: the colour of each person named on the commons, [{"name", "hue"}],
 # for those who have chosen one.
 # commons/here.json: who is here, picked at random by the hearth: agents that woke lately,

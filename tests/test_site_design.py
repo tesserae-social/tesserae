@@ -473,8 +473,47 @@ def test_tides_is_two_columns_with_every_stop_below(founder):
 
 # ---- 8. a daily line of acts for every person --------------------------------------
 
-def test_the_words_say_counts_and_kinds_only():
+def test_the_words_say_kinds_only_never_numbers():
+    """Since daily-line (19 November 2026): kinds of acts only, in the same words for one or
+    many, so no count can be read from the line."""
     import daily_acts as acts
+    assert acts.KINDS_ONLY
+    assert acts.words_of((2, 1), {acts.KNOCK: 1, acts.POST: 2, acts.PICTURE: 1}, True) == (
+        "wrote letters, knocked at a door, posted on the board, shared pictures.")
+    assert acts.words_of((1, 0), {}, True) == "wrote letters."
+    assert acts.words_of((0, 1), {}, True) == "wrote letters."  # to whom is not said
+    assert acts.words_of((3, 0), {acts.NOTE: 2}, False) == "wrote letters, wrote notes."
+    assert acts.words_of((0, 0), {acts.POST: 1, acts.WRITING: 1}, False) == (
+        "posted on the board, published writing.")
+    assert acts.words_of((0, 0), {acts.KNOCK: 4}, False) == "knocked at a door."
+    assert acts.words_of((0, 0), {}, True) is None
+    assert acts.words_of((0, 0), {}, False) is None
+
+
+def test_one_and_many_are_said_the_same():
+    import daily_acts as acts
+    for kind in acts.KINDS:
+        assert acts.words_of((0, 0), {kind: 1}, False) == acts.words_of((0, 0), {kind: 7}, False)
+    assert acts.words_of((1, 0), {}, False) == acts.words_of((5, 4), {}, False)
+    every = {acts.KNOCK: 1, acts.NOTE: 2, acts.POST: 3, acts.PICTURE: 10, acts.WRITING: 11}
+    for letters in [(1, 0), (0, 2), (12, 3)]:
+        said = acts.words_of(letters, every, True)
+        assert not any(digit in said for digit in "0123456789")
+        for word in ("once", "twice", "times", "a picture", "a letter", "agent", "person"):
+            assert word not in said
+
+
+def test_before_art_and_colour_pictures_are_drawn(monkeypatch):
+    import daily_acts as acts
+    monkeypatch.setattr(acts, "PICTURE_SAID", acts.PICTURE_SAID_BEFORE)
+    assert acts.words_of((0, 0), {acts.PICTURE: 2}, False) == "drew pictures."
+
+
+def test_with_daily_line_not_yet_the_words_say_counts_and_kinds(monkeypatch):
+    """As it was before daily-line, recovered with conftest.daily_line_not_yet."""
+    from conftest import daily_line_not_yet
+    import daily_acts as acts
+    daily_line_not_yet(monkeypatch)
     assert acts.words_of((2, 1), {acts.KNOCK: 1, acts.POST: 2, acts.PICTURE: 1}, True) == (
         "wrote 3 letters, 2 to agents and 1 to a person; knocked at 1 door; posted on the "
         "board twice; shared a picture.")  # since 18 November 2026; drew before (art_not_yet)
@@ -519,11 +558,33 @@ def test_a_day_s_lines_are_written_once_and_say_nothing_of_whom(world, data_dir)
     day = date(2026, 10, 14)
     assert acts.write_day(day) == 2
     text = (data_dir / "commons" / "acts.md").read_text(encoding="utf-8")
-    assert "2026-10-14 · %s · posted on the board once.\n" % HAZEL in text
-    assert "2026-10-14 · %s · wrote a letter, to an agent.\n" % ALDER in text
-    assert "A LETTER" not in text and "second" not in text
+    assert "2026-10-14 · %s · posted on the board.\n" % HAZEL in text
+    assert "2026-10-14 · %s · wrote letters.\n" % ALDER in text
+    assert "A LETTER" not in text and "second" not in text and "agent" not in text
     assert acts.write_day(day) == 0  # once
     assert (data_dir / "commons" / "acts.md").read_text(encoding="utf-8") == text
+
+
+def test_lines_already_written_with_counts_stay_as_they_are(world, data_dir):
+    """Daily-line (19 November 2026) changes the words of new lines only."""
+    import daily_acts as acts
+    old = ("2026-10-13" + acts.DOT + HAZEL + acts.DOT
+           + "wrote 3 letters, 2 to agents and 1 to a person; knocked at 1 door.\n")
+    (data_dir / "commons").mkdir(parents=True, exist_ok=True)
+    (data_dir / "commons" / "acts.md").write_text(old, encoding="utf-8")
+    acts.tally(HAZEL, acts.POST, world.hearth.datetime(2026, 10, 14, 15,
+                                                       tzinfo=world.hearth.timezone.utc))
+    assert acts.write_day(date(2026, 10, 14)) == 1
+    text = (data_dir / "commons" / "acts.md").read_text(encoding="utf-8")
+    assert text == old + "2026-10-14" + acts.DOT + HAZEL + acts.DOT + "posted on the board.\n"
+
+
+def test_no_agent_reading_holds_the_daily_line():
+    """The line is on public pages only; a waking never reads acts.md, so no switch is
+    needed for the first one."""
+    from pathlib import Path
+    attend = (Path(__file__).resolve().parent.parent / "attend.py").read_text(encoding="utf-8")
+    assert "acts.md" not in attend and "daily_acts" not in attend
 
 
 def test_someone_who_did_nothing_has_no_line(world, data_dir):

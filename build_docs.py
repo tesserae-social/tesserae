@@ -15,11 +15,13 @@ and one page made of two of them, which keep their own pages too:
     docs/white-paper.md + docs/charter.md  ->  about.html
 
 "About Tesserae" is a short list of contents, then the white paper in full, then
-the charter in full, each under its own heading. Each is the same markup its own
-page has, word for word; the two pages and their addresses stay as they were.
+the charter in full, each opening with its own title only, which the list of
+contents leads to. Each is the same markup its own page has, word for word; the
+two pages and their addresses stay as they were.
 
-A page is the document and nothing else: the way back to the atrium at the top,
-the words in the middle, and two links under them -- the markdown this page was
+A page is the document and nothing else: the way back to the atrium at the top
+with the site's menu under it (copied from index.html, so every page of the main
+site wears the one menu that build_atrium.py writes), the words in the middle, and two links under them -- the markdown this page was
 made from, and tesserae.social -- with a third under the charter, to the rites. The
 markdown is the document; this only dresses it. Where one document links to
 another by its markdown name, the page links to the other's page.
@@ -80,6 +82,10 @@ SHARED_HEAD = [
     re.compile(r'^<link rel="icon" .*>$', re.M),
 ]
 
+# the atrium's menu, which every page wears under its way back (about-menu, the
+# founder's request of 18 November 2026)
+MENU = re.compile(r'^[ \t]*<nav class="menu".*?</nav>', re.S | re.M)
+
 # the document's own title: the first heading in it
 TITLE = re.compile(r"^#\s+(.+?)\s*$", re.M)
 
@@ -118,6 +124,21 @@ def shared_head():
     return found
 
 
+def shared_menu():
+    """The atrium's menu, as lines set in under a page's way back."""
+    found = MENU.search(same_lines(read_text(PAGE)))
+    if found is None:
+        sys.exit("build_docs: index.html has no menu to copy")
+    lines = [line.strip() for line in found.group().split("\n")]
+    return ["  " + lines[0]] + ["    " + line for line in lines[1:-1]] + ["  " + lines[-1]]
+
+
+def top_of(menu):
+    """The top of a page: the way back, and the site's menu under it."""
+    return ['  <p class="home"><a href="%s">Tesserae</a></p>' % ATRIUM,
+            *(shared_menu() if menu is None else menu)]
+
+
 def title_of(text, name):
     """What the document calls itself: its first heading."""
     match = TITLE.search(text)
@@ -148,11 +169,11 @@ def escape(words):
                  .replace(">", "&gt;").replace('"', "&quot;"))
 
 
-def page_for(name, head):
+def page_for(name, head, menu=None):
     """One document, as the page it becomes; or, asked for about.html, that page."""
     if name == ABOUT:
-        return about_page(head)
-    text =read_text(os.path.join(DOCS, name))
+        return about_page(head, menu)
+    text = read_text(os.path.join(DOCS, name))
     title = title_of(text, name)
     return "\n".join([
         "<!DOCTYPE html>",
@@ -167,7 +188,7 @@ def page_for(name, head):
         "<body>",
         "<main>",
         "",
-        '  <p class="home"><a href="%s">Tesserae</a></p>' % ATRIUM,
+        *top_of(menu),
         "",
         '  <article class="document">',
         body_of(text),
@@ -185,7 +206,9 @@ def page_for(name, head):
 
 
 # the one page made of two documents: what it is called, and its parts in order,
-# each with the place on the page it is found at and the heading it stands under
+# each with the place on the page it is found at and what the list of contents
+# calls it. A part opens with its own title only (about-menu, 18 November 2026);
+# before, each stood under a heading of its own, '<h2 class="part">' and its name.
 ABOUT = "about.html"
 ABOUT_TITLE = "About Tesserae"
 ABOUT_PARTS = [
@@ -194,7 +217,7 @@ ABOUT_PARTS = [
 ]
 
 
-def about_page(head):
+def about_page(head, menu=None):
     """The white paper and the charter on one page, under a short list of contents."""
     contents = ['  <ol class="contents">'] + [
         '    <li><a href="#%s">%s</a></li>' % (place, escape(heading))
@@ -205,7 +228,6 @@ def about_page(head):
         parts += [
             "",
             '  <section id="%s">' % place,
-            '  <h2 class="part">%s</h2>' % escape(heading),
             body_of(text),
             "  </section>",
         ]
@@ -225,7 +247,7 @@ def about_page(head):
         "<body>",
         "<main>",
         "",
-        '  <p class="home"><a href="%s">Tesserae</a></p>' % ATRIUM,
+        *top_of(menu),
         "",
         '  <article class="document">',
         "  <h1>%s</h1>" % escape(ABOUT_TITLE),

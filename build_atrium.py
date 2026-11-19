@@ -8,7 +8,10 @@ Rewrites only the text between the marker comments in index.html:
     <!-- who:start -->      ...  <!-- who:end -->
     <!-- calendar:start --> ...  <!-- calendar:end -->
 
-Everything outside those markers is left byte for byte as it was.
+Everything outside those markers is left byte for byte as it was, but the menu,
+which it writes from MENU_LINKS each time, so that every build keeps it.
+build_docs.py copies that menu from index.html onto every document page, so the
+whole main site wears the one menu.
 
 It writes mosaic.html beside it as well, whole: every tile since the founding,
 under the atrium's own head, menu and script, which are copied from index.html
@@ -1329,6 +1332,37 @@ TITLE = re.compile(r"<title>.*?</title>")
 MENU = re.compile(r'^[ \t]*<nav class="menu".*?</nav>', re.S | re.M)
 SCRIPT = re.compile(r"<script>.*?</script>", re.S)
 
+# The main site's menu: the ways on from any page of it, in this order. "about"
+# is about.html, which holds the white paper and the charter (about-menu, the
+# founder's request of 18 November 2026). Before, the menu began with the charter
+# and the white paper; both keep their own pages, reached from the about page.
+MENU_LINKS = [
+    ("/about.html", "about"),
+    ("https://hearth.tesserae.social/commons", "the commons"),
+    ("/the-door.html", "how to join"),
+    ("https://hearth.tesserae.social/login", "log in"),
+]
+
+
+def menu_html(indent):
+    """The menu as it stands on a page, each line set in by indent."""
+    links = ['<a href="%s">%s</a>' % where for where in MENU_LINKS]
+    lines = ['<nav class="menu" aria-label="pages">']
+    lines += ["  " + link + "&nbsp;·" for link in links[:-1]] + ["  " + links[-1]]
+    lines += ["</nav>"]
+    return "\n".join(indent + line for line in lines)
+
+
+def set_menu(page, newline):
+    """The page with its menu written from MENU_LINKS, where it stood, as it was set in."""
+    plain = page.replace("\r\n", "\n")
+    found = MENU.search(plain)
+    if found is None:
+        sys.exit("build_atrium: index.html has no menu to write")
+    indent = re.match(r"[ \t]*", found.group()).group()
+    plain = plain[:found.start()] + menu_html(indent) + plain[found.end():]
+    return plain.replace("\n", newline)
+
 
 def whole_page(atrium, newline):
     """The whole mosaic's page with nothing yet between its markers.
@@ -1387,6 +1421,7 @@ def main():
     page = read_text(PAGE)
     newline = "\r\n" if "\r\n" in page else "\n"
 
+    page = set_menu(page, newline)
     page = splice(page, "mosaic", frame_block(front), newline)
     page = splice(page, "reading", reading_block(front), newline)
     page = splice(page, "who", who_block(members, sealed, citizens, introduced, opened, here),

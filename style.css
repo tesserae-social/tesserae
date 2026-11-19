@@ -429,13 +429,17 @@
   /* ---- the documents -------------------------------------------------- */
 
   /* A document is the same column as the atrium, in the same scale, with no
-     chrome of its own: the way back at the top, the words, and the two links
-     under them. The headings are where the two part: the atrium's h2 is a quiet
-     lowercase label, and a document's is a heading its author wrote. */
+     chrome of its own: the way back at the top with the site's menu under it,
+     the words, and the two links under them. The headings are where the two
+     part: the atrium's h2 is a quiet lowercase label, and a document's is a
+     heading its author wrote. */
   .home {
-    margin: 0 0 var(--space-5);
+    margin: 0;
     font-size: 0.9rem;
   }
+
+  /* a document's menu, under the way back, and the words a step below it */
+  main > .menu { margin: var(--space-2) 0 var(--space-5); }
 
   /* the same way back, under the menu of the whole mosaic's page */
   .whole .home { margin: var(--space-2) 0 0; }

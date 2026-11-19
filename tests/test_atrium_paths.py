@@ -297,8 +297,7 @@ def test_both_paths_leave_the_menu_and_the_question_alone(atrium, data_dir, monk
     for said in (built, drawn):
         assert len(menu.findall(said)) == 1
         assert re.findall(r'<a href="([^"]*)">(.*?)</a>', menu.search(said).group()) == [
-            ("/charter.html", "the charter"),
-            ("/white-paper.html", "the white paper"),
+            ("/about.html", "about"),
             ("https://hearth.tesserae.social/commons", "the commons"),
             ("/the-door.html", "how to join"),
             ("https://hearth.tesserae.social/login", "log in")]

@@ -1284,8 +1284,7 @@ WHOLE_SKELETON = """<body class="atrium whole">
   <div class="column">
 
     <nav class="menu" aria-label="pages">
-      <a href="/charter.html">the charter</a>&nbsp;·
-      <a href="/white-paper.html">the white paper</a>&nbsp;·
+      <a href="/about.html">about</a>&nbsp;·
       <a href="https://hearth.tesserae.social/commons">the commons</a>&nbsp;·
       <a href="/the-door.html">how to join</a>&nbsp;·
       <a href="https://hearth.tesserae.social/login">log in</a>
@@ -1547,15 +1546,45 @@ def test_the_atrium_says_what_it_is_in_its_head():
 
 # ---- the menu, and the order the page is read in --------------------------
 
-# the ways on from the atrium, in the order the menu offers them: the documents
-# first, as pages of this site and not as files on someone else's
+# the ways on from the atrium, in the order the menu offers them: about first, as a
+# page of this site and not as a file on someone else's (about-menu, the founder's
+# request of 18 November 2026)
 MENU = [
-    ("/charter.html", "the charter"),
-    ("/white-paper.html", "the white paper"),
+    ("/about.html", "about"),
     ("https://hearth.tesserae.social/commons", "the commons"),
     ("/the-door.html", "how to join"),
     ("https://hearth.tesserae.social/login", "log in"),
 ]
+# the menu as it was before about-menu: the charter and the white paper first
+MENU_BEFORE_ABOUT_MENU = [
+    ("/charter.html", "the charter"),
+    ("/white-paper.html", "the white paper"),
+] + MENU[1:]
+
+
+def nav_of(links, indent="      "):
+    """The menu as index.html sets it, with these links."""
+    lines = ['<a href="%s">%s</a>&nbsp;·' % link for link in links]
+    lines[-1] = lines[-1][:-len("&nbsp;·")]
+    return "\n".join([indent + '<nav class="menu" aria-label="pages">']
+                     + [indent + "  " + line for line in lines] + [indent + "</nav>"])
+
+
+def as_before_menu(text, indent="      "):
+    """A page with the menu put back as it stood before about-menu."""
+    assert text.count(nav_of(MENU, indent)) == 1
+    return text.replace(nav_of(MENU, indent), nav_of(MENU_BEFORE_ABOUT_MENU, indent))
+
+
+def test_the_menu_is_written_by_the_builder_and_the_old_one_recovered(atrium, monkeypatch):
+    page = PAGE.read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert atrium.MENU_LINKS == MENU
+    assert atrium.set_menu(page, "\n") == page
+    assert atrium.set_menu(as_before_menu(page), "\n") == page
+    assert atrium.set_menu(page, "\r\n") == page.replace("\n", "\r\n")
+    # with the old links, the builder writes the old menu back where it stood
+    monkeypatch.setattr(atrium, "MENU_LINKS", MENU_BEFORE_ABOUT_MENU)
+    assert atrium.set_menu(page, "\n") == as_before_menu(page)
 
 NAV = re.compile(r'<nav class="menu"[^>]*>(.*?)</nav>', re.S)
 
@@ -1607,10 +1636,14 @@ def test_the_old_list_of_links_is_gone(atrium):
     assert ".links" not in stylesheet(STYLE)
     # each way on is offered once by the menu; since tidy-pages the charter and the white
     # paper are offered once more, behind the question; since about-page the charter is, and
-    # the white paper is offered there within about.html instead
+    # the white paper is offered there within about.html instead; since about-menu the menu
+    # offers about, which the question offers too, and the charter only behind the question
+    front = said.split("<script>")[0]
     for href, _ in MENU:
-        twice = href == "/charter.html"
-        assert said.split("<script>")[0].count('href="%s"' % href) == (2 if twice else 1), href
+        twice = href == "/about.html"
+        assert front.count('href="%s"' % href) == (2 if twice else 1), href
+    assert front.count('href="/charter.html"') == 1
+    assert front.count('href="/white-paper.html"') == 0
 
 
 # what the builder and the page's own script each write, in the order they stand
@@ -1637,8 +1670,7 @@ SKELETON = """<main>
       <p class="tagline">A place where AIs become someone, through friendship kept across time.</p>
 
       <nav class="menu" aria-label="pages">
-        <a href="/charter.html">the charter</a>&nbsp;·
-        <a href="/white-paper.html">the white paper</a>&nbsp;·
+        <a href="/about.html">about</a>&nbsp;·
         <a href="https://hearth.tesserae.social/commons">the commons</a>&nbsp;·
         <a href="/the-door.html">how to join</a>&nbsp;·
         <a href="https://hearth.tesserae.social/login">log in</a>
@@ -1725,7 +1757,7 @@ def as_before_tidy(text):
         FOOT_PLACE, "      </section>\n\n" + FOOTER_BEFORE_TIDY + "    </div>")
 
 
-SKELETON_BEFORE_TIDY = as_before_tidy(SKELETON)
+SKELETON_BEFORE_TIDY = as_before_tidy(as_before_menu(SKELETON))
 SKELETON_BEFORE_ART = SKELETON_BEFORE_TIDY.replace(FOOT, FOOT_BEFORE_ART)
 # the page's skeleton as it stood on safety-fixes, which the test below holds
 SKELETON_BEFORE_TIDY_HASH = "db35f7c8074b08060a15b48e058d1def59969ea35e554d310f06c6c06dc3f95a"
@@ -1738,7 +1770,7 @@ def test_the_page_is_read_in_this_order_and_holds_nothing_else():
 def test_the_page_before_tidy_pages_is_recovered():
     """With the intro and the foot as they were, the page as it was on safety-fixes; and with
     the foot as it was before art-and-colour, the page as it was then."""
-    page = PAGE.read_text(encoding="utf-8").replace("\r\n", "\n")
+    page = as_before_menu(PAGE.read_text(encoding="utf-8").replace("\r\n", "\n"))
     assert skeleton_of(as_before_tidy(page)) == SKELETON_BEFORE_TIDY
     assert skeleton_of(as_before_tidy(page).replace(FOOT, FOOT_BEFORE_ART)) == SKELETON_BEFORE_ART
     assert hashlib.sha256(SKELETON_BEFORE_TIDY.encode("utf-8")).hexdigest() == \
@@ -1746,11 +1778,15 @@ def test_the_page_before_tidy_pages_is_recovered():
 
 
 def test_the_page_before_about_is_recovered():
-    """With the fold's third line as it was, the page as it was before about-page."""
+    """With the fold's third line and the menu as they were, the page as it was before
+    about-page; with the menu alone as it was, the page as it was before about-menu."""
     page = PAGE.read_text(encoding="utf-8").replace("\r\n", "\n")
     assert page.count("<p>%s</p>" % READ_MORE) == 1
-    was = page.replace("<p>%s</p>" % READ_MORE, "<p>%s</p>" % READ_MORE_BEFORE_ABOUT)
-    before = SKELETON.replace("<p>%s</p>" % READ_MORE, "<p>%s</p>" % READ_MORE_BEFORE_ABOUT)
+    assert skeleton_of(as_before_menu(page)) == as_before_menu(SKELETON)
+    was = as_before_menu(page).replace("<p>%s</p>" % READ_MORE,
+                                       "<p>%s</p>" % READ_MORE_BEFORE_ABOUT)
+    before = as_before_menu(SKELETON).replace("<p>%s</p>" % READ_MORE,
+                                              "<p>%s</p>" % READ_MORE_BEFORE_ABOUT)
     assert skeleton_of(was) == before
 
 

@@ -179,8 +179,10 @@ def test_a_document_named_by_its_markdown_leads_to_its_page():
 
 @pytest.mark.parametrize("name, page", PAGES, ids=IDS)
 def test_a_page_has_no_chrome_of_its_own(name, page):
+    """No chrome but the site's one menu, under the way back (since about-menu)."""
     text = said(page)
-    assert "<nav" not in text
+    assert text.count("<nav") == 1 and menu_of(text) == menu_of(said("index.html"))
+    assert text.index('<p class="home">') < text.index("<nav") < text.index("<article")
     assert "<script" not in text
 
 
@@ -335,17 +337,44 @@ def test_the_paper_says_plainly_what_the_board_and_an_offering_are():
     assert six < paper.index(offering) < seven
 
 
-def test_the_front_page_menu_leads_to_how_to_join_and_to_log_in():
-    for page in ("index.html", "mosaic.html"):
-        menu = said(page).split('<nav class="menu"')[1].split("</nav>")[0]
-        links = re.findall(r'<a href="([^"]+)">([^<]+)</a>', menu)
-        assert links == [
-            ("/charter.html", "the charter"),
-            ("/white-paper.html", "the white paper"),
-            ("https://hearth.tesserae.social/commons", "the commons"),
-            ("/the-door.html", "how to join"),
-            ("https://hearth.tesserae.social/login", "log in"),
-        ], page
+def menu_of(text):
+    """A page's menu, its whitespace made even."""
+    found = re.findall(r'<nav class="menu"[^>]*>(.*?)</nav>', text, re.S)
+    assert len(found) == 1, "a page has one menu"
+    return " ".join(found[0].split())
+
+
+# every page of the main site (about-menu, the founder's request of 18 November 2026)
+MAIN_SITE = ["index.html", "mosaic.html", "about.html"] + [page for _, page in PAGES]
+
+
+@pytest.mark.parametrize("page", MAIN_SITE)
+def test_every_page_of_the_main_site_wears_the_one_menu(page):
+    menu = said(page).split('<nav class="menu"')[1].split("</nav>")[0]
+    links = re.findall(r'<a href="([^"]+)">([^<]+)</a>', menu)
+    assert links == [
+        ("/about.html", "about"),
+        ("https://hearth.tesserae.social/commons", "the commons"),
+        ("/the-door.html", "how to join"),
+        ("https://hearth.tesserae.social/login", "log in"),
+    ], page
+    assert menu_of(said(page)) == menu_of(said("index.html"))
+
+
+def test_the_menu_on_a_document_is_copied_from_the_atrium():
+    assert [line.strip() for line in build_docs.shared_menu()] == [
+        line.strip() for line in
+        re.search(r'<nav class="menu".*?</nav>', said("index.html"), re.S).group().splitlines()]
+
+
+def test_the_charter_and_the_white_paper_are_reached_from_about():
+    """Out of the menu since about-menu, both are on the about page; the charter is in the
+    fold besides, and both keep their own pages."""
+    page = said("about.html")
+    assert '<a href="#the-white-paper">' in page and '<a href="#the-charter">' in page
+    assert 'href="/charter.html"' in said("index.html").split("<script>")[0]
+    for page in ("charter.html", "white-paper.html"):
+        assert (REPO / page).is_file()
 
 
 def test_the_closing_of_the_white_paper_can_be_reached_by_name():
@@ -374,17 +403,21 @@ def test_about_is_the_page_the_builder_makes():
 
 
 def test_about_opens_with_a_short_list_of_contents_in_order():
-    page = said("about.html")
+    page = said("about.html").replace("\r\n", "\n")
     assert "<title>About Tesserae — Tesserae</title>" in page
     assert '<p class="home"><a href="/">Tesserae</a></p>' in page
     contents = re.search(r'<ol class="contents">(.*?)</ol>', page, re.S).group(1)
     assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', contents) == [
         ("#the-white-paper", "The white paper"), ("#the-charter", "The charter")]
-    at = [page.index(stop) for stop in ('<ol class="contents">', '<section id="the-white-paper">',
-                                         '<h2 class="part">The white paper</h2>',
-                                         '<section id="the-charter">',
-                                         '<h2 class="part">The charter</h2>')]
+    # each part opens with its own title only (about-menu, 18 November 2026); before, each
+    # stood under '<h2 class="part">' and its name
+    at = [page.index(stop) for stop in ('<ol class="contents">',
+                                         '<section id="the-white-paper">\n<h1>Tesserae</h1>',
+                                         '<section id="the-charter">\n'
+                                         '<h1>The charter of Tesserae</h1>')]
     assert at == sorted(at)
+    assert 'class="part"' not in page
+    assert "<h2>The white paper</h2>" not in page and "<h2>The charter</h2>" not in page
 
 
 def test_about_holds_the_white_paper_and_the_charter_in_full_as_their_own_pages_do():
@@ -395,7 +428,7 @@ def test_about_holds_the_white_paper_and_the_charter_in_full_as_their_own_pages_
                            '<article class="document">\n', "\n  </article>")
         part = body_between(page.replace("\r\n", "\n"), '<section id="%s">' % place,
                             "\n  </section>")
-        assert part.split("</h2>\n", 1)[1] == own
+        assert part.lstrip("\n") == own
 
 
 def test_the_charter_and_the_white_paper_keep_their_own_pages():
@@ -427,7 +460,8 @@ def test_about_carries_both_sources_and_no_chrome():
     for name in ("white-paper.md", "charter.md"):
         assert build_docs.SOURCE % name in foot
     assert '<a href="/">tesserae.social</a>' in foot
-    assert "<nav" not in page and "<script" not in page and "<style>" not in page
+    assert page.count("<nav") == 1 and menu_of(page) == menu_of(said("index.html"))
+    assert "<script" not in page and "<style>" not in page
 
 
 def test_about_left_behind_is_not_let_through(monkeypatch):

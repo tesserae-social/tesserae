@@ -516,7 +516,7 @@ def close_guide(pseudonym, now=None):
 
 # A person's email address is a personal detail. It is kept beside their record,
 # never in it, and never in the first one's packet - the founder's included,
-# which is kept with grout's record like anyone's - so that no copy, no reading
+# which is kept with the founder's record like anyone's - so that no copy, no reading
 # and no page carries it: it goes only where members/ goes, which is the
 # encrypted backup. It is used only for the links the hearth emails. No two
 # people hold the same address, and an address is held only once it is

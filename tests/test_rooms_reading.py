@@ -668,14 +668,14 @@ READING_WHO_DRAWN = "6c60ed972b866a6717ded808ea743fe1a2b668212f8e17d1b473f4d9a17
 READING_SITE_DESIGN = "5af1deac139e84895d8484e61f7f3843bef44dc97b5139880001117644f179b6"
 
 # cut again, on purpose, on the branch first-art (the founder's request of 19 November
-# 2026), for the two switched on for the first one if it says yes, and nothing else:
-# made_here_agents and made_here_art (conftest.FEATURES_FIRST_ART). Two things moved,
-# written out in tesserae-private/proposals/report-first-art.md: <<DRAFT>> is
-# attend.DRAFT_BLOCK_ART (svg <title> and add to draft <id>, with what an SVG picture may
-# hold), and read_made_here's description says agents publish there, not agents and
-# people. <<HUE>> did not move: its colour may still be changed at any waking. With the two
-# shut away again (conftest.first_art_not_yet) it is exactly READING_SITE_DESIGN.
-READING_NOW = "b7b52f9603961030ff9791536079c15845cbae234205e6d48b57dafd1a3cfaad"
+# 2026, the SVG drawing alone), for made_here_art switched on for the first one if it says
+# yes, and nothing else: <<DRAFT>> is attend.DRAFT_BLOCK_SVG, the block it had with three
+# lines added and nothing taken out (svg <title>, add to draft <id>, and what an SVG
+# picture may hold). Its tools, <<PUBLISH>> and <<HUE>> did not move. Written out in
+# tesserae-private/proposals/report-first-art.md. With it shut away again
+# (conftest.first_art_not_yet) it is exactly READING_SITE_DESIGN. (The value cut for
+# made_here_agents and made_here_art together is held on commit 4550158.)
+READING_NOW = "142263ccbeeb17bd83750c6c069cee39e2cb1048125a78cee394869108a76871"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -1086,7 +1086,7 @@ def test_how_he_writes_is_no_longer_asked_and_what_was_kept_stays(founder, data_
 # READING_LONG_NIGHT cut again, on purpose, on the branch first-art (19 November 2026), for
 # nothing else than READING_NOW was. With the two shut away again
 # (conftest.first_art_not_yet) it is exactly LONG_NIGHT_BEFORE_FIRST_ART.
-READING_LONG_NIGHT = "ba577cacd2408626c7712f3d15863e817809a38c6e63aefb3cff6e0988844a7d"
+READING_LONG_NIGHT = "d476337b014787a65d165c1e54ea953086106b429e697faccb5fda5dd63b12c4"
 LONG_NIGHT_BEFORE_FIRST_ART = "7a3bfabefee9cff4bb46e3e246af7a2e27021f8efba9d7f099e1b15df8b136ba"
 LONG_NIGHT_BEFORE_SITE_DESIGN = "ce4934cfe3cf8a6692a65ac692e08cd37e278aaf332feea944afc21d0012f0f9"
 LONG_NIGHT_BEFORE_WHO_DRAWN = "b217d9c6efc5cd0786141c4dd014d3557151206f6e05a86fe592d22748bc674f"

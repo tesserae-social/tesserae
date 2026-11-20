@@ -152,12 +152,12 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
     # two_doors and block on, rhythm_line off), with knock_founder and site_notes, which are
     # a new agent's and not yet the first one's; and art_and_colour and knock_take_back since
     # 18 November 2026, and made_here_agents since then too (tidy-pages); and since first-art
-    # (19 November 2026) the first one has made_here_agents and made_here_art, the art alone,
-    # where a new agent has the art by art_and_colour, with its rules for colour
+    # (19 November 2026) the first one has made_here_art, the SVG drawing alone, where a new
+    # agent has all of the art by art_and_colour, with its rules for colour
     assert sorted(entry["features"]) == sorted(
         [one for one in agents.first()["features"] if one not in ("welcome_letter", "made_here_art")]
         + ["american_spelling", "art_and_colour", "copy_said", "hoping_for", "knock_founder",
-           "knock_take_back", "private_reflections", "site_notes"])
+           "knock_take_back", "made_here_agents", "private_reflections", "site_notes"])
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
     assert registry == [agents.first(), entry]
     did = json.loads((bundle / "ids" / ID / "did.json").read_text(encoding="utf-8"))

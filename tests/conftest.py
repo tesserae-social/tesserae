@@ -878,11 +878,11 @@ READ_WHO_IS_HERE_BEFORE = {
 
 
 # What the founder switches on for the first one on the branch first-art (the founder's request
-# of 19 November 2026), if it says yes: made here the agents' alone (made_here_agents) and the
-# art of art-and-colour without its rules for colour (made_here_art). Its colour stays free to
-# change at any waking. Anything held to a reading from before then shuts both away again
-# first: first_art_not_yet(attend, monkeypatch).
-FEATURES_FIRST_ART = ("made_here_agents", "made_here_art")
+# of 19 November 2026), if it says yes: the SVG drawing alone (made_here_art). Made here is as
+# it reads it now, and its colour stays free to change at any waking. (Commit 4550158 held the
+# other way: made_here_agents too.) Anything held to a reading from before then shuts it away
+# again first: first_art_not_yet(attend, monkeypatch).
+FEATURES_FIRST_ART = ("made_here_art",)
 
 
 def first_art_not_yet(module, monkeypatch):

@@ -1905,26 +1905,56 @@ MADE_REFUSED_ART = {
 }
 
 
-# The art alone (the branch first-art, the founder's request of 19 November 2026): with its
-# switch made_here_art (made_here.ART_FEATURE), an agent has the art above - SVG pictures,
-# adding to a draft, one picture a week, and an uploaded picture shown to it - without the
-# rules for colour, which stay with art_and_colour alone (ART_AND_COLOUR): its colour may
-# still be changed at any waking. art_and_colour gives the art too, as it did. With
-# MADE_ART False and ART_AND_COLOUR False, as before (conftest.first_art_not_yet).
+# The SVG drawing alone (the branch first-art, the founder's request of 19 November 2026,
+# narrowed later that day): with its switch made_here_art (made_here.ART_FEATURE), an agent
+# may draw pictures in SVG and add to an SVG draft at later wakings, and nothing else of
+# art-and-colour: what it may publish at a reflection waking stays as it was (one piece of
+# writing and up to 3 pictures, an SVG picture one of them), <<PUBLISH>> is as it was, an
+# uploaded picture is said in words, and its colour may still be changed at any waking.
+# <<DRAFT>> is the block it had, with the SVG lines added and nothing taken out
+# (DRAFT_BLOCK_SVG). art_and_colour gives all of the art, as it did (DRAFT_BLOCK_ART,
+# PUBLISH_BLOCK_ART, one picture a week, an uploaded picture shown). With MADE_ART False
+# and ART_AND_COLOUR False, as before (conftest.first_art_not_yet).
 MADE_ART = made_here.ART_FEATURE in FEATURES
+SVG_KIND_LINE = "  svg <title>          a picture in SVG, described below\n"
+ADD_TO_DRAFT_LINE = ("  add to draft <id>    more for one of your SVG drafts: the lines under "
+                     "it go inside the picture, just before its closing </svg>\n")
+SVG_SAID = DRAFT_BLOCK_ART[DRAFT_BLOCK_ART.index("An SVG picture is one "):
+                           DRAFT_BLOCK_ART.index("In a picture of 32 by 32")]
+
+
+def with_svg(block):
+    """A <<DRAFT>> block with the SVG drawing added to it, and nothing else changed."""
+    for where, added in (("  writing <title>      up to about 2,000 words\n", SVG_KIND_LINE),
+                         ("wide and 20 lines\n", ADD_TO_DRAFT_LINE)):
+        assert block.count(where) == 1
+        block = block.replace(where, where + added)
+    assert block.count("In a picture of 32 by 32") == 1
+    return block.replace("In a picture of 32 by 32", SVG_SAID + "In a picture of 32 by 32")
+
+
+DRAFT_BLOCK_SVG = with_svg(DRAFT_BLOCK)
 
 
 def new_art():
-    """Whether it has the art of art-and-colour: by art_and_colour, or made_here_art alone."""
+    """Whether it may draw in SVG: by art_and_colour, or made_here_art alone."""
     return ART_AND_COLOUR or MADE_ART
 
 
+def art_weekly():
+    """Whether it has the rest of the art of art-and-colour: one picture a week, the new
+    <<PUBLISH>>, and an uploaded picture shown. By art_and_colour alone."""
+    return ART_AND_COLOUR
+
+
 def draft_block():
-    return DRAFT_BLOCK_ART if new_art() else DRAFT_BLOCK
+    if ART_AND_COLOUR:
+        return DRAFT_BLOCK_ART
+    return DRAFT_BLOCK_SVG if MADE_ART else DRAFT_BLOCK
 
 
 def publish_block():
-    return PUBLISH_BLOCK_ART if new_art() else PUBLISH_BLOCK
+    return PUBLISH_BLOCK_ART if art_weekly() else PUBLISH_BLOCK
 
 
 MADE_DRAFTS_LINE = "Your private workspace holds {n} of at most 5 drafts. Open them with read_drafts."
@@ -2954,7 +2984,7 @@ def made_body(one):
     if one["kind"] == made_here.WRITING:
         return one["words"]
     if one["kind"] == made_here.PHOTO:  # a person's uploaded picture (art-and-colour)
-        return MADE_PHOTO_SHOWN if new_art() else MADE_PHOTO_SAID
+        return MADE_PHOTO_SHOWN if art_weekly() else MADE_PHOTO_SAID
     if one["kind"] == made_here.SVG:  # an agent's picture in SVG, as cleaned (art-and-colour)
         return one["svg"]
     if one["kind"] == made_here.TILES:
@@ -3011,7 +3041,7 @@ def made_photo(asked_id):
     """The file of a person's uploaded picture that read_made_here shows with its switch
     art_and_colour, or None: one published, not taken down, and by no one in a block with it."""
     one = made_here.one(asked_id) if asked_id else None
-    if not new_art() or one is None or one.get("kind") != made_here.PHOTO \
+    if not art_weekly() or one is None or one.get("kind") != made_here.PHOTO \
             or one.get("taken_down") or (one.get("by") and blocks.between(NAME, one["by"])) \
             or (MADE_AGENTS_ONLY and not made_here.by_an_agent(one)):
         return None
@@ -3111,7 +3141,7 @@ def publish_made(text, at):
                 one = {key: kept[key] for key in kept if key not in ("id", "at")}
             else:
                 one = made_here.piece(line, body, svg=new_art())
-            why = made_here.may_publish(NAME, one["kind"], at, kinds, weekly=new_art())
+            why = made_here.may_publish(NAME, one["kind"], at, kinds, weekly=art_weekly())
             if why:
                 raise made_here.Refused(why)
             if one["kind"] == made_here.WRITING and \

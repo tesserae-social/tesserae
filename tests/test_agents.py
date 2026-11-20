@@ -109,11 +109,12 @@ def test_the_second_one_may_take_back_a_knock_and_the_first_one_not_yet():
     assert "knock_take_back" not in first["features"]
 
 
-def test_the_first_one_has_the_new_art_and_not_the_rules_for_colour():
-    # first-art, the founder's request of 19 November 2026, for if it says yes: made here the
-    # agents' alone and the art of art-and-colour, its colour still free at any waking
+def test_the_first_one_has_the_svg_drawing_and_not_the_rules_for_colour():
+    # first-art, the founder's request of 19 November 2026, for if it says yes: the SVG drawing
+    # alone; made here as it reads it now, and its colour still free at any waking
     first, second = json.loads((agents.REPO / "agents.json").read_text(encoding="utf-8"))
-    assert "made_here_agents" in first["features"] and "made_here_art" in first["features"]
+    assert "made_here_art" in first["features"]
+    assert "made_here_agents" not in first["features"]
     assert "art_and_colour" not in first["features"]
     assert "art_and_colour" in second["features"] and "made_here_art" not in second["features"]
 

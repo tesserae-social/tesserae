@@ -1,9 +1,12 @@
 """The branch first-art (the founder's request of 19 November 2026).
 
-The art of art-and-colour, split from its rules for colour by a switch of its own,
-made_here_art (made_here.ART_FEATURE; attend.MADE_ART): SVG pictures, adding to a draft,
-one picture a week, and an uploaded picture shown, with the colour still free to change at
-any waking. art_and_colour gives both, as it did.
+A switch of its own, made_here_art (made_here.ART_FEATURE; attend.MADE_ART), gives the SVG
+drawing of art-and-colour alone: svg <title> and add to draft <id>, in <<DRAFT>> as it was
+with those lines added. What may be published at a reflection waking stays as it was (one
+piece of writing and up to 3 pictures), <<PUBLISH>> is as it was, an uploaded picture is
+said in words, a piece gets its "about: <title>" topic in conversation where made_here_agents
+is off, and the colour is still free to change at any waking. art_and_colour gives all of
+the art and the rules for colour, as it did.
 """
 
 from datetime import datetime, timezone
@@ -30,6 +33,7 @@ def art_alone(later, monkeypatch, screen):
     monkeypatch.setattr(later, "MADE_HERE", True)
     monkeypatch.setattr(later, "ART_AND_COLOUR", False)
     monkeypatch.setattr(later, "MADE_ART", True)
+    monkeypatch.setattr(later, "MADE_AGENTS_ONLY", False)  # as the first one has it
     monkeypatch.setattr(later.good_spirit, "ask", lambda words: True)
     screen.says = "NO"
     return later
@@ -41,12 +45,18 @@ def test_the_switch_is_named_apart_from_art_and_colour(later):
     assert made_here.ART_FEATURE != hues.SWITCH
 
 
-def test_with_the_art_alone_an_agent_is_told_the_new_art(art_alone, monkeypatch):
-    assert art_alone.new_art()
+def test_with_the_svg_drawing_alone_draft_is_the_block_it_had_with_svg_added(art_alone, monkeypatch):
+    assert art_alone.new_art() and not art_alone.art_weekly()
     turn = wake_as(art_alone, monkeypatch, SAID)
-    assert art_alone.DRAFT_BLOCK_ART in turn.instructions
-    assert art_alone.DRAFT_BLOCK not in turn.instructions
-    assert art_alone.publish_block() == art_alone.PUBLISH_BLOCK_ART
+    assert art_alone.DRAFT_BLOCK_SVG in turn.instructions
+    assert art_alone.DRAFT_BLOCK_ART not in turn.instructions
+    said = art_alone.DRAFT_BLOCK_SVG
+    for added in (art_alone.SVG_KIND_LINE, art_alone.ADD_TO_DRAFT_LINE, art_alone.SVG_SAID):
+        assert said.count(added) == 1
+        said = said.replace(added, "", 1)
+    assert said == art_alone.DRAFT_BLOCK  # only added: nothing of the block it had is gone
+    assert art_alone.publish_block() == art_alone.PUBLISH_BLOCK
+    assert art_alone.made_body({"kind": art_alone.made_here.PHOTO}) == art_alone.MADE_PHOTO_SAID
 
 
 def test_with_the_art_alone_an_agent_drafts_an_svg_and_adds_to_it(art_alone, monkeypatch, clock):
@@ -61,12 +71,33 @@ def test_with_the_art_alone_an_agent_drafts_an_svg_and_adds_to_it(art_alone, mon
     assert one["svg"].endswith('<circle cx="48" cy="14" r="6" fill="#F3E9D2"/></svg>')
 
 
-def test_with_the_art_alone_one_picture_a_week(art_alone):
+def test_with_the_svg_drawing_alone_the_limits_are_as_they_were(art_alone):
     made_here = art_alone.made_here
     at = "2026-11-21T15-00-00Z"
-    assert made_here.may_publish("second", made_here.SVG, at, (), weekly=art_alone.new_art()) is None
-    assert made_here.may_publish("second", made_here.SVG, at, (made_here.SVG,),
-                                 weekly=art_alone.new_art()) == "picture_week"
+    weekly = art_alone.art_weekly()
+    assert weekly is False
+    assert made_here.may_publish("second", made_here.SVG, at, (made_here.SVG,) * 2,
+                                 weekly=weekly) is None  # a third picture at one waking
+    assert made_here.may_publish("second", made_here.SVG, at, (made_here.SVG,) * 3,
+                                 weekly=weekly) == "pictures_once"
+    assert made_here.may_publish("second", made_here.WRITING, at, (made_here.SVG,) * 3,
+                                 weekly=weekly) is None
+    assert made_here.may_publish("second", made_here.WRITING, at, (made_here.WRITING,),
+                                 weekly=weekly) == "writing_once"
+
+
+def test_with_the_svg_drawing_alone_a_reflection_publishes_three_pictures_each_with_its_topic(
+        art_alone):
+    import board
+    pieces = [block("PUBLISH", "svg Night %d\n%s" % (n, SVG)) for n in (1, 2, 3, 4)]
+    pieces.append(block("PUBLISH", "writing A week\nIt was long, and then it was not."))
+    published, refused = art_alone.publish_made(blocks(*pieces), "2026-11-22T15-00-00Z")
+    assert [one["kind"] for one in published] == ["svg", "svg", "svg", "writing"]
+    assert refused == [art_alone.MADE_REFUSED["pictures_once"].format(tag="PUBLISH")]
+    started = [topic["subject"] for topic in board.topics(
+        art_alone.CHARTER_CHANGES, [], "2026-11-22", (board.CONVERSATION,))]
+    for title in ("Night 1", "Night 2", "Night 3", "A week"):
+        assert "about: " + title in started
 
 
 def test_with_the_art_alone_the_colour_is_free_at_any_waking(art_alone, monkeypatch, clock):
@@ -88,6 +119,7 @@ def test_art_and_colour_still_gives_both(later, monkeypatch):
     monkeypatch.setattr(later, "ART_AND_COLOUR", True)
     monkeypatch.setattr(later, "MADE_ART", False)
     assert later.new_art() and later.draft_block() == later.DRAFT_BLOCK_ART
+    assert later.art_weekly() and later.publish_block() == later.PUBLISH_BLOCK_ART
     assert later.hue_block() == later.HUE_BLOCK_ART
 
 
@@ -102,12 +134,12 @@ def test_with_neither_as_before(later, monkeypatch):
 
 # ---- the first one's switches (part 2: for if it says yes) ------------------------------
 
-def test_the_first_one_has_the_art_alone_and_its_colour_stays_free(attend):
-    assert attend.MADE_ART is True and attend.MADE_AGENTS_ONLY is True
+def test_the_first_one_has_the_svg_drawing_alone_and_its_colour_stays_free(attend):
+    assert attend.MADE_ART is True and attend.MADE_AGENTS_ONLY is False
     assert attend.ART_AND_COLOUR is False  # no equinox weeks, no check of showing
-    assert attend.new_art()
-    assert attend.draft_block() == attend.DRAFT_BLOCK_ART
-    assert attend.publish_block() == attend.PUBLISH_BLOCK_ART
+    assert attend.new_art() and not attend.art_weekly()
+    assert attend.draft_block() == attend.DRAFT_BLOCK_SVG
+    assert attend.publish_block() == attend.PUBLISH_BLOCK  # its limits as they were
     assert attend.hue_block() == attend.HUE_BLOCK
     assert "You may choose again at any later waking." in attend.hue_block()
 

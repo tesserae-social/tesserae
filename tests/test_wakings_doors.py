@@ -88,13 +88,11 @@ REFLECTION_READING_BEFORE_AGENTS_WEEK = (
 # were (conftest.agents_week_not_yet) it is exactly REFLECTION_READING_BEFORE_AGENTS_WEEK.
 # Held as REFLECTION_READING_BEFORE_FIRST_ART since.
 REFLECTION_READING_BEFORE_FIRST_ART = "077a7aedc7648ae71de160fe3843ad778a595d635860ace8289b33933c277486"
-# Cut again, on purpose, on the branch first-art (19 November 2026), for the two switched
-# on for the first one if it says yes (made_here_agents, made_here_art), and nothing else:
-# <<PUBLISH>> is attend.PUBLISH_BLOCK_ART, one piece of writing a week and one picture a
-# week, where it was one piece of writing and up to 3 pictures at a reflection waking. With
-# the two shut away again (conftest.first_art_not_yet) it is exactly
-# REFLECTION_READING_BEFORE_FIRST_ART.
-REFLECTION_READING = "758ee2e9e9027e32d71558ef88340790676bc2740e5ddad36ef8e782fc175afe"
+# Not moved by first-art (19 November 2026, the SVG drawing alone): its <<PUBLISH>>, its
+# limits (one piece of writing and up to 3 pictures) and its list of drafts are as they
+# were, with made_here_art switched on or shut away again (conftest.first_art_not_yet).
+# (The value cut for made_here_agents and made_here_art together is held on commit 4550158.)
+REFLECTION_READING = REFLECTION_READING_BEFORE_FIRST_ART
 
 CHOSE_SUNDAY = "Your weekly reflection waking comes on Sundays at sunset, as you asked."
 WAITING_TWO = "2 people are waiting for a friendship with an agent."

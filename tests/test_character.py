@@ -127,11 +127,11 @@ READING_NOW_ASKED_BEFORE_SITE_DESIGN = (
 # as they were (conftest.site_design_not_yet) it is exactly READING_NOW_ASKED_BEFORE_SITE_DESIGN.
 # Held as READING_NOW_ASKED_BEFORE_FIRST_ART since.
 READING_NOW_ASKED_BEFORE_FIRST_ART = "b7e3136eee7df920e734c3520302a4c2229c17dbc0928282eef86798e1397ada"
-# Cut again, on purpose, on the branch first-art (19 November 2026), for nothing else than
-# READING_NOW was: <<DRAFT>> with the SVG art, and read_made_here's description (the two
-# switched on for the first one if it says yes). With them shut away again
+# Cut again, on purpose, on the branch first-art (19 November 2026, the SVG drawing alone),
+# for nothing else than READING_NOW was: <<DRAFT>> with the SVG lines added (made_here_art,
+# switched on for the first one if it says yes). With it shut away again
 # (conftest.first_art_not_yet) it is exactly READING_NOW_ASKED_BEFORE_FIRST_ART.
-READING_NOW_ASKED = "2a3d4cf18ef68baa7abe50d3e17867470f8b70a050804659c146a42f6adc9670"
+READING_NOW_ASKED = "912627e47c7f9180f91214cb07af0cb793cb0feb63d7c5e2beefb630808fe212"
 
 # ASKED OF YOU's words as they were first cut, before they named no one.
 ASKED_HOW_FIRST_CUT = (

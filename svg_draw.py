@@ -12,12 +12,17 @@ at most EDGE pixels on its longest side. It is a plain drawing, close but not ex
 - filters and patterns are not drawn: a shape filled with a pattern is left unfilled.
 
 draw(picture) gives the PNG's bytes, or raises NotDrawn where the picture can't be read or
-is too much to draw in time (TIME_MOST, POINTS_MOST).
+is too much to draw in time (TIME_MOST, POINTS_MOST). It is drawn in a separate process, killed
+if it has not finished in TIME_MOST seconds, with its memory held to MEMORY_MOST where the
+system allows it (Linux, where the site runs), so a broken or hostile picture can never hang a
+waking or take its memory.
 """
 
 import io
 import math
 import re
+import subprocess
+import sys
 import time
 import xml.etree.ElementTree as ET
 
@@ -27,6 +32,7 @@ EDGE = 512         # the longest side of the image, in pixels
 FINE = 2           # drawn this many times larger, then made smaller, for smooth edges
 TIME_MOST = 10.0   # seconds
 POINTS_MOST = 400000
+MEMORY_MOST = 1024 * 1024 * 1024   # bytes, for the process that draws
 CURVE_STEPS = 16
 RAMP_PAD = 20      # how far a linear gradient's colours are carried past its ends
 SVG = "{http://www.w3.org/2000/svg}"
@@ -818,9 +824,42 @@ class _Drawing:
             layer.paste(rgb, (0, 0), words)
 
 
+def _command(edge):
+    """The process that draws: this file, run by the same Python."""
+    return [sys.executable, __file__, str(int(edge))]
+
+
 def draw(picture, edge=EDGE):
     """A cleaned SVG picture drawn as a PNG on white, at most edge pixels on its longest side:
-    its bytes. NotDrawn where it can't be."""
+    its bytes. NotDrawn where it can't be. Drawn in a separate process, killed at TIME_MOST."""
+    try:
+        done = subprocess.run(_command(edge), input=(picture or "").encode("utf-8"),
+                              capture_output=True, timeout=TIME_MOST)
+    except subprocess.TimeoutExpired:  # run() has killed it
+        raise NotDrawn("too much to draw in time") from None
+    except OSError:
+        raise NotDrawn("it could not be drawn") from None
+    if done.returncode == 0 and done.stdout.startswith(b"\x89PNG"):
+        return done.stdout
+    if done.returncode == 2:
+        why = done.stderr.decode("utf-8", "replace").strip()
+        raise NotDrawn(why or "it could not be drawn")
+    raise NotDrawn("it could not be drawn")
+
+
+def _limit_memory():
+    try:
+        import resource
+    except ImportError:  # not on Windows
+        return
+    try:
+        resource.setrlimit(resource.RLIMIT_AS, (MEMORY_MOST, MEMORY_MOST))
+    except (ValueError, OSError):
+        pass
+
+
+def _draw_here(picture, edge=EDGE):
+    """draw, in this process."""
     try:
         root = ET.fromstring(picture or "")
     except ET.ParseError:
@@ -843,3 +882,23 @@ def draw(picture, edge=EDGE):
     out = io.BytesIO()
     final.save(out, "PNG", optimize=True)
     return out.getvalue()
+
+
+def _main():
+    _limit_memory()
+    edge = int(sys.argv[1]) if len(sys.argv) > 1 else EDGE
+    picture = sys.stdin.buffer.read().decode("utf-8", "replace")
+    try:
+        data = _draw_here(picture, edge)
+    except NotDrawn as why:
+        sys.stderr.write(str(why))
+        return 2
+    except MemoryError:
+        sys.stderr.write("it could not be drawn")
+        return 2
+    sys.stdout.buffer.write(data)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_main())

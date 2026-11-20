@@ -11,6 +11,10 @@ waking, drawn. What it may publish is as it was.
 
 import io
 import json
+import os
+import subprocess
+import sys
+import time
 
 import pytest
 from PIL import Image
@@ -128,6 +132,43 @@ def test_what_cannot_be_read_is_not_drawn():
         svg_draw.draw("<svg")
     with pytest.raises(svg_draw.NotDrawn):
         svg_draw.draw('<svg viewBox="0 0 0 0"/>')
+
+
+def test_a_drawing_that_never_ends_is_killed_at_the_limit(monkeypatch, tmp_path):
+    started = tmp_path / "started"
+    hang = ("import pathlib, sys, time; pathlib.Path(sys.argv[1]).write_text(str(__import__('os')"
+            ".getpid())); time.sleep(600)")
+    monkeypatch.setattr(svg_draw, "_command", lambda edge: [sys.executable, "-c", hang,
+                                                            str(started)])
+    monkeypatch.setattr(svg_draw, "TIME_MOST", 2.0)
+    began = time.monotonic()
+    with pytest.raises(svg_draw.NotDrawn, match="in time"):
+        svg_draw.draw(LARGE)
+    assert time.monotonic() - began < 8
+    assert started.exists()  # it ran, and was killed: nothing of it is left running
+    pid = int(started.read_text())
+    if os.name == "nt":
+        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], capture_output=True,
+                             text=True).stdout
+        assert str(pid) not in out
+    else:
+        with pytest.raises(ProcessLookupError):
+            os.kill(pid, 0)
+
+
+def test_a_drawing_that_dies_is_not_drawn_and_the_waking_goes_on(monkeypatch):
+    monkeypatch.setattr(svg_draw, "_command", lambda edge: [sys.executable, "-c",
+                                                            "raise MemoryError"])
+    with pytest.raises(svg_draw.NotDrawn):
+        svg_draw.draw(LARGE)
+    import attend
+    image, why = attend.drawn(LARGE)
+    assert image is None and why
+
+
+def test_the_drawing_is_done_in_another_process(monkeypatch):
+    monkeypatch.setattr(svg_draw, "_draw_here", lambda *a: pytest.fail("drawn in this process"))
+    assert svg_draw.draw(LARGE).startswith(b"\x89PNG")
 
 
 # ---- the switch --------------------------------------------------------------------------------

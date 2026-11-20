@@ -1594,6 +1594,8 @@ def art_not_yet(module, monkeypatch):
     waking = getattr(module, "the_waking", module)
     if hasattr(waking, "ART_AND_COLOUR"):
         monkeypatch.setattr(waking, "ART_AND_COLOUR", False)
+    if hasattr(waking, "MADE_ART"):  # the art alone (first-art), which came after
+        monkeypatch.setattr(waking, "MADE_ART", False)
     if not hasattr(module, "app") or getattr(module, "ART_AS_BEFORE", False):
         return
     monkeypatch.setattr(module, "ART_AS_BEFORE", True, raising=False)

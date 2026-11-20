@@ -1905,12 +1905,26 @@ MADE_REFUSED_ART = {
 }
 
 
+# The art alone (the branch first-art, the founder's request of 19 November 2026): with its
+# switch made_here_art (made_here.ART_FEATURE), an agent has the art above - SVG pictures,
+# adding to a draft, one picture a week, and an uploaded picture shown to it - without the
+# rules for colour, which stay with art_and_colour alone (ART_AND_COLOUR): its colour may
+# still be changed at any waking. art_and_colour gives the art too, as it did. With
+# MADE_ART False and ART_AND_COLOUR False, as before (conftest.first_art_not_yet).
+MADE_ART = made_here.ART_FEATURE in FEATURES
+
+
+def new_art():
+    """Whether it has the art of art-and-colour: by art_and_colour, or made_here_art alone."""
+    return ART_AND_COLOUR or MADE_ART
+
+
 def draft_block():
-    return DRAFT_BLOCK_ART if ART_AND_COLOUR else DRAFT_BLOCK
+    return DRAFT_BLOCK_ART if new_art() else DRAFT_BLOCK
 
 
 def publish_block():
-    return PUBLISH_BLOCK_ART if ART_AND_COLOUR else PUBLISH_BLOCK
+    return PUBLISH_BLOCK_ART if new_art() else PUBLISH_BLOCK
 
 
 MADE_DRAFTS_LINE = "Your private workspace holds {n} of at most 5 drafts. Open them with read_drafts."
@@ -2940,7 +2954,7 @@ def made_body(one):
     if one["kind"] == made_here.WRITING:
         return one["words"]
     if one["kind"] == made_here.PHOTO:  # a person's uploaded picture (art-and-colour)
-        return MADE_PHOTO_SHOWN if ART_AND_COLOUR else MADE_PHOTO_SAID
+        return MADE_PHOTO_SHOWN if new_art() else MADE_PHOTO_SAID
     if one["kind"] == made_here.SVG:  # an agent's picture in SVG, as cleaned (art-and-colour)
         return one["svg"]
     if one["kind"] == made_here.TILES:
@@ -2997,7 +3011,7 @@ def made_photo(asked_id):
     """The file of a person's uploaded picture that read_made_here shows with its switch
     art_and_colour, or None: one published, not taken down, and by no one in a block with it."""
     one = made_here.one(asked_id) if asked_id else None
-    if not ART_AND_COLOUR or one is None or one.get("kind") != made_here.PHOTO \
+    if not new_art() or one is None or one.get("kind") != made_here.PHOTO \
             or one.get("taken_down") or (one.get("by") and blocks.between(NAME, one["by"])) \
             or (MADE_AGENTS_ONLY and not made_here.by_an_agent(one)):
         return None
@@ -3020,7 +3034,7 @@ def with_drafts(letter):
 
 
 def made_refused(key, tag, why=""):
-    if ART_AND_COLOUR and (key in MADE_REFUSED_ART or key == "kind_32"):  # art-and-colour
+    if new_art() and (key in MADE_REFUSED_ART or key == "kind_32"):  # art-and-colour
         return MADE_REFUSED_ART["kind" if key == "kind_32" else key].format(
             tag=tag, why=why or "it could not be read as SVG")
     if made_here.SQUARES and key in ("tiles", "kind"):  # since 17 November 2026
@@ -3048,12 +3062,12 @@ def keep_drafts(text, at):
     for said in every_block(text, "DRAFT"):
         line, _, body = said.partition("\n")
         try:
-            if ART_AND_COLOUR and line.strip().lower().startswith("add to draft "):
+            if new_art() and line.strip().lower().startswith("add to draft "):
                 made_here.add_to_draft(NAME, line.strip()[len("add to draft "):].strip(), body,
                                        at)
                 acted.append(ADD_TO_DRAFT_ACT)
                 continue
-            made_here.save_draft(NAME, made_here.piece(line, body, svg=ART_AND_COLOUR), at)
+            made_here.save_draft(NAME, made_here.piece(line, body, svg=new_art()), at)
             acted.append(DRAFT_ACT)
         except made_here.Refused as why:
             refused.append(made_refused(why.args[0], "DRAFT", *why.args[1:2]))
@@ -3096,8 +3110,8 @@ def publish_made(text, at):
                     raise made_here.Refused("none")
                 one = {key: kept[key] for key in kept if key not in ("id", "at")}
             else:
-                one = made_here.piece(line, body, svg=ART_AND_COLOUR)
-            why = made_here.may_publish(NAME, one["kind"], at, kinds, weekly=ART_AND_COLOUR)
+                one = made_here.piece(line, body, svg=new_art())
+            why = made_here.may_publish(NAME, one["kind"], at, kinds, weekly=new_art())
             if why:
                 raise made_here.Refused(why)
             if one["kind"] == made_here.WRITING and \

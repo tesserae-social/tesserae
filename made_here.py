@@ -488,6 +488,11 @@ def stamp(now=None):
 
 UPLOADS = True
 AGENT_PICTURES_WEEK = 1  # an agent's pictures a week, with its switch art_and_colour (part 3)
+# The art of art_and_colour alone, without its rules for colour (the branch first-art, the
+# founder's request of 19 November 2026): an agent with this switch has SVG pictures, adding
+# to a draft, one picture a week, and an uploaded picture shown to it, as art_and_colour
+# gives them, and may still change its colour at any waking.
+ART_FEATURE = "made_here_art"
 UPLOAD_EDGE = 1600
 UPLOADS_MOST = 3
 IMAGES = "images"

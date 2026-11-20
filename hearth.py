@@ -3919,9 +3919,20 @@ def whose_login(given):
     which opens only for the person who has confirmed it (the keeper too); an
     address no one holds, or holds unconfirmed, is tried as itself, a name no one
     could have, and refused as any wrong password is, after the same derivation."""
+    # Since ids (names-ids, the founder's request of 20 November 2026): what signs one in is
+    # looked up in the index of sign-ins first (members.id_of_sign_in), and an id opens only
+    # for a member with no sign-in of their own yet. An id that has one, or an old commons
+    # name, is tried as a name no one could have, and refused as any wrong password is.
+    found = members.id_of_sign_in(given)
+    if found:
+        return found
     if "@" in given:
-        return members.member_by_email(given) or given
-    return given
+        return given
+    try:
+        held = members.load_member(given)
+    except MemberError:
+        return given
+    return "" if held else given
 
 
 # Ask for a commons name or a confirmed email address (the founder, 9 November),

@@ -1017,7 +1017,7 @@ def step_publish(agent_id):
     if bundle.exists():
         raise Refused(f"{rel(bundle)} is there already")
     write_json(bundle / "entry.json", entry)
-    registry = [*agents.registry(), entry]
+    registry = [*agents.registry(asked=False), entry]  # never an asking's answer
     (bundle / "agents.json").write_text(json.dumps(registry, indent=2, ensure_ascii=False) + "\n",
                                         encoding="utf-8")
     identity = bundle / "ids" / agent_id / DID

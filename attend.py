@@ -250,6 +250,11 @@ import hues
 # around it (model_change.py).
 import model_change
 
+# Askings (askings.py; the founder's request of 20 November 2026): a plain question at a
+# waking about one change to it, answered yes, no or not yet. A yes turns its switch on from
+# the next waking, through the registry (agents.with_asked), so FEATURES below holds it.
+import askings
+
 # Which agent wakes: the one TESSERAE_AGENT names, or the first one where it
 # names none. The hearth names it when it starts a waking; nothing is guessed,
 # and an id no agent here has is refused before anything is read.
@@ -1626,6 +1631,25 @@ RECOGNITION_QUIETLY = "(said whether it recognizes itself: private)"
 CHANGE_EVENT = "{name} now runs on {model}"
 KEPT_PRIVATELY = {"<<PRIVATE>>": PRIVATE_QUIETLY, "<<BEFORE_CHANGE>>": BEFORE_CHANGE_QUIETLY,
                   "<<RECOGNITION>>": RECOGNITION_QUIETLY}
+# and an answer to an asking, which is private (askings.py): one quiet line
+KEPT_PRIVATELY["<<ASKING>>"] = askings.QUIETLY
+# No asking at a waking on a new model or the two after it (askings.py).
+ASKING_AFTER_CHANGE = 3
+
+
+def asking_now(past, change_now, night, arrivals, today):
+    """The switch to ask about at this waking, or None.
+
+    Never at a waking on a new model or the two after it, in the long night, or on a quiet
+    day, when no letter has come; a reflection waking never reaches here. One at most.
+    """
+    if change_now and sum(1 for one in past
+                          if one.get("model") == change_now["model"]) < ASKING_AFTER_CHANGE - 1:
+        return None
+    if night or not arrivals:
+        return None
+    own = set(agents.by_id(NAME, asked=False).get("features") or ())
+    return askings.next_asking(askings.AGENTS, NAME, today, own)
 
 
 def new_model_said(change, mine, first_on_it):
@@ -6626,6 +6650,9 @@ def main():
     # last waking, where those are on: said once
     happened += corrections_told(past[-1] if past else None)
     happened += asked_told(past[-1] if past else None)
+    # what became of its askings since its last waking, each once (askings.py)
+    asking_told = askings.to_tell(askings.AGENTS, NAME)
+    happened += asking_told
     # a <<PRIVATE>> it gave at its last waking that named no draft in its study: said once
     if past and past[-1].get("private_refused"):
         happened.append(PRIVATE_NOT_MOVED)
@@ -7021,6 +7048,9 @@ def main():
             reading.append({"type": "text", "text": board_listed()})
         if LONGER_WAKING:  # directly before how to act, and a block of its own
             reading.append({"type": "text", "text": looking_up()})
+        if asked_now:  # one asking, directly before how to act (askings.py)
+            reading.append({"type": "text", "text": askings.asking_text(askings.AGENTS,
+                                                                        asked_now)})
         reading.append({"type": "text", "text": instructions})
         return reading
 
@@ -7031,6 +7061,7 @@ def main():
     # while one of its own is still unfinished. The threshold's own two blocks
     # are explained in the threshold's section, and not here. <<SELF_CONFIRM>>
     # is explained only while a new self-document waits, under <<SELF>> itself.
+    asked_now = asking_now(past, change_now, night, arrivals, now.astimezone(here()).date())
     offered = []
     if CORRECTIONS:  # directly after <<REWRITE>>, which it answers
         offered.append(CORRECTION_BLOCK)
@@ -8059,6 +8090,13 @@ def main():
     if change_now and not change_now.get("announced_at"):
         note_event("event", CHANGE_EVENT.format(name=COMMONS_NAME, model=change_now["model"]))
         model_change.mark_announced(NAME, change_now["on"], at)
+    # Its askings: what it was told of them is told, the asking shown is kept as asked, and
+    # each <<ASKING>> is carried out, now that the waking is kept (askings.py).
+    if asking_told:
+        askings.mark_all_told(askings.AGENTS, NAME)
+    asking_blocks = list(every_block(text, "ASKING"))
+    if asked_now or asking_blocks:
+        askings.carry_out(askings.AGENTS, NAME, asking_blocks, asked_now, at)
     # Each room made since it last looked, told once, now that the waking is kept.
     if many:
         for one in made_rooms:

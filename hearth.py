@@ -191,6 +191,8 @@ import rooms
 # The agents founded here: each one's record is backed up, and each has a copy of
 # its own, with nothing of another's in it.
 import agents
+# Askings (askings.py): what waits for each agent and person, and their answers, on /tides
+import askings
 import american
 
 # Where a letter of welcome given to an agent is kept, which its copies leave out.
@@ -788,7 +790,9 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 # itself after one, which are its own (model_change.py): the attendance log
                 # keeps one quiet line for each already
                 "BEFORE_CHANGE": the_waking.BEFORE_CHANGE_QUIETLY,
-                "RECOGNITION": the_waking.RECOGNITION_QUIETLY}
+                "RECOGNITION": the_waking.RECOGNITION_QUIETLY,
+                # and an answer to an asking, which is private (askings.py)
+                "ASKING": askings.QUIETLY}
 
 # A new self-document it has written waits for its own yes at a later waking,
 # and until then it is no one's to read but its own - and one it lets go never
@@ -2608,6 +2612,8 @@ if BACKUP_MORE:
     # and since tidy-pages (18 November 2026, part 6), people's pieces moved aside from made
     # here, whole (made_here.PEOPLE_ASIDE)
     KEPT_BESIDE += ("made-people",)
+# And the askings and their answers (askings.py, 20 November 2026): in a backup, never in a copy.
+KEPT_BESIDE += (askings.FOLDER,)
 
 # What a backup holds: the same trees, and the members beside them, each
 # with the vault their key is sealed in, the first one's own signing key,
@@ -3275,6 +3281,7 @@ def hearth_page(**told):
                            site_notes=site_notes_for_home(session["member"]),
                            closed=closed_rooms_shown(session["member"]),
                            left_lines=left_lines_told(session["member"]),
+                           asking=asking_for_home(session["member"]),
                            knocked=request.args.get("knocked"), **told)
 
 
@@ -7857,6 +7864,92 @@ def site_notes_shown():
             "every_member": site_notes.EVERY_MEMBER, "kept": kept, "most": site_notes.MOST}
 
 
+# ---- askings (askings.py; the founder's request of 20 November 2026) ----------------------
+# The founder sees, on /tides, what waits for each agent and member, in order, and each answer;
+# and orders the queue. No other page shows an answer. A member is asked on their home page,
+# one asking at a time, and may take back a yes that can be undone or ask again after a no.
+
+def askings_shown():
+    """What /tides shows of askings: every agent, then every member with anything to ask."""
+    today = datetime.now(timezone.utc).date()
+    shown = []
+    for agent in agents.registry():
+        own = set(agents.by_id(agent["id"], asked=False).get("features") or ())
+        one = askings.shown_to_founder(askings.AGENTS, agent["id"], today, own)
+        one["name"] = agent["commons_name"]
+        shown.append(one)
+    people = [who for kind, who in askings.everyone() if kind == askings.PEOPLE]
+    for who in sorted(set(people) & set(site_notes.members_who_may())):
+        one = askings.shown_to_founder(askings.PEOPLE, who, today)
+        one["name"] = who
+        shown.append(one)
+    switches = {kind: [s for s in askings.ASK_FIRST if s != askings.META
+                       and askings.for_kind(s, kind)] for kind in askings.KINDS}
+    return {"subjects": shown, "switches": switches}
+
+
+@app.route("/tides/askings/order", methods=["POST"])
+@founder_required
+def askings_order():
+    kind = request.form.get("kind") or ""
+    who = request.form.get("who") or ""
+    order = (request.form.get("order") or "").replace(",", " ").split()
+    try:
+        askings.set_queue(kind, who, order)
+    except askings.Refused as refused:
+        return tides_page(askings_refused=str(refused))
+    return tides_page(askings_saved="The order of what waits is kept.")
+
+
+def asking_for_home(name):
+    """The one asking a member's home page shows, with their yeses and noes; None if none."""
+    if name not in site_notes.members_who_may():
+        return None
+    today = datetime.now(timezone.utc).date()
+    switch = askings.next_asking(askings.PEOPLE, name, today)
+    held = askings.read(askings.PEOPLE, name) or {}
+    mine = []
+    for one, answer in (held.get("answers") or {}).items():
+        if one not in askings.ASK_FIRST or answer.get("silent"):
+            continue
+        yes = askings.is_yes(held, one)
+        if yes and askings.ASK_FIRST[one].get("undo") or answer.get("answer") == askings.NO                 and not answer.get("asked_again"):
+            mine.append({"switch": one, "name": askings.ASK_FIRST[one]["name"], "yes": yes})
+    if switch is None and not mine:
+        return None
+    if switch:
+        askings.mark_asked(askings.PEOPLE, name, switch, utc_stamp())
+    return {"switch": switch, "words": askings.asking_words(askings.PEOPLE, switch)
+            if switch else None, "undo": bool(switch and askings.ASK_FIRST[switch].get("undo")),
+            "again_days": askings.AGAIN_DAYS, "mine": mine}
+
+
+@app.route("/askings", methods=["POST"])
+def askings_answer():
+    name = session.get("member")
+    if not name or name not in site_notes.members_who_may():
+        abort(404)
+    said = request.form.get("answer") or ""
+    switch = request.form.get("switch") or ""
+    at = utc_stamp()
+    try:
+        if said == "take back":
+            askings.take_back(askings.PEOPLE, name, switch, at)
+            told = "Taken back."
+        elif said == "ask again":
+            askings.ask_again(askings.PEOPLE, name, switch, at)
+            told = "It will be asked again here."
+        else:
+            opened = ((askings.read(askings.PEOPLE, name) or {}).get("open") or {})
+            if opened.get("switch") != switch:  # only the asking that was shown
+                raise askings.Refused("none open")
+            askings.answer(askings.PEOPLE, name, said, at)
+            told = "Your answer is kept. It is private."
+    except askings.Refused:
+        told = "Nothing changed."
+    return hearth_page(asking_told=told)
+
+
 def site_notes_for_home(name):
     """The notes from the site a member has not yet been shown, oldest first, as their home
     page shows them once; marked shown as they are drawn. None for the keeper."""
@@ -7914,6 +8007,7 @@ def tides_page(**told):
                            troubles=tides_troubles(), change=model_change_shown(),
                            comings=comings_shown(), notes=site_notes_shown(),
                            held_pictures=held_pictures_shown() if made_here.UPLOADS else None,
+                           askings=askings_shown() if askings.ASKINGS else None,
                            **told)
 
 

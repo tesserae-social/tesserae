@@ -2212,3 +2212,27 @@ def verify(document_or_key, payload, signature):
            else document_or_key)
     VerifyKey(base64.b64decode(key)).verify(payload, base64.b64decode(signature))
     return True
+
+
+# ---- askings (askings.py; the founder's request of 20 November 2026) ------------------------
+
+@pytest.fixture(autouse=True)
+def askings_queues_aside(request, monkeypatch):
+    """No default queue of askings, outside the tests that ask for askings_queued: the first
+    one's is not asked before 27 November, but the second one's would be, at its next waking
+    with a letter, and every reading of it cut before askings is what it was with this done."""
+    if "askings_queued" in request.fixturenames:
+        return
+    import askings
+    monkeypatch.setattr(askings, "DEFAULT_QUEUES", {})
+
+
+@pytest.fixture
+def askings_queued():
+    """The default queues of askings, as they are on the site."""
+
+
+def askings_not_yet(module, monkeypatch):
+    """Everything as it was before askings: nothing asked, nothing turned on by an answer."""
+    import askings
+    monkeypatch.setattr(askings, "ASKINGS", False)

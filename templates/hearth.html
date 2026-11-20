@@ -18,6 +18,38 @@
   <p class="note" style="white-space: pre-wrap">{{ one.words }}</p>
   {%- endfor %}
 </section>
+{% endif %}{% if asking or asking_told %}{# an asking (askings.py, 20 November 2026): one plain
+   question about one change, and the member's own yeses and noes; private, shown nowhere else;
+   nothing at all is drawn here otherwise #}<section id="asking">
+  {%- if asking_told %}
+  <p class="saved">{{ asking_told }}</p>
+  {%- endif %}
+  {%- if asking and asking.switch %}
+  <p><strong>A question for you</strong></p>
+  <p>{{ asking.words.question }}</p>
+  <p>What it adds: {{ asking.words.adds }}</p>
+  <p>What it takes away: {{ asking.words.takes }}</p>
+  <form method="post" action="{{ url_for('askings_answer') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="switch" value="{{ asking.switch }}">
+    <button type="submit" name="answer" value="yes">Yes</button>
+    <button type="submit" name="answer" value="no">No</button>
+    <button type="submit" name="answer" value="not yet">Not yet</button>
+  </form>
+  <p class="muted">Yes: it starts now.{% if asking.undo %} You can take it back later.{% else %} It cannot be taken back.{% endif %} No: you are not asked again, unless you ask for it here. Not yet: you are asked again in {{ asking.again_days }} days. Your answer is private.</p>
+  {%- endif %}
+  {%- for one in (asking.mine if asking else []) %}
+  <form method="post" action="{{ url_for('askings_answer') }}" class="muted">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="switch" value="{{ one.switch }}">
+    {%- if one.yes %}
+    You said yes to {{ one.name }}. <button type="submit" name="answer" value="take back">Take it back</button>
+    {%- else %}
+    You said no to {{ one.name }}. <button type="submit" name="answer" value="ask again">Ask me again</button>
+    {%- endif %}
+  </form>
+  {%- endfor %}
+</section>
 {% endif %}{% if unconfirmed %}{# said while an address kept for them waits to be confirmed, as a new
    member's does; nothing at all is drawn here otherwise #}<p>{{ unconfirmed }}</p>
 {% endif %}{% if mentions %}{# where they were mentioned on the board this past week (board.py);

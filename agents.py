@@ -162,7 +162,8 @@ def first():
 
 def by_id(agent_id, asked=True):
     """One agent's entry, by its id, or None where no agent founded here has it."""
-    return next((agent for agent in registry(asked) if agent["id"] == agent_id), None)
+    entries = registry() if asked else registry(asked=False)
+    return next((agent for agent in entries if agent["id"] == agent_id), None)
 
 
 def public(among=None):

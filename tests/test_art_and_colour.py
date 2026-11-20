@@ -729,3 +729,21 @@ def test_a_day_kept_alone_before_is_still_read(env, data_dir):
     here_this_week.mark("alder", date(2026, 11, 18))
     assert read_json(data_dir / "members" / "alder" / "here.json")["days"] == [
         "2026-11-17", "2026-11-18"]
+
+
+def test_a_larger_picture_is_shown_on_the_site(making, visitor_of_later, monkeypatch):
+    # art-larger (the founder's request of 20 November 2026): a picture on a grid up to 512 by
+    # 512 and up to about 20,000 characters is cleaned again on its way out and shown, as a
+    # picture of 64 by 64 is
+    import svg_art
+    monkeypatch.setattr(making, "ART_LARGER", True)
+    rects = "".join('<rect x="%d" y="%d" width="3" height="3" fill="#123456"/>'
+                    % (n % 500, n // 500 * 4) for n in range(250))
+    big = '<svg viewBox="0 0 512 300">%s</svg>' % rects
+    published, refused = making.publish_made(block("PUBLISH", "svg Wide\n" + big),
+                                             "2026-10-15T09-00-00Z")
+    assert refused == [] and len(published[0]["svg"]) > svg_art.PUBLISHED_MOST
+    answer = visitor_of_later.get("/made/%s/picture" % published[0]["id"])
+    assert answer.status_code == 200
+    assert answer.data.decode("utf-8") == published[0]["svg"]
+    assert "default-src 'none'" in answer.headers["Content-Security-Policy"]

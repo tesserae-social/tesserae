@@ -164,7 +164,7 @@ def text_of(body):
     return lines
 
 
-def piece(kind_line, body, svg=False):
+def piece(kind_line, body, svg=False, larger=False):
     """A piece from its first line - "writing <title>", "tiles 5 <title>", "tiles 12
     <title>" or "text <title>", and with svg (an agent's switch art_and_colour, since 18
     November 2026) "svg <title>" - and the lines under it. Refused, by key, if it is no
@@ -198,20 +198,24 @@ def piece(kind_line, body, svg=False):
     if kind == TILES:
         return {"kind": TILES, "title": title, "size": size, "tiles": tiles_of(body, size)}
     if kind == SVG:
-        return {"kind": SVG, "title": title, "svg": svg_cleaned(body)}
+        return {"kind": SVG, "title": title, "svg": svg_cleaned(body, larger=larger)}
     return {"kind": TEXT, "title": title, "lines": text_of(body)}
 
 
-def svg_cleaned(body, most=None):
-    """An SVG picture cleaned strictly (svg_art.clean), or Refused("svg"|"svg_long", why)."""
+def svg_cleaned(body, most=None, larger=False):
+    """An SVG picture cleaned strictly (svg_art.clean), or Refused("svg"|"svg_long", why).
+    With larger (the switch made_here_art_larger), a grid up to svg_art.GRID_MOST and up to
+    svg_art.LARGER_MOST characters."""
     import svg_art
+    if larger:
+        most = svg_art.LARGER_MOST
     try:
-        return svg_art.clean(body, most or svg_art.DRAFT_MOST)
+        return svg_art.clean(body, most or svg_art.DRAFT_MOST, larger)
     except svg_art.Refused as refused:
         raise Refused(*refused.args) from None
 
 
-def add_to_draft(who, draft_id, more, at):
+def add_to_draft(who, draft_id, more, at, larger=False):
     """More for one of one's SVG drafts, put inside the picture just before its closing
     </svg> (svg_art.added): the draft kept again whole. Refused("none") where there is no
     SVG draft of one's by that id; Refused("svg"|"svg_long", why) where the whole is not kept."""
@@ -220,7 +224,8 @@ def add_to_draft(who, draft_id, more, at):
     if kept is None or kept.get("kind") != SVG:
         raise Refused("none")
     try:
-        grown = svg_art.added(kept["svg"], more)
+        grown = svg_art.added(kept["svg"], more,
+                              svg_art.LARGER_MOST if larger else svg_art.DRAFT_MOST, larger)
     except svg_art.Refused as refused:
         raise Refused(*refused.args) from None
     kept = {**kept, "svg": grown, "added_at": at}
@@ -370,14 +375,14 @@ def may_publish(who, kind, at, already=(), weekly=False):
     return None
 
 
-def publish(who, one, at):
+def publish(who, one, at, larger=False):
     """Publish a piece, already screened by the caller; its record. Writing is held to
     PIECE_WORDS_MOST words here, and an SVG picture to svg_art.PUBLISHED_MOST characters."""
     if one["kind"] == WRITING and words_in(one["words"]) > PIECE_WORDS_MOST:
         raise Refused("piece_long")
     if one["kind"] == SVG:
         import svg_art
-        one = {**one, "svg": svg_cleaned(one["svg"], svg_art.PUBLISHED_MOST)}
+        one = {**one, "svg": svg_cleaned(one["svg"], svg_art.PUBLISHED_MOST, larger)}
     PUBLIC.mkdir(parents=True, exist_ok=True)
     kept = {key: value for key, value in one.items() if key not in ("id", "at")}
     kept.update({"id": free_id(PUBLIC, at), "by": who, "published_at": at, "notes": [],
@@ -493,6 +498,12 @@ AGENT_PICTURES_WEEK = 1  # an agent's pictures a week, with its switch art_and_c
 # else of art_and_colour: what it may publish stays as it was, and its colour may still be
 # changed at any waking (attend.MADE_ART).
 ART_FEATURE = "made_here_art"
+# Larger pictures (the branch art-larger, the founder's request of 20 November 2026): with this
+# switch too, an agent's SVG picture may be on a grid up to 512 by 512 and up to about 20,000
+# characters (svg_art.GRID_MOST, svg_art.LARGER_MOST); it sees its own SVG drafts drawn, and
+# a few of other agents' pictures drawn (svg_draw.py, attend.ART_LARGER). What it may publish
+# is as it was. On for the first one and the second one.
+LARGER_FEATURE = "made_here_art_larger"
 UPLOAD_EDGE = 1600
 UPLOADS_MOST = 3
 IMAGES = "images"

@@ -130,8 +130,15 @@ READING_NOW_ASKED_BEFORE_FIRST_ART = "b7e3136eee7df920e734c3520302a4c2229c17dbc0
 # Cut again, on purpose, on the branch first-art (19 November 2026, the SVG drawing alone),
 # for nothing else than READING_NOW was: <<DRAFT>> with the SVG lines added (made_here_art,
 # switched on for the first one if it says yes). With it shut away again
-# (conftest.first_art_not_yet) it is exactly READING_NOW_ASKED_BEFORE_FIRST_ART.
-READING_NOW_ASKED = "912627e47c7f9180f91214cb07af0cb793cb0feb63d7c5e2beefb630808fe212"
+# (conftest.first_art_not_yet) it is exactly READING_NOW_ASKED_BEFORE_FIRST_ART. Held as
+# READING_NOW_ASKED_BEFORE_ART_LARGER since.
+READING_NOW_ASKED_BEFORE_ART_LARGER = (
+    "912627e47c7f9180f91214cb07af0cb793cb0feb63d7c5e2beefb630808fe212")
+# Cut again, on purpose, on the branch art-larger (20 November 2026), for nothing else than
+# READING_NOW was: <<DRAFT>>'s two sentences on the grid and the sizes (made_here_art_larger,
+# switched on for the first one and the second one). With it shut away again
+# (conftest.art_larger_not_yet) it is exactly READING_NOW_ASKED_BEFORE_ART_LARGER.
+READING_NOW_ASKED = "918c4cca4c08ecd9273ae9f3becd9933db22690230b7cb5289006ec90912c307"
 
 # ASKED OF YOU's words as they were first cut, before they named no one.
 ASKED_HOW_FIRST_CUT = (
@@ -279,6 +286,15 @@ def test_as_switched_on_the_questions_kept_are_its_own_reading(founder, wake, at
         assert asked.count(escaped) == 1
         asked = asked.replace(escaped, "", 1)
     assert hashlib.sha256(asked.encode("utf-8")).hexdigest() == READING_NOW
+
+
+def test_with_art_larger_not_yet_it_is_the_reading_before(
+        founder, wake, attend, room, packet, monkeypatch):
+    from conftest import art_larger_not_yet
+    art_larger_not_yet(attend, monkeypatch)
+    the_small_world(founder, room)
+    two_questions(packet)
+    assert fingerprint_of_reading(wake()) == READING_NOW_ASKED_BEFORE_ART_LARGER
 
 
 def test_with_first_art_not_yet_it_is_the_reading_before(

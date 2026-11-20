@@ -17,6 +17,11 @@ id in the picture itself (#id). A value holds only letters, digits, spaces and -
 The words in a picture (its title, desc, text and tspan) are screened by the caller, as every
 public line is (words_in). A draft is up to DRAFT_MOST characters; a published picture up to
 PUBLISHED_MOST, as written again here.
+
+Larger (the founder's request of 20 November 2026, the branch art-larger), for an agent with
+the switch made_here_art_larger: a grid of any whole width and height up to GRID_MOST, as
+viewBox="0 0 <width> <height>", and a picture up to LARGER_MOST characters, draft or
+published. What is allowed is the same list. With larger False, as before.
 """
 
 import re
@@ -35,6 +40,8 @@ BLUR_MOST = 4
 ELEMENTS_MOST = 1000
 DEPTH_MOST = 24
 VALUE_MOST = 6000
+GRID_MOST = 512      # larger: the widest and tallest grid
+LARGER_MOST = 20000  # larger: a draft or a published picture, in characters
 
 FILTERS = ("feTurbulence", "feGaussianBlur", "feDisplacementMap", "feColorMatrix",
            "feComposite", "feBlend", "feMerge", "feMergeNode", "feOffset", "feFlood")
@@ -169,15 +176,35 @@ def _attributes(element, name, ids_used):
     return kept
 
 
-def clean(source, most=DRAFT_MOST):
+def grid(viewbox, larger=False):
+    """A picture's grid, as its viewBox is kept ("0 0 64 64"); or Refused. With larger, any
+    whole width and height from 1 to GRID_MOST."""
+    said = " ".join((viewbox or "").replace(",", " ").split())
+    if said == VIEWBOX:
+        return VIEWBOX
+    if not larger:
+        _refuse("svg", 'the <svg> has viewBox="0 0 64 64"')
+    found = re.fullmatch(r"0 0 (\d{1,3}) (\d{1,3})", said)
+    if not found or not all(1 <= int(n) <= GRID_MOST for n in found.groups()):
+        _refuse("svg", 'the <svg> has viewBox="0 0 <width> <height>", each a whole number '
+                       'from 1 to %d' % GRID_MOST)
+    return "0 0 %d %d" % tuple(int(n) for n in found.groups())
+
+
+def size_of(picture):
+    """A cleaned picture's grid, (width, height)."""
+    found = re.search(r'viewBox="0 0 (\d+) (\d+)"', picture or "")
+    return (int(found.group(1)), int(found.group(2))) if found else (64, 64)
+
+
+def clean(source, most=DRAFT_MOST, larger=False):
     """A picture written again from what is allowed, as a string; or Refused."""
     if len(source or "") > most * 2:
         _refuse("svg_long", "it is longer than about %s characters" % format(most, ","))
     root = _read(source)
     if _local(root.tag) != "svg":
         _refuse("svg", "a picture is one <svg> element")
-    if " ".join((root.get("viewBox") or "").replace(",", " ").split()) != VIEWBOX:
-        _refuse("svg", 'the <svg> has viewBox="0 0 64 64"')
+    viewbox = grid(root.get("viewBox"), larger)
     counted = {"elements": 0, "filters": 0}
     ids, ids_used, uses = [], [], []
 
@@ -218,7 +245,7 @@ def clean(source, most=DRAFT_MOST):
         opened = "<%s%s" % (name, "".join(" %s=%s" % (key, quoteattr(value))
                                           for key, value in attributes))
         if depth == 0:
-            opened = '<svg xmlns="%s" viewBox="%s"%s' % (SVG_NS, VIEWBOX, opened[len("<svg"):])
+            opened = '<svg xmlns="%s" viewBox="%s"%s' % (SVG_NS, viewbox, opened[len("<svg"):])
         return opened + (">%s</%s>" % ("".join(inner), name) if inner else "/>")
 
     said = written(root, 0, False)
@@ -257,9 +284,9 @@ def words_in(picture):
     return [one for one in found if one]
 
 
-def added(picture, more, most=DRAFT_MOST):
+def added(picture, more, most=DRAFT_MOST, larger=False):
     """A cleaned picture with more put inside it, just before its closing </svg>, and the
     whole cleaned again; or Refused."""
     if not picture.endswith("</svg>"):
         picture = picture[:-2] + "></svg>" if picture.endswith("/>") else picture
-    return clean(picture[:-len("</svg>")] + (more or "").strip() + "</svg>", most)
+    return clean(picture[:-len("</svg>")] + (more or "").strip() + "</svg>", most, larger)

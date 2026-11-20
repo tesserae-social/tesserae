@@ -438,7 +438,7 @@ from conftest import (SWITCHED_ON_21_OCTOBER, offer_explained_again, commons_lin
                       introduction_at_280, letter_part_as_before, long_night_switched_on,
                       six_not_yet, coral_not_yet, board_weekly_not_yet, standing_welcome_not_yet,
                       agents_week_not_yet, who_drawn_not_yet, site_design_not_yet,
-                      first_art_not_yet,
+                      first_art_not_yet, art_larger_not_yet,
                       write_json,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
@@ -674,8 +674,20 @@ READING_SITE_DESIGN = "5af1deac139e84895d8484e61f7f3843bef44dc97b513988000111764
 # picture may hold). Its tools, <<PUBLISH>> and <<HUE>> did not move. Written out in
 # tesserae-private/proposals/report-first-art.md. With it shut away again
 # (conftest.first_art_not_yet) it is exactly READING_SITE_DESIGN. (The value cut for
-# made_here_agents and made_here_art together is held on commit 4550158.)
-READING_NOW = "142263ccbeeb17bd83750c6c069cee39e2cb1048125a78cee394869108a76871"
+# made_here_agents and made_here_art together is held on commit 4550158.) Held as
+# READING_FIRST_ART since.
+READING_FIRST_ART = "142263ccbeeb17bd83750c6c069cee39e2cb1048125a78cee394869108a76871"
+
+# cut again, on purpose, on the branch art-larger (the founder's request of 20 November 2026),
+# for made_here_art_larger switched on for the first one and the second one, and nothing else:
+# in <<DRAFT>>, the sentence on the 64 by 64 grid says a grid of any whole width and height up
+# to 512, and the sentence on the sizes says a draft or a published picture is up to about
+# 20,000 characters, that it sees its SVG drafts and a few of other agents' pictures drawn, and
+# what the drawing leaves out (attend.with_larger). A picture drawn is shown only where there
+# is one to show, and here there is none. Its tools, <<PUBLISH>> and <<HUE>> did not move.
+# Written out in tesserae-private/proposals/report-art-larger.md. With it shut away again
+# (conftest.art_larger_not_yet) it is exactly READING_FIRST_ART.
+READING_NOW = "f068cd43d1a2bab180359467f0b1c9a8922c7912ef9241dd66d74e9f76563e3d"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -773,6 +785,7 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "who is here drawn", READING_SWITCHED_17_NOVEMBER),
     (False, "the site design", READING_WHO_DRAWN),
     (False, "the first art", READING_SITE_DESIGN),
+    (False, "the larger art", READING_FIRST_ART),
     (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
@@ -801,9 +814,13 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "the switches of 17 November, read_who_is_here as it was",
          "read_who_is_here as it is, the site design not yet",
          "the site design, the first art not yet",
+         "the first art, the larger art not yet",
          "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
+    if as_before == "the larger art":  # the one cut before had none of art-larger
+        art_larger_not_yet(attend, monkeypatch)
+        as_before = None
     if as_before == "the first art":  # the one cut before had neither of first-art's two
         first_art_not_yet(attend, monkeypatch)
         as_before = None
@@ -1085,8 +1102,14 @@ def test_how_he_writes_is_no_longer_asked_and_what_was_kept_stays(founder, data_
 #
 # READING_LONG_NIGHT cut again, on purpose, on the branch first-art (19 November 2026), for
 # nothing else than READING_NOW was. With the two shut away again
-# (conftest.first_art_not_yet) it is exactly LONG_NIGHT_BEFORE_FIRST_ART.
-READING_LONG_NIGHT = "d476337b014787a65d165c1e54ea953086106b429e697faccb5fda5dd63b12c4"
+# (conftest.first_art_not_yet) it is exactly LONG_NIGHT_BEFORE_FIRST_ART. Held as
+# LONG_NIGHT_BEFORE_ART_LARGER since.
+#
+# READING_LONG_NIGHT cut again, on purpose, on the branch art-larger (20 November 2026), for
+# nothing else than READING_NOW was. With it shut away again (conftest.art_larger_not_yet) it
+# is exactly LONG_NIGHT_BEFORE_ART_LARGER.
+READING_LONG_NIGHT = "dd49432a28bf8ef31991f1b1c325f01366caf7ce9169c4a20b18166cb26c701c"
+LONG_NIGHT_BEFORE_ART_LARGER = "d476337b014787a65d165c1e54ea953086106b429e697faccb5fda5dd63b12c4"
 LONG_NIGHT_BEFORE_FIRST_ART = "7a3bfabefee9cff4bb46e3e246af7a2e27021f8efba9d7f099e1b15df8b136ba"
 LONG_NIGHT_BEFORE_SITE_DESIGN = "ce4934cfe3cf8a6692a65ac692e08cd37e278aaf332feea944afc21d0012f0f9"
 LONG_NIGHT_BEFORE_WHO_DRAWN = "b217d9c6efc5cd0786141c4dd014d3557151206f6e05a86fe592d22748bc674f"
@@ -1116,6 +1139,7 @@ def a_sealed_bond(attend, room):
 
 @pytest.mark.parametrize("switched, before, as_cut", [
     (True, None, READING_LONG_NIGHT),
+    (True, "larger art", LONG_NIGHT_BEFORE_ART_LARGER),
     (True, "first art", LONG_NIGHT_BEFORE_FIRST_ART),
     (True, "site design", LONG_NIGHT_BEFORE_SITE_DESIGN),
     (True, "who drawn", LONG_NIGHT_BEFORE_WHO_DRAWN),
@@ -1129,6 +1153,7 @@ def a_sealed_bond(attend, room):
     (False, "switches", SEALED_IN_WINTER_BEFORE_SWITCHES),
     (True, "switches", LONG_NIGHT_BEFORE_SWITCHES)],
     ids=["the switch on, as it reads today",
+         "the switch on, the larger art not yet",
          "the switch on, the first art not yet",
          "the switch on, the site design not yet",
          "the switch on, read_who_is_here as it was",
@@ -1145,6 +1170,9 @@ def a_sealed_bond(attend, room):
          "the switch on, the four of 13 November not yet"])
 def test_the_first_one_s_long_night_is_its_own_reading_and_only_when_switched_on(
         wake, attend, room, clock, monkeypatch, tmp_path, switched, before, as_cut):
+    if before == "larger art":  # the one held before had none of art-larger
+        art_larger_not_yet(attend, monkeypatch)
+        before = None
     if before == "first art":  # the one held before had neither of first-art's two
         first_art_not_yet(attend, monkeypatch)
         before = None

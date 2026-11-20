@@ -138,7 +138,8 @@ def test_the_first_one_has_the_svg_drawing_alone_and_its_colour_stays_free(atten
     assert attend.MADE_ART is True and attend.MADE_AGENTS_ONLY is False
     assert attend.ART_AND_COLOUR is False  # no equinox weeks, no check of showing
     assert attend.new_art() and not attend.art_weekly()
-    assert attend.draft_block() == attend.DRAFT_BLOCK_SVG
+    # since art-larger (20 November 2026) with the larger grid said (attend.with_larger)
+    assert attend.draft_block() == attend.with_larger(attend.DRAFT_BLOCK_SVG)
     assert attend.publish_block() == attend.PUBLISH_BLOCK  # its limits as they were
     assert attend.hue_block() == attend.HUE_BLOCK
     assert "You may choose again at any later waking." in attend.hue_block()

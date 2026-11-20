@@ -885,6 +885,18 @@ READ_WHO_IS_HERE_BEFORE = {
 FEATURES_FIRST_ART = ("made_here_art",)
 
 
+def art_larger_not_yet(module, monkeypatch):
+    """Shut away again, for one test, what the branch art-larger switched on for the first one
+    and the second one (the founder's request of 20 November 2026): attend.ART_LARGER False,
+    so <<DRAFT>> says the 64 by 64 grid and the sizes as it did, no picture is drawn for it,
+    and a picture is cleaned as before. Given hearth, it is done to the attend.py the hearth
+    holds the tide through. first_art_not_yet does it first, so every older reading stands on
+    it."""
+    module = getattr(module, "the_waking", module)
+    if hasattr(module, "ART_LARGER"):
+        monkeypatch.setattr(module, "ART_LARGER", False)
+
+
 def first_art_not_yet(module, monkeypatch):
     """Shut away again, for one test, the two switched on for the first one on first-art:
     attend.MADE_AGENTS_ONLY and attend.MADE_ART False, so <<DRAFT>> and <<PUBLISH>> are as
@@ -893,6 +905,7 @@ def first_art_not_yet(module, monkeypatch):
     first one cut before is exactly what it was. Given hearth, it is done to the attend.py
     the hearth holds the tide through. site_design_not_yet does it first, so every older
     reading stands on it."""
+    art_larger_not_yet(module, monkeypatch)  # it came after
     module = getattr(module, "the_waking", module)
     for flag in ("MADE_AGENTS_ONLY", "MADE_ART"):
         if hasattr(module, flag):
@@ -1621,6 +1634,8 @@ def art_not_yet(module, monkeypatch):
         monkeypatch.setattr(waking, "ART_AND_COLOUR", False)
     if hasattr(waking, "MADE_ART"):  # the art alone (first-art), which came after
         monkeypatch.setattr(waking, "MADE_ART", False)
+    if hasattr(waking, "ART_LARGER"):  # larger pictures (art-larger), which came after that
+        monkeypatch.setattr(waking, "ART_LARGER", False)
     if not hasattr(module, "app") or getattr(module, "ART_AS_BEFORE", False):
         return
     monkeypatch.setattr(module, "ART_AS_BEFORE", True, raising=False)

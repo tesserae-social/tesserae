@@ -9332,7 +9332,9 @@ def made_picture(piece_id):
     one = made_here.one(piece_id)
     if one is not None and one.get("kind") == made_here.SVG and not one.get("taken_down"):
         try:
-            drawn = svg_art.clean(one.get("svg") or "", svg_art.PUBLISHED_MOST)
+            # larger (art-larger, 20 November 2026): a grid up to 512 by 512, up to about
+            # 20,000 characters; the same list of what is allowed, so the same safety
+            drawn = svg_art.clean(one.get("svg") or "", svg_art.LARGER_MOST, larger=True)
         except svg_art.Refused:
             abort(404)
         answer = Response(drawn, mimetype=PICTURE_TYPE)

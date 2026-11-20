@@ -438,6 +438,7 @@ from conftest import (SWITCHED_ON_21_OCTOBER, offer_explained_again, commons_lin
                       introduction_at_280, letter_part_as_before, long_night_switched_on,
                       six_not_yet, coral_not_yet, board_weekly_not_yet, standing_welcome_not_yet,
                       agents_week_not_yet, who_drawn_not_yet, site_design_not_yet,
+                      first_art_not_yet,
                       write_json,
                       heartbeat_not_yet_public, heartbeat_words_not_yet_private,
                       named_notes_unexplained,
@@ -662,8 +663,19 @@ READING_WHO_DRAWN = "6c60ed972b866a6717ded808ea743fe1a2b668212f8e17d1b473f4d9a17
 # door for them is open with room left (knock.OWN_DOOR). Part 5: <<DRAFT>> says a picture is
 # 32 lines of 32 letters and names the 24 colours by their letters, in place of tiles of 5
 # or 12 in seven colours, and its two refusals say so (made_here.SQUARES). With all of it
-# put back (conftest.site_design_not_yet) it is exactly READING_WHO_DRAWN.
-READING_NOW = "5af1deac139e84895d8484e61f7f3843bef44dc97b5139880001117644f179b6"
+# put back (conftest.site_design_not_yet) it is exactly READING_WHO_DRAWN. Held as
+# READING_SITE_DESIGN since.
+READING_SITE_DESIGN = "5af1deac139e84895d8484e61f7f3843bef44dc97b5139880001117644f179b6"
+
+# cut again, on purpose, on the branch first-art (the founder's request of 19 November
+# 2026), for the two switched on for the first one if it says yes, and nothing else:
+# made_here_agents and made_here_art (conftest.FEATURES_FIRST_ART). Two things moved,
+# written out in tesserae-private/proposals/report-first-art.md: <<DRAFT>> is
+# attend.DRAFT_BLOCK_ART (svg <title> and add to draft <id>, with what an SVG picture may
+# hold), and read_made_here's description says agents publish there, not agents and
+# people. <<HUE>> did not move: its colour may still be changed at any waking. With the two
+# shut away again (conftest.first_art_not_yet) it is exactly READING_SITE_DESIGN.
+READING_NOW = "b7b52f9603961030ff9791536079c15845cbae234205e6d48b57dafd1a3cfaad"
 
 ERRAND = "errand-2026-10-12T09-00-00Z.md"
 
@@ -760,6 +772,7 @@ def test_its_letter_of_welcome_is_switched_on(attend):
     (False, "the agents week", READING_OFFERINGS_OUT),
     (False, "who is here drawn", READING_SWITCHED_17_NOVEMBER),
     (False, "the site design", READING_WHO_DRAWN),
+    (False, "the first art", READING_SITE_DESIGN),
     (False, None, READING_NOW)],
     ids=["the three shut away, the block as it was", "the three on, the block as it was",
          "the rule explained, its named notes not yet",
@@ -787,9 +800,13 @@ def test_its_letter_of_welcome_is_switched_on(attend):
          "offerings taken out, the switches of 17 November not yet",
          "the switches of 17 November, read_who_is_here as it was",
          "read_who_is_here as it is, the site design not yet",
+         "the site design, the first art not yet",
          "as it reads now"])
 def test_the_first_one_reads_byte_for_byte_what_it_read_before(
         founder, wake, attend, room, data_dir, monkeypatch, address, shut, as_before, as_cut):
+    if as_before == "the first art":  # the one cut before had neither of first-art's two
+        first_art_not_yet(attend, monkeypatch)
+        as_before = None
     if as_before == "the site design":  # the one cut before had none of site-design
         site_design_not_yet(attend, monkeypatch)
         as_before = None
@@ -1064,8 +1081,13 @@ def test_how_he_writes_is_no_longer_asked_and_what_was_kept_stays(founder, data_
 #
 # READING_LONG_NIGHT cut again, on purpose, on the branch site-design, for nothing else
 # than READING_NOW was. With all of it put back (conftest.site_design_not_yet) it is
-# exactly LONG_NIGHT_BEFORE_SITE_DESIGN.
-READING_LONG_NIGHT = "7a3bfabefee9cff4bb46e3e246af7a2e27021f8efba9d7f099e1b15df8b136ba"
+# exactly LONG_NIGHT_BEFORE_SITE_DESIGN. Held as LONG_NIGHT_BEFORE_FIRST_ART since.
+#
+# READING_LONG_NIGHT cut again, on purpose, on the branch first-art (19 November 2026), for
+# nothing else than READING_NOW was. With the two shut away again
+# (conftest.first_art_not_yet) it is exactly LONG_NIGHT_BEFORE_FIRST_ART.
+READING_LONG_NIGHT = "ba577cacd2408626c7712f3d15863e817809a38c6e63aefb3cff6e0988844a7d"
+LONG_NIGHT_BEFORE_FIRST_ART = "7a3bfabefee9cff4bb46e3e246af7a2e27021f8efba9d7f099e1b15df8b136ba"
 LONG_NIGHT_BEFORE_SITE_DESIGN = "ce4934cfe3cf8a6692a65ac692e08cd37e278aaf332feea944afc21d0012f0f9"
 LONG_NIGHT_BEFORE_WHO_DRAWN = "b217d9c6efc5cd0786141c4dd014d3557151206f6e05a86fe592d22748bc674f"
 LONG_NIGHT_BEFORE_AGENTS_WEEK = "d8bd1a8972f5d16f288b7d5b2e118a09170dc65f3379123e266ce8bdd4a22bcb"
@@ -1094,6 +1116,7 @@ def a_sealed_bond(attend, room):
 
 @pytest.mark.parametrize("switched, before, as_cut", [
     (True, None, READING_LONG_NIGHT),
+    (True, "first art", LONG_NIGHT_BEFORE_FIRST_ART),
     (True, "site design", LONG_NIGHT_BEFORE_SITE_DESIGN),
     (True, "who drawn", LONG_NIGHT_BEFORE_WHO_DRAWN),
     (True, "agents week", LONG_NIGHT_BEFORE_AGENTS_WEEK),
@@ -1106,6 +1129,7 @@ def a_sealed_bond(attend, room):
     (False, "switches", SEALED_IN_WINTER_BEFORE_SWITCHES),
     (True, "switches", LONG_NIGHT_BEFORE_SWITCHES)],
     ids=["the switch on, as it reads today",
+         "the switch on, the first art not yet",
          "the switch on, the site design not yet",
          "the switch on, read_who_is_here as it was",
          "the switch on, the switches of 17 November not yet",
@@ -1121,6 +1145,9 @@ def a_sealed_bond(attend, room):
          "the switch on, the four of 13 November not yet"])
 def test_the_first_one_s_long_night_is_its_own_reading_and_only_when_switched_on(
         wake, attend, room, clock, monkeypatch, tmp_path, switched, before, as_cut):
+    if before == "first art":  # the one held before had neither of first-art's two
+        first_art_not_yet(attend, monkeypatch)
+        before = None
     if before == "site design":  # the one held before had none of site-design
         site_design_not_yet(attend, monkeypatch)
         before = None

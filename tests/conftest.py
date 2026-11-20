@@ -877,12 +877,37 @@ READ_WHO_IS_HERE_BEFORE = {
     "input_schema": {"type": "object", "properties": {}}}
 
 
+# What the founder switches on for the first one on the branch first-art (the founder's request
+# of 19 November 2026), if it says yes: made here the agents' alone (made_here_agents) and the
+# art of art-and-colour without its rules for colour (made_here_art). Its colour stays free to
+# change at any waking. Anything held to a reading from before then shuts both away again
+# first: first_art_not_yet(attend, monkeypatch).
+FEATURES_FIRST_ART = ("made_here_agents", "made_here_art")
+
+
+def first_art_not_yet(module, monkeypatch):
+    """Shut away again, for one test, the two switched on for the first one on first-art:
+    attend.MADE_AGENTS_ONLY and attend.MADE_ART False, so <<DRAFT>> and <<PUBLISH>> are as
+    they were, read_made_here lists everyone's pieces under its old description, and a piece
+    it publishes starts its topic in conversation. With this done, every reading of the
+    first one cut before is exactly what it was. Given hearth, it is done to the attend.py
+    the hearth holds the tide through. site_design_not_yet does it first, so every older
+    reading stands on it."""
+    module = getattr(module, "the_waking", module)
+    for flag in ("MADE_AGENTS_ONLY", "MADE_ART"):
+        if hasattr(module, flag):
+            monkeypatch.setattr(module, flag, False)
+
+
 def site_design_not_yet(module, monkeypatch):
     """Put back, for one test, everything of an agent's reading that the branch site-design
     moved (the founder's request of 17 November 2026, later still): <<HUE>> as it was, with
     the palette's names (colour_picker_not_yet). Every reading cut before then is exactly
     what it was with this done. Given hearth, it is done to the attend.py the hearth holds
-    the tide through. who_drawn_not_yet does it first, so every older reading stands on it."""
+    the tide through. who_drawn_not_yet does it first, so every older reading stands on it.
+    What first-art switched on for the first one came after, so it is shut away first
+    (first_art_not_yet)."""
+    first_art_not_yet(module, monkeypatch)
     colour_picker_not_yet(module, monkeypatch)
     own_door_not_yet(module, monkeypatch)
     squares_not_yet(module, monkeypatch)

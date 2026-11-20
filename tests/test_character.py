@@ -125,7 +125,13 @@ READING_NOW_ASKED_BEFORE_SITE_DESIGN = (
 # Cut again, on purpose, on the branch site-design (17 November 2026), for nothing else than
 # READING_NOW was: <<HUE>>, <<KNOCK>> and <<DRAFT>>'s new words (parts 1, 2 and 5). With them
 # as they were (conftest.site_design_not_yet) it is exactly READING_NOW_ASKED_BEFORE_SITE_DESIGN.
-READING_NOW_ASKED = "b7e3136eee7df920e734c3520302a4c2229c17dbc0928282eef86798e1397ada"
+# Held as READING_NOW_ASKED_BEFORE_FIRST_ART since.
+READING_NOW_ASKED_BEFORE_FIRST_ART = "b7e3136eee7df920e734c3520302a4c2229c17dbc0928282eef86798e1397ada"
+# Cut again, on purpose, on the branch first-art (19 November 2026), for nothing else than
+# READING_NOW was: <<DRAFT>> with the SVG art, and read_made_here's description (the two
+# switched on for the first one if it says yes). With them shut away again
+# (conftest.first_art_not_yet) it is exactly READING_NOW_ASKED_BEFORE_FIRST_ART.
+READING_NOW_ASKED = "2a3d4cf18ef68baa7abe50d3e17867470f8b70a050804659c146a42f6adc9670"
 
 # ASKED OF YOU's words as they were first cut, before they named no one.
 ASKED_HOW_FIRST_CUT = (
@@ -273,6 +279,15 @@ def test_as_switched_on_the_questions_kept_are_its_own_reading(founder, wake, at
         assert asked.count(escaped) == 1
         asked = asked.replace(escaped, "", 1)
     assert hashlib.sha256(asked.encode("utf-8")).hexdigest() == READING_NOW
+
+
+def test_with_first_art_not_yet_it_is_the_reading_before(
+        founder, wake, attend, room, packet, monkeypatch):
+    from conftest import first_art_not_yet
+    first_art_not_yet(attend, monkeypatch)
+    the_small_world(founder, room)
+    two_questions(packet)
+    assert fingerprint_of_reading(wake()) == READING_NOW_ASKED_BEFORE_FIRST_ART
 
 
 def test_with_the_site_design_not_yet_it_is_the_reading_before(

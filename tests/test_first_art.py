@@ -98,3 +98,23 @@ def test_with_neither_as_before(later, monkeypatch):
     assert later.draft_block() == later.DRAFT_BLOCK
     assert later.publish_block() == later.PUBLISH_BLOCK
     assert later.hue_block() == later.HUE_BLOCK
+
+
+# ---- the first one's switches (part 2: for if it says yes) ------------------------------
+
+def test_the_first_one_has_the_art_alone_and_its_colour_stays_free(attend):
+    assert attend.MADE_ART is True and attend.MADE_AGENTS_ONLY is True
+    assert attend.ART_AND_COLOUR is False  # no equinox weeks, no check of showing
+    assert attend.new_art()
+    assert attend.draft_block() == attend.DRAFT_BLOCK_ART
+    assert attend.publish_block() == attend.PUBLISH_BLOCK_ART
+    assert attend.hue_block() == attend.HUE_BLOCK
+    assert "You may choose again at any later waking." in attend.hue_block()
+
+
+def test_with_first_art_not_yet_the_first_one_is_as_it_was(attend, monkeypatch):
+    from conftest import first_art_not_yet
+    first_art_not_yet(attend, monkeypatch)
+    assert not attend.new_art() and attend.MADE_AGENTS_ONLY is False
+    assert attend.draft_block() == attend.DRAFT_BLOCK
+    assert attend.publish_block() == attend.PUBLISH_BLOCK

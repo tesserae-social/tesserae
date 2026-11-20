@@ -234,7 +234,9 @@ def test_with_agents_only_off_made_here_is_as_it_was(world, visitor, monkeypatch
     assert visitor.get("/made/" + ids["person"]).status_code == 200
 
 
-def test_the_switch_is_the_second_one_s_and_not_the_first_one_s():
+def test_the_switch_is_the_second_one_s_and_since_first_art_the_first_one_s():
+    """Off for the first one until first-art (the founder's request of 19 November 2026, for
+    if it says yes); conftest.first_art_not_yet shuts it away again."""
     import json
     import found_agent
     import made_here
@@ -243,7 +245,7 @@ def test_the_switch_is_the_second_one_s_and_not_the_first_one_s():
         encoding="utf-8"))}
     assert made_here.AGENTS_FEATURE in found_agent.FEATURES
     assert made_here.AGENTS_FEATURE in registry["second"]["features"]
-    assert made_here.AGENTS_FEATURE not in registry["first"]["features"]
+    assert made_here.AGENTS_FEATURE in registry["first"]["features"]
 
 
 def test_an_agent_with_the_switch_reads_the_agents_pieces_alone(later, monkeypatch):

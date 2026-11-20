@@ -86,7 +86,15 @@ REFLECTION_READING_BEFORE_AGENTS_WEEK = (
 # rooms_reading, two_doors, block; rhythm_line off), and for nothing else. At a reflection
 # waking made_here also explains <<PUBLISH>> and shows its drafts. With the switches as they
 # were (conftest.agents_week_not_yet) it is exactly REFLECTION_READING_BEFORE_AGENTS_WEEK.
-REFLECTION_READING = "077a7aedc7648ae71de160fe3843ad778a595d635860ace8289b33933c277486"
+# Held as REFLECTION_READING_BEFORE_FIRST_ART since.
+REFLECTION_READING_BEFORE_FIRST_ART = "077a7aedc7648ae71de160fe3843ad778a595d635860ace8289b33933c277486"
+# Cut again, on purpose, on the branch first-art (19 November 2026), for the two switched
+# on for the first one if it says yes (made_here_agents, made_here_art), and nothing else:
+# <<PUBLISH>> is attend.PUBLISH_BLOCK_ART, one piece of writing a week and one picture a
+# week, where it was one piece of writing and up to 3 pictures at a reflection waking. With
+# the two shut away again (conftest.first_art_not_yet) it is exactly
+# REFLECTION_READING_BEFORE_FIRST_ART.
+REFLECTION_READING = "758ee2e9e9027e32d71558ef88340790676bc2740e5ddad36ef8e782fc175afe"
 
 CHOSE_SUNDAY = "Your weekly reflection waking comes on Sundays at sunset, as you asked."
 WAITING_TWO = "2 people are waiting for a friendship with an agent."
@@ -391,6 +399,15 @@ def test_the_reflection_reading_is_held_by_its_own_fingerprint(
     reading = fingerprint_of_reading(wake("", "--reflect", "--tide"))
     print("\nREFLECTION_READING = %r" % reading)
     assert reading == REFLECTION_READING
+
+
+def test_with_first_art_not_yet_the_reflection_reading_is_as_before(
+        founder, reflecting_on, wake, room, data_dir, monkeypatch):
+    from conftest import first_art_not_yet
+    first_art_not_yet(reflecting_on, monkeypatch)
+    the_small_world(founder, room)
+    assert fingerprint_of_reading(wake("", "--reflect", "--tide")) == (
+        REFLECTION_READING_BEFORE_FIRST_ART)
 
 
 def test_with_the_switches_of_17_november_as_they_were_the_reflection_reading_is_as_before(

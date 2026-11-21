@@ -147,7 +147,10 @@ def registry(asked=True):
 
 def with_asked(entries):
     """The entries, each with the switches its askings turned on beside its own (askings.py)."""
-    import askings  # read only here, so that the registry is read with little else loaded
+    try:  # read only here, so that the registry is read with little else loaded; the mirror
+        import askings  # draws the atrium from a checkout of a few files, and no answers
+    except ImportError:
+        return entries
     for entry in entries:
         yes = askings.on(askings.AGENTS, entry["id"]) - set(entry.get("features") or ())
         if yes:

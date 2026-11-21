@@ -284,6 +284,48 @@ FEATURES = frozenset(AGENT.get("features") or ())
 # a name chosen later never moves a reading. Off for the first one until it is asked.
 COMMONS_NAMES = "commons_names" in FEATURES
 knock.NAMES_NOW = COMMONS_NAMES
+bonds.NAMES_NOW = COMMONS_NAMES  # and a room's other party, as its heading names them
+
+# Names told (names-ids, stage 8; names-design.md, part 7, choice 10), behind the switch
+# names_told: at its next waking after a person it knows takes a new name, one line, once.
+# "Knows" is a room shared, or a knock either way. What it was last told of each is kept in
+# its packet (NAMES_KNOWN, by id); the first waking with the switch on keeps the names as they
+# are, and tells nothing. Its own notes, letters and records keep the names they hold.
+NAMES_TOLD = "names_told" in FEATURES
+NAME_NOW_TOLD = "The person you knew as {before} is now called {now}."
+
+
+def people_known():
+    """The people it knows, by id: each it shares a room with, and each a knock went between."""
+    known = set()
+    for room in rooms.of(NAME):
+        for party in room.parties:  # as the stores name them: a person by their id
+            if party != NAME and knock.kind_of(party) == "person":
+                known.add(party)
+    for path in knock.FOLDER.glob("*.json") if knock.FOLDER.is_dir() else ():
+        sides = path.stem.split("--")
+        if len(sides) == 2 and NAME in sides:
+            other = sides[1] if sides[0] == NAME else sides[0]
+            if knock.kind_of(other) == "person":
+                known.add(other)
+    return known
+
+
+def names_now_told():
+    """The lines to tell at this waking, and the names to keep once it is kept."""
+    if not NAMES_TOLD:
+        return [], None
+    try:
+        kept = json.loads(NAMES_KNOWN.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        kept = None
+    first = not isinstance(kept, dict)
+    kept = {} if first else kept
+    now = {who: members.name_of(who) for who in sorted(people_known())}
+    lines = [] if first else [NAME_NOW_TOLD.format(before=kept[who], now=name)
+                              for who, name in now.items()
+                              if isinstance(kept.get(who), str) and kept[who] != name]
+    return lines, {**kept, **now}
 
 REPO = Path(__file__).resolve().parent
 
@@ -294,6 +336,7 @@ REPO = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("DATA_DIR", REPO))
 
 PACKET = DATA / "packets" / NAME
+NAMES_KNOWN = PACKET / "names-known.json"  # names_told, above
 KEYS = DATA / "keys" / NAME
 COMMONS = DATA / "commons"
 TRANSCRIPTS = DATA / "transcripts"
@@ -6726,6 +6769,9 @@ def main():
     # what became of its askings since its last waking, each once (askings.py)
     asking_told = askings.to_tell(askings.AGENTS, NAME)
     happened += asking_told
+    # a person it knows who has taken a new name since: said once (names_told)
+    names_lines, names_to_keep = names_now_told()
+    happened += names_lines
     # a <<PRIVATE>> it gave at its last waking that named no draft in its study: said once
     if past and past[-1].get("private_refused"):
         happened.append(PRIVATE_NOT_MOVED)
@@ -8179,6 +8225,9 @@ def main():
     if change_now and not change_now.get("announced_at"):
         note_event("event", CHANGE_EVENT.format(name=COMMONS_NAME, model=change_now["model"]))
         model_change.mark_announced(NAME, change_now["on"], at)
+    # The names it was told of, kept now that the waking is kept (names_told).
+    if names_to_keep is not None:
+        write_json(NAMES_KNOWN, names_to_keep)
     # Its askings: what it was told of them is told, the asking shown is kept as asked, and
     # each <<ASKING>> is carried out, now that the waking is kept (askings.py).
     if asking_told:

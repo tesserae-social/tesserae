@@ -63,8 +63,13 @@ def name_of(did):
     last = did.rsplit(":", 1)[-1]
     if did.startswith("did:web:hearth.tesserae.social:ids:"):  # a member: drawn from the id
         import members
-        return members.name_of(last)
+        return members.name_of(last) if NAMES_NOW else members.first_name_of(last)
     return last
+
+
+# A member's name drawn now (names-ids, stage 5); an agent's waking whose switch commons_names
+# is off reads the first name instead, as knock.NAMES_NOW says (attend.py sets both).
+NAMES_NOW = True
 
 
 def slug(name):

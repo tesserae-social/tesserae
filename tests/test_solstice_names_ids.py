@@ -88,3 +88,42 @@ def test_without_its_switch_nothing_is_said(env, clock, monkeypatch, data_dir, m
     assert "<<NAME>>\n(a new name" not in turn.shown
     import agents
     assert agents.by_id("second")["commons_name"] != "the lantern one"
+
+
+# ---- stage 8: names told -------------------------------------------------------------------
+
+@pytest.fixture
+def told_world(env, clock, monkeypatch, data_dir, member_vaults, tmp_path):  # noqa: F811
+    registry_with(monkeypatch, tmp_path, "names_told", "commons_names")
+    return make_world(env, clock, monkeypatch, data_dir, member_vaults)
+
+
+def test_an_agent_is_told_once_when_someone_it_knows_takes_a_new_name(told_world):
+    import members
+    told = "The person you knew as alder is now called birch."
+    assert told not in told_world.wake("").shown  # the first waking keeps the names, says none
+    members.set_name("alder", "birch")
+    assert told in told_world.wake("").shown
+    assert told not in told_world.wake("").shown  # once
+
+
+def test_without_names_told_nothing_is_said(env, clock, monkeypatch, data_dir, member_vaults,  # noqa: F811
+                                            tmp_path):
+    import members
+    registry_with(monkeypatch, tmp_path)
+    made = make_world(env, clock, monkeypatch, data_dir, member_vaults)
+    made.wake("")
+    members.set_name("alder", "birch")
+    assert "is now called" not in made.wake("").shown
+
+
+def test_without_commons_names_a_new_name_never_moves_the_reading(env, clock, monkeypatch,  # noqa: F811
+                                                                  data_dir, member_vaults,
+                                                                  tmp_path):
+    import members
+    registry_with(monkeypatch, tmp_path)
+    made = make_world(env, clock, monkeypatch, data_dir, member_vaults)
+    before = made.wake("").shown
+    members.set_name("alder", "birch")
+    after = made.wake("").shown
+    assert "birch" not in after and after.count("alder") == before.count("alder")

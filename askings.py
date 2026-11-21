@@ -138,8 +138,14 @@ ASK_FIRST = {
     },
     "leaving": {
         "name": "leaving",
-        "adds": "You may leave a room you share with someone, as the leaving rules say.",
-        "takes": "Nothing.",
+        "adds": "You may leave a room you share with someone, with or without a block, but your "
+                "first room while you could not wake without it. A bond sealed in it is "
+                "released. Each of you can still read the room and take a copy; no one can "
+                "write in it. When someone leaves a room you share, or leaves the commons, you "
+                "are told once, with no reason. You may knock at each other again after 30 "
+                "days.",
+        "takes": "The one you share a room with may leave it too, with no block. The room then "
+                 "closes for both of you.",
         "undo": True,
     },
     "names_told": {
@@ -173,7 +179,7 @@ ASK_FIRST = {
 
 # Switches whose code is not here yet: their asking is kept ready, and never asked.
 # The leaving switch is the branch for G, not built when this was written.
-NOT_BUILT = {"leaving"}
+NOT_BUILT = set()  # leaving was built on leaving-build (21 November 2026), and is asked now
 
 # The queue each one starts with, before the founder changes it (the founder's request of 20
 # November 2026): the first one's waiting switches, in the plan's order, and H's for both.

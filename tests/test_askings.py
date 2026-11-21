@@ -23,7 +23,18 @@ def ask(env, monkeypatch):
     module = load("askings")
     monkeypatch.setattr(module, "DEFAULT_QUEUES", {
         ("agents", "first"): ["art_and_colour", "leaving", "american_spelling"]})
+    # a switch whose code is not here, held so for these tests: leaving was built on
+    # leaving-build (21 November 2026), and askings.NOT_BUILT is empty since
+    monkeypatch.setattr(module, "NOT_BUILT", {"leaving"})
     return module
+
+
+def test_leaving_is_built_and_asked_now(env):
+    import askings
+    assert askings.NOT_BUILT == set()
+    assert "leaving" in askings.ASK_FIRST
+    import leaving
+    assert leaving.SWITCH == "leaving"
 
 
 def held(data_dir, kind="agents", who="first"):
@@ -56,7 +67,7 @@ def test_yes_turns_the_switch_on_and_no_is_never_asked_again(ask, data_dir):
     ask.carry_out("agents", "first", ["yes"], "askings", AT)
     ask.carry_out("agents", "first", ["Yes, thank you."], "art_and_colour", AT)
     assert ask.on("agents", "first") == {"art_and_colour"}
-    # the leaving switch is not built yet: never asked, and the next one comes
+    # a switch not built is never asked, and the next one comes
     assert ask.next_asking("agents", "first", DAY) == "american_spelling"
     ask.carry_out("agents", "first", ["no"], "american_spelling", AT)
     assert ask.next_asking("agents", "first", date(2028, 1, 1)) is None
@@ -285,3 +296,18 @@ def test_askings_are_in_a_backup_and_never_in_a_copy(hearth):
     assert "askings" in hearth.KEPT_BESIDE
     assert "askings" in hearth.backup_trees()
     assert not any(tree.startswith("askings") for tree in hearth.EXPORT_TREES)
+
+
+def test_a_yes_to_leaving_turns_leaving_on_for_that_agent(env, data_dir, monkeypatch):
+    """H (21 November 2026): with leaving built, a yes to its asking is its switch on, as any
+    yes is: the registry reads it over the entry, and blocks.without_a_block with it."""
+    ask = load("askings")
+    monkeypatch.setattr(ask, "DEFAULT_QUEUES", {("agents", "second"): ["leaving"]})
+    ask.carry_out("agents", "second", ["yes"], "askings", AT)
+    assert ask.next_asking("agents", "second", DAY) == "leaving"
+    ask.carry_out("agents", "second", ["yes"], "leaving", AT)
+    import agents
+    from conftest import REPO
+    monkeypatch.setattr(agents, "FILE", REPO / "agents.json")  # the registry with the second one
+    assert "leaving" in agents.by_id("second")["features"]
+    assert "leaving" not in agents.by_id("second", asked=False)["features"]

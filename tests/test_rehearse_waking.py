@@ -277,3 +277,49 @@ def test_the_rehearsal_s_words_are_attend_s(rehearse):
     source = (rehearse.REPO / "attend.py").read_text(encoding="utf-8")
     assert 'REHEARSAL = "%s"' % rehearse.REHEARSAL in source
     assert 'REHEARSAL_COPY = "%s"' % rehearse.REHEARSAL_COPY in source
+
+
+# ---- --says: whether a sentence is in a reading, and nothing more (19 November 2026) ----
+
+def test_says_tells_only_whether_each_sentence_is_in_the_reading(rehearse, lived, capfd):
+    before = snapshot(lived)
+    assert rehearse.main(["--agent", "first", "--says", "ANY_NUMBER",
+                          "--says", "REFLECTIONS_PRIVATE_TOLD", "--says", LETTER,
+                          "--says", "NO_SUCH_SENTENCE", "--says", "  not  in\nany reading  "]) == 0
+    printed = capfd.readouterr()
+    said = printed.out.splitlines()
+    first = said.index([one for one in said if one.startswith("the first one (first): ")][0])
+    assert said[first + 1:first + 6] == [
+        "  ANY_NUMBER: is in its reading",
+        "  REFLECTIONS_PRIVATE_TOLD: is not in its reading",  # the first one's switch is off
+        "  the sentence given: is in its reading",  # its letter, and never printed
+        "  NO_SUCH_SENTENCE: attend.py has no sentence by that name",
+        "  the sentence given: is not in its reading"]
+    for words in NEVER_SHOWN:
+        assert words not in printed.out and words not in printed.err
+    assert snapshot(lived) == before
+
+
+def test_says_with_no_words_copies_nothing(rehearse, lived, spare, capsys):
+    assert rehearse.main(["--says", "  "]) == 2
+    assert capsys.readouterr().out == "--says was given no sentence; nothing was copied.\n"
+    assert list(spare.iterdir()) == []
+
+
+def test_says_where_no_reading_was_made(rehearse, lived, keys_cut, capsys):
+    (lived / "keys" / "first" / "private.key").unlink()
+    assert rehearse.main(["--says", "ANY_NUMBER"]) == 1
+    assert "  ANY_NUMBER: no reading was made, so it cannot be said" in capsys.readouterr().out
+
+
+def test_inside_says_keeps_only_yes_or_no(rehearse, monkeypatch, tmp_path):
+    def main():
+        import anthropic
+        anthropic.Anthropic(api_key="anything").messages.create(
+            model="m", max_tokens=1, messages=[{"role": "user", "content": [
+                {"type": "text", "text": "A first part.\n" + LETTER}]}])
+
+    monkeypatch.setenv(rehearse.SAYS, json.dumps(["A first part. " + LETTER, "NOT IN IT."]))
+    found = hold_with(rehearse, monkeypatch, tmp_path, main)
+    assert found["says"] == [True, False]
+    assert LETTER not in json.dumps(found)

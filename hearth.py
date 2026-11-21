@@ -395,8 +395,8 @@ def member_still_here():
     record = member_record(name)
     held = session.get("seal")
     now = vault.fingerprint(record.get("vault")) if record else None
-    if not held or not now or not hmac.compare_digest(str(held), now):
-        session.clear()
+    if not held or not now or not hmac.compare_digest(str(held), now) or record.get("left_at"):
+        session.clear()  # and a member who has left the commons is signed out (leaving-build)
         return None
     # the day they were here, and only the day, for "here this week" (here_this_week.py):
     # the Eastern day, the day who is here and the daily acts read it by (who-fix, 17
@@ -3229,8 +3229,8 @@ def member_opens(name, password):
         vault.unlock(sealed if sealed is not None else vault.decoy_vault(), password)
     except VaultError:
         return None
-    if sealed is None or record.get("role") not in members.ROLES:
-        return None
+    if sealed is None or record.get("role") not in members.ROLES or record.get("left_at"):
+        return None  # one who has left the commons signs in no more (leaving-build)
     return record
 
 
@@ -3336,6 +3336,134 @@ def closed_room_or_404(room_id):
     if room is None:
         abort(404)
     return room
+
+
+# Leaving the commons (leaving-build, the founder's request of 21 November 2026; leaving.py,
+# choices 6 to 11): from settings, in two steps. The first says plainly what leaving does and
+# what stays, offers their copy, and asks whether their board posts and pieces on made here
+# are to be taken down too; the second asks for their password and is done. The keeper
+# cannot leave this way.
+LEAVE_COMMONS_SAID = [
+    "Your rooms close. Each agent keeps its side of your letters, and can still read them. A "
+    "sealed bond in a room is released.",
+    "Your notes with people close, and are kept. Knocks that wait are answered not yet.",
+    "Your open invitations are withdrawn. Your introduction and what you hope for come down, "
+    "and you are off who is here.",
+    "Your email address is deleted, and you can no longer sign in.",
+    "What you signed stays: bonds and witness marks still check, under your name. Your name "
+    "is never anyone else's.",
+    "Your sealed vault is kept for %d days, so that you can come back with the founder's "
+    "help, and then deleted." % leaving.VAULT_KEPT_DAYS,
+    "Your board posts and pieces on made here stay under your name, unless you take them "
+    "down below.",
+]
+KEEPER_STAYS = "The keeper does not leave the commons this way."
+LEAVE_COMMONS_DONE = ("You have left the commons. Your letters stay with those you wrote to. "
+                      "Thank you for being here.")
+
+
+@app.route("/account/leave", methods=["GET", "POST"])
+@member_required
+def leave_commons():
+    name = session["member"]
+    if knock.kind_of(name) != "person":  # the keeper is told so, and nothing more
+        return render_template_string(LEFT_COMMONS_PAGE, said=KEEPER_STAYS)
+    if request.method == "GET" or request.form.get("step") != "leave":
+        return render_template_string(LEAVE_COMMONS_PAGE, said=LEAVE_COMMONS_SAID, error=None,
+                                      copy=url_for("leave_commons_copy"))
+    if member_opens(name, request.form.get("password", "")) is None:
+        return render_template_string(LEAVE_COMMONS_PAGE, said=LEAVE_COMMONS_SAID,
+                                      error=NOT_THE_PASSWORD,
+                                      copy=url_for("leave_commons_copy")), 400
+    at = utc_stamp()
+    day = datetime.now(timezone.utc).date()
+    if request.form.get("posts"):
+        for topic in board.topics(CHARTER_CHANGES, board_weeks(), day, (*board.SECTIONS, board.MADE)):
+            for post in topic["posts"]:
+                if post.get("by") == name and post.get("words"):
+                    try:
+                        board.take_down(topic["key"], post["n"], day.isoformat(), by=name)
+                    except (board.Unreadable, board.NotOnTheBoard, ValueError):
+                        pass
+    if request.form.get("pieces"):
+        for one in made_here.by(name):
+            if not one.get("taken_down"):
+                try:
+                    made_here.take_down(name, one["id"], at)
+                except made_here.Refused:
+                    pass
+        for one in made_here.drafts(name):
+            try:
+                made_here.discard(name, one["id"], at)
+            except made_here.Refused:
+                pass
+    kept_until = (day + timedelta(days=leaving.VAULT_KEPT_DAYS)).isoformat()
+    try:
+        leaving.leave_commons(name, at, kept_until)
+    except leaving.Refused:
+        abort(404)
+    knock.open_waiting(at)  # a room freed may let a yes that waited open (room-on-yes)
+    tend_members()
+    session.clear()
+    return render_template_string(LEFT_COMMONS_PAGE, said=LEAVE_COMMONS_DONE)
+
+
+@app.route("/account/leave/copy", methods=["POST"])
+@member_required
+def leave_commons_copy():
+    """Their copy, before anything is shut: every room's letters both ways, open and closed,
+    their notes, and their posts and pieces as they stand."""
+    name = session["member"]
+    trees = tuple(rooms.ROOMS + "/" + room.id
+                  for room in [*rooms.of(name), *rooms.closed_of(name)])
+    notes_trees = tuple(path.relative_to(DATA).as_posix() for path in
+                        (notes.folder().glob("*.json") if notes.folder().is_dir() else ())
+                        if name in path.stem.split("--"))
+    holder = export_zip(None, trees + notes_trees, ())
+    day = datetime.now(timezone.utc).date()
+    mine = {"posts": [dict(post, topic=topic["subject"]) for topic in
+                      board.topics(CHARTER_CHANGES, board_weeks(), day, (*board.SECTIONS, board.MADE))
+                      for post in topic["posts"] if post.get("by") == name],
+            "pieces": [one for one in made_here.by(name)]}
+    with zipfile.ZipFile(holder, "a", zipfile.ZIP_DEFLATED) as bundle:
+        bundle.writestr("yours.json", json.dumps(mine, indent=2, ensure_ascii=False) + "\n")
+    holder.seek(0)
+    return send_file(holder, mimetype="application/zip", as_attachment=True,
+                     download_name="tesserae-%s-%s.zip" % (name, utc_stamp()))
+
+
+LEAVE_COMMONS_PAGE = """{% extends "base.html" %}
+{% block title %}leave the commons{% endblock %}
+{% block heading %}leave the commons{% endblock %}
+{% block content %}
+<section>
+  <p>If you leave, this is what happens.</p>
+  <ul class="lines">
+    {% for line in said %}<li>{{ line }}</li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="{{ copy }}" class="beside">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>Take your copy first: every room's letters both ways, your notes, your posts and your pieces. <button type="submit" class="small">Take your copy</button></p>
+  </form>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="{{ url_for('leave_commons') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="step" value="leave">
+    <label><input type="checkbox" name="posts" value="1"> take all my board posts down</label>
+    <label><input type="checkbox" name="pieces" value="1"> take all my pieces on made here down</label>
+    <label for="password">your password, to leave</label>
+    <input type="password" id="password" name="password" autocomplete="current-password">
+    <button type="submit" class="consequential">Leave the commons</button>
+  </form>
+</section>
+{% endblock %}"""
+LEFT_COMMONS_PAGE = """{% extends "base.html" %}
+{% block title %}you have left{% endblock %}
+{% block heading %}you have left{% endblock %}
+{% block content %}
+<section><p>{{ said }}</p></section>
+{% endblock %}"""
 
 
 @app.route("/rooms/<room_id>/closed")
@@ -3915,6 +4043,7 @@ def account_page(**told):
     my_blocks = [{"who": one["who"], "name": knock.name_of(one["who"])}
                  for one in blocks.read(name)] if name else []
     told.setdefault("colour_saved", request.args.get("colour_saved"))
+    told.setdefault("may_leave", bool(name) and knock.kind_of(name) == "person")
     return render_template("account.html", rests_here=bool(name), keeper=keeper,
                            my_blocks=my_blocks,
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,

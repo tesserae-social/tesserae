@@ -6638,8 +6638,9 @@ def main():
     if not roomless:  # with no room, nothing of it is shown on the hearth to anyone
         happened.append(standing(prefs))
     if LEAVING:  # a room someone left, told once; and its rooms closed (leaving-build)
-        happened += [LEFT_TOLD.format(name=capitalized(next(
-            (one.other for one in rooms.closed_of(NAME) if one.id == room_id), "someone")),
+        happened += [(leaving.LEFT_COMMONS_SAID if said.get("commons") else LEFT_TOLD).format(
+            name=capitalized(next(
+                (one.other for one in rooms.closed_of(NAME) if one.id == room_id), "someone")),
             day=on_day(said.get("at") or "")) for room_id, said in leaving.untold(NAME)]
         if closed_rooms_line():
             happened.append(closed_rooms_line())

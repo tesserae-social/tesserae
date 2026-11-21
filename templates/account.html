@@ -282,6 +282,11 @@
     <button type="submit">Change the password</button>
   </form>
 </section>
-</details>
+</details>{% if may_leave %}
+<details class="setting" id="leave">{# leaving-build: a member may leave the commons #}
+  <summary>leaving the commons</summary>
+  <p class="muted">You may leave the commons. Your letters stay with those you wrote to.
+    <a href="{{ url_for('leave_commons') }}">what leaving does, and how</a></p>
+</details>{% endif %}
 </section>
 {% endblock %}

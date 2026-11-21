@@ -164,8 +164,8 @@ def kind_of(who):
         record = members.load_member(who)
     except (MemberError, ValueError):
         return None
-    if not isinstance(record, dict):
-        return None
+    if not isinstance(record, dict) or record.get("left_at"):
+        return None  # one who has left the commons is no one to knock at (leaving-build)
     return {"member": "person", "keeper": "keeper"}.get(record.get("role"))
 
 

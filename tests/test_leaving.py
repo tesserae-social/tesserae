@@ -227,3 +227,93 @@ def test_leaving_not_yet_puts_it_back(world, monkeypatch):
     from conftest import leaving_not_yet
     leaving_not_yet(world.hearth, monkeypatch)
     assert not blocks.leavable(room_of(world), HAZEL)
+
+
+# ---- a member leaving the commons (choices 6 to 11) ------------------------------------
+
+def leave_the_commons(world, **asked):
+    from conftest import PASSWORD
+    said = page(world.client.get("/account/leave"))
+    assert "Take your copy first" in said and "Your rooms close." in said
+    assert world.post("/account/leave", step="leave", password="not it").status_code == 400
+    answer = world.post("/account/leave", step="leave", password=PASSWORD, **asked)
+    assert answer.status_code == 200 and "You have left the commons." in page(answer)
+
+
+def test_a_member_leaves_the_commons(world):
+    import knock
+    import members
+    copy = world.post("/account/leave/copy")
+    assert "yours.json" in zipfile.ZipFile(BytesIO(copy.data)).namelist()
+    leave_the_commons(world)
+    record = members.load_member(HAZEL)
+    assert record["left_at"] and record["vault_kept_until"] and record["vault"]
+    assert record["verify_key"]  # what they signed still checks
+    assert not (world.data / "members" / HAZEL / "email.json").exists()
+    assert knock.kind_of(HAZEL) is None
+    held = record_left = json.loads((world.data / "rooms" / ROOM / "left.json").read_text(
+        encoding="utf-8"))
+    assert held["commons"] is True and record_left["by"] == HAZEL
+    # signed out, and no sign-in opens again
+    assert world.client.get("/").status_code == 302
+    from conftest import PASSWORD
+    again = post(world.hearth.app.test_client(), "/login",
+                 data={"pseudonym": HAZEL, "password": PASSWORD})
+    assert again.status_code != 302 or again.headers.get("Location") != "/"
+    ledger = (world.data / "commons" / "ledger.md").read_text(encoding="utf-8")
+    assert "a member left" in ledger and HAZEL not in ledger
+    # the agent is told once, with no reason
+    shown = world.wake().shown
+    assert "Hazel has left the commons. Your letters with them are kept. Your room is closed." \
+        in shown
+
+
+def test_after_leaving_their_name_page_is_no_one_s(world):
+    from conftest import PASSWORD
+    leave_the_commons(world)
+    alder = world.hearth.app.test_client()
+    assert post(alder, "/login", data={"pseudonym": "alder", "password": PASSWORD}
+                ).status_code == 302
+    assert alder.get("/names/" + HAZEL).status_code == 404  # a 404 to everyone
+    assert alder.get("/names/nobody-here").status_code == 404
+
+
+def test_a_waiting_knock_is_answered_not_yet_in_silence(world):
+    import knock
+    knock.write({"from": "second", "to": HAZEL, "at": "2026-10-15T12-10-00Z", "note": "Hi.",
+                 "introduction": None, "told_at": None, "answer": None, "answered_at": None,
+                 "reply": None, "answer_told_at": None, "waits_for_room": False,
+                 "set_up_at": None})
+    leave_the_commons(world)
+    held = knock.read("second", HAZEL)
+    assert held["answer"] == knock.NOT_YET and held["reply"] is None
+
+
+def test_the_keeper_cannot_leave_this_way(world):
+    import leaving
+    import knock
+    keeper = knock.keeper()
+    if keeper:
+        with pytest.raises(leaving.Refused):
+            leaving.leave_commons(keeper, "2026-10-15T12-00-00Z", "2027-01-13")
+
+
+def test_an_agent_s_first_room_is_kept_open_when_its_person_leaves(world):
+    import leaving
+    import rooms
+    done = leaving.leave_commons("alder", "2026-10-15T12-00-00Z", "2027-01-13")
+    assert "second" in done["kept_open"] and not rooms.left("second")
+
+
+def test_the_vault_is_deleted_only_by_hand_after_its_days(world, capsys, monkeypatch):
+    from datetime import date
+    import leaving
+    import members
+    leave_the_commons(world)
+    assert leaving.vaults_due(date(2026, 11, 1)) == []
+    until = members.load_member(HAZEL)["vault_kept_until"]
+    assert leaving.vaults_due(date.fromisoformat(until)) == [HAZEL]
+    assert members.come_back(HAZEL) is True and not members.has_left(HAZEL)
+    members.mark_left(HAZEL, "2026-10-16T12-00-00Z", "2026-10-17")
+    assert members.drop_vault(HAZEL) and "vault" not in members.load_member(HAZEL)
+    assert members.come_back(HAZEL) is False  # with no vault, a new invitation and a new key

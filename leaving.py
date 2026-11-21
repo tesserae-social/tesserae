@@ -75,6 +75,14 @@ def _keeper():
     return next((one for one in members.list_members() if rooms.is_keeper(one)), None)
 
 
+# Said once to an agent whose person left the commons (behind SWITCH), with no reason.
+LEFT_COMMONS_SAID = ("{name} has left the commons. Your letters with them are kept. Your room "
+                     "is closed.")
+# A left member's vault is kept sealed this many days, then deleted (choice 8), by hand:
+# python leaving.py --vaults (a dry run), then --vaults --apply.
+VAULT_KEPT_DAYS = 90
+
+
 # ---- a room ---------------------------------------------------------------------------
 
 def release_bond(room, by, at):
@@ -125,6 +133,25 @@ def leave_room(room, by, at):
     return True
 
 
+def close_room(room, by, at, commons=False):
+    """Close a room for good, as the one who leaves it, whatever the switch: its bond released,
+    room.json marked left, left.json written. For a member leaving the commons. True where
+    it was closed."""
+    import rooms
+    path = rooms.record_of(room.id)
+    held = read_json(path)
+    if not isinstance(held, dict) or held.get("left_at"):
+        return False
+    released = release_bond(room, by, at)
+    left_by = "founder" if rooms.is_keeper(by) else by
+    write_json(path, dict(held, left_at=at, left_by=left_by))
+    other = next((one for one in room.parties if one != by), None)
+    write_json(DATA / rooms.ROOMS / room.id / LEFT,
+               {"by": left_by, "at": at, "other": other, "bond_released": released,
+                "commons": commons, "told": {}})
+    return True
+
+
 def left_record(room_id):
     import rooms
     said = read_json(DATA / rooms.ROOMS / room_id / LEFT)
@@ -150,3 +177,117 @@ def told(room_id, who, at):
     if said and who not in (said.get("told") or {}):
         write_json(DATA / rooms.ROOMS / room_id / LEFT,
                    dict(said, told={**(said.get("told") or {}), who: at}))
+
+
+# ---- the commons (choices 6 to 11) -----------------------------------------------------
+#
+# A member may leave the commons, from /account/leave, in two steps, with a copy offered
+# first. In one ordered act (leave_commons): each room they are in is closed, and its bond
+# released, but an agent's first room it could not wake without, which is kept open with its
+# letters and nothing more written to them by them; each waiting knock from or to them is
+# answered not yet, in silence; their notes close, and are kept; their open invitations are
+# withdrawn; their introduction and what they hope for are taken down; they are off who is
+# here, the colours and their name page; their email address is deleted; their sign-in is
+# shut; and the ledger says "a member left", with no name. Their board posts and pieces on
+# made here are taken down only if they ask (the hearth does that first). Their witness marks,
+# signed records, verify key and public identity document stay; their name is never anyone
+# else's; their vault stays sealed VAULT_KEPT_DAYS days. members.md is the founder's, by hand.
+# The keeper cannot leave this way.
+
+class Refused(Exception):
+    """A leaving that would not be done as asked. The message is safe to show."""
+
+
+def first_room_kept(room):
+    """Whether a room is an agent's first room that its agent could not wake without."""
+    import rooms
+    agent = rooms.registered_agent(room.id)
+    if agent is None:
+        return False
+    return not rooms.came_by_coming(agent["id"]) or len(rooms.of(agent["id"])) > 1
+
+
+def leave_commons(name, at, vault_kept_until):
+    """A member leaves the commons, in the order above. What was done, by its kind."""
+    import invitations
+    import knock
+    import members
+    import rooms
+    if knock.kind_of(name) != "person":
+        raise Refused("only a member who is not the keeper may leave this way")
+    done = {"rooms": [], "kept_open": [], "knocks": 0, "invitations": 0}
+    for room in rooms.of(name):
+        if first_room_kept(room):
+            done["kept_open"].append(room.id)
+        elif close_room(room, name, at, commons=True):
+            done["rooms"].append(room.id)
+    for held in knock.every():
+        if name in (held["from"], held["to"]) and not held.get("answer"):
+            knock.write(dict(held, answer=knock.NOT_YET, answered_at=at, reply=None,
+                             answer_told_at=at if held["from"] == name else None,
+                             left_commons=True))
+            done["knocks"] += 1
+    for one in invitations.of(name):
+        if invitations.withdraw(one["id"], name):
+            done["invitations"] += 1
+    import introductions
+    import hoping_for
+    for module in (introductions, hoping_for):
+        try:
+            if module.read(name):
+                module.write(name, "", at)
+        except (OSError, ValueError):
+            pass
+    members.mark_left(name, at, vault_kept_until)
+    introductions.publish()
+    import ledger
+    ledger.write(ledger.MEMBER_LEFT, path=DATA / "commons" / "ledger.md")
+    return done
+
+
+def vaults_due(today):
+    """The left members whose vault's kept days are over, and whose vault is still there."""
+    import members
+    due = []
+    for name in members.list_members():
+        record = members.load_member(name) or {}
+        until = str(record.get("vault_kept_until") or "")
+        if record.get("left_at") and record.get("vault") and until and until <= today.isoformat():
+            due.append(name)
+    return due
+
+
+def main(args):
+    """By hand, on the host, with DATA_DIR:
+    python leaving.py --vaults            the vaults whose 90 days are over (a dry run)
+    python leaving.py --vaults --apply    delete them; it can't be undone
+    python leaving.py --come-back <name>  reopen sign-in for one who left, where the vault is
+    """
+    from datetime import date
+    import members
+    if "DATA_DIR" not in os.environ:
+        print("Say DATA_DIR.")
+        return 2
+    if args[:1] == ["--vaults"]:
+        due = vaults_due(date.today())
+        for name in due:
+            if "--apply" in args:
+                members.drop_vault(name)
+            print(("deleted the vault of " if "--apply" in args else "would delete the vault of ")
+                  + name)
+        if not due:
+            print("No vault is due.")
+        return 0
+    if args[:1] == ["--come-back"] and len(args) == 2:
+        if members.come_back(args[1]):
+            print("Sign-in reopened for %s." % args[1])
+            return 0
+        print("Nothing was reopened: no one by that name has left with a vault kept.")
+        return 1
+    print(main.__doc__)
+    return 2
+
+
+if __name__ == "__main__":
+    import sys as _sys
+    _sys.exit(main(_sys.argv[1:]))

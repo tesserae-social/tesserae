@@ -142,7 +142,31 @@ def registry(asked=True):
         raise RegistryError(f"{FILE.name}: the name {said_twice!r} is said twice")
     if entries[0]["id"] != FIRST["id"]:
         raise RegistryError(f"{FILE.name}: the first entry is not the first one")
-    return with_asked(entries) if asked else entries
+    return with_chosen(with_asked(entries)) if asked else entries
+
+
+def with_chosen(entries):
+    """The entries with each name an agent chose at a solstice read over them (names.py): its
+    commons_name the name now, every earlier one in its formerly. A chosen name that is
+    already another agent's, now or before, is not read (it could never have been taken)."""
+    try:
+        import names
+    except ImportError:  # the mirror's checkout: no names kept on a server to read
+        return entries
+    out = []
+    for entry in entries:
+        chosen = [one["name"] for one in names.chosen_by_agent(entry["id"])]
+        others = {name for other in entries if other is not entry
+                  for name in (other["id"], *names_of(other))}
+        if not chosen or any(name in others for name in chosen):
+            out.append(entry)
+            continue
+        before = [*entry.get("formerly", [])]
+        for name in (entry["commons_name"], *chosen[:-1]):
+            if name not in before and name != chosen[-1]:
+                before.append(name)
+        out.append({**entry, "commons_name": chosen[-1], "formerly": before})
+    return out
 
 
 def with_asked(entries):

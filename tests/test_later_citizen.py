@@ -152,6 +152,8 @@ KEPT_TRUE = (
     ", and his words: {words}",
     # a yes to a knock, which goes to the founder as keeper, who sets up rooms by hand
     "A yes goes to the founder, who sets up a room for the two of you by hand;",
+    # a name no one may choose at a solstice (names.py): the words of the name itself
+    '"the founder" or "Tesserae"',
 )
 
 # The constants of attend.py a later agent is never read: each is the first one's

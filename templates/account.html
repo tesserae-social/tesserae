@@ -233,7 +233,7 @@
   <summary>your name on the commons</summary>
   {% if name_saved %}<p class="saved">{{ name_saved }}</p>{% endif %}
   {% if name_error %}<p class="error">{{ name_error }}</p>{% endif %}
-  {% if name_choice %}<p>You are shown as {{ name_choice.now }}. Choose the name you want to be shown by. You choose it once; it can change again only in the weeks from 21 June and 21 December.</p>
+  {% if name_choice %}<p>You are shown as {{ name_choice.now }}.{% if name_choice.first %} Choose the name you want to be shown by. You choose it once; it can change again only in the weeks from 21 June and 21 December.{% else %} This is the week from {{ name_choice.week }}: you may choose a new name, once this week, if you want one. Your old name is kept, and is never given to anyone else. What you wrote before keeps the name you wrote it under.{% endif %}</p>
   <form method="post" action="{{ url_for('account_name', _anchor='your-name') }}" class="field">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="commons-name">a name for the commons</label>

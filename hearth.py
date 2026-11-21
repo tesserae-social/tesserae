@@ -193,6 +193,8 @@ import rooms
 import agents
 # Askings (askings.py): what waits for each agent and person, and their answers, on /tides
 import askings
+# Names that may change at the solstices, on ids (names.py; names-ids, stage 7)
+import names
 import american
 
 # Where a letter of welcome given to an agent is kept, which its copies leave out.
@@ -4273,12 +4275,31 @@ def sign_in_shown(name):
 NAME_SAVED = "Your name on the commons is now {name}."
 
 
+NAME_REFUSED_SAID = {
+    names.SHAPE: "A name is lowercase letters, digits and single hyphens, and starts with a "
+                 "letter.",
+    names.TAKEN: "That name is someone's now or was before.",
+    names.RESERVED: "That name is not free to take.",
+    names.PROTECTED: "That name is not free to take.",
+    names.FLAGGED: "That seems to be a real person's name or a place.",
+    names.UNCHECKED: "That name could not be checked just now. Try again in a while.",
+    names.CLOSED: "The week for new names has ended.",
+    names.ONCE: "You chose a new name this week already.",
+    names.SAME: "That is the name you have.",
+}
+
+
 def name_choice_shown(name):
-    """Whether settings offers a member a name of their own to choose now, or None."""
+    """Whether settings offers a member a name to choose now, or None: once, after their yes to
+    own_name (a member from before ids, stage 6), or in a solstice week, once that week (stage
+    7, names.py)."""
     if not name or keeper_here():
         return None
-    if "own_name" in askings.on(askings.PEOPLE, name) and not members.chosen_name_of(name):
-        return {"now": members.name_of(name)}
+    first = "own_name" in askings.on(askings.PEOPLE, name) and not members.chosen_name_of(name)
+    today = datetime.now(timezone.utc).astimezone(names.eastern()).date()
+    if first or names.person_may_rename(name, today):
+        return {"now": members.name_of(name), "first": first,
+                "week": names.week_of(today) and long_day(names.week_of(today))}
     return None
 
 
@@ -4289,11 +4310,15 @@ def account_name():
     if not name_choice_shown(name):
         abort(404)
     wanted = (request.form.get("name") or "").strip().lower()
-    if private_words.carries(wanted):
-        return account_page(name_error=NAME_NOT_FREE)
     before = members.name_of(name)
     try:
-        members.set_name(name, wanted)
+        if name_choice_shown(name)["first"]:
+            wanted = names.check(wanted, person=True, now_name=before)
+            members.set_name(name, wanted)
+        else:
+            wanted = names.choose_for_person(name, wanted, utc_stamp())
+    except names.Refused as refused:
+        return account_page(name_error=NAME_REFUSED_SAID.get(refused.args[0], NAME_NOT_FREE))
     except MemberError as reason:
         return account_page(name_error=str(reason).capitalize() + ".")
     renamed_in_who_is_here(before, wanted)

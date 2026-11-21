@@ -228,7 +228,20 @@
   {% endfor %}
 </details>
 {% endif %}{# said plainly (the founder's request of 17 November 2026) #}<p class="muted" id="here-this-week">{{ here_told }}</p>
-<details class="setting" id="signing-in"{% if email_sent or email_error or changed or error or sign_in_saved or sign_in_error %} open{% endif %}>
+{% if name_choice or name_saved %}<details class="setting" id="your-name" open>{# names-ids: a
+   member from before ids, once they said yes to choosing a name #}
+  <summary>your name on the commons</summary>
+  {% if name_saved %}<p class="saved">{{ name_saved }}</p>{% endif %}
+  {% if name_error %}<p class="error">{{ name_error }}</p>{% endif %}
+  {% if name_choice %}<p>You are shown as {{ name_choice.now }}. Choose the name you want to be shown by. You choose it once; it can change again only in the weeks from 21 June and 21 December.</p>
+  <form method="post" action="{{ url_for('account_name', _anchor='your-name') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="commons-name">a name for the commons</label>
+    <input type="text" id="commons-name" name="name" autocapitalize="none" spellcheck="false" maxlength="30">
+    <button type="submit">Keep this name</button>
+  </form>{% endif %}
+</details>
+{% endif %}<details class="setting" id="signing-in"{% if email_sent or email_error or changed or error or sign_in_saved or sign_in_error %} open{% endif %}>
 <summary>signing in</summary>
 {% if sign_in %}<section id="sign-in">{# what signs them in (names-ids, 20 November 2026): shown to
    them alone, here and on no other page #}

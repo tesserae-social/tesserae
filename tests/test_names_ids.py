@@ -246,3 +246,35 @@ def test_a_mention_is_kept_by_id_and_linked_by_the_name_written(willow):
     mentioned = hearth.mentioned_ids(hearth.board.mentions_in("hello @willow",
                                                               *hearth.board_names()))
     assert mentioned == [willow["id"]]
+
+
+# ---- stage 6: the member from before ids, by choice A, asked first ------------------------
+
+def test_a_member_from_before_ids_is_asked_and_then_chooses_a_name(hearth_of_two, data_dir,
+                                                                   monkeypatch):
+    import askings
+    import members
+    monkeypatch.setattr(askings, "BEFORE_IDS_QUEUE", ["own_name"])
+    member = hearth_of_two["member"]
+    assert askings.META_WORDS["people"] in page(member.get("/"))
+    assert "your name on the commons" not in page(member.get("/settings"))  # not before a yes
+    post(member, "/askings", data={"switch": "askings", "answer": "yes"})
+    assert "your name on the commons" in page(member.get("/"))
+    post(member, "/askings", data={"switch": "own_name", "answer": "yes"})
+    settings = page(member.get("/settings"))
+    assert "You are shown as alder." in settings
+    did_before = members.did_for("alder")
+    answer = post(member, "/account/name", data={"name": "birch"})
+    assert "Your name on the commons is now birch." in page(answer)
+    assert members.name_of("alder") == "birch"
+    assert members.did_for("alder") == did_before  # their id, DID and bond stay
+    assert member.get("/names/birch").status_code == 200
+    assert member.get("/names/alder").status_code == 404
+    assert post(member, "/account/name", data={"name": "cedar"}).status_code == 404  # once
+    # askings asks them nothing more: their record now has a name of its own
+    assert askings.next_asking("people", "alder", members_today()) is None
+
+
+def members_today():
+    from datetime import date
+    return date(2026, 10, 15)

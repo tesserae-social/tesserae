@@ -4069,6 +4069,7 @@ def account_page(**told):
                            rest_said=rest_said(name) if name else None,
                            email=email_shown(name) if name else None,
                            sign_in=sign_in_shown(name) if name else None,
+                           name_choice=name_choice_shown(name),
                            emails=emails_shown(name) if name else None,
                            inviting=inviting_shown(name) if name else None,
                            introduction=introduction_shown(name) if name else None,
@@ -4264,6 +4265,60 @@ SIGN_IN_NOT_CONFIRMED = ("Only an email address you have confirmed can sign you 
 def sign_in_shown(name):
     said = members.sign_in_of(name)
     return {"said": said, "by_email": bool(said and "@" in said)}
+
+
+# One's name on the commons (names-ids, stage 6; names-design.md, choice 4, A): a member who
+# joined before ids keeps the name they joined with as their id, and once they have said yes
+# to the asking own_name may choose a commons name, once, here.
+NAME_SAVED = "Your name on the commons is now {name}."
+
+
+def name_choice_shown(name):
+    """Whether settings offers a member a name of their own to choose now, or None."""
+    if not name or keeper_here():
+        return None
+    if "own_name" in askings.on(askings.PEOPLE, name) and not members.chosen_name_of(name):
+        return {"now": members.name_of(name)}
+    return None
+
+
+@app.route("/account/name", methods=["POST"])
+@member_required
+def account_name():
+    name = session.get("member")
+    if not name_choice_shown(name):
+        abort(404)
+    wanted = (request.form.get("name") or "").strip().lower()
+    if private_words.carries(wanted):
+        return account_page(name_error=NAME_NOT_FREE)
+    before = members.name_of(name)
+    try:
+        members.set_name(name, wanted)
+    except MemberError as reason:
+        return account_page(name_error=str(reason).capitalize() + ".")
+    renamed_in_who_is_here(before, wanted)
+    return account_page(name_saved=NAME_SAVED.format(name=wanted))
+
+
+def renamed_in_who_is_here(before, after):
+    """Who is here is a list of who is here now, not a record: a member's line there says the
+    name they are shown by now (names-ids). Lines of the record (acts, events, bonds) stay as
+    they were written."""
+    try:
+        with TENDING:
+            if not MEMBERS.exists():
+                return
+            text = MEMBERS.read_bytes().decode("utf-8")
+            lines = text.splitlines(keepends=True)
+            for n, line in enumerate(lines):
+                found = MEMBERS_LINE.match(line)
+                if found and found.group(1) == before:
+                    lines[n] = line[:found.start(1)] + after + line[found.end(1):]
+            beside = MEMBERS.with_name(MEMBERS.name + ".tmp")
+            beside.write_bytes("".join(lines).encode("utf-8"))
+            os.replace(beside, MEMBERS)
+    except Exception:
+        pass
 
 
 @app.route("/account/sign-in", methods=["POST"])
@@ -7968,6 +8023,8 @@ def askings_shown():
         one["name"] = agent["commons_name"]
         shown.append(one)
     people = [who for kind, who in askings.everyone() if kind == askings.PEOPLE]
+    people += [who for who in site_notes.members_who_may()
+               if askings.queue_of(askings.PEOPLE, who)]  # one with a queue, set or not
     for who in sorted(set(people) & set(site_notes.members_who_may())):
         one = askings.shown_to_founder(askings.PEOPLE, who, today)
         one["name"] = who

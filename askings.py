@@ -190,7 +190,21 @@ DEFAULT_QUEUES = {
                         "commons_names"],
     (AGENTS, "second"): ["leaving", "names_told", "commons_names", "solstice_names"],
 }
-DEFAULT_PEOPLE_QUEUE = []  # a person's queue is the founder's to set (own_name, by the move)
+DEFAULT_PEOPLE_QUEUE = []
+# A member who joined before ids is asked about the design's choice A (own_name): their
+# pseudonym stays their id, and they may choose a commons name and a sign-in of their own.
+BEFORE_IDS_QUEUE = ["own_name"]
+
+
+def joined_before_ids(who):
+    """Whether a member joined before ids: a member's record with no id and no name of its own."""
+    try:
+        import members
+        record = members.load_member(who)
+    except Exception:
+        return False
+    return (isinstance(record, dict) and record.get("role") == "member"
+            and not record.get("id") and not record.get("name"))
 
 # No asking of the first one before this day (the founder's request of 20 November 2026).
 NOT_BEFORE = {(AGENTS, "first"): date(2026, 11, 27)}
@@ -286,8 +300,10 @@ def queue_of(kind, who, held=None):
     held = read(kind, who) if held is None else held
     if held and isinstance(held.get("queue"), list):
         queue = held["queue"]
+    elif kind == PEOPLE:
+        queue = [*DEFAULT_PEOPLE_QUEUE, *(BEFORE_IDS_QUEUE if joined_before_ids(who) else [])]
     else:
-        queue = DEFAULT_QUEUES.get((kind, who), DEFAULT_PEOPLE_QUEUE if kind == PEOPLE else [])
+        queue = DEFAULT_QUEUES.get((kind, who), [])
     return [one for one in queue if isinstance(one, str) and for_kind(one, kind)
             and one != META]
 

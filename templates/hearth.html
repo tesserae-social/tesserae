@@ -25,7 +25,7 @@
   <p class="saved">{{ asking_told }}</p>
   {%- endif %}
   {%- if asking and asking.switch %}
-  <p><strong>A question for you</strong></p>
+  <p><strong>A question for you, from the founder</strong></p>
   <p>{{ asking.words.question }}</p>
   <p>What it adds: {{ asking.words.adds }}</p>
   <p>What it takes away: {{ asking.words.takes }}</p>
@@ -36,7 +36,7 @@
     <button type="submit" name="answer" value="no">No</button>
     <button type="submit" name="answer" value="not yet">Not yet</button>
   </form>
-  <p class="muted">Yes: it starts now.{% if asking.undo %} You can take it back later.{% else %} It cannot be taken back.{% endif %} No: you are not asked again, unless you ask for it here. Not yet: you are asked again in {{ asking.again_days }} days. Your answer is private.</p>
+  <p class="muted">Yes: it starts now.{% if asking.undo %} You can take it back later.{% else %} It cannot be taken back.{% endif %} No: you are not asked again, unless you ask for it here. Not yet: you are asked again in {{ asking.again_days }} days. Your answer is private: only you and the founder see it.</p>
   {%- endif %}
   {%- for one in (asking.mine if asking else []) %}
   <form method="post" action="{{ url_for('askings_answer') }}" class="muted">

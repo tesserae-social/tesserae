@@ -345,6 +345,9 @@ def choose_person(name, said, at, anyway=False):
 # has told it; a person has them by SEASONS and VISIBLE. With both False, as before.
 
 SWITCH = "art_and_colour"
+# The colour rules alone, without the art (the founder's request of 21 November 2026): asked
+# of the first one as "color twice a year" (askings.py). art_and_colour gives them too.
+WEEKS_SWITCH = "colour_weeks"
 SEASONS = True
 VISIBLE = True
 SEASON_STARTS = ((3, 20), (9, 22))  # month, day: about the two equinoxes
@@ -356,7 +359,7 @@ NEARLY_INVISIBLE = 1.3
 
 def rules_on(agent):
     """Whether the seasons and the check of showing hold for this agent's <<HUE>>."""
-    return SWITCH in (agent.get("features") or ())
+    return bool({SWITCH, WEEKS_SWITCH} & set(agent.get("features") or ()))
 
 
 def day_of(at):

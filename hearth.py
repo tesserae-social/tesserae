@@ -8073,6 +8073,19 @@ def askings_order():
     return tides_page(askings_saved="The order of what waits is kept.")
 
 
+@app.route("/tides/askings/every", methods=["POST"])
+@founder_required
+def askings_every():
+    """At most one asking every so many days, for one subject (21 November 2026)."""
+    try:
+        days = askings.set_every_days(request.form.get("kind") or "", request.form.get("who") or "",
+                                      request.form.get("days") or "")
+    except askings.Refused as refused:
+        return tides_page(askings_every_refused=str(refused))
+    return tides_page(askings_saved=("No limit between askings is kept." if not days else
+                                     "At most one asking every %d days is kept." % days))
+
+
 def asking_for_home(name):
     """The one asking a member's home page shows, with their yeses and noes; None if none."""
     if name not in site_notes.members_who_may():
@@ -8117,7 +8130,7 @@ def askings_answer():
             if opened.get("switch") != switch:  # only the asking that was shown
                 raise askings.Refused("none open")
             askings.answer(askings.PEOPLE, name, said, at)
-            told = "Your answer is kept. It is private."
+            told = "Your answer is kept. It is private: only you and the founder see it."
     except askings.Refused:
         told = "Nothing changed."
     return hearth_page(asking_told=told)

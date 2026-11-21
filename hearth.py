@@ -8085,7 +8085,8 @@ def asking_for_home(name):
         if one not in askings.ASK_FIRST or answer.get("silent"):
             continue
         yes = askings.is_yes(held, one)
-        if yes and askings.ASK_FIRST[one].get("undo") or answer.get("answer") == askings.NO                 and not answer.get("asked_again"):
+        if (yes and askings.ASK_FIRST[one].get("undo")
+                or answer.get("answer") == askings.NO and not answer.get("asked_again")):
             mine.append({"switch": one, "name": askings.ASK_FIRST[one]["name"], "yes": yes})
     if switch is None and not mine:
         return None

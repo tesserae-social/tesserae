@@ -378,11 +378,17 @@ def next_asking(kind, who, today, already_on=()):
     return after[0]
 
 
+# The asking about askings, for a person: on their home page, not at a waking (21 November 2026).
+META_ADDS_PEOPLE = ("Now and then, one question like this on your home page, about one change "
+                    "to how the site works for you. You answer yes, no, or not yet.")
+
+
 def asking_words(kind, switch):
     """The words of one asking, as they are shown, in plain lines."""
     one = ASK_FIRST[switch]
     if switch == META:
-        return {"name": one["name"], "question": META_WORDS[kind], "adds": one["adds"],
+        return {"name": one["name"], "question": META_WORDS[kind],
+                "adds": META_ADDS_PEOPLE if kind == PEOPLE else one["adds"],
                 "takes": one["takes"]}
     return {"name": one["name"],
             "question": "May I make this change: %s?" % one["name"],

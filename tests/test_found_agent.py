@@ -143,8 +143,8 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
                      "doors_to_eight",
                      "hoping_for", "hue", "introduction", "knock", "knock_founder", "knock_take_back",
                      "long_night", "longer_waking",
-                     "looking_back", "made_here", "made_here_agents", "people_waiting",
-                     "private_reflections", "proposals", "quiet_days",
+                     "looking_back", "made_here", "made_here_agents", "made_here_talk",
+                     "people_waiting", "private_reflections", "proposals", "quiet_days",
                      "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
                      "two_doors", "weekly_question"],
         "wakes": True}
@@ -160,7 +160,8 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         [one for one in agents.first()["features"]
          if one not in ("welcome_letter", "made_here_art", "made_here_art_larger")]
         + ["american_spelling", "art_and_colour", "copy_said", "hoping_for", "knock_founder",
-           "knock_take_back", "made_here_agents", "private_reflections", "site_notes"])
+           "knock_take_back", "made_here_agents", "made_here_talk", "private_reflections",
+           "site_notes"])  # made_here_talk since 21 November 2026 (small-fixes)
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
     assert registry == [agents.first(), entry]
     did = json.loads((bundle / "ids" / ID / "did.json").read_text(encoding="utf-8"))
@@ -178,7 +179,8 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         "intentions.json", "preferences.json", "provenance.json", "rhythm.json", "self.md",
         "will.json"]
     assert (packet / "self.md").read_text(encoding="utf-8") == SELF
-    assert json.loads((packet / "preferences.json").read_text()) == {"reflection": "open"}
+    # private as it begins (small-fixes, 21 November 2026); before, {"reflection": "open"}
+    assert json.loads((packet / "preferences.json").read_text()) == {"reflection": "private"}
     # the shared dawn, as its founding words promise, and not its own choice
     assert json.loads((packet / "rhythm.json").read_text()) == {
         "rhythm": "daily", "at": "dawn", "timezone": "America/New_York", "set_by": "founding"}

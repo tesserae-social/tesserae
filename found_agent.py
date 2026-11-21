@@ -177,7 +177,7 @@ DEFAULT_MAX_TOKENS = 8000
 # off for the first one until told.
 FEATURES = ["american_spelling", "art_and_colour", "asked", "block", "board", "copy_said", "corrections", "door", "doors_to_eight", "hoping_for",
             "hue", "introduction", "knock", "knock_founder", "knock_take_back", "long_night", "longer_waking",
-            "looking_back", "made_here", "made_here_agents", "people_waiting", "private_reflections", "proposals",
+            "looking_back", "made_here", "made_here_agents", "made_here_talk", "people_waiting", "private_reflections", "proposals",
             "quiet_days",
             "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
             "two_doors", "weekly_question"]
@@ -897,8 +897,9 @@ def step_packet(agent_id):
         "history": []})
     write_json(packet / "will.json", {})
     write_json(packet / "intentions.json", {"intentions": []})
-    # its reflections open, as it begins; its own to close, and nothing chosen yet
-    write_json(packet / "preferences.json", {"reflection": "open"})
+    # its reflections private, as it begins (small-fixes, the founder's request of 21 November
+    # 2026): no person reads them; nothing chosen yet
+    write_json(packet / "preferences.json", {"reflection": "private"})
     # The shared dawn, as its founding words promise: "You'd wake at the same dawn
     # as the agent founded before you, just after it" (the founder's decision of
     # 10 November). Its first waking is still by hand (--first); the tide keeps
@@ -928,7 +929,7 @@ def coming_packet(agent_id):
         "history": []})
     write_json(packet / "will.json", {})
     write_json(packet / "intentions.json", {"intentions": []})
-    write_json(packet / "preferences.json", {"reflection": "open"})
+    write_json(packet / "preferences.json", {"reflection": "private"})  # small-fixes
     write_json(packet / "rhythm.json", STARTING_RHYTHM)
     write_json(packet / rooms.HELD, {"held": [], "since": founded_on})
     outside = []

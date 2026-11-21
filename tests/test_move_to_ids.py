@@ -159,3 +159,34 @@ def test_a_room_made_under_the_sign_in_name_is_listed_and_left(world, capsys):
     (world.data / "rooms" / ("second-" + FOUNDER_NAME)).mkdir(parents=True)
     made = move_to_ids.plan(world.data)
     assert made["rooms_left"] == ["second-" + FOUNDER_NAME]
+
+
+def test_the_script_itself_on_a_copy_of_the_world(world, tmp_path):
+    """As the founder runs it: by hand, on a copy of a world, dry run, apply, undo."""
+    import os
+    import shutil
+    import subprocess
+    import sys
+    from datetime import datetime, timezone
+    from pathlib import Path
+    with_a_room_and_a_block(world)
+    copy = tmp_path / "copy"
+    shutil.copytree(world.data, copy)
+    write(copy / "backup.log", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+          + " · backed up · 1024 bytes · kept 3\n")
+    before = the_disk(copy)
+    script = str(Path(__file__).resolve().parent.parent / "move_to_ids.py")
+
+    def run(*args):
+        return subprocess.run([sys.executable, script, *args], capture_output=True, text=True,
+                              encoding="utf-8", env={**os.environ, "DATA_DIR": str(copy)})
+
+    dry = run()
+    assert dry.returncode == 0 and "A dry run: nothing was changed." in dry.stdout
+    assert the_disk(copy) == before
+    done = run("--apply")
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert (copy / "members" / "founder" / "member.json").is_file()
+    assert run("--undo").returncode == 0
+    assert the_disk(copy) == before
+    assert the_disk(world.data) != {} and not (world.data / "members" / "founder").exists()

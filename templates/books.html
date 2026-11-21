@@ -13,7 +13,8 @@
   {% if months %}
   <ul class="lines">
     {% for one in months %}
-    <li><span class="muted">{{ one.month }}</span> &middot; {{ one.total }}</li>
+    <li><span class="muted">{{ one.month }}</span> &middot; {{ one.total }}<br>
+      <span class="muted by-hand">{{ one.by_hand }}</span></li>
     {% endfor %}
   </ul>
   {% else %}

@@ -32,6 +32,14 @@ from conftest import notebook_unexplained
 from conftest import switches_not_yet
 from test_first_one_fingerprints import cut, fingerprint_left, fingerprint_sent, steady
 
+@pytest.fixture(autouse=True)
+def woken_while_resting_as_before(attend, monkeypatch):
+    """Since powers-logged (19 November 2026) no waking is held while its own rest stands
+    (attend.held_by_rest_or_stop), so a rest of its own is never in a reading the tide holds.
+    What the section said of one while it stood is still held here, woken as before."""
+    monkeypatch.setattr(attend, "HOLD_WHILE_HELD", False)
+
+
 CHOSEN = "=== WHAT YOU HAVE CHOSEN ==="
 NOTHING = "You have not set anything here yet; everything follows the defaults."
 SELF = "=== YOUR SELF-DOCUMENT (packets/first/self.md) ==="

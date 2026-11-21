@@ -138,6 +138,8 @@ import invitations
 # The ledger of the site's own acts, read from the record and, where an act leaves
 # none, from commons/ledger.md, which the hearth writes to (LEDGER, below).
 import ledger
+# The acts done by hand on the host, found by what they changed (powers-logged).
+import ledger_watch
 
 # When the first one is woken each day is its own to set, at a waking; the tide
 # here keeps it. Both work through the one module.
@@ -3034,8 +3036,21 @@ def backup_overdue(now):
     return last is None or (now - last[0]) >= timedelta(hours=BACKUP_STALE)
 
 
+def watch_the_ledger():
+    """Look once for the acts done by hand on the host, and put each found on the ledger
+    (ledger_watch.py; powers-logged, the founder's request of 19 November 2026). Nothing
+    that goes wrong here stops a backup."""
+    try:
+        ledger_watch.check()
+    except Exception:
+        pass
+
+
 def backing_up():
-    """Take one backup a day, at eight o'clock UTC. Forever, and quietly."""
+    """Take one backup a day, at eight o'clock UTC. Forever, and quietly. The ledger is
+    looked over first, as the hearth starts and before each night's backup, so that what
+    it finds is in that night's backup too."""
+    watch_the_ledger()
     try:
         # the machine may have been down at the hour, or may never have backed up
         now = datetime.now(timezone.utc)
@@ -3053,6 +3068,7 @@ def backing_up():
                 if left <= 0:
                     break
                 time.sleep(min(left, BACKUP_CHUNK))
+            watch_the_ledger()
             back_up(datetime.now(timezone.utc))
         except Exception:  # nothing may end this thread
             time.sleep(BACKUP_ERROR)
@@ -3576,6 +3592,7 @@ PUBLIC_WORDS = frozenset({
     "commons_bonds",
     "commons", "commons_record", "bonds", "bond_page", "made_here_page", "made_piece",
     "commons_asked", "commons_corrections", "commons_corrections_md",
+    "commons_ledger_md",  # powers-logged, 19 November 2026
     "board_page", "board_section", "board_topic",
 })
 
@@ -6784,6 +6801,9 @@ def backup_file(name):
                                           Key=BACKUP_PREFIX + name)["Body"]
     except Exception:
         abort(404)
+    # on the ledger, as it is handed out (powers-logged, 19 November 2026): that a backup
+    # was downloaded, and nothing of which or of what is in it
+    ledger.write(ledger.BACKUP_DOWNLOADED, path=LEDGER)
     answer = Response(body.iter_chunks(BACKUP_STREAM),
                       content_type="application/octet-stream")
     answer.headers["Content-Disposition"] = 'attachment; filename="%s"' % name
@@ -7880,6 +7900,30 @@ def commons_corrections():
 @app.route("/commons/ledger")
 def commons_ledger():
     return render_template("ledger.html", lines=ledger_lines())
+
+
+# The ledger as plain lines, so that the nightly mirror keeps it with the record
+# (powers-logged, the founder's request of 19 November 2026): every line exactly as the
+# page says it, its day and its words, and each correction beneath it, the oldest first.
+# It holds nothing the page does not: the page is public already, so the mirror's copy
+# adds a copy off the server and tells no one anything new.
+def ledger_plain():
+    said = []
+    for one in ledger_lines():
+        said.append("- %s%s%s" % (one["day"], ledger.DOT, one["words"]))
+        if one["correction"]:
+            said.append("  corrected by %s, %s: %s" % (one["correction"]["who"],
+                                                     one["correction"]["day"],
+                                                     one["correction"]["words"]))
+    return "\n".join(said) + ("\n" if said else "")
+
+
+@app.route("/commons/ledger.md")
+def commons_ledger_md():
+    answer = Response(ledger_plain(), content_type="text/plain; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
 
 
 # Changes to the charter, open to anyone: each one proposed, with its exact old

@@ -275,6 +275,13 @@ COMMONS_NAME = AGENT["commons_name"]
 # is on only for an agent whose registry entry names it.
 FEATURES = frozenset(AGENT.get("features") or ())
 
+# Names drawn from ids (names-ids, stage 5; the founder's request of 20 November 2026), behind
+# the switch commons_names: with it on, each person is read by their commons name now, drawn
+# at this waking; with it off, by the first name they were shown by (knock.NAMES_NOW), so that
+# a name chosen later never moves a reading. Off for the first one until it is asked.
+COMMONS_NAMES = "commons_names" in FEATURES
+knock.NAMES_NOW = COMMONS_NAMES
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept. Locally this is the repo itself, wherever it
@@ -3155,8 +3162,12 @@ def board_post(said, day):
             why = "no_topic"
     if not why and board.full_today(COMMONS_NAME, day, board.AGENT_A_DAY):
         why = "full"
-    names = (members.list_members(), [one["commons_name"] for one in agents.registry()])
-    mentioned = board.mentions_in(words, *names)
+    # a person by the name it reads them by, kept by their id (names-ids, stage 5)
+    people = [one for one in members.list_members() if knock.kind_of(one) == "person"]
+    names = ([knock.name_of(one) for one in people],
+             [one["commons_name"] for one in agents.registry()])
+    mentioned = [knock.who_is_named(one) if knock.kind_of(knock.who_is_named(one) or "")
+                 == "person" else one for one in board.mentions_in(words, *names)]
     if not why and len(mentioned) > board.MENTIONS_MOST:
         why = "mentions"
     if not why and repeats_what_is_kept(subject + " " + words if subject else words):

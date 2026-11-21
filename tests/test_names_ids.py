@@ -169,3 +169,80 @@ def test_a_forgotten_password_is_asked_by_the_sign_in(hearth_of_two):
     members.set_sign_in("alder", SIGN_IN)
     assert hearth.whose_asked(SIGN_IN) == "alder"
     assert hearth.whose_asked("alder") is None
+
+
+# ---- stage 5: every name drawn from ids --------------------------------------------------
+
+@pytest.fixture
+def willow(hearth_of_two):
+    """A member who joined since ids: an id, the name willow, and markers for a sign-in."""
+    import members
+    import vault
+    sealed, _, _ = vault.make_vault(PASSWORD)
+    member_id = members.new_id()
+    members.create_member(member_id, sealed, "member", [], name="willow", sign_in=SIGN_IN)
+    members.set_email(member_id, ADDRESS, confirmed_at="2026-10-15T12:00:00Z")
+    import hearth
+    client = hearth.app.test_client()
+    answer = post(client, "/login", data={"pseudonym": SIGN_IN, "password": PASSWORD})
+    assert answer.status_code == 302
+    return {"id": member_id, "client": client, **hearth_of_two}
+
+
+def every_plain_page(hearth):
+    for rule in hearth.app.url_map.iter_rules():
+        if "GET" in rule.methods and not rule.arguments and not rule.rule.startswith("/static"):
+            yield rule.rule
+
+
+def test_no_page_carries_a_sign_in_or_an_address(willow):
+    import hearth
+    lookers = {"visitor": hearth.app.test_client(), "member": willow["member"],
+               "keeper": willow["keeper"], "willow": willow["client"]}
+    for who, client in lookers.items():
+        for path in every_plain_page(hearth):
+            if who == "willow" and path in ("/settings", "/account"):
+                continue  # their own settings say what signs them in, to them alone
+            said = client.get(path).get_data(as_text=True).lower()
+            assert SIGN_IN not in said and ADDRESS not in said, (who, path)
+
+
+def test_a_person_is_named_by_their_name_now_and_kept_by_their_id(willow):
+    import knock
+    member_id = willow["id"]
+    assert knock.name_of(member_id) == "willow"
+    assert knock.who_is_named("willow") == member_id
+    assert knock.address_of(member_id) == "willow"
+    assert knock.from_address("willow") == member_id
+
+
+def test_a_name_page_is_reached_by_the_name_now_and_an_old_name_is_no_one_s(willow):
+    import members
+    member = willow["member"]
+    assert member.get("/names/willow").status_code == 200
+    nobody = member.get("/names/nobody-here")
+    assert member.get("/names/" + willow["id"]).get_data() == nobody.get_data()
+    members.set_name(willow["id"], "birch")
+    assert member.get("/names/birch").status_code == 200
+    old = member.get("/names/willow")
+    assert old.status_code == nobody.status_code == 404
+    assert old.get_data() == nobody.get_data()
+
+
+def test_an_agent_without_commons_names_reads_the_first_name(willow, monkeypatch):
+    import knock
+    import members
+    members.set_name(willow["id"], "birch")
+    monkeypatch.setattr(knock, "NAMES_NOW", False)
+    assert knock.name_of(willow["id"]) == "willow"
+    assert knock.who_is_named("willow") == willow["id"]
+    monkeypatch.setattr(knock, "NAMES_NOW", True)
+    assert knock.name_of(willow["id"]) == "birch"
+    assert knock.who_is_named("willow") is None
+
+
+def test_a_mention_is_kept_by_id_and_linked_by_the_name_written(willow):
+    import hearth
+    mentioned = hearth.mentioned_ids(hearth.board.mentions_in("hello @willow",
+                                                              *hearth.board_names()))
+    assert mentioned == [willow["id"]]

@@ -58,7 +58,13 @@ DOT = "·"
 
 def name_of(did):
     """What the commons calls a party: its own name here, or else the last part of its DID."""
-    return NAMES.get(did) or did.rsplit(":", 1)[-1]
+    if did in NAMES:
+        return NAMES[did]
+    last = did.rsplit(":", 1)[-1]
+    if did.startswith("did:web:hearth.tesserae.social:ids:"):  # a member: drawn from the id
+        import members
+        return members.name_of(last)
+    return last
 
 
 def slug(name):

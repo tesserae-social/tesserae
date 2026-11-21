@@ -317,7 +317,7 @@ def people():
     for name in members.list_members():
         kind = knock.kind_of(name)
         if kind == "person":
-            out.append((name, name))
+            out.append((name, members.name_of(name)))  # drawn from the id (names-ids)
         elif kind == "keeper":
             out.append((name, THE_FOUNDER))
     return out

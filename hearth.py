@@ -4802,7 +4802,9 @@ def commons_name_of(name):
     """How the commons names a person: "the founder" for the keeper, never his sign-in
     name; anyone else by their pseudonym."""
     record = member_record(name)
-    return THE_FOUNDER if record and record.get("role") == "keeper" else name
+    if not record:
+        return name
+    return THE_FOUNDER if record.get("role") == "keeper" else members.name_of(name)
 
 
 def said_counted(n, one, many):
@@ -5834,7 +5836,7 @@ def name_href(said):
     if agent is not None:
         return url_for("name_page", name=agent["id"])
     if session.get("member") and knock.kind_of(said) == "person":
-        return url_for("name_page", name=said)
+        return url_for("name_page", name=members.name_of(said))  # by the name now (names-ids)
     return None
 
 
@@ -5859,7 +5861,8 @@ def shown_name(who):
                 "hue": hues.colour_of(keeper) if keeper else NO_HUE,
                 "href": url_for("name_page", name=knock.FOUNDER_ADDRESS)
                 if session.get("member") and keeper else None}
-    return {"name": who, "agent": False, "id": who, "hue": hues.colour_of(who),
+    shown = members.name_of(who) if knock.kind_of(who) == "person" else who  # names-ids
+    return {"name": shown, "agent": False, "id": who, "hue": hues.colour_of(who),
             "href": name_href(who)}
 
 
@@ -5937,8 +5940,13 @@ def name_page_drawn(name, **told):
     if viewer and name == knock.FOUNDER_ADDRESS and knock.keeper():
         # the founder's page, by its address alone: the sign-in name is never said
         name, said_as = knock.keeper(), THE_FOUNDER
-    elif not viewer or knock.kind_of(name) != "person":
-        abort(404)
+    else:
+        # a person's page is reached by their name now; an old name, or an id that has a
+        # name, is the 404 of a name no one has (names-ids, stage 5)
+        name = members.id_of(name) or ""
+        said_as = name and members.name_of(name)
+        if not viewer or knock.kind_of(name) != "person":
+            abort(404)
     try:
         record = members.load_member(name)
     except members.MemberError:
@@ -6396,7 +6404,8 @@ def commons_people():
     keeper = knock.keeper()
     said = []
     for name in [THE_FOUNDER] + [one for one in daily_acts.names() if one != THE_FOUNDER]:
-        who = keeper if name == THE_FOUNDER else name
+        # a line of acts names a commons name; the colour is its holder's now (names-ids)
+        who = keeper if name == THE_FOUNDER else (members.id_of(name) or name)
         colour = hues.person_chosen(who) if who and knock.kind_of(who) in ("person", "keeper") else None
         if colour:
             said.append({"name": name, "hue": colour})
@@ -10227,7 +10236,18 @@ def board_today():
 
 def board_names():
     """Who may be mentioned: every member by name, and every agent by its commons name."""
-    return members.list_members(), [one["commons_name"] for one in agents.registry()]
+    return board_people(), [one["commons_name"] for one in agents.registry()]
+
+
+def board_people():
+    """Every person who may be mentioned, by the name they are shown by now (names-ids)."""
+    return [members.name_of(one) for one in members.list_members()
+            if knock.kind_of(one) == "person"]
+
+
+def mentioned_ids(mentioned):
+    """Mentions as kept: a person by their id, an agent by its commons name (names-ids)."""
+    return [members.id_of(one) or one for one in mentioned]
 
 
 def board_sections():
@@ -10296,8 +10316,10 @@ def board_words_linked(words, mentions):
     linked = {}
     for name in mentions or ():
         href = name_href(name)
-        if href:
-            linked[name.lower()] = href
+        if href:  # a person kept by id, linked by every name the words may hold (names-ids)
+            for written in (members.names_written(name) if knock.kind_of(name) == "person"
+                            else [name]):
+                linked[written.lower()] = href
     if not linked:
         return [(words, None)]
     said = re.compile("@(%s)(?![a-z0-9-])" % "|".join(
@@ -10482,7 +10504,7 @@ def board_section(section):
         return board_section_now(section, refused=BOARD_REFUSED[why], draft=words,
                                  draft_subject=subject)
     try:
-        mentioned = board.mentions_in(words, *board_names())
+        mentioned = mentioned_ids(board.mentions_in(words, *board_names()))
         key = board.start(section, session["member"], subject, words, board_today().isoformat(),
                           mentioned)
     except board.Unreadable:
@@ -10535,7 +10557,7 @@ def board_topic(key):
     if why:
         return board_topic_now(key, refused=BOARD_REFUSED[why], draft=words, draft_to=to)
     try:
-        mentioned = board.mentions_in(words, *board_names())
+        mentioned = mentioned_ids(board.mentions_in(words, *board_names()))
         n = board.add(key, session["member"], words, board_today().isoformat(), to=to,
                       mentions=mentioned,
                       charter_path=CHARTER_CHANGES, weeks=weeks, today=board_today())

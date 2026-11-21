@@ -950,3 +950,46 @@ def set_name(member_id, name, now=None):
         _write_json(_folder(member_id) / RECORD,
                     {**record, "id": member_id, "name": name, "names": history})
     return name
+
+
+def first_name_of(member_id):
+    """The first commons name a member was shown by: their name at joining, or their id where
+    they joined before ids. What an agent reads where its switch commons_names is off, so a
+    later name never moves its reading (names-ids, stage 5)."""
+    try:
+        record = load_member(member_id)
+    except MemberError:
+        return member_id
+    if not isinstance(record, dict):
+        return member_id
+    if record.get("role") == "keeper":
+        return THE_FOUNDER
+    history = record.get("names") if isinstance(record.get("names"), list) else []
+    for one in history:
+        if isinstance(one, dict) and isinstance(one.get("name"), str) and one["name"]:
+            return one["name"]
+    return name_of(member_id)
+
+
+def names_written(member_id):
+    """Every name a member's own words may have been written under: their id and each commons
+    name they have held, newest first. For reading back what was written, never for showing."""
+    try:
+        record = load_member(member_id)
+    except MemberError:
+        return [member_id]
+    history = (record or {}).get("names") if isinstance((record or {}).get("names"), list) else []
+    said = [one["name"] for one in reversed(history)
+            if isinstance(one, dict) and isinstance(one.get("name"), str)]
+    return [*said, member_id]
+
+
+def id_of_first(name):
+    """The id of the member whose first commons name this is, or None (first_name_of)."""
+    if not isinstance(name, str):
+        return None
+    said = " ".join(name.split()).lower()
+    for one in list_members():
+        if not is_keeper_id(one) and first_name_of(one) == said:
+            return one
+    return None

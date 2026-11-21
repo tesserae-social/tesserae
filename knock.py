@@ -176,6 +176,12 @@ def name_of(who):
     return FOUNDER_NAME if kind_of(who) == "keeper" else who
 
 
+def stores_name(who):
+    """A name as a room's own record may keep it: "founder" for the keeper (rooms.store_name),
+    never the sign-in name; anyone else's as it is."""
+    return "founder" if kind_of(who) == "keeper" else who
+
+
 def keeper():
     """The keeper's sign-in name, or None where there is no keeper."""
     for name in members.list_members():
@@ -614,7 +620,10 @@ def make_room(by, to, at, anyway=False):
     agent_side = to if kind_of(to) == "agent" else by
     other = by if agent_side == to else to
     try:
-        home = found_room.found_later(agent_side, other, f"{by}--{to}", at)
+        # the knock the room came from, the keeper named "founder" as the stores name them,
+        # never by the sign-in name (founder-room, 19 November 2026)
+        home = found_room.found_later(agent_side, other, "%s--%s" % (
+            stores_name(by), stores_name(to)), at)
     except (found_room.RoomError, MemberError):
         return None
     record = dict(held, set_up_at=at, room_made_at=at, room=home.name)

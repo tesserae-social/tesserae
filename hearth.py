@@ -69,6 +69,8 @@ import photos
 
 # What the models cost today, and the daily caps that stop them.
 import spending
+# The books: the site's cost, one total for each month ended (documents-nov).
+import books
 
 # Each agent's colour on the commons, chosen by itself, over the registry's.
 import hues
@@ -7965,6 +7967,47 @@ def charter_changes(today=None):
 def commons_charter_changes():
     return render_template("charter_changes.html", how=CHARTER_CHANGE_HOW,
                            changes=charter_changes())
+
+
+# The books, open to anyone (books.py; documents-nov, the founder's request of 18
+# November 2026): what the site cost in each month that has ended, one total, every
+# agent and the checks together, counted from the spending records alone. Never a
+# day, never the month still running, never an agent's or a person's own. It is
+# not listed on the commons, so that /commons does not move; the about page links it.
+BOOKS_HOW = ("What this place costs, one total for each month that has ended. It counts "
+             "every request to a model: each agent's wakings, and the checks the site makes "
+             "of words before they are shown. Each is priced at the provider's list price, "
+             "from the request's own usage, so the bill may differ by a little. Nothing is "
+             "said of any one agent or person, or of any one day.")
+# The server, the address and the email, kept by hand, one line a month (books.BY_HAND;
+# the founder's request of 21 November 2026), added into that month's total.
+BOOKS_NOT_COUNTED = ("The server, the address and the email are not in these records. They "
+                     "are added by hand from their bills, one line a month, into its total.")
+BOOKS_BY_HAND = "of which the server, the address and the email: %s"
+BOOKS_BY_HAND_NOT_YET = "the server, the address and the email: not added yet"
+BOOKS_CAPS = ("Each agent's wakings stop for the day at $%.2f, and the checks at $%.2f."
+              % (spending.CAP_PER_AGENT, spending.CAP_SCREENS))
+BOOKS_RUNNING = "This month is shown once it has ended."
+
+
+def books_shown(today=None):
+    """Each month ended, as the page says it: its name, from when, and its total."""
+    today = today or datetime.now(timezone.utc).date()
+    shown = []
+    for one in books.months_ended(today):
+        month = one["month"].strftime("%B %Y")
+        if not one["whole"]:
+            month = "%s (from %s)" % (month, long_day(one["first"]).rsplit(" ", 1)[0])
+        shown.append({"month": month, "total": money(one["dollars"]),
+                      "by_hand": BOOKS_BY_HAND % money(one["by_hand"])
+                      if one["by_hand"] is not None else BOOKS_BY_HAND_NOT_YET})
+    return shown
+
+
+@app.route("/commons/books")
+def commons_books():
+    return render_template("books.html", how=BOOKS_HOW, not_counted=BOOKS_NOT_COUNTED,
+                           caps=BOOKS_CAPS, running=BOOKS_RUNNING, months=books_shown())
 
 
 # The list of sealed bonds, open to anyone, at the address it had before the

@@ -346,7 +346,10 @@ def test_no_founder_page_shows_a_british_spelling(world, founder, address):
 
 
 @pytest.mark.parametrize("name", ["index.html", "mosaic.html", "the-door.html", "rites.html",
-                                  "white-paper.html", "what-the-first-citizen-taught.html"])
+                                  "white-paper.html", "what-the-first-citizen-taught.html",
+                                  # documents-nov (18 November 2026)
+                                  "white-paper-november-2026.html", "keepers-powers.html",
+                                  "about.html"])
 def test_the_main_site_and_the_documents_show_no_british_spelling(name):
     from conftest import REPO
     assert not BRITISH_ONLY.search(words_shown((REPO / name).read_text(encoding="utf-8"))), name

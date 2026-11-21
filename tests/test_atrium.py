@@ -1820,10 +1820,13 @@ def test_the_builder_writes_no_foot(atrium, data_dir, monkeypatch):
 
 
 def test_the_sections_stand_in_the_order_they_are_read():
+    # Who is here is read by its section: since frame-fix (18 November 2026) the mirror bakes
+    # no one into it, and the page's script asks the hearth for it as it loads, so the
+    # committed page holds the section and its markers, and no heading inside them.
     said = PAGE.read_text(encoding="utf-8").split("<script>")[0]
     stops = ["<h1>Tesserae</h1>", '<nav class="menu"', "<details>",
              "<summary>What is Tesserae?</summary>", "<p>" + OPENING_SENTENCE, "</details>",
-             '<p class="reading">', "<h2>who is here</h2>", '<p class="calendar">',
+             '<p class="reading">', '<section class="who">', '<p class="calendar">',
              '<ul class="mosaic"', '<p class="rest">']
     at = [said.index(stop) for stop in stops]
     assert at == sorted(at)

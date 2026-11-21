@@ -451,7 +451,7 @@ def test_nothing_is_logged_of_the_name_or_the_words(people, visitor, caplog):
 # ---- a confirmed email address, as at /login (the founder's request of 15 November 2026)
 
 def test_the_field_says_what_login_s_says(visitor):
-    assert '<label for="pseudonym">commons name or email address</label>' in page(
+    assert '<label for="pseudonym">email address or sign-in name</label>' in page(
         visitor.get("/recover"))
 
 

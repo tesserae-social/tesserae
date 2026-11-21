@@ -4067,6 +4067,7 @@ def account_page(**told):
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
                            rest_said=rest_said(name) if name else None,
                            email=email_shown(name) if name else None,
+                           sign_in=sign_in_shown(name) if name else None,
                            emails=emails_shown(name) if name else None,
                            inviting=inviting_shown(name) if name else None,
                            introduction=introduction_shown(name) if name else None,
@@ -4251,6 +4252,48 @@ def moment_kept(stamp):
     return long_day(on_the_clock(when))
 
 
+# What signs a member in (names-ids, stage 3; the founder's request of 20 November 2026,
+# choice 1): their confirmed email address, or a private sign-in name of their own, shown to
+# them alone, here. With neither set, a member who joined before ids signs in by their id.
+SIGN_IN_SAVED = "Kept. From now on, sign in with {said}."
+SIGN_IN_NOT_CONFIRMED = ("Only an email address you have confirmed can sign you in. Confirm it "
+                         "first, above.")
+
+
+def sign_in_shown(name):
+    said = members.sign_in_of(name)
+    return {"said": said, "by_email": bool(said and "@" in said)}
+
+
+@app.route("/account/sign-in", methods=["POST"])
+@member_required
+def account_sign_in():
+    name = session.get("member")
+    now = datetime.now(timezone.utc)
+    counted = tries_counted(name, now)
+    if locked_out(counted, now):
+        return account_page(sign_in_error=NOT_THE_PASSWORD)
+    if member_opens(name, request.form.get("sign_in_password", "")) is None:
+        note_miss(counted, now)
+        return account_page(sign_in_error=NOT_THE_PASSWORD)
+    forget_misses(counted[0])
+    if request.form.get("by") == "email":
+        held = members.email_of(name)
+        if not held or not held.get("confirmed_at"):
+            return account_page(sign_in_error=SIGN_IN_NOT_CONFIRMED)
+        wanted = held["address"]
+    else:
+        wanted = request.form.get("sign_in", "")
+        if "@" in wanted:
+            return account_page(sign_in_error=SIGN_IN_NOT_CONFIRMED)
+    try:
+        said = members.set_sign_in(name, wanted)
+    except MemberError as reason:
+        return account_page(sign_in_error=str(reason).capitalize() + ".")
+    return account_page(sign_in_saved=SIGN_IN_SAVED.format(
+        said="your email address" if "@" in said else said))
+
+
 @app.route("/account/email", methods=["POST"])
 @member_required
 def account_email():
@@ -4315,6 +4358,12 @@ def confirm_email(token):
         return render_template_string(CONFIRM_PAGE, note=LINK_NOT_OPEN), 410
     # claimed now: anyone else's link to confirm the same address stops working
     tokens.drop("confirm", held.get("name"), address=held.get("address"))
+    # one who signs in by email signs in by the address confirmed now (names-ids, stage 3)
+    if "@" in (members.sign_in_of(held.get("name")) or ""):
+        try:
+            members.set_sign_in(held.get("name"), held.get("address"))
+        except MemberError:
+            pass
     return render_template_string(CONFIRM_PAGE, note=EMAIL_CONFIRMED)
 
 
@@ -5283,9 +5332,11 @@ def whose_asked(given):
     given = given.strip().lower()
     if not given or len(given) > members.EMAIL_LONGEST:
         return None
-    if "@" in given:
-        return members.member_by_email(given)
-    return given if member_record(given) else None
+    # by the index of sign-ins first, as a login is (names-ids, stage 3)
+    found = members.id_of_sign_in(given)
+    if found or "@" in given:
+        return found or members.member_by_email(given)
+    return None
 
 
 def confirmed_address(name):
@@ -5388,11 +5439,11 @@ FORGOT_PAGE = """{% extends "base.html" %}
 <section>
   {% if said %}<p>{{ said }}</p>
   {% else %}
-  <p>Give your commons name or your email address. If you have added an email address on
+  <p>Give your email address or your sign-in name. If you have added an email address on
   your account page, a link to choose a new password is sent to it.</p>
   <form method="post" class="field">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="given">your commons name or email address</label>
+    <label for="given">your email address or sign-in name</label>
     <input type="text" id="given" name="given" autocomplete="username"
            autocapitalize="none" spellcheck="false" maxlength="254" autofocus>
     <button type="submit">Send me a link</button>

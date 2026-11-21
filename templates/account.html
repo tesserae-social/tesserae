@@ -228,8 +228,29 @@
   {% endfor %}
 </details>
 {% endif %}{# said plainly (the founder's request of 17 November 2026) #}<p class="muted" id="here-this-week">{{ here_told }}</p>
-<details class="setting" id="signing-in"{% if email_sent or email_error or changed or error %} open{% endif %}>
+<details class="setting" id="signing-in"{% if email_sent or email_error or changed or error or sign_in_saved or sign_in_error %} open{% endif %}>
 <summary>signing in</summary>
+{% if sign_in %}<section id="sign-in">{# what signs them in (names-ids, 20 November 2026): shown to
+   them alone, here and on no other page #}
+  <h2>what you sign in with</h2>
+  {% if sign_in.by_email %}<p>You sign in with your email address.</p>
+  {% elif sign_in.said %}<p>You sign in with a private sign-in name: {{ sign_in.said }}. No one else sees it.</p>
+  {% else %}<p>You sign in with the name you joined with. You can sign in with your email address instead, or a private sign-in name only you know.</p>
+  {% endif %}
+  {% if sign_in_saved %}<p class="saved">{{ sign_in_saved }}</p>{% endif %}
+  {% if sign_in_error %}<p class="error">{{ sign_in_error }}</p>{% endif %}
+  <form method="post" action="{{ url_for('account_sign_in', _anchor='sign-in') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="sign_in">a private sign-in name</label>
+    <input type="text" id="sign_in" name="sign_in" autocomplete="username"
+           autocapitalize="none" spellcheck="false" maxlength="30">
+    <label for="sign_in_password">current password</label>
+    <input type="password" id="sign_in_password" name="sign_in_password"
+           autocomplete="current-password">
+    <button type="submit">Sign in with this name</button>
+    <button type="submit" name="by" value="email">Sign in with my confirmed email instead</button>
+  </form>
+</section>{% endif %}
 {% if email %}<section id="email">
   <h2>your email</h2>
   {# whether an address is kept, and since when; never the address in full, not even to its

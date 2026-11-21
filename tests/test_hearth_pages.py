@@ -698,7 +698,7 @@ def test_the_login_page_is_as_it_was(visitor):
     assert "<h1>log in</h1>" in said
     # the changes since: the box takes a commons name or a confirmed address, and the twelve words
     # are no longer offered here, the forgotten password the only way named (9 November)
-    for kept in ('<label for="pseudonym">commons name or email address</label>', '<label for="password">password</label>',
+    for kept in ('<label for="pseudonym">email address or sign-in name</label>', '<label for="password">password</label>',
                  '<button type="submit">Log in</button>',
                  'Forgotten your password? <a href="/forgot">We can email you a link.</a>'):
         assert kept in said, kept

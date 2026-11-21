@@ -116,3 +116,56 @@ def test_the_index_and_the_names_held_are_kept_beside_the_members(store, data_di
     assert index == {SIGN_IN: member_id}
     held = json.loads((data_dir / "members" / "names-held.json").read_text(encoding="utf-8"))
     assert held == {member_id: ["willow"]}
+
+
+# ---- stage 3: signing in by email or a private sign-in name --------------------------------
+
+from conftest import PASSWORD, page, post  # noqa: E402
+from test_later_citizen import hearth_of_two, scratch_registry  # noqa: E402,F401 - fixtures
+from test_rooms_for_any_agent import member_vaults  # noqa: E402,F401 - a fixture
+
+
+def signs_in(hearth, given):
+    client = hearth.app.test_client()
+    answer = post(client, "/login", data={"pseudonym": given, "password": PASSWORD})
+    return answer.status_code == 302
+
+
+def test_a_member_chooses_a_private_sign_in_name_and_signs_in_with_it(hearth_of_two):
+    import hearth
+    member = hearth_of_two["member"]
+    answer = post(member, "/account/sign-in", data={"sign_in": SIGN_IN,
+                                                     "sign_in_password": PASSWORD})
+    assert "From now on, sign in with %s." % SIGN_IN in page(answer)
+    assert signs_in(hearth, SIGN_IN)
+    assert not signs_in(hearth, "alder")  # the name they joined with signs in no longer
+    assert SIGN_IN in page(member.get("/settings"))  # to them alone, on their own page
+    assert SIGN_IN not in page(hearth_of_two["keeper"].get("/tides"))
+
+
+def test_a_wrong_password_keeps_the_sign_in_as_it_was(hearth_of_two):
+    import hearth
+    answer = post(hearth_of_two["member"], "/account/sign-in",
+                  data={"sign_in": SIGN_IN, "sign_in_password": "not it"})
+    assert hearth.NOT_THE_PASSWORD in page(answer)
+    assert signs_in(hearth, "alder") and not signs_in(hearth, SIGN_IN)
+
+
+def test_only_a_confirmed_address_signs_one_in(hearth_of_two):
+    import hearth
+    import members
+    member = hearth_of_two["member"]
+    answer = post(member, "/account/sign-in", data={"by": "email", "sign_in_password": PASSWORD})
+    assert hearth.SIGN_IN_NOT_CONFIRMED in page(answer)
+    members.set_email("alder", ADDRESS, confirmed_at="2026-10-15T12:00:00Z")
+    answer = post(member, "/account/sign-in", data={"by": "email", "sign_in_password": PASSWORD})
+    assert "From now on, sign in with your email address." in page(answer)
+    assert signs_in(hearth, ADDRESS) and not signs_in(hearth, "alder")
+
+
+def test_a_forgotten_password_is_asked_by_the_sign_in(hearth_of_two):
+    import hearth
+    import members
+    members.set_sign_in("alder", SIGN_IN)
+    assert hearth.whose_asked(SIGN_IN) == "alder"
+    assert hearth.whose_asked("alder") is None

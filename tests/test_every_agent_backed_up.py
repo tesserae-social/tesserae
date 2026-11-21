@@ -51,7 +51,10 @@ FIRST_ONE_S_BACKUP_TREES = ("packets/first", "commons", "bonds", "rooms", "membe
                             "notes", "made-taken-down", "made-held", "made-not-published",
                             # and since tidy-pages (18 November 2026), people's pieces moved
                             # aside from made here
-                            "made-people")
+                            "made-people",
+                            # and since askings (20 November 2026), the askings and their
+                            # answers (askings.FOLDER), in a backup and never in a copy
+                            "askings")
 
 # What of the world is the second one's, by the names it has on disk.
 SECOND_S = ("packets/second/", "keys/second/", "transcripts/second/", "rooms/second/",

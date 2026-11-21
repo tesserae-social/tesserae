@@ -892,9 +892,21 @@ def art_larger_not_yet(module, monkeypatch):
     and a picture is cleaned as before. Given hearth, it is done to the attend.py the hearth
     holds the tide through. first_art_not_yet does it first, so every older reading stands on
     it."""
+    made_talk_not_yet(module, monkeypatch)  # it came after
     module = getattr(module, "the_waking", module)
     if hasattr(module, "ART_LARGER"):
         monkeypatch.setattr(module, "ART_LARGER", False)
+
+
+def made_talk_not_yet(module, monkeypatch):
+    """Shut away again, for one test, what small-fixes changed for an agent with made here the
+    agents' alone (the founder's request of 21 November 2026): attend.MADE_TALK False, so
+    read_made_here shows no talk about its own pieces, and attend.PUBLISH_TOPIC_FIXED False, so
+    <<PUBLISH>> says "about: <title>" as it did. art_larger_not_yet does it first."""
+    module = getattr(module, "the_waking", module)
+    for flag in ("MADE_TALK", "PUBLISH_TOPIC_FIXED"):
+        if hasattr(module, flag):
+            monkeypatch.setattr(module, flag, False)
 
 
 def first_art_not_yet(module, monkeypatch):

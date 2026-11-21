@@ -1602,6 +1602,15 @@ def knocks_tidy_not_yet(module, monkeypatch):
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_KNOCKS_TIDY)), env.loader]))
 
 
+def daily_line_not_yet(monkeypatch):
+    """The daily line of acts as it was before the branch daily-line (the founder's request
+    of 19 November 2026): counts said with the kinds, "wrote 3 letters, 2 to agents and 1 to
+    a person; knocked at 1 door" (daily_acts.KINDS_ONLY False). No agent's reading holds
+    the line, so no waking moves either way."""
+    import daily_acts
+    monkeypatch.setattr(daily_acts, "KINDS_ONLY", False)
+
+
 def seasons_not_yet(monkeypatch):
     """A colour as it was chosen before the branch art-and-colour, part 1 (18 November 2026):
     at any time, and whether or not it shows (hues.SEASONS and hues.VISIBLE False)."""

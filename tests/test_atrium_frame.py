@@ -180,10 +180,19 @@ def a_long_record():
     return atrium.tiles_from(atrium.parse_events("\n".join(lines)), [])
 
 
+# Who is here as the hearth's page fills it: two agents and two people. Since frame-fix (18
+# November 2026) the committed index.html has none baked in (the script asks the hearth as
+# the page loads), so the measured front page bakes this in itself, and its column is as tall
+# as a visitor sees it, whatever the last record run left in the repository.
+HERE_SHOWN = ([("first", "the first one", "#D85A30"), ("second", "the second one", "#178BA6")],
+              [("hazel", "hazel", "#337548"), ("rowan", "rowan", "#5F5E5A")])
+
+
 def baked(tiles):
     """Both pages, baked from one record as the builder bakes them, and written nowhere."""
     front = atrium.slots(tiles, TODAY, atrium.FRONT_SPAN_DAYS)
     page = (REPO / "index.html").read_text(encoding="utf-8").replace("\r\n", "\n")
+    page = atrium.splice(page, "who", atrium.here_block(HERE_SHOWN), "\n")
     page = atrium.splice(page, "mosaic", atrium.frame_block(front), "\n")
     page = atrium.splice(page, "reading", atrium.reading_block(front), "\n")
     whole = atrium.whole_page(page, "\n")

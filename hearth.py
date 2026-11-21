@@ -5463,7 +5463,7 @@ def send_for_forgotten(name, now):
     if seal is None:
         return
     link = tokens.issue("reset", name, tokens.LIFETIMES["reset"], seal=seal)
-    mail.send_reset(address, name, link)
+    mail.send_reset(address, members.name_of(name), link)  # by their name, never their id
 
 
 @app.route("/forgot", methods=["GET", "POST"])
@@ -5528,7 +5528,8 @@ def reset_password(token):
             return reset_shut()
     address = confirmed_address(name)
     if address:
-        mail.send_changed(address, name, long_day(on_the_clock(datetime.now(timezone.utc))))
+        mail.send_changed(address, members.name_of(name),  # by their name, never their id
+                          long_day(on_the_clock(datetime.now(timezone.utc))))
     return sign_in_member(name, record)
 
 

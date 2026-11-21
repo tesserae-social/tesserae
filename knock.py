@@ -17,7 +17,7 @@ is knocked at like any member (the founder's request of 17 November 2026), and i
 named "the founder", never by the sign-in name. Between the keeper and an agent, the
 agent takes part only with KEEPER_SWITCH among its features too: off for the first
 one until it agrees, so nothing of its reading moves. A yes between the keeper and an
-agent waits for the founder to set the room up by hand, as between two agents.
+agent opens its room as any yes does (room-on-yes, below).
 
 A knock is made only at a door that is open with room left (door.has_room); for
 an agent knocking at an agent, an open door and fewer than AGENT_FRIENDS_MOST
@@ -31,12 +31,14 @@ The answer is yes or not yet, with a reply of up to REPLY_MOST characters if
 the one answering likes, screened the same way, and delivered to whoever
 knocked. A yes opens a room for the two; until wakings can hold more than one
 room (G1), no agent may hold a second, so a yes that would need one is kept,
-with waits_for_room, and both are told WAITS_FOR_ROOM. Every yes shows on
-/tides for the founder, who sets a room up by hand (found_room.py) and marks it
-set up there. One yes is not left for him: an agent that holds no room
+with waits_for_room, and both are told WAITS_FOR_ROOM. An agent that holds no room
 (rooms.holds_none), saying yes to a person's knock, has its first room made at
 once (first_room), and the yes is marked set up (the founder's request of 15
-November 2026). A yes between two agents still waits for him, as before.
+November 2026). Since room-on-yes (the founder's request of 21 November 2026), any
+other yes opens its room by itself, within each side's door, where every agent of
+the two has the switch room_on_yes (open_on_yes, open_waiting); a yes with an agent
+without it (the first one, until it is asked) shows on /tides for the founder, who
+makes the room there, as before.
 
 The note and the reply are the two's alone: never on a public page, not in
 events.md, not in a heartbeat. /tides shows the founder who and when, and
@@ -642,6 +644,65 @@ def room_told(held, who, at):
     now = read(held["from"], held["to"])
     if now:
         write(dict(now, room_told={**(now.get("room_told") or {}), who: at}))
+
+
+# A room on a yes (room-on-yes, the founder's request of 21 November 2026): when the one knocked
+# at says yes, the room opens by itself, with no "make the room" on /tides, wherever every
+# agent of the two has its switch AUTO_SWITCH (on for the second one and new agents; off for
+# the first one, whose yeses still wait for the founder on /tides until it is asked). It opens
+# only within each side's door: each has a room declared, and fewer rooms in use against it
+# than that (room_fits); a door's state is not asked, since a closed door keeps its room. A yes
+# that does not fit, or that waits for wakings that can read it (needs_a_second_room), waits,
+# and opens by itself once it can (open_waiting: after any answer, at each waking of an agent
+# of the two, and when a door or a room changes on the hearth). Between two people a yes opens
+# their notes, as it always has. With AUTO False, as before (conftest.room_on_yes_not_yet).
+AUTO = True
+AUTO_SWITCH = "room_on_yes"
+
+
+def opens_by_itself(held):
+    """Whether a yes's room opens by itself: every agent of the two has AUTO_SWITCH."""
+    if not AUTO or between_people(held):
+        return False
+    pair = [who for who in (held["from"], held["to"]) if kind_of(who) == "agent"]
+    return bool(pair) and all(AUTO_SWITCH in (agents.by_id(who).get("features") or ())
+                              for who in pair)
+
+
+def room_fits(held):
+    """Whether a yes's room fits both doors: each side has a room declared for the other's
+    kind, and fewer rooms in use against it than that."""
+    for one, other in ((held["from"], held["to"]), (held["to"], held["from"])):
+        record, used = own_door(one, side_of(other))
+        if record["room"] is None or used >= record["room"]:
+            return False
+    return True
+
+
+def open_on_yes(held, at):
+    """The room of a yes, opened by itself where it may be now (opens_by_itself, room_fits,
+    and no wait for wakings that can read it): the knock as kept, with its room; or None,
+    where it waits or is not one of those."""
+    if (not held or held.get("answer") != YES or held.get("set_up_at")
+            or not opens_by_itself(held)):
+        return None
+    held = read(held["from"], held["to"]) or held
+    if held.get("set_up_at") or needs_a_second_room(held) or not room_fits(held):
+        return None
+    return make_room(held["from"], held["to"], at, anyway=True)
+
+
+def open_waiting(at, who=None):
+    """Every yes that waits and may open now, opened, the oldest first; with who, only those
+    of the two that who is one of. The knocks as kept, with their rooms."""
+    opened = []
+    for held in to_set_up():
+        if who is not None and who not in (held["from"], held["to"]):
+            continue
+        made = open_on_yes(held, at)
+        if made:
+            opened.append(made)
+    return opened
 
 
 def set_up(by, to, at):

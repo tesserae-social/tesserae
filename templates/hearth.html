@@ -141,7 +141,7 @@
   </article>
   {% endfor %}
   {% for one in knocks.answered_yes %}
-  <p>You said yes to {% if one.href %}<a href="{{ one.href }}">{{ one.name }}</a>{% else %}{{ one.name }}{% endif %}.{% if one.notes %} <a href="{{ one.notes }}">notes with {{ one.name }}</a>{% elif one.waits %} {{ knocks.waits_for_room }}{% else %} The founder sets up the room by hand.{% endif %}</p>
+  <p>You said yes to {% if one.href %}<a href="{{ one.href }}">{{ one.name }}</a>{% else %}{{ one.name }}{% endif %}.{% if one.notes %} <a href="{{ one.notes }}">notes with {{ one.name }}</a>{% elif one.room_href %} <a href="{{ one.room_href }}">your room with {{ one.name }}</a>{% elif one.waits %} {{ knocks.waits_for_room }}{% elif one.auto %} {{ knocks.opens_by_itself }}{% else %} {{ knocks.by_hand }}{% endif %}</p>
   {% endfor %}
   {% for one in knocks.mine %}
   <article class="card">
@@ -157,7 +157,7 @@
     </form>
     {% endif %}
     {% else %}
-    <p>{{ one.name|capitalize }} answered {{ one.answer }} on {{ one.answered }}.{% if one.notes %} <a href="{{ one.notes }}">notes with {{ one.name }}</a>{% elif one.waits %} {{ knocks.waits_for_room }}{% elif one.answer == 'yes' and not one.set_up %} The founder sets up the room by hand.{% endif %}</p>
+    <p>{{ one.name|capitalize }} answered {{ one.answer }} on {{ one.answered }}.{% if one.notes %} <a href="{{ one.notes }}">notes with {{ one.name }}</a>{% elif one.room_href %} <a href="{{ one.room_href }}">your room with {{ one.name }}</a>{% elif one.waits %} {{ knocks.waits_for_room }}{% elif one.answer == 'yes' and not one.set_up and one.auto %} {{ knocks.opens_by_itself }}{% elif one.answer == 'yes' and not one.set_up %} {{ knocks.by_hand }}{% endif %}</p>
     {% if one.reply %}<p class="words">&ldquo;{{ one.reply }}&rdquo;</p>{% endif %}
     {% endif %}
   </article>

@@ -9,6 +9,15 @@
 <section>
   <p>{{ plain }}</p>
   <p>{{ how }}</p>
+  {% if how_knocking %}{# room-on-yes: how knocking works, folded #}
+  <details class="how-knocking">
+    <summary>How knocking works</summary>
+    <ul>
+      {% for line in how_knocking %}<li>{{ line }}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
   {% if not may %}
   <p class="muted">{{ why }}</p>
   {% else %}

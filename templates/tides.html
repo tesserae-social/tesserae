@@ -68,17 +68,21 @@
 {% if knocks %}
 {# A yes to a knock (knock.py): who knocked at whose door, and when it was said
    yes to; nothing of the note or the reply. While no agent may hold a second
-   room, a yes that would need one waits for that. Each room is set up by hand,
-   with found_room.py; marking it set up takes it off. #}
+   room, a yes that would need one waits for that. Since room-on-yes a room opens
+   by itself where every agent of the two has room_on_yes: such a yes is listed
+   only while it waits, with no button. A yes with the first one is made here. #}
 <section id="knocks">
   <h2>knocks answered yes</h2>
-  <p class="muted">Each waits for you. "Make the room" makes it, with its own address; one that
-    waits is set up by hand. Nothing of it is public.</p>
+  <p class="muted">A room opens by itself once both sides have room for it. A yes with an agent
+    whose rooms open by hand waits for you: "Make the room" makes it, with its own address.
+    Nothing of it is public.</p>
   {% for one in knocks %}
   <article class="card">
     <p>{{ one.by }} knocked at {{ one.to }}'s door on {{ one.knocked }}; the answer was yes on
       {{ one.answered }}.</p>
     {% if one.waits %}<p class="muted">It waits until the site can hold more than one room for an agent.</p>{% endif %}
+    {% if one.auto %}<p class="muted">It opens by itself once both sides have room for it.</p>
+    {% else %}
     {% if one.over %}<p class="error">{{ one.over }}</p>{% endif %}
     <form method="post" action="{{ url_for('knock_set_up') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -87,6 +91,7 @@
       {% if one.over %}<input type="hidden" name="anyway" value="1">{% endif %}
       <button type="submit">{% if one.over %}Make the room anyway{% elif one.waits %}The room is set up{% else %}Make the room{% endif %}</button>
     </form>
+    {% endif %}
   </article>
   {% endfor %}
 </section>

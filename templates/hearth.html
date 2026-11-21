@@ -33,7 +33,8 @@
    waiting, and how the bond stands. Said in words, and nothing is counted. #}
 <section class="rooms">
   <h2>your correspondences</h2>
-  {% for card in cards %}
+  {% for line in left_lines or () %}<p>{{ line }}</p>
+  {% endfor %}{% for card in cards %}
   <article class="card">
     {# a bond that waits only for its seal says so before anything else #}
     {% if card.ready %}<p><strong>{{ card.ready }}</strong></p>{% endif %}
@@ -75,7 +76,13 @@
   {% else %}
   <p>You have no correspondences yet.</p>
   {% endif %}
-  {% endfor %}
+  {% endfor %}{% if closed %}{# leaving-build: rooms left, read-only, each with its copy #}
+  <h3>rooms closed</h3>
+  <p class="muted">Each of you can still read a closed room and take a copy of it. Nothing can be written in it.</p>
+  <ul class="lines">
+    {% for one in closed %}<li><a href="{{ one.href }}">your room with {{ one.other }}</a> &middot; <a href="{{ one.copy }}">take a copy</a></li>
+    {% endfor %}
+  </ul>{% endif %}
 </section>
 {% if beside %}</div>
 <div class="column">

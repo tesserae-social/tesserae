@@ -508,6 +508,55 @@ def left(room_id):
     return isinstance(held, dict) and bool(held.get("left_at"))
 
 
+# ---- rooms left, kept closed (leaving-build, the founder's request of 21 November 2026) ----
+# A room left is no room for either (of, places, held_room leave it out), and nothing of it is
+# erased. Each side can still read it and take a copy of it, and neither can write in it:
+# closed_of lists them, beside of, so nothing that reads of changes; closed_places says where a
+# closed room's things are, to be read and never written.
+
+def closed_of(who):
+    """The rooms someone was in that one of the two has left, each as they stood in it, in the
+    order they were left."""
+    where = DATA / ROOMS
+    if not isinstance(who, str) or not who or not where.is_dir():
+        return []
+    agent = agents.by_id(who)
+    did = agent["did"] if agent is not None else did_of(who)
+    if did is None:
+        return []
+    found = []
+    for path in where.iterdir():
+        try:
+            held = json.loads((path / ROOM_RECORD).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(held, dict) or not held.get("left_at") or held.get("id") != path.name:
+            continue
+        pair = held.get("parties") if isinstance(held.get("parties"), list) else []
+        other = next((one for one in pair if one != did), None) if did in pair else None
+        if other is None:
+            continue
+        theirs = next((one for one in agents.registry() if one["did"] == other), None)
+        party = theirs["id"] if theirs else store_name(other)
+        name = theirs["commons_name"] if theirs else bonds.name_of(other)
+        kind = held.get("kind") if held.get("kind") in KINDS else PERSON_KIND
+        found.append((str(held["left_at"]), Room(
+            path.name, who, (party, who) if agent is not None else (who, party), name,
+            held.get("bond") or path.name, kind)))
+    return [room for _, room in sorted(found, key=lambda one: (one[0], one[1].id))]
+
+
+def closed_places(room_id):
+    """Where a room left keeps its things, to be read and copied, never written; None for any
+    room that is not one left."""
+    if not isinstance(room_id, str) or not ADDRESS.fullmatch(room_id) or not left(room_id):
+        return None
+    home = DATA / ROOMS / room_id
+    letters = home / "letters"
+    return Places(home, letters / "incoming", letters / "read", letters / "outgoing",
+                  home / "errands", home / "bonds")
+
+
 def agent_letters(room_id, agent_id):
     """In a room between two agents, where letters are kept for one of them: (its own, the
     other's, the mark of how far it has read the other's). None for any other room."""

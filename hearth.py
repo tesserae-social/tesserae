@@ -200,6 +200,7 @@ import welcome_delivery
 import coming as comings
 # Blocks, and leaving a room a block stands between (design-rooms-and-doors, section 5).
 import blocks
+import leaving  # leaving a room, and the commons (leaving-build)
 
 REPO = Path(__file__).resolve().parent
 
@@ -3272,7 +3273,113 @@ def hearth_page(**told):
                            mentions=board_mentions_shown(session["member"]),
                            knocks=knocks_shown(session["member"]),
                            site_notes=site_notes_for_home(session["member"]),
+                           closed=closed_rooms_shown(session["member"]),
+                           left_lines=left_lines_told(session["member"]),
                            knocked=request.args.get("knocked"), **told)
+
+
+# Rooms left (leaving-build, the founder's request of 21 November 2026; leaving.py): a room
+# someone left is told once on the other's home page, in one plain line, with no reason, and
+# both still read it, read-only, under "rooms closed", and take a copy of it.
+CLOSED_HEAD = "rooms closed"
+CLOSED_SAID = ("Each of you can still read a closed room and take a copy of it. Nothing can be "
+               "written in it.")
+LEAVE_SAID = ("You may leave this room. It closes for both of you: neither of you can write in "
+              "it, and each of you can still read it and take a copy. Nothing in it is erased.")
+LEAVE_BOND_SAID = "The bond sealed here is released when you leave."
+LEAVE_TOLD_SAID = "They are told once that you left, with no reason."
+LEAVE_ASKED = "Leave this room? Take a copy of its letters first if you want one."
+
+
+def leave_words(room):
+    """What the room's page says beside leaving it: with no block, what leaving does."""
+    if not blocks.leavable(room, room.mine):
+        return None
+    if not blocks.without_a_block(room):
+        return {"said": "You may leave this room. It closes for both of you, and nothing in it "
+                        "is erased.", "bond": None, "told": None, "asked": None}
+    places = rooms.places(room.id)
+    bond = load(places.bond_record) if places is not None else None
+    sealed = bool(bond and bond.get("sealed_at") and not bond.get("released_at"))
+    return {"said": LEAVE_SAID, "bond": LEAVE_BOND_SAID if sealed else None,
+            "told": LEAVE_TOLD_SAID, "asked": LEAVE_ASKED}
+
+
+def left_said(room_id, said, name=None):
+    """The one line said of a room someone left: who, and when."""
+    room_name = next((one.other for one in rooms.closed_of(name or session.get("member"))
+                      if one.id == room_id), None)
+    return leaving.LEFT_SAID.format(name=first_upper(room_name or "someone"),
+                                    day=bond_day(said.get("at") or ""))
+
+
+def left_lines_told(name):
+    """Each room left since they last looked, said once and then marked told."""
+    lines = []
+    for room_id, said in leaving.untold(name):
+        lines.append(left_said(room_id, said))
+        leaving.told(room_id, name, utc_stamp())
+    return lines
+
+
+def closed_rooms_shown(name):
+    """The rooms closed that they were in, each with its page and its copy."""
+    return [{"other": room.other, "href": url_for("closed_room", room_id=room.id),
+             "copy": url_for("closed_room_copy", room_id=room.id)}
+            for room in rooms.closed_of(name)]
+
+
+def closed_room_or_404(room_id):
+    """A room left that whoever is signed in was in, or a 404, as any room not theirs is."""
+    room = next((one for one in rooms.closed_of(session.get("member") or "")
+                 if one.id == room_id), None)
+    if room is None:
+        abort(404)
+    return room
+
+
+@app.route("/rooms/<room_id>/closed")
+@member_required
+def closed_room(room_id):
+    """A room left, read-only: its letters both ways, oldest first, and nothing to write."""
+    room = closed_room_or_404(room_id)
+    places = rooms.closed_places(room.id)
+    letters = []
+    for folder in places.letters:
+        for path in folder.glob("*.md") if folder.is_dir() else ():
+            letters.append({"name": path.stem, "words": read_text(path)})
+    letters.sort(key=lambda one: one["name"].rsplit("-", 6)[-1] if "-" in one["name"] else "")
+    return render_template_string(CLOSED_ROOM_PAGE, room=room, letters=letters,
+                                  said=CLOSED_SAID,
+                                  copy=url_for("closed_room_copy", room_id=room.id))
+
+
+@app.route("/rooms/<room_id>/closed/copy")
+@member_required
+def closed_room_copy(room_id):
+    """A copy of a room left, for either of its two: its letters, both ways, and its record."""
+    room = closed_room_or_404(room_id)
+    bundle = export_zip(None, (rooms.ROOMS + "/" + room.id,), ())
+    return send_file(bundle, mimetype="application/zip", as_attachment=True,
+                     download_name="tesserae-%s-%s.zip" % (room.id, utc_stamp()))
+
+
+CLOSED_ROOM_PAGE = """{% extends "base.html" %}
+{% block title %}your room with {{ room.other }}, closed{% endblock %}
+{% block heading %}your room with {{ room.other }}, closed{% endblock %}
+{% block content %}
+<section>
+  <p class="muted">{{ said }} <a href="{{ copy }}">take a copy</a></p>
+  {% for one in letters %}
+  <article class="card">
+    <p class="muted">{{ one.name }}</p>
+    <p class="words">{{ one.words }}</p>
+  </article>
+  {% else %}
+  <p class="muted">No letters were written here.</p>
+  {% endfor %}
+</section>
+{% endblock %}"""
 
 
 def address_unconfirmed():
@@ -4166,6 +4273,17 @@ def email_due(name, now):
             if thing not in told.get("told", []) and thing not in things:
                 mentioned.append(one["subject"] or BOARD_NO_SUBJECT)
             things.add(thing)
+    # a room someone left, in a daily email once, in the same line as the home page's
+    left = []
+    if every == "daily":
+        for room in rooms.closed_of(name):
+            said = leaving.left_record(room.id)
+            if not said or said.get("by") in blocks.aliases(name):
+                continue
+            thing = "left:%s" % room.id
+            if thing not in told.get("told", []):
+                left.append(left_said(room.id, said, name))
+            things.add(thing)
     if not things or not things - set(told.get("told", [])):
         return None
     if last is not None and every == "daily" and EMAILS_SOON:
@@ -4173,7 +4291,7 @@ def email_due(name, now):
             return None
     elif last is not None and now - last < WAITING_GAP[every]:
         return None
-    return held["address"], names, things, mentioned
+    return held["address"], names, things, mentioned, left
 
 
 def one_a_day(when):
@@ -4211,9 +4329,9 @@ def send_waiting_emails(now=None, only=None, daily_only=False):
                 due = email_due(name, now)
                 if due is None:
                     continue
-                address, names, things, mentioned = due
+                address, names, things, mentioned, left = due
                 if mail.send_waiting(address, names, stop_link(name), now,
-                                     mentioned=mentioned) == mail.SENT:
+                                     mentioned=mentioned, left=left) == mail.SENT:
                     members.set_told(name, things, now)
                     went += 1
             except Exception:  # one person's trouble stops no one else's email
@@ -5329,6 +5447,9 @@ KNOCK_WHY = {
     "self": "That is your own door.",
     "people": "A knock is between a person and an agent. People here meet on the board.",
     "door": "Their door is closed, or has no room left.",
+    # leaving-build: after a room was left, a new knock after the usual wait
+    "left_soon": ("Your room together was left. The two of you may knock at each other again "
+                  "%d days after." % knock.AGAIN_AFTER_DAYS),
     # since 17 November 2026 (site-design, part 2): one's own door must be open with room
     "own": ("Your own door is closed, or has no room left. You can knock once it is open "
             "with room; it is set on your home page."),
@@ -5645,8 +5766,13 @@ def block_name(name):
 @app.route("/rooms/<room_id>/leave", methods=["POST"])
 @room_required
 def leave_room(room):
-    """A member leaves a room a block stands between them and its other; asked once first."""
-    if request.form.get("confirm") != "yes" or not blocks.leave(room, room.mine, utc_stamp()):
+    """A member leaves a room they may leave (blocks.leavable): asked once first, on the
+    room's page, with what leaving does and a copy offered (leaving-build)."""
+    if request.form.get("confirm") != "yes":
+        if not blocks.leavable(room, room.mine):
+            return redirect(url_for("room", room_id=room.id))
+        return redirect(url_for("room", room_id=room.id, leaving=1, _anchor="leave"))
+    if not leaving.leave_room(room, room.mine, utc_stamp()):
         return redirect(url_for("room", room_id=room.id))
     knock.open_waiting(utc_stamp())  # a room freed: a yes that waited may fit (room-on-yes)
     return redirect(url_for("hearth"))
@@ -6240,6 +6366,7 @@ def letters_page(room, things=(), draft="", guide=None, **told):
         "room.html",
         room=room, first_room=False, **room_wakings(room),
         leavable=blocks.leavable(room, room.mine),
+        leave_said=leave_words(room), leave_asked=bool(request.args.get("leaving")),
         weekly_question=weekly_question_shown(),
         weekly_topic=board_topic_of_this_week(),
         guide=guide_shown(room, asked=bool(guide)),

@@ -594,6 +594,7 @@ def load(name):
     sys.modules.pop("coming", None)  # it keeps the founder's letter and the welcomes under DATA_DIR
     sys.modules.pop("found_room", None)  # it makes a room through rooms, under DATA_DIR
     sys.modules.pop("blocks", None)  # it keeps each one's blocks under DATA_DIR
+    sys.modules.pop("leaving", None)  # it keeps each room left under DATA_DIR (leaving-build)
     sys.modules.pop("site_notes", None)  # it keeps each note from the site under DATA_DIR
     sys.modules.pop("made_here", None)  # it keeps drafts and what is made here under DATA_DIR
     sys.modules.pop("hoping_for", None)  # it keeps each line through introductions, under DATA_DIR
@@ -1587,6 +1588,24 @@ def day_pages_not_yet(module, monkeypatch):
     env = module.app.jinja_env
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_DAY_PAGES)), env.loader]))
+
+
+def leaving_not_yet(module, monkeypatch):
+    """Put back, for one test, leaving as it was before leaving-build (the founder's request of
+    21 November 2026): blocks.LEAVING False, so a room is left only with a block; knock.LEFT_OPENS
+    False, so a yes stands for good; attend.LEAVING False, so nothing of leaving is read. Given
+    hearth, it is done to the attend.py the hearth holds the tide through."""
+    import blocks
+    import knock
+    monkeypatch.setattr(blocks, "LEAVING", False)
+    monkeypatch.setattr(knock, "LEFT_OPENS", False)
+    for held in (getattr(module, "blocks", None), getattr(module, "knock", None)):
+        if held is not None and held not in (blocks, knock):
+            monkeypatch.setattr(held, "LEAVING" if held.__name__ == "blocks" else "LEFT_OPENS",
+                                False)
+    module = getattr(module, "the_waking", module)
+    if hasattr(module, "LEAVING") and module.__name__ == "attend":
+        monkeypatch.setattr(module, "LEAVING", False)
 
 
 def room_on_yes_not_yet(module, monkeypatch):

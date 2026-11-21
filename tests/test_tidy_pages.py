@@ -341,7 +341,12 @@ def test_no_member_page_shows_a_british_spelling(world, address):
 def test_no_founder_page_shows_a_british_spelling(world, founder, address):
     said = words_shown(page(founder.get(address)))
     # an agent's or a person's own words are theirs, and are never respelled; these pages
-    # here show none with a British spelling
+    # here show none with a British spelling. A switch's id is code, as in a link, and keeps
+    # its spelling: /tides lists them for the founder to order askings by (colour_weeks,
+    # since 21 November 2026); each is shown by a name in American spelling beside it
+    import askings
+    for switch in askings.ASK_FIRST:
+        said = re.sub(r"\b%s\b" % re.escape(switch), " ", said)
     assert not BRITISH_ONLY.search(said), address
 
 

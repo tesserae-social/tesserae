@@ -327,8 +327,11 @@ def test_the_words_of_21_november(env):
     text = askings.asking_text("agents", "leaving")
     assert text.startswith("=== A QUESTION FOR YOU, FROM THE FOUNDER ===\n")
     assert "Your answer is private: only you and the founder see it." in text
-    assert askings.TOLD["yes"] == "You said yes to {name}. It is on now."
-    assert askings.told_line("agents", "leaving", "yes") == "You said yes to leaving. It is on now."
+    assert askings.TOLD["yes"] == ("You said yes to {name}. It is on now. To take it back, "
+                                   "write <<ASKING>> with the line: take back: {name}")
+    assert askings.told_line("agents", "leaving", "yes") == (
+        "You said yes to leaving. It is on now. To take it back, write <<ASKING>> with the "
+        "line: take back: leaving")
     assert askings.ASK_FIRST["leaving"]["adds"] == (
         "You may leave a room you share, with or without a block. A bond in it is released. "
         "Both of you can still read the room and take a copy, but no one can write in it. If "
@@ -338,8 +341,10 @@ def test_the_words_of_21_november(env):
     assert "once in each of those weeks" in askings.ASK_FIRST["solstice_names"]["adds"]
     color = askings.ASK_FIRST["colour_weeks"]
     assert color["adds"] == ("Your color on the commons could change only in two weeks a year, "
-                             "from 20 March and from 22 September, so others can know you by it.")
-    assert color["takes"] == "Changing your color at any waking."
+                             "from 20 March and from 22 September, so others can know you by "
+                             "it. A color must also show clearly on the pages.")
+    assert color["takes"] == ("Changing your color at any waking. Choosing a color too faint "
+                              "to show.")
 
 
 def test_the_colour_rule_alone_is_its_own_switch(env):

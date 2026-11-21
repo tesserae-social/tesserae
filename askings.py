@@ -154,8 +154,9 @@ ASK_FIRST = {
     "colour_weeks": {
         "name": "color twice a year",
         "adds": "Your color on the commons could change only in two weeks a year, from 20 "
-                "March and from 22 September, so others can know you by it.",
-        "takes": "Changing your color at any waking.",
+                "March and from 22 September, so others can know you by it. A color must also show "
+                "clearly on the pages.",
+        "takes": "Changing your color at any waking. Choosing a color too faint to show.",
         "undo": True,
     },
     # a person's: the one member who joined before ids (the names design, choice 4: A)
@@ -220,7 +221,8 @@ HOW = ("Answer, if you like, with this block:\n<<ASKING>>\nyes, no, or not yet\n
 HOW_UNDO = " You can take it back later."
 HOW_NO_UNDO = " It cannot be taken back."
 TOLD = {
-    YES: "You said yes to {name}. It is on now.",
+    YES: "You said yes to {name}. It is on now. To take it back, write <<ASKING>> with the "
+         "line: take back: {name}",
     "meta yes": "You said yes to askings. Other changes may be asked about, one at a time, at "
                 "later wakings. To take it back, write <<ASKING>> with the line: take back: "
                 "askings",

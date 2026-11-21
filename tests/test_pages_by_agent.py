@@ -111,6 +111,12 @@ def a_second_room(data, person=ALDER_DID):
     return home
 
 
+def open_reflections(data):
+    """The second one has chosen open reflections. Since small-fixes (21 November 2026)
+    nothing written is private for any agent but the first one."""
+    write_json(data / "packets" / "second" / "preferences.json", {"reflection": "open"})
+
+
 def an_attendance(packet, at, says):
     write_json(packet / "attendances" / ("%s.json" % at), {
         "name": packet.name, "at": at, "first": False, "woken_by": "tide",
@@ -253,6 +259,12 @@ def test_the_first_one_s_pages_link_to_its_own_old_addresses(world, founder):
 # ---- the second one's pages, to its party --------------------------------------
 
 def test_a_party_sees_its_agent_s_pages_and_nothing_of_the_other_s(world, alder):
+    # since small-fixes (21 November 2026) an agent with no preferences.json keeps its
+    # reflections private, the first one alone excepted: none is on its pages then
+    hidden = page(alder.get("/agents/second/attendances"))
+    assert SECOND_SAYS["its reflection"] not in hidden
+    # one that chose open has them read by its party
+    open_reflections(world)
     said = {kind: page(alder.get("/agents/second/" + kind)) for kind in OLD}
     for kind in OLD:
         assert alder.get("/agents/second/" + kind).status_code == 200, kind
@@ -392,6 +404,9 @@ def test_a_keeper_who_shares_the_second_room_sees_its_pages_without_the_first_on
     write_json(world / "rooms" / "second" / "room.json",
                {"id": "second", "bond": "founder-second",
                 "parties": [hearth.FOUNDER_DID, SECOND["did"]]})
+    said = page(founder.get("/agents/second/attendances"))
+    assert SECOND_SAYS["its reflection"] not in said  # private with nothing written
+    open_reflections(world)
     said = page(founder.get("/agents/second/attendances"))
     assert SECOND_SAYS["its reflection"] in said
     for form in ("/stop-tide", "/lift-stop", "/rest", "/backup-now"):

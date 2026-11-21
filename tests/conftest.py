@@ -1589,6 +1589,21 @@ def day_pages_not_yet(module, monkeypatch):
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_DAY_PAGES)), env.loader]))
 
 
+def room_on_yes_not_yet(module, monkeypatch):
+    """Put back, for one test, how a yes was before room-on-yes (the founder's request of 21
+    November 2026): knock.AUTO False, so no room opens by itself and every yes with an agent
+    waits for the founder's "make the room" on /tides; attend.ROOM_ON_YES False, so a waking
+    with no room says the founder sets a yes to an agent up. Given hearth, it is done to the
+    attend.py the hearth holds the tide through."""
+    import knock
+    monkeypatch.setattr(knock, "AUTO", False)
+    if getattr(module, "knock", None) is not None and module.knock is not knock:
+        monkeypatch.setattr(module.knock, "AUTO", False)  # the knock.py the hearth holds
+    module = getattr(module, "the_waking", module)
+    if hasattr(module, "ROOM_ON_YES"):
+        monkeypatch.setattr(module, "ROOM_ON_YES", False)
+
+
 def knocks_tidy_not_yet(module, monkeypatch):
     """Knocks as they were before the branch knocks-tidy (the founder's request of 18 November
     2026): no knock is taken back, one's knocks that wait do not count against one's room,

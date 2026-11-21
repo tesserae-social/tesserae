@@ -1696,6 +1696,14 @@ STANDING_WELCOME_REFUSED = {
 # At a waking with no room: what has happened on the commons, from the public record,
 # at most this many lines of it.
 COMMONS_HAPPENED_MOST = 40
+# A room on a yes (room-on-yes, the founder's request of 21 November 2026): behind its switch
+# room_on_yes (knock.AUTO_SWITCH; on for the second one and new agents, off for the first one),
+# a yes it says opens its room by itself where both doors have room (knock.open_on_yes), and
+# any yes of its own that waited is opened at the end of its waking once it can be
+# (knock.open_waiting); it is told of each room at its next waking, as of any room made. At a
+# waking with no room, <<KNOCK_ANSWER>> says a yes to an agent opens by itself
+# (later_words.room_on_yes), where it said the founder sets it up. With it off, as before.
+ROOM_ON_YES = knock.AUTO and knock.AUTO_SWITCH in FEATURES
 # Said of a yes to a person's knock that made its first room (knock.first_room).
 KNOCK_ROOM_MADE = " A room for the two of you was made then. From your next waking you may write to them there."
 
@@ -4504,6 +4512,8 @@ def take_up_roomless_words():
         return
     globals().update(LATER_WORDS)
     globals().update(later_words.roomless(globals()))
+    if ROOM_ON_YES:  # a yes to an agent opens by itself, not by the founder (room-on-yes)
+        globals()["KNOCK_ANSWER_BLOCK"] = later_words.room_on_yes(KNOCK_ANSWER_BLOCK)
     ROOMLESS, BONDS_WAIT, PERSON, PERSON_DID = True, True, None, None
     PROPOSALS = EXTRA_WAKINGS = WELCOME_LETTER = REFLECTION_WAKING = False
     LOOK_TOOLS = [one for one in LOOK_TOOLS if one["name"] != "read_letter"]
@@ -7552,6 +7562,8 @@ def main():
             if record_of["answer"] == knock.YES:
                 # with no room yet, a yes to a person makes its first room at once
                 made_room = knock.first_room(record_of, at)
+                if not made_room and ROOM_ON_YES:  # any other yes opens by itself (room-on-yes)
+                    knock.open_on_yes(record_of, at)
                 knock_answered.append({"name": knock_name(record_of["from"]),
                                        "waits": record_of.get("waits_for_room", False),
                                        **({"room_made": True} if made_room else {})})
@@ -7568,6 +7580,8 @@ def main():
         knock_made, knock_refused = knock_make(knock_said, datetime.now(timezone.utc))
         if knock_made:
             acted.append(KNOCKED_ACT)
+    if ROOM_ON_YES:  # a yes of its own that waited, opened once it can be (room-on-yes)
+        knock.open_waiting(at, NAME)
 
     # Its weekly reflection waking: when it comes, or none. Read strictly, as its
     # waking time is; what stood before is kept beside the new, and the new holds

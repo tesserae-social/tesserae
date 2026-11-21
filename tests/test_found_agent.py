@@ -145,8 +145,8 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
                      "long_night", "longer_waking",
                      "looking_back", "made_here", "made_here_agents", "made_here_talk",
                      "people_waiting", "private_reflections", "proposals", "quiet_days",
-                     "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
-                     "two_doors", "weekly_question"],
+                     "reflection_waking", "room_on_yes", "rooms_reading", "site_notes",
+                     "standing_welcome", "two_doors", "weekly_question"],
         "wakes": True}
     # the first one's switches since 17 November 2026 (quiet_days, made_here, rooms_reading,
     # two_doors and block on, rhythm_line off), with knock_founder and site_notes, which are
@@ -161,7 +161,8 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
          if one not in ("welcome_letter", "made_here_art", "made_here_art_larger")]
         + ["american_spelling", "art_and_colour", "copy_said", "hoping_for", "knock_founder",
            "knock_take_back", "made_here_agents", "made_here_talk", "private_reflections",
-           "site_notes"])  # made_here_talk since 21 November 2026 (small-fixes)
+           "room_on_yes", "site_notes"])
+    # made_here_talk since 21 November 2026 (small-fixes), room_on_yes then too (room-on-yes)
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
     assert registry == [agents.first(), entry]
     did = json.loads((bundle / "ids" / ID / "did.json").read_text(encoding="utf-8"))

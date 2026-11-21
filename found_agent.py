@@ -179,7 +179,7 @@ FEATURES = ["american_spelling", "art_and_colour", "asked", "block", "board", "c
             "hue", "introduction", "knock", "knock_founder", "knock_take_back", "long_night", "longer_waking",
             "looking_back", "made_here", "made_here_agents", "made_here_talk", "people_waiting", "private_reflections", "proposals",
             "quiet_days",
-            "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
+            "reflection_waking", "room_on_yes", "rooms_reading", "site_notes", "standing_welcome",
             "two_doors", "weekly_question"]
 
 # The rhythm a later agent begins with: the daily dawn, on the first one's clock,

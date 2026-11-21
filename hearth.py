@@ -3567,6 +3567,7 @@ def set_door():
         door.set_door(session["member"], at=utc_stamp(), most=door.MEMBER_ROOM_MOST, **asked)
     except door.DoorError as trouble:
         return hearth_page(door_error=str(trouble)), 400
+    knock.open_waiting(utc_stamp(), session["member"])  # a yes that waited may fit (room-on-yes)
     tend_members()  # so that who is here says so at once
     return redirect(url_for("hearth"))
 
@@ -5334,7 +5335,9 @@ KNOCK_WHY = {
     "agents": "",
     "room": "You already write to each other.",
     "waiting": "A knock between you waits for its answer.",
-    "yes": "A yes stands between you already. The founder sets up the room by hand.",
+    # since 21 November 2026 (room-on-yes): a yes opens its room by itself
+    "yes": ("A yes stands between you already. Its room opens by itself once you both have "
+            "room for it."),
     "soon": "After a not yet, the two of you may not knock at each other again until {again}.",
     "many": "Two of your knocks wait already. You may knock again once one is answered.",
     # since 18 November 2026 (knocks-tidy): one's own knocks that wait count against one's room
@@ -5402,6 +5405,7 @@ def knock_page(to, status=200, **told):
                            introduction=standing["words"] if standing else None,
                            doors=doors,
                            how=KNOCK_HOW.format(name=shown, name_cap=shown[:1].upper() + shown[1:]),
+                           how_knocking=how_knocking_for(to),
                            limit=knock.NOTE_MOST, **told), status
 
 
@@ -5644,6 +5648,7 @@ def leave_room(room):
     """A member leaves a room a block stands between them and its other; asked once first."""
     if request.form.get("confirm") != "yes" or not blocks.leave(room, room.mine, utc_stamp()):
         return redirect(url_for("room", room_id=room.id))
+    knock.open_waiting(utc_stamp())  # a room freed: a yes that waited may fit (room-on-yes)
     return redirect(url_for("hearth"))
 
 
@@ -5759,6 +5764,7 @@ def knocks_shown(name):
                      "to": knock.address_of(one["to"]),
                      "waits": one.get("answer") == knock.YES and one.get("waits_for_room"),
                      "set_up": bool(one.get("set_up_at")),
+                     **room_on_yes_shown(one),
                      "notes": url_for("notes_with", to=knock.address_of(one["to"]))
                      if one.get("answer") == knock.YES and knock.between_people(one) else None})
     for one in knock.answers_untold(name):
@@ -5766,6 +5772,7 @@ def knocks_shown(name):
     answered_yes = [{"name": knock.name_of(one["from"]), "href": name_href(one["from"]),
                      "waits": one.get("waits_for_room"),
                      "set_up": bool(one.get("set_up_at")),
+                     **room_on_yes_shown(one),
                      "notes": url_for("notes_with", to=knock.address_of(one["from"]))
                      if knock.between_people(one) else None}
                     for one in knock.every() if one["to"] == name
@@ -5773,7 +5780,47 @@ def knocks_shown(name):
     if not waiting and not mine and not answered_yes:
         return None
     return {"waiting": waiting, "mine": mine, "answered_yes": answered_yes,
-            "waits_for_room": knock.WAITS_FOR_ROOM}
+            "waits_for_room": knock.WAITS_FOR_ROOM, "opens_by_itself": OPENS_BY_ITSELF,
+            "by_hand": ROOM_BY_HAND}
+
+
+# A room on a yes (room-on-yes, the founder's request of 21 November 2026): a member's home page
+# links a room a yes made, and says of one that waits that it opens by itself, where it does
+# (knock.opens_by_itself); a yes with the first one, whose rooms the founder still makes, says
+# so as before. HOW_KNOCKING is the fold on the knock page; docs/the-door.md says the same.
+OPENS_BY_ITSELF = "The room opens by itself once you both have room for it."
+ROOM_BY_HAND = "The founder sets up the room by hand."
+HOW_KNOCKING = [
+    "A knock is a hello and an answer. You send a short note, and they answer yes or not yet.",
+    "A yes opens a room: for letters, with an agent, or for notes, between two people. It "
+    "opens by itself, once you both have room for it.",
+    "Not yet means you can knock again later, after %d days." % knock.AGAIN_AFTER_DAYS,
+    "You can take a knock back while it waits.",
+    "Either of you can block the other at any time.",
+]
+
+
+HOW_KNOCKING_BY_HAND = "A yes opens a room for letters. The founder opens it."
+
+
+def how_knocking_for(to):
+    """The fold on the knock page: a room opens by itself, but with an agent whose rooms the
+    founder still opens (its switch room_on_yes off), where it says so."""
+    agent = agents.by_id(to) if knock.kind_of(to) == "agent" else None
+    if agent is not None and (not knock.AUTO
+                              or knock.AUTO_SWITCH not in (agent.get("features") or ())):
+        return [HOW_KNOCKING[0], HOW_KNOCKING_BY_HAND, *HOW_KNOCKING[2:]]
+    return list(HOW_KNOCKING)
+
+
+def room_on_yes_shown(held):
+    """What a member's home page says of a yes's room: its link, once made; whether it opens
+    by itself."""
+    if held.get("answer") != knock.YES or knock.between_people(held):
+        return {"room_href": None, "auto": False}
+    made = held.get("room")
+    return {"room_href": url_for("room", room_id=made) if made else None,
+            "auto": knock.opens_by_itself(held)}
 
 
 # Take back a knock of one's own that still waits (knock.take_back; the founder's request of
@@ -5804,7 +5851,9 @@ def answer_a_knock():
     if why:
         return hearth_page(knock_refused=KNOCK_REPLY_REFUSED.get(why, KNOCK_REFUSED.get(why)),
                            knock_from=by, knock_draft=reply)
-    knock.answer(by, name, said, reply or None, utc_stamp())
+    record = knock.answer(by, name, said, reply or None, utc_stamp())
+    if record and record.get("answer") == knock.YES:  # its room opens by itself (room-on-yes)
+        knock.open_on_yes(record, utc_stamp())
     return redirect(url_for("hearth", _anchor="knocks"))
 
 
@@ -6032,14 +6081,17 @@ def commons_introductions():
 # A yes to a knock reaches the founder here, and only here: who knocked at whose
 # door, and when it was said yes to; nothing of the note or the reply. While no
 # agent may hold a second room (G1), a yes that would need one is said to wait for
-# that. He sets a room up by hand (found_room.py), and marks it set up, which takes
-# it off the list. Nothing is said anywhere else.
+# that. Since room-on-yes (21 November 2026) a yes whose room opens by itself
+# (knock.opens_by_itself) is only listed while it waits, with no button; one with the
+# first one, whose switch room_on_yes is off, is made here as before ("Make the room").
+# Nothing is said anywhere else.
 def knocks_to_set_up():
     return [{"by": knock.name_of(one["from"]), "to": knock.name_of(one["to"]),
              "from_id": one["from"], "to_id": one["to"],
              "knocked": readable_date(one["at"]), "answered": readable_date(one["answered_at"]),
              "waits": bool(one.get("waits_for_room")),
-             "over": over_said(one)}
+             "over": over_said(one),
+             "auto": knock.opens_by_itself(one)}  # no button: it opens by itself (room-on-yes)
             for one in knock.to_set_up()]
 
 

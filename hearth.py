@@ -1463,11 +1463,12 @@ def door_phrase(line):
     name = found.group(1)
     if name == THE_FOUNDER:
         return door.phrase(the_keeper())  # no keeper is no door file: closed
-    record = member_record(name)
+    who = members.id_of(name) or name  # a line names a commons name; the door is the id's
+    record = member_record(who)
     if record and record.get("role") == "member":
-        if blocked_from(name):
+        if blocked_from(who):
             return DOT + "door closed"
-        return door.phrase(name)
+        return door.phrase(who)
     return None
 
 
@@ -4358,8 +4359,11 @@ def confirm_email(token):
         return render_template_string(CONFIRM_PAGE, note=LINK_NOT_OPEN), 410
     # claimed now: anyone else's link to confirm the same address stops working
     tokens.drop("confirm", held.get("name"), address=held.get("address"))
-    # one who signs in by email signs in by the address confirmed now (names-ids, stage 3)
-    if "@" in (members.sign_in_of(held.get("name")) or ""):
+    # one who signs in by email signs in by the address confirmed now (names-ids, stage 3), as
+    # does one who joined since ids and has no sign-in yet (stage 4)
+    said = members.sign_in_of(held.get("name"))
+    if "@" in (said or "") or (said is None and
+                               str(held.get("name")).startswith(members.ID_PREFIX)):
         try:
             members.set_sign_in(held.get("name"), held.get("address"))
         except MemberError:
@@ -4770,8 +4774,9 @@ SIGNED_IN_ALREADY = "You're signed in already; this invitation is for someone ne
 JOIN_SAID = "Choose how you'll be known here, an email address, and a password."
 JOIN_NAME_SAID = ("Short, and not necessarily your real name: lowercase letters, digits and "
                   "single hyphens.")
-JOIN_EMAIL_SAID = ("For a password link, and a short email when something is waiting for you, "
-                   "which you can stop. Never shown to anyone else or read by any agent.")
+JOIN_EMAIL_SAID = ("You sign in with it. It is also for a password link, and a short email when "
+                   "something is waiting for you, which you can stop. Never shown to anyone "
+                   "else or read by any agent.")
 JOIN_PASSWORD_SAID = "At least 10 characters."
 JOIN_PRIVATE = ("Private here means unread and unshown. The server keeps encrypted backups, so "
                 "it isn't unreadable, and we won't pretend otherwise.")
@@ -5081,7 +5086,11 @@ def join_refusal(name, address):
         return str(reason).capitalize() + ".", name, address
     if private_words.carries(name):  # the same words as a reserved name: the list is never hinted
         return NAME_NOT_FREE, name, address
-    if member_record(name) is not None or (members.MEMBERS / name).exists():
+    try:  # no one's name now or before, and no one's id (names-ids, stage 4)
+        members.commons_name_free(name)
+    except MemberError:
+        return NAME_TAKEN, name, address
+    if (members.MEMBERS / name).exists():
         return NAME_TAKEN, name, address
     try:
         address = members.email_address(address)
@@ -5128,8 +5137,16 @@ def invitation_join(token):
         if members.member_by_email(address) is not None:
             return join_page(token, error=ADDRESS_NOT_FREE, **kept)
         sealed, _, _ = vault.make_vault(password)  # a member has no words; these go unseen
+        # Since ids (names-ids, stage 4; the founder's request of 20 November 2026): the name
+        # typed is their commons name; their folder and every record are kept by an id made
+        # now, at random; their email address is what signs them in, once it is confirmed (at
+        # once, where the invitation's own email reached it; else by the link sent below).
+        commons_name, name = name, members.new_id()
+        reached = bool(one.get("email")) and one["email"] == address
         try:
-            record = members.create_member(name, sealed, "member", [one["by"]])
+            record = members.create_member(name, sealed, "member", [one["by"]],
+                                           name=commons_name,
+                                           sign_in=address if reached else None)
         except MemberError as reason:  # a name taken a moment ago: the invitation stays open
             return join_page(token, error=str(reason).capitalize() + ".", **kept)
         # the address an emailed invitation went to, kept unchanged: the link reached it
@@ -5145,7 +5162,7 @@ def invitation_join(token):
             door.starts(name, at=utc_stamp())
         except door.DoorError:
             pass
-        add_to_who_is_here(name)
+        add_to_who_is_here(commons_name)
     if address:
         mail.send_confirm(address, tokens.issue("confirm", name, tokens.LIFETIMES["confirm"],
                                                 address=address))
@@ -5165,7 +5182,8 @@ def add_to_who_is_here(name):
             ending = "\r\n" if "\r\n" in text else "\n"
             if text and not text.endswith(("\n", "\r")):
                 text += ending
-            text += "member · " + name + door.phrase(name) + ending
+            # the commons name, and the door of whoever holds it now (names-ids, stage 4)
+            text += "member · " + name + door.phrase(members.id_of(name) or name) + ending
             MEMBERS.parent.mkdir(parents=True, exist_ok=True)
             beside = MEMBERS.with_name(MEMBERS.name + ".tmp")
             beside.write_bytes(text.encode("utf-8"))

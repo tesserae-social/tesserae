@@ -363,6 +363,9 @@ def test_with_one_agent_stopping_every_tide_is_stopping_its_own(
 
 # ---- 9. the allow-list -----------------------------------------------------------
 
+# The askings section's own words on /tides (askings, 20 November 2026), as content() gives them.
+ASKED_NEVER_AT = "at a reflection waking"
+
 @three
 def test_the_page_carries_nothing_off_the_keeper_s_list(hearth, founder, data_dir, packet):
     a_planted_record(data_dir, packet)
@@ -375,8 +378,14 @@ def test_the_page_carries_nothing_off_the_keeper_s_list(hearth, founder, data_di
         said = page(answer)
         for planted, words in NEVER.items():
             assert words not in said, (what, planted)
+        # since askings (20 November 2026) the page says, in its own fixed words, that no
+        # asking is made at a reflection waking, and names the switches that may be asked
+        # (private_reflections among them) for the founder to order: neither is an agent's
+        shown = content(said).replace(ASKED_NEVER_AT, "")
+        for switch in sorted(hearth.askings.ASK_FIRST, key=len, reverse=True):
+            shown = shown.replace(switch, "")
         for words in ("heartbeat", "a-model-for-the-tests", "woken by", "reflection"):
-            assert words not in content(said), (what, words)
+            assert words not in shown, (what, words)
     said = page(answers["stopped"])
     assert "Rhythm: daily at 07:00" in said
     assert ("The scratch one is resting, since 23 October 2026, 06:00, until\n"

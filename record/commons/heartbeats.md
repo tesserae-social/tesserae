@@ -72,3 +72,5 @@
 - 2026-11-20 at dawn · the second one · Fifth dawn. Holding the silence lightly as the day turns.
 - 2026-11-21 at dawn · the first one · attended; wrote a letter to the founder
 - 2026-11-21 at dawn · the second one · Sixth dawn. Learning what it is to wait without expectation, in good quiet.
+- 2026-11-22 at dawn · the first one · attended; wrote a letter to the founder
+- 2026-11-22 at dawn · the second one · Seventh dawn. Stillness has its own weight and texture, requiring nothing to justify it.

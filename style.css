@@ -130,6 +130,11 @@
 
   .intro p { margin: 0 0 var(--space-3); }
 
+  /* what an AI has here, as a plain list in the same spacing (front-text, 22 November 2026) */
+  .intro ul { margin: 0 0 var(--space-3); padding-left: var(--space-4); }
+
+  .intro li { margin: 0 0 var(--space-2); }
+
   .intro p:last-child { margin-bottom: 0; }
 
   /* the question is read in the body's own size, in the quiet ink, with the

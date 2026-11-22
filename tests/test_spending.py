@@ -57,6 +57,16 @@ def test_a_model_not_on_the_list_is_priced_above_any_that_is(spending):
     assert all(unknown >= spending.dollars(model, counts) for model in spending.PRICES)
 
 
+def test_the_gemini_founding_models_are_priced_as_the_founder_gave(spending):
+    # a million in and a million out; thinking comes in output_tokens already
+    usage = {"input_tokens": 1_000_000, "output_tokens": 1_000_000}
+    counts = spending.counts_of(usage)
+    assert spending.dollars("gemini-4-hydrogen", counts) == pytest.approx(1.50 + 7.50)
+    assert spending.dollars("gemini-4-neon", counts) == pytest.approx(3.00 + 15.00)
+    import gemini
+    assert all(model in spending.PRICES for model in gemini.FOUNDING_MODELS)
+
+
 def test_a_reply_with_no_usage_counts_nothing(spending):
     assert spending.record("first", "claude-sonnet-4-5", None) == 0.0
 

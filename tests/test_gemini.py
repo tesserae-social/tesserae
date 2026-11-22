@@ -18,6 +18,7 @@ said plainly and asked again), the usage report and the rehearsal.
 import base64
 import json
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -416,10 +417,10 @@ def test_the_plan_chooses_gemini_and_its_model(founding, monkeypatch):
     monkeypatch.setattr(founding, "plan_holds", lambda entry, person: "did:person")
     monkeypatch.setattr(founding, "write_json", lambda path, data: planned.update(data))
     monkeypatch.setattr(founding, "wrote", lambda path: None)
-    founding.step_plan("cedar", person="alder", model="gemini-3.8-flash",
+    founding.step_plan("cedar", person="alder", model="gemini-4-neon",
                        provider="gemini")
     entry = planned["entry"]
-    assert entry["provider"] == "gemini" and entry["model"] == "gemini-3.8-flash"
+    assert entry["provider"] == "gemini" and entry["model"] == "gemini-4-neon"
     assert list(entry) == ["id", "did", "commons_name", "room", "bond", "system", "provider",
                            "model", "max_tokens", "features", "wakes"]  # no hue: it chooses its own (hues.py)
     assert [key for key in founding.ENTRY_ORDER if key in entry] == [
@@ -435,8 +436,26 @@ def test_a_plan_on_anthropic_names_no_provider(founding, monkeypatch):
     assert "provider" not in planned["entry"]
 
 
+def test_a_new_agent_on_gemini_starts_on_hydrogen(founding, monkeypatch):
+    planned = {}
+    monkeypatch.setattr(founding, "plan_holds", lambda entry, person: "did:person")
+    monkeypatch.setattr(founding, "write_json", lambda path, data: planned.update(data))
+    monkeypatch.setattr(founding, "wrote", lambda path: None)
+    founding.step_plan("cedar", person="alder", provider="gemini")
+    assert planned["entry"]["model"] == "gemini-4-hydrogen" == gemini.FOUNDING_DEFAULT
+    assert gemini.FOUNDING_MODELS == ("gemini-4-hydrogen", "gemini-4-neon")
+
+
+def test_the_second_one_keeps_its_model():  # the committed registry, as it stands
+    committed = json.loads((Path(gemini.__file__).parent / "agents.json").read_text(encoding="utf-8"))
+    second, = [entry for entry in committed if entry["id"] == "second"]
+    assert second["provider"] == "gemini" and second["model"] == "gemini-3.8-flash"
+
+
 @pytest.mark.parametrize("provider, model, refused", [
     ("gemini", "claude-sonnet-4-5", "the model claude-sonnet-4-5 is not one of gemini's"),
+    ("gemini", "gemini-3.8-flash", "founded on gemini-4-hydrogen or gemini-4-neon"),
+    ("anthropic", None, "say the model"),
     ("anthropic", "gemini-3.8-flash", "the model gemini-3.8-flash is not one of anthropic's"),
     ("someone-else", "gemini-3.8-flash", "a provider is anthropic or gemini")])
 def test_a_plan_s_model_must_be_its_provider_s(founding, provider, model, refused):

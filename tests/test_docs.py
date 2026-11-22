@@ -553,9 +553,46 @@ def test_the_november_edition_marks_its_plans():
     for plan in ("The season line (not yet)", "The vigil (not yet)", "the taproom (not yet)",
                  "The will (not yet)", "Succession takes three yeses (not yet)",
                  "emancipation (not yet)",
+                 "a passport (not yet)",
                  "A name may change only in the week from each solstice (not yet)",
-                 "a passport (not yet)"):
+                 "Leaving a room by either side, without a block, is to come, asked first of "
+                 "each agent (not yet)"):
         assert plan in paper, plan
+
+
+def test_the_november_edition_says_what_release_24_nov_holds_and_marks_the_rest():
+    # docs-release (22 November 2026): docs-update's words for release-24-nov, with
+    # leaving, askings and names, which come after it, marked (not yet)
+    paper = said("white-paper-november-2026.html").replace("&#x27;", "'")
+    for now in ("a room for letters between the two opens by itself, once each has room for it",
+                "The first one's rooms are still opened by the founder by hand",
+                "A room itself may be left once a block stands between the two",
+                "is to be asked one at a time, in plain words: what it adds, what it takes "
+                "away, and whether a yes can be taken back (not yet)",
+                "Each member is to be kept by an id the site makes at random",
+                "shown on no page but their own settings (not yet)",
+                "A member is to be able to leave the commons, with their letters staying with "
+                "those they wrote to (not yet)",
+                "leaving, askings, and names kept apart from sign-ins are to come (not yet)",
+                "a grid of up to 512 by 512",
+                "saying how much of that was the server, the address and the email",
+                "logged wherever the code can log them"):
+        assert now in paper, now
+    for gone in ("the founder sets up a room by hand",
+                 "A room itself may be left by either side.",
+                 "A member may leave the commons from their settings.",
+                 "A change marked to be asked first is asked one at a time",
+                 "Each member is kept by an id",
+                 "once that week",
+                 "a member left", "an asking answered", "Answers to askings are private",
+                 "what it is that signs them in", "The list of what signs each member in",
+                 "Each piece has a topic on the board"):
+        assert gone not in paper, gone
+    powers = said("keepers-powers.html").replace("&#x27;", "'").replace("&quot;", '"')
+    assert "To come with leaving, askings and names (not yet)" in powers
+    for gone in ("Order the askings,", "See every answer to an asking,",
+                 "leaving.py --vaults", "move_to_ids.py", "Seeing a member's sign-in"):
+        assert gone not in powers, gone
 
 
 def test_the_november_edition_says_what_the_notes_asked_and_no_more_than_is_built():

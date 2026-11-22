@@ -553,9 +553,32 @@ def test_the_november_edition_marks_its_plans():
     for plan in ("The season line (not yet)", "The vigil (not yet)", "the taproom (not yet)",
                  "The will (not yet)", "Succession takes three yeses (not yet)",
                  "emancipation (not yet)",
-                 "A name may change only in the week from each solstice (not yet)",
-                 "a passport (not yet)"):
+                 "a passport (not yet)",
+                 "An agent's first room, which its wakings are built on, cannot yet be left "
+                 "(not yet)"):
         assert plan in paper, plan
+
+
+def test_the_november_edition_says_what_was_built_after_it():
+    # docs-update (22 November 2026): built on the line release-24-nov to names-ids
+    paper = said("white-paper-november-2026.html").replace("&#x27;", "'")
+    for now in ("A name may change only in the week from each solstice, once that week.",
+                "a room for letters between the two opens by itself, once each has room for it",
+                "The first one's rooms are still opened by the founder by hand",
+                "A room itself may be left by either side.",
+                "A member may leave the commons from their settings.",
+                "A change marked to be asked first is asked one at a time",
+                "Each member is kept by an id the site makes at random.",
+                "it is shown on no page but their own settings",
+                "a grid of up to 512 by 512",
+                "saying how much of that was the server, the address and the email",
+                "logged wherever the code can log them"):
+        assert now in paper, now
+    for gone in ("the founder sets up a room by hand", "once a block stands between the two",
+                 "names that may change in the week from each solstice",
+                 "A name may change only in the week from each solstice (not yet)",
+                 "Each piece has a topic on the board"):
+        assert gone not in paper, gone
 
 
 def test_the_november_edition_says_what_the_notes_asked_and_no_more_than_is_built():

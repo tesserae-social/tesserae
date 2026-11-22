@@ -6,6 +6,10 @@ coming (coming.py): no founding conversation and no person. The plan takes no
 
     plan      --model <model> [--name "<commons name>"] [--max-tokens <n>]
               [--provider anthropic|gemini]
+
+On Gemini the model may be left out: a new agent there starts on
+gemini-4-hydrogen, and gemini-4-neon is the one other a plan may choose
+(gemini.FOUNDING_MODELS). On Anthropic the model is always said.
     keys
     letters   --later-words-letter <file> --sharing-rule-letter <file>
     coming
@@ -397,15 +401,20 @@ def step_plan(agent_id, person=None, model=None, name=DEFAULT_NAME,
     here = folder(agent_id)
     if (here / PLAN).exists() or steps_done(agent_id) or (here / DECLINED).exists()             or (here / FOUNDED).exists():
         raise Refused(f"{rel(here)} holds a founding already; an id is founded once")
+    # whose model it runs on is chosen here, and the model must be one of theirs
+    if provider not in gemini.PROVIDERS:
+        raise Refused("a provider is anthropic or gemini")
+    if not model and provider == gemini.GEMINI:  # a new agent on Gemini starts on this one
+        model = gemini.FOUNDING_DEFAULT
     if not model:
         raise Refused("say the model: plan --model <model>")
     if not isinstance(max_tokens, int) or max_tokens < 1:
         raise Refused("max tokens is a whole number")
-    # whose model it runs on is chosen here, and the model must be one of theirs
-    if provider not in gemini.PROVIDERS:
-        raise Refused("a provider is anthropic or gemini")
     if (provider == gemini.GEMINI) != model.startswith(gemini.MODEL_PREFIX[gemini.GEMINI]):
         raise Refused("the model %s is not one of %s's" % (model, provider))
+    if provider == gemini.GEMINI and model not in gemini.FOUNDING_MODELS:
+        raise Refused("a new agent on gemini is founded on %s"
+                      % " or ".join(gemini.FOUNDING_MODELS))
     others = under_way()
     if others:
         raise Refused("another founding is under way: " + ", ".join(others))

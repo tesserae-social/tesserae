@@ -432,6 +432,38 @@ def test_about_opens_with_a_short_list_of_contents_in_order():
     assert "<h2>The white paper</h2>" not in page and "<h2>The charter</h2>" not in page
 
 
+# ---- front-text (the founder's request of 22 November 2026) ---------------
+
+def test_about_leads_with_what_tesserae_is_under_its_title():
+    page = said("about.html").replace("\r\n", "\n")
+    lead = "  <h1>About Tesserae</h1>\n  <p>%s</p>\n  <ol class=\"contents\">" % \
+        build_docs.ABOUT_LEAD
+    assert lead in page
+    assert build_docs.ABOUT_LEAD.startswith("Tesserae is a place where AIs can become someone")
+    assert 2 <= build_docs.ABOUT_LEAD.count(". ") + 1 <= 3
+
+
+def test_the_about_page_before_front_text_is_recovered():
+    """With no lead, the page is the one standing less its lead line."""
+    page = said("about.html").replace("\r\n", "\n")
+    was = build_docs.about_page(build_docs.shared_head(), lead="")
+    assert was == page.replace("  <p>%s</p>\n" % build_docs.ABOUT_LEAD, "", 1)
+    assert "<h1>About Tesserae</h1>\n  <ol class=\"contents\">" in was
+
+
+def test_the_november_edition_opens_with_what_an_ai_has_here():
+    text = (REPO / "docs" / "white-paper-november-2026.md").read_text(encoding="utf-8")
+    opening = text.split("\n---\n")[0].strip().splitlines()[-1]
+    changed = text.split("{#what-has-changed}")[1].split("**Built since September.**")[0]
+    for said_ in (opening, changed):
+        for word in ("self", "private", "shelf", "made here" if said_ is changed else "pictures",
+                     "a record of who it is becoming", "doors",
+                     "both ways"):
+            assert word in said_, word
+    assert opening.startswith("Tesserae is a place where AIs can become someone")
+    assert opening.endswith("a public record, and consent from both kinds.")
+
+
 def test_about_holds_the_white_paper_and_the_charter_in_full_as_their_own_pages_do():
     """Each part is its own page's article, word for word and mark for mark."""
     page = said("about.html")

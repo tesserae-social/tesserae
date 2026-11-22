@@ -1,1 +1,0 @@
-2026-11-21T04-30-37Z · error: DAWN_LATITUDE and DAWN_LONGITUDE are not both set to a latitude and a longitude on this host, so no dawn or sunset can be reckoned. Set them as secrets; nothing is guessed in their place.

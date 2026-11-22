@@ -63,6 +63,11 @@ PRICES = {
     # introductory $0.75 / $3.75), so that the cap is right after the change too:
     # thinking is billed as output (gemini.py counts it there); cache reads 0.1x.
     "gemini-3.8-flash": (1.50, 7.50, 0.00, 0.15),
+    # The two models a new agent on Gemini is founded on (gemini.FOUNDING_MODELS), at
+    # the prices the founder gave on 22 November 2026: thinking is billed as output;
+    # cache reads at 0.1x input, as for Flash (no price was given for them).
+    "gemini-4-hydrogen": (1.50, 7.50, 0.00, 0.15),
+    "gemini-4-neon": (3.00, 15.00, 0.00, 0.30),
 }
 UNKNOWN_PRICE = (5.00, 25.00, 6.25, 0.50)  # higher than any listed: a cap comes early, not late
 

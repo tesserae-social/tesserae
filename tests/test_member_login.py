@@ -365,6 +365,56 @@ def test_ten_misses_from_one_address_shut_it(people, hearth, visitor, monkeypatc
     assert sign_in(elsewhere, KEEPER, KEEPER_PASSWORD).status_code == 302
 
 
+# Behind Fly's proxy (the pre-audit of 22 November 2026, risk 1): every request comes
+# from the proxy's private address, and the visitor's own is in Fly-Client-IP.
+PROXY = "172.16.4.2"
+
+
+def through_fly(hearth, address):
+    client = hearth.app.test_client()
+    client.environ_base["REMOTE_ADDR"] = PROXY
+    client.environ_base["HTTP_FLY_CLIENT_IP"] = address
+    return client
+
+
+def address_seen(hearth, peer, headers=None):
+    with hearth.app.test_request_context("/", environ_base={"REMOTE_ADDR": peer},
+                                         headers=headers or {}):
+        return hearth.client_address()
+
+
+@pytest.mark.parametrize("peer, said, seen", [
+    (PROXY, "203.0.113.9", "203.0.113.9"),           # the proxy says who it is
+    (PROXY, " 2001:db8::7 ", "2001:db8::7"),          # IPv6, spaces trimmed
+    ("fdaa:0:1::3", "198.51.100.4", "198.51.100.4"),  # Fly's private IPv6 network
+    (PROXY, None, PROXY),                             # no header: the peer
+    (PROXY, "not an address", PROXY),                 # not one address: the peer
+    (PROXY, "203.0.113.9, 198.51.100.4", PROXY),      # a list: the peer
+    ("93.184.216.34", "203.0.113.9", "93.184.216.34"),  # straight from the internet: not believed
+])
+def test_on_fly_the_proxy_s_header_is_believed_only_from_a_private_address(
+        hearth, monkeypatch, peer, said, seen):
+    monkeypatch.setenv("FLY_APP_NAME", "tesserae-hearth")
+    headers = {} if said is None else {"Fly-Client-IP": said}
+    assert address_seen(hearth, peer, headers) == seen
+
+
+def test_off_fly_the_header_is_never_believed(hearth, monkeypatch):
+    monkeypatch.delenv("FLY_APP_NAME", raising=False)
+    assert address_seen(hearth, PROXY, {"Fly-Client-IP": "203.0.113.9"}) == PROXY
+
+
+def test_behind_fly_ten_misses_from_one_visitor_shut_only_that_visitor(
+        people, hearth, monkeypatch):
+    monkeypatch.setenv("FLY_APP_NAME", "tesserae-hearth")
+    guesser = through_fly(hearth, "198.51.100.4")
+    for n in range(10):  # spread over names, so no one name reaches its own five
+        refused(sign_in(guesser, "guess-%d" % n, WRONG))
+    refused(sign_in(guesser, KEEPER, KEEPER_PASSWORD))  # that visitor is shut
+    keeper = through_fly(hearth, "203.0.113.9")  # the same proxy, another visitor
+    assert sign_in(keeper, KEEPER, KEEPER_PASSWORD).status_code == 302
+
+
 def test_the_address_is_counted_only_as_a_hash(people, hearth, visitor):
     refused(sign_in(visitor, "nobody-here", WRONG))
     counted = repr(hearth.LOGIN_MISSES)

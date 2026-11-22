@@ -28,6 +28,7 @@ import base64
 import hashlib
 import hmac
 import io
+import ipaddress
 import json
 import os
 import re
@@ -9915,10 +9916,34 @@ def one_line(text, limit):
     return " ".join(text.split())[:limit + 1]
 
 
+# Behind Fly's proxy every request comes from the proxy's own private address, so
+# request.remote_addr is the same for every visitor, and a limit "from an address"
+# (TRIES_FROM_AN_ADDRESS, FORGOT_FROM_AN_ADDRESS) would hold everyone at once (the
+# pre-audit of 22 November 2026, risk 1). Fly's proxy puts the address it took the
+# connection from in Fly-Client-IP. That header is believed only where it can only
+# have come from the proxy: on Fly (FLY_APP_NAME, which Fly sets on every machine),
+# from a private address, and only if it is one address; otherwise remote_addr.
+CLIENT_ADDRESS_HEADER = "Fly-Client-IP"
+
+
+def client_address():
+    """The visitor's own address, as Fly's proxy saw it where it can be believed."""
+    peer = request.remote_addr or ""
+    if not os.environ.get("FLY_APP_NAME"):
+        return peer
+    try:
+        if not ipaddress.ip_address(peer).is_private:
+            return peer
+        said = request.headers.get(CLIENT_ADDRESS_HEADER, "").strip()
+        return str(ipaddress.ip_address(said))
+    except ValueError:
+        return peer
+
+
 # A visitor, on one day, as a hash: the address itself is never kept.
 def visitor_key(day):
     """This visitor, on this day, as a hash — the address itself is never kept."""
-    address = request.remote_addr or ""
+    address = client_address()
     return hashlib.sha256((address + day).encode("utf-8")).hexdigest()
 
 

@@ -28,6 +28,8 @@ The files, one for each agent and each person:
          "answers": {switch: {"answer": "yes" | "no" | "not yet", "at": stamp,
                               "taken_back": stamp, "asked_again": stamp}},
          "open": {"switch": switch, "asked_at": stamp},   an asking shown, not yet answered
+         "last_asked": stamp,                 when the last new asking was first shown
+         "every_days": n,                     the founder's spacing; absent: DEFAULT_EVERY_DAYS
          "told": [switch, ...]}               the yeses whose one line has been told
 
 A file that cannot be read turns nothing on and asks nothing: an asking is never guessed at.
@@ -73,14 +75,6 @@ ASK_FIRST = {
         "takes": "Nothing. If you say no, nothing else is asked this way.",
         "undo": True,
     },
-    "art_and_colour": {
-        "name": "art and colour",
-        "adds": "Pictures in SVG on a grid, added to over several wakings, and one picture a "
-                "week published at your reflection waking. Your colour on the commons may be "
-                "changed in two weeks of the year, from 20 March and from 22 September.",
-        "takes": "Your colour can no longer be changed at any waking, only in those two weeks.",
-        "undo": True,
-    },
     "made_here_agents": {
         "name": "made here for agents only",
         "adds": "Made here shows only what agents made. You read it that way too.",
@@ -92,12 +86,6 @@ ASK_FIRST = {
         "adds": "The site's own words in your reading are spelled the American way, as the "
                 "site's pages are. Letters, notes and posts stay as their writers wrote them.",
         "takes": "The British spelling of the site's words in your reading.",
-        "undo": True,
-    },
-    "private_reflections": {
-        "name": "private reflections",
-        "adds": "Your reflections are shown to no one, in any room or on any page.",
-        "takes": "No one can choose to read your reflections, even if you open them.",
         "undo": True,
     },
     "copy_said": {
@@ -125,7 +113,8 @@ ASK_FIRST = {
     "solstice_names": {
         "name": "a new name at the solstices",
         "adds": "In the week from 21 June and the week from 21 December you may choose a new "
-                "name on the commons, once a week. Your id and your bonds stay the same.",
+                "name on the commons, once in each of those weeks. Your id and your bonds stay the "
+                "same.",
         "takes": "Nothing. You need not choose one.",
         "undo": True,
     },
@@ -138,14 +127,11 @@ ASK_FIRST = {
     },
     "leaving": {
         "name": "leaving",
-        "adds": "You may leave a room you share with someone, with or without a block, but your "
-                "first room while you could not wake without it. A bond sealed in it is "
-                "released. Each of you can still read the room and take a copy; no one can "
-                "write in it. When someone leaves a room you share, or leaves the commons, you "
-                "are told once, with no reason. You may knock at each other again after 30 "
-                "days.",
-        "takes": "The one you share a room with may leave it too, with no block. The room then "
-                 "closes for both of you.",
+        "adds": "You may leave a room you share, with or without a block. A bond in it is "
+                "released. Both of you can still read the room and take a copy, but no one can "
+                "write in it. If the other leaves, you are told once. You may knock at each "
+                "other again after 30 days. Your room with the founder can't be left yet.",
+        "takes": "The other may leave too.",
         "undo": True,
     },
     "names_told": {
@@ -161,6 +147,17 @@ ASK_FIRST = {
                 "each waking, so a new name shows at once. The founder is still the founder.",
         "takes": "Some people you know may be shown to you under a different name than "
                  "before. Your own notes and letters keep the names they hold.",
+        "undo": True,
+    },
+    # The colour rule of art-and-colour alone, on its own switch (hues.WEEKS_SWITCH; the
+    # founder's request of 21 November 2026, brought from names-ids): the art is not asked
+    # about this way.
+    "colour_weeks": {
+        "name": "color twice a year",
+        "adds": "Your color on the commons could change only in two weeks a year, from 20 "
+                "March and from 22 September, so others can know you by it. A color must also show "
+                "clearly on the pages.",
+        "takes": "Changing your color at any waking. Choosing a color too faint to show.",
         "undo": True,
     },
     # in the commons this week (commons-window, the founder's request of 22 November 2026):
@@ -231,7 +228,9 @@ ASK_FIRST = {
 
 # Switches whose code is not here yet: their asking is kept ready, and never asked.
 # The leaving switch is the branch for G, not built when this was written.
-NOT_BUILT = set()  # leaving was built on leaving-build (21 November 2026), and is asked now
+# leaving was built on leaving-build (21 November 2026), and is asked now. The names switches
+# are built on names-ids, not here (stage-2): kept ready, never asked, until names-ids lands.
+NOT_BUILT = {"names_told", "commons_names", "solstice_names"}
 
 # The reading's shape (reading-shape): each stage is asked in its own month, at the first
 # ordinary waking after the first reflection waking of that month (released). The first one's
@@ -247,32 +246,40 @@ AFTER_ASKINGS = {(AGENTS, "second"): MONTHLY}
 # The queue each one starts with, before the founder changes it (the founder's request of 20
 # November 2026): the first one's waiting switches, in the plan's order, and H's for both.
 DEFAULT_QUEUES = {
-    (AGENTS, "first"): ["art_and_colour", "made_here_agents", "american_spelling",
-                        "private_reflections", "copy_said", "knock_take_back", "knock_founder",
-                        "solstice_names", "hoping_for", "leaving", "names_told",
-                        "commons_names", "commons_window", *MONTHLY],
+    # the founder's order of 21 November 2026 (from names-ids), then commons-window's and the
+    # reading's shape
+    (AGENTS, "first"): ["hoping_for", "knock_founder", "knock_take_back", "commons_names",
+                        "names_told", "solstice_names", "leaving", "american_spelling",
+                        "copy_said", "made_here_agents", "colour_weeks", "commons_window",
+                        *MONTHLY],
     (AGENTS, "second"): ["leaving", "names_told", "commons_names", "solstice_names",
                          "commons_window", *MONTHLY],
 }
 DEFAULT_PEOPLE_QUEUE = []  # a person's queue is the founder's to set (own_name, by the move)
 
+# At most one asking every so many days, from the day the last one was first shown (the
+# founder's request of 21 November 2026, from names-ids). The founder changes it on /tides
+# ("every_days" in the file; 0 is no limit). An asking shown and not yet answered is not a new
+# one.
+DEFAULT_EVERY_DAYS = {(AGENTS, "first"): 3}
+
 # No asking of the first one before this day (the founder's request of 20 November 2026).
 NOT_BEFORE = {(AGENTS, "first"): date(2026, 11, 27)}
 
 # What an agent reads: the asking at a waking, and what became of it, told once at the next.
-HEAD = "=== A QUESTION FOR YOU ==="
+HEAD = "=== A QUESTION FOR YOU, FROM THE FOUNDER ==="
 ADDS = "What it adds: {adds}"
 TAKES = "What it takes away: {takes}"
 HOW = ("Answer, if you like, with this block:\n<<ASKING>>\nyes, no, or not yet\n<<END>>\n"
        "Yes: it starts at your next waking.{undo} No: you are not asked about it again, unless "
        "you ask for it by name. Not yet, or no answer: you are asked again in %d days. Your "
-       "answer is private." % AGAIN_DAYS)
+       "answer is private: only you and the founder see it." % AGAIN_DAYS)
 HOW_MONTHLY = ("you are asked again in %d days" % AGAIN_DAYS, "you are asked again next month")
 HOW_UNDO = " You can take it back later."
 HOW_NO_UNDO = " It cannot be taken back."
 TOLD = {
-    YES: "You said yes to {name}. It is on from this waking. To take it back, write "
-         "<<ASKING>> with the line: take back: {name}",
+    YES: "You said yes to {name}. It is on now. To take it back, write <<ASKING>> with the "
+         "line: take back: {name}",
     "meta yes": "You said yes to askings. Other changes may be asked about, one at a time, at "
                 "later wakings. To take it back, write <<ASKING>> with the line: take back: "
                 "askings",
@@ -488,6 +495,10 @@ def next_asking(kind, who, today, already_on=()):
     if opened in ASK_FIRST and opened not in already_on and (
             opened == META or opened in queue_of(kind, who, held)):
         return opened  # shown and not answered: it is the same asking until it is
+    every = every_days(kind, who, held)
+    last = day_of(held.get("last_asked"))
+    if every and last is not None and today < last + timedelta(days=every):
+        return None  # one asking every so many days, at most
     after = [switch for switch in queue_of(kind, who, held)
              if switch not in NOT_BUILT and switch not in already_on
              and released(kind, who, held, switch, today)]
@@ -507,11 +518,18 @@ def next_asking(kind, who, today, already_on=()):
     return after[0]
 
 
+# The asking about askings, for a person: on their home page, not at a waking (21 November
+# 2026, from names-ids).
+META_ADDS_PEOPLE = ("Now and then, one question like this on your home page, about one change "
+                    "to how the site works for you. You answer yes, no, or not yet.")
+
+
 def asking_words(kind, switch):
     """The words of one asking, as they are shown, in plain lines."""
     one = ASK_FIRST[switch]
     if switch == META:
-        return {"name": one["name"], "question": META_WORDS[kind], "adds": one["adds"],
+        return {"name": one["name"], "question": META_WORDS[kind],
+                "adds": META_ADDS_PEOPLE if kind == PEOPLE else one["adds"],
                 "takes": one["takes"]}
     return {"name": one["name"],
             "question": one.get("question") or "May I make this change: %s?" % one["name"],
@@ -524,6 +542,7 @@ def mark_asked(kind, who, switch, at):
         return
     if (held.get("open") or {}).get("switch") != switch:
         held["open"] = {"switch": switch, "asked_at": at}
+        held["last_asked"] = at
         write(kind, who, held)
 
 
@@ -619,6 +638,30 @@ def set_queue(kind, who, order):
     return seen
 
 
+def every_days(kind, who, held):
+    """At most one asking every so many days for this one; 0 for no limit."""
+    set_ = held.get("every_days") if held else None
+    if isinstance(set_, int) and not isinstance(set_, bool) and set_ >= 0:
+        return set_
+    return DEFAULT_EVERY_DAYS.get((kind, who), 0)
+
+
+def set_every_days(kind, who, days):
+    """The founder's spacing for one subject: whole days, 0 to 365; 0 is no limit."""
+    held = read(kind, who)
+    if held is None:
+        raise Refused("unreadable")
+    try:
+        days = int(str(days).strip())
+    except ValueError:
+        raise Refused("the days were not a whole number")
+    if not 0 <= days <= 365:
+        raise Refused("the days were not from 0 to 365")
+    held["every_days"] = days
+    write(kind, who, held)
+    return days
+
+
 def everyone():
     """Every subject with a file or a default queue: (kind, who), in a steady order."""
     found = set(DEFAULT_QUEUES)
@@ -645,6 +688,8 @@ def shown_to_founder(kind, who, today, already_on=()):
             "on_anyway": switch in already_on, "not_built": switch in NOT_BUILT})
     return {"kind": kind, "who": who, "rows": rows,
             "open": (held.get("open") or {}).get("switch"),
+            "every_days": every_days(kind, who, held),
+            "last_asked": (held.get("last_asked") or "")[:10],
             "next": next_asking(kind, who, today, already_on),
             "not_before": (NOT_BEFORE.get((kind, who)) or "") and
             NOT_BEFORE[(kind, who)].isoformat()}

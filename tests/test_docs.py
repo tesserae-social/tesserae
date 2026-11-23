@@ -625,13 +625,14 @@ def test_the_november_edition_says_what_stage_2_holds_and_marks_the_rest():
                  "Each piece has a topic on the board"):
         assert gone not in paper, gone
     powers = said("keepers-powers.html").replace("&#x27;", "'").replace("&quot;", '"')
-    for now in ("Order the askings:", "See every answer to an asking,",
+    for now in ("Order the askings, and space them:", "and at most how often, on /tides",
+                "See every answer to an asking,",
                 "leaving.py --vaults --apply", "leaving.py --come-back",
                 'To come with names (not yet): moving the keeper\'s own files to the id "founder"',
                 "Answering an asking for anyone", "Leaving the commons through the site.",
                 "its entry in the registry was changed"):
         assert now in powers, now
-    for gone in ("To come with leaving, askings and names", "spacing", "move_to_ids.py",
+    for gone in ("To come with leaving, askings and names", "move_to_ids.py",
                  "Seeing a member's sign-in"):
         assert gone not in powers, gone
 

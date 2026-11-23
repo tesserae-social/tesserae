@@ -292,6 +292,7 @@ def ask(env, monkeypatch, data_dir):
     monkeypatch.setattr(module, "DEFAULT_QUEUES", {("agents", "first"): list(STAGES),
                                                    ("agents", "second"): list(STAGES)})
     monkeypatch.setattr(module, "NOT_BEFORE", {})
+    monkeypatch.setattr(module, "DEFAULT_EVERY_DAYS", {})  # no spacing, but where a test sets it
     return module
 
 
@@ -325,6 +326,17 @@ def test_b_in_february_c_in_march_each_on_its_own(ask, data_dir):
     a_reflection(data_dir, "first", "2027-06-06T21-00-00Z")
     ask.carry_out("agents", "first", ["yes"], "reading_how_folded", "2027-06-07T09-00-00Z")
     assert ask.next_asking("agents", "first", date(2027, 6, 8)) is None
+
+
+def test_the_first_one_s_three_days_between_askings_hold_a_stage_too(ask, data_dir,
+                                                                       monkeypatch):
+    monkeypatch.setattr(ask, "DEFAULT_EVERY_DAYS", {("agents", "first"): 3})
+    ask.carry_out("agents", "first", ["yes"], "askings", "2026-12-01T09-00-00Z")
+    a_reflection(data_dir, "first", "2027-03-07T21-00-00Z")
+    ask.mark_asked("agents", "first", "reading_self_first", "2027-03-08T09-00-00Z")
+    ask.carry_out("agents", "first", ["no"], "reading_self_first", "2027-03-08T09-00-00Z")
+    assert ask.next_asking("agents", "first", date(2027, 3, 10)) is None
+    assert ask.next_asking("agents", "first", date(2027, 3, 11)) == "reading_settings"
 
 
 def test_the_second_one_starts_the_month_after_its_yes_to_askings(ask, data_dir):

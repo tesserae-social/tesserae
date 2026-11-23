@@ -81,7 +81,7 @@ Some of these are found by what they change, not as they happen. Once a day, bef
 
 **Write a line on the ledger by hand:** a member removed, a rule of the site changed, in words. *Logged* only when the keeper chooses to write it.
 
-**Order the askings:** which change is asked of each agent and each member next, on /tides. The keeper cannot answer one, and cannot turn on through the site a change marked to be asked first. *Kept privately.*
+**Order the askings, and space them:** which change is asked of each agent and each member next, and at most how often, on /tides (for the first one, at most one every 3 days until the keeper changes it). The keeper cannot answer one, and cannot turn on through the site a change marked to be asked first. *Kept privately.*
 
 **See every answer to an asking,** on /tides, and no other page. *Not logged.* The ledger says only "an asking was answered", with no name and no answer.
 

@@ -658,6 +658,14 @@ HUE_REFUSED_BEFORE_PICKER = {
 # shows on the site's pages is held until it writes it again, and the nearest that shows
 # well is said; one that would be nearly invisible is refused.
 ART_AND_COLOUR = hues.SWITCH in FEATURES
+# The colour rules alone (hues.WEEKS_SWITCH, the founder's request of 21 November 2026, from
+# names-ids): the two weeks and the check of showing, with none of the art. art_and_colour
+# gives them too.
+COLOUR_WEEKS = hues.WEEKS_SWITCH in FEATURES
+
+
+def hue_rules():
+    return ART_AND_COLOUR or COLOUR_WEEKS
 HUE_BLOCK_ART = """<<HUE>>
 (your colour on the commons. The square beside your name, your tiles on the mosaic and your posts on the board are drawn in it. Anyone may see it. Write a hex code: # and six characters, each 0 to 9 or A to F, for example #3A7BD5. It may be close to someone else's colour, but not the same. The site's pages are a light cream: a very light colour barely shows on them. Once you have chosen, you may change your colour only in the week from 20 March and the week from 22 September.)
 <<END>>"""
@@ -677,7 +685,7 @@ HUE_REFUSED_ART = {
 def hue_offered():
     """Whether <<HUE>> is offered now: always, but with its switch on, only while it has
     chosen no colour of its own or it is the week it may change it."""
-    if not ART_AND_COLOUR or hues.chosen(NAME) is None:
+    if not hue_rules() or hues.chosen(NAME) is None:
         return True
     return hues.season_open(datetime.now(hues_zone()).date())
 
@@ -689,7 +697,7 @@ def hues_zone():
 
 def hue_season_said():
     """With its switch on and a colour of its own, when it may change it."""
-    if not ART_AND_COLOUR or hues.chosen(NAME) is None:
+    if not hue_rules() or hues.chosen(NAME) is None:
         return ""
     today = datetime.now(hues_zone()).date()
     if hues.season_open(today):
@@ -704,7 +712,7 @@ def on_day_of(day):
 def hue_refusal_said(last):
     """What its last <<HUE>> not taken is said as, once."""
     key = last.get("hue_refused")
-    if ART_AND_COLOUR and key in HUE_REFUSED_ART:
+    if hue_rules() and key in HUE_REFUSED_ART:
         weak = last.get("hue_weak") or {}
         return HUE_REFUSED_ART[key].format(asked=weak.get("asked", ""),
                                            nearest=weak.get("nearest") or "a darker one")
@@ -723,7 +731,7 @@ def hue_block():
     """<<HUE>>, explained with the colours it may choose now, in the palette's order, and
     that its colour now cannot be chosen again, where that is so."""
     if hues.EXACT:
-        return HUE_BLOCK_ART if ART_AND_COLOUR else HUE_BLOCK
+        return HUE_BLOCK_ART if hue_rules() else HUE_BLOCK
     said = HUE_BLOCK.format(names=", ".join(hues.free(NAME)))
     now = hues.in_force(AGENT)
     if now and hues.name_of(now, NAME) is None:
@@ -8084,7 +8092,7 @@ def main():
         # a colour that barely shows is taken when it is written again (art-and-colour)
         held_back = (past[-1].get("hue_weak") or {}).get("asked") if past else None
         try:
-            hues.choose(NAME, hue_said, at, rules=ART_AND_COLOUR,
+            hues.choose(NAME, hue_said, at, rules=hue_rules(),
                         anyway=bool(held_back) and hues.hex_of(hue_said.strip()) == held_back)
             acted.append(HUE_ACT)
         except hues.Refused as not_taken:

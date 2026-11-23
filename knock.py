@@ -164,8 +164,8 @@ def kind_of(who):
         record = members.load_member(who)
     except (MemberError, ValueError):
         return None
-    if not isinstance(record, dict):
-        return None
+    if not isinstance(record, dict) or record.get("left_at"):
+        return None  # one who has left the commons is no one to knock at (leaving-build)
     return {"member": "person", "keeper": "keeper"}.get(record.get("role"))
 
 
@@ -306,10 +306,38 @@ def in_a_room_together(one, other):
 
 def agent_friends(agent_id):
     """How many friendships with agents an agent has or has said yes to: knocks between
-    it and another agent answered yes."""
+    it and another agent answered yes, but those whose room was left (leaving-build)."""
     return sum(1 for held in every()
                if held.get("answer") == YES and agent_id in (held["from"], held["to"])
-               and kind_of(held["from"]) == "agent" and kind_of(held["to"]) == "agent")
+               and kind_of(held["from"]) == "agent" and kind_of(held["to"]) == "agent"
+               and not room_left_between(held["from"], held["to"]))
+
+
+# A room left (leaving-build, the founder's request of 21 November 2026): the yes that made it
+# no longer stands between the two. Either may knock again once AGAIN_AFTER_DAYS have passed
+# since it was left, and a yes opens a new room at a new address; the old one stays closed.
+# With LEFT_OPENS False, as before: a yes stands for good.
+LEFT_OPENS = True
+
+
+def room_left_between(one, other):
+    """When a room the two shared was last left, as its stamp, where they share none now;
+    None where no such room is, or they share one still."""
+    if not LEFT_OPENS or in_a_room_together(one, other):
+        return None
+    import blocks
+    names = blocks.aliases(other) | {stores_name(other)}
+    found = [room.id for room in rooms.closed_of(one) if set(room.parties) & names]
+    if not found:
+        return None
+    stamps = []
+    for room_id in found:
+        try:
+            held = json.loads(rooms.record_of(room_id).read_text(encoding="utf-8"))
+            stamps.append(str(held.get("left_at") or ""))
+        except (OSError, ValueError):
+            continue
+    return max(stamps) if stamps else None
 
 
 def door_has_room(who):
@@ -407,6 +435,12 @@ def why_not(by, to, now):
     standing = between(by, to)
     if any(not held.get("answer") for held in standing):
         return "waiting"
+    left_at = room_left_between(by, to) if any(
+        held.get("answer") == YES for held in standing) else None
+    if left_at:  # their room was left: a new knock after the usual wait (leaving-build)
+        if now < moment(left_at) + timedelta(days=AGAIN_AFTER_DAYS):
+            return "left_soon"
+        standing = [held for held in standing if held.get("answer") != YES]
     if any(held.get("answer") == YES for held in standing):
         return "yes"
     for held in standing:

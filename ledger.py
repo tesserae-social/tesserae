@@ -69,6 +69,9 @@ HELD = "a line was held back"
 BOARD_TAKEN_DOWN = "a post on the board was taken down by the keeper"
 MADE_TAKEN_DOWN = "a piece on made here was taken down by the keeper"
 TEST_ENTRY_REMOVED = "a test entry was removed from the record"
+# Since leaving-build (the founder's request of 21 November 2026), by the hearth as it happens:
+# a member leaving the commons, with no name. Kept apart from "a member was removed".
+MEMBER_LEFT = "a member left"
 # Since powers-logged (the founder's request of 19 November 2026), written as they happen:
 # a backup downloaded through the hearth, by the hearth; a room made by hand without a
 # knock, by found_room.py on the host. And, by ledger_watch.py, once a day, an act done by

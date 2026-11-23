@@ -151,7 +151,9 @@ def test_the_numbers_are_the_keeper_s_alone(hearth, founder, visitor):
 
 def test_with_no_agent_that_wakes_the_averages_say_none_yet(hearth, founder, monkeypatch):
     asleep = [{**agents.first(), "wakes": False}]
-    monkeypatch.setattr(hearth.agents, "registry", lambda: asleep)
+    # since askings (20 November 2026) the registry is also asked for itself as committed,
+    # registry(asked=False)
+    monkeypatch.setattr(hearth.agents, "registry", lambda asked=True: asleep)
     said = the_numbers(founder)
     assert "Agents that wake: 0" in said
     assert "People per agent: none yet" in said

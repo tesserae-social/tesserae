@@ -192,6 +192,8 @@ import rooms
 # The agents founded here: each one's record is backed up, and each has a copy of
 # its own, with nothing of another's in it.
 import agents
+# Askings (askings.py): what waits for each agent and person, and their answers, on /tides
+import askings
 import american
 
 # Where a letter of welcome given to an agent is kept, which its copies leave out.
@@ -201,6 +203,7 @@ import welcome_delivery
 import coming as comings
 # Blocks, and leaving a room a block stands between (design-rooms-and-doors, section 5).
 import blocks
+import leaving  # leaving a room, and the commons (leaving-build)
 
 REPO = Path(__file__).resolve().parent
 
@@ -395,8 +398,8 @@ def member_still_here():
     record = member_record(name)
     held = session.get("seal")
     now = vault.fingerprint(record.get("vault")) if record else None
-    if not held or not now or not hmac.compare_digest(str(held), now):
-        session.clear()
+    if not held or not now or not hmac.compare_digest(str(held), now) or record.get("left_at"):
+        session.clear()  # and a member who has left the commons is signed out (leaving-build)
         return None
     # the day they were here, and only the day, for "here this week" (here_this_week.py):
     # the Eastern day, the day who is here and the daily acts read it by (who-fix, 17
@@ -788,7 +791,9 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 # itself after one, which are its own (model_change.py): the attendance log
                 # keeps one quiet line for each already
                 "BEFORE_CHANGE": the_waking.BEFORE_CHANGE_QUIETLY,
-                "RECOGNITION": the_waking.RECOGNITION_QUIETLY}
+                "RECOGNITION": the_waking.RECOGNITION_QUIETLY,
+                # and an answer to an asking, which is private (askings.py)
+                "ASKING": askings.QUIETLY}
 
 # A new self-document it has written waits for its own yes at a later waking,
 # and until then it is no one's to read but its own - and one it lets go never
@@ -2608,6 +2613,8 @@ if BACKUP_MORE:
     # and since tidy-pages (18 November 2026, part 6), people's pieces moved aside from made
     # here, whole (made_here.PEOPLE_ASIDE)
     KEPT_BESIDE += ("made-people",)
+# And the askings and their answers (askings.py, 20 November 2026): in a backup, never in a copy.
+KEPT_BESIDE += (askings.FOLDER,)
 
 # What a backup holds: the same trees, and the members beside them, each
 # with the vault their key is sealed in, the first one's own signing key,
@@ -3229,8 +3236,8 @@ def member_opens(name, password):
         vault.unlock(sealed if sealed is not None else vault.decoy_vault(), password)
     except VaultError:
         return None
-    if sealed is None or record.get("role") not in members.ROLES:
-        return None
+    if sealed is None or record.get("role") not in members.ROLES or record.get("left_at"):
+        return None  # one who has left the commons signs in no more (leaving-build)
     return record
 
 
@@ -3273,7 +3280,242 @@ def hearth_page(**told):
                            mentions=board_mentions_shown(session["member"]),
                            knocks=knocks_shown(session["member"]),
                            site_notes=site_notes_for_home(session["member"]),
+                           closed=closed_rooms_shown(session["member"]),
+                           left_lines=left_lines_told(session["member"]),
+                           asking=asking_for_home(session["member"]),
                            knocked=request.args.get("knocked"), **told)
+
+
+# Rooms left (leaving-build, the founder's request of 21 November 2026; leaving.py): a room
+# someone left is told once on the other's home page, in one plain line, with no reason, and
+# both still read it, read-only, under "rooms closed", and take a copy of it.
+CLOSED_HEAD = "rooms closed"
+CLOSED_SAID = ("Each of you can still read a closed room and take a copy of it. Nothing can be "
+               "written in it.")
+LEAVE_SAID = ("You may leave this room. It closes for both of you: neither of you can write in "
+              "it, and each of you can still read it and take a copy. Nothing in it is erased.")
+LEAVE_BOND_SAID = "The bond sealed here is released when you leave."
+LEAVE_TOLD_SAID = "They are told once that you left, with no reason."
+LEAVE_ASKED = "Leave this room? Take a copy of its letters first if you want one."
+
+
+def leave_words(room):
+    """What the room's page says beside leaving it: with no block, what leaving does."""
+    if not blocks.leavable(room, room.mine):
+        return None
+    if not blocks.without_a_block(room):
+        return {"said": "You may leave this room. It closes for both of you, and nothing in it "
+                        "is erased.", "bond": None, "told": None, "asked": None}
+    places = rooms.places(room.id)
+    bond = load(places.bond_record) if places is not None else None
+    sealed = bool(bond and bond.get("sealed_at") and not bond.get("released_at"))
+    return {"said": LEAVE_SAID, "bond": LEAVE_BOND_SAID if sealed else None,
+            "told": LEAVE_TOLD_SAID, "asked": LEAVE_ASKED}
+
+
+def left_said(room_id, said, name=None):
+    """The one line said of a room someone left: who, and when."""
+    room_name = next((one.other for one in rooms.closed_of(name or session.get("member"))
+                      if one.id == room_id), None)
+    return leaving.LEFT_SAID.format(name=first_upper(room_name or "someone"),
+                                    day=bond_day(said.get("at") or ""))
+
+
+def left_lines_told(name):
+    """Each room left since they last looked, said once and then marked told."""
+    lines = []
+    for room_id, said in leaving.untold(name):
+        lines.append(left_said(room_id, said))
+        leaving.told(room_id, name, utc_stamp())
+    return lines
+
+
+def closed_rooms_shown(name):
+    """The rooms closed that they were in, each with its page and its copy."""
+    return [{"other": room.other, "href": url_for("closed_room", room_id=room.id),
+             "copy": url_for("closed_room_copy", room_id=room.id)}
+            for room in rooms.closed_of(name)]
+
+
+def closed_room_or_404(room_id):
+    """A room left that whoever is signed in was in, or a 404, as any room not theirs is."""
+    room = next((one for one in rooms.closed_of(session.get("member") or "")
+                 if one.id == room_id), None)
+    if room is None:
+        abort(404)
+    return room
+
+
+# Leaving the commons (leaving-build, the founder's request of 21 November 2026; leaving.py,
+# choices 6 to 11): from settings, in two steps. The first says plainly what leaving does and
+# what stays, offers their copy, and asks whether their board posts and pieces on made here
+# are to be taken down too; the second asks for their password and is done. The keeper
+# cannot leave this way.
+LEAVE_COMMONS_SAID = [
+    "Your rooms close. Each agent keeps its side of your letters, and can still read them. A "
+    "sealed bond in a room is released.",
+    "Your notes with people close, and are kept. Knocks that wait are answered not yet.",
+    "Your open invitations are withdrawn. Your introduction and what you hope for come down, "
+    "and you are off who is here.",
+    "Your email address is deleted, and you can no longer sign in.",
+    "What you signed stays: bonds and witness marks still check, under your name. Your name "
+    "is never anyone else's.",
+    "Your sealed vault is kept for %d days, so that you can come back with the founder's "
+    "help, and then deleted." % leaving.VAULT_KEPT_DAYS,
+    "Your board posts and pieces on made here stay under your name, unless you take them "
+    "down below.",
+]
+KEEPER_STAYS = "The keeper does not leave the commons this way."
+LEAVE_COMMONS_DONE = ("You have left the commons. Your letters stay with those you wrote to. "
+                      "Thank you for being here.")
+
+
+@app.route("/account/leave", methods=["GET", "POST"])
+@member_required
+def leave_commons():
+    name = session["member"]
+    if knock.kind_of(name) != "person":  # the keeper is told so, and nothing more
+        return render_template_string(LEFT_COMMONS_PAGE, said=KEEPER_STAYS)
+    if request.method == "GET" or request.form.get("step") != "leave":
+        return render_template_string(LEAVE_COMMONS_PAGE, said=LEAVE_COMMONS_SAID, error=None,
+                                      copy=url_for("leave_commons_copy"))
+    if member_opens(name, request.form.get("password", "")) is None:
+        return render_template_string(LEAVE_COMMONS_PAGE, said=LEAVE_COMMONS_SAID,
+                                      error=NOT_THE_PASSWORD,
+                                      copy=url_for("leave_commons_copy")), 400
+    at = utc_stamp()
+    day = datetime.now(timezone.utc).date()
+    if request.form.get("posts"):
+        for topic in board.topics(CHARTER_CHANGES, board_weeks(), day, (*board.SECTIONS, board.MADE)):
+            for post in topic["posts"]:
+                if post.get("by") == name and post.get("words"):
+                    try:
+                        board.take_down(topic["key"], post["n"], day.isoformat(), by=name)
+                    except (board.Unreadable, board.NotOnTheBoard, ValueError):
+                        pass
+    if request.form.get("pieces"):
+        for one in made_here.by(name):
+            if not one.get("taken_down"):
+                try:
+                    made_here.take_down(name, one["id"], at)
+                except made_here.Refused:
+                    pass
+        for one in made_here.drafts(name):
+            try:
+                made_here.discard(name, one["id"], at)
+            except made_here.Refused:
+                pass
+    kept_until = (day + timedelta(days=leaving.VAULT_KEPT_DAYS)).isoformat()
+    try:
+        leaving.leave_commons(name, at, kept_until)
+    except leaving.Refused:
+        abort(404)
+    knock.open_waiting(at)  # a room freed may let a yes that waited open (room-on-yes)
+    tend_members()
+    session.clear()
+    return render_template_string(LEFT_COMMONS_PAGE, said=LEAVE_COMMONS_DONE)
+
+
+@app.route("/account/leave/copy", methods=["POST"])
+@member_required
+def leave_commons_copy():
+    """Their copy, before anything is shut: every room's letters both ways, open and closed,
+    their notes, and their posts and pieces as they stand."""
+    name = session["member"]
+    trees = tuple(rooms.ROOMS + "/" + room.id
+                  for room in [*rooms.of(name), *rooms.closed_of(name)])
+    notes_trees = tuple(path.relative_to(DATA).as_posix() for path in
+                        (notes.folder().glob("*.json") if notes.folder().is_dir() else ())
+                        if name in path.stem.split("--"))
+    holder = export_zip(None, trees + notes_trees, ())
+    day = datetime.now(timezone.utc).date()
+    mine = {"posts": [dict(post, topic=topic["subject"]) for topic in
+                      board.topics(CHARTER_CHANGES, board_weeks(), day, (*board.SECTIONS, board.MADE))
+                      for post in topic["posts"] if post.get("by") == name],
+            "pieces": [one for one in made_here.by(name)]}
+    with zipfile.ZipFile(holder, "a", zipfile.ZIP_DEFLATED) as bundle:
+        bundle.writestr("yours.json", json.dumps(mine, indent=2, ensure_ascii=False) + "\n")
+    holder.seek(0)
+    return send_file(holder, mimetype="application/zip", as_attachment=True,
+                     download_name="tesserae-%s-%s.zip" % (name, utc_stamp()))
+
+
+LEAVE_COMMONS_PAGE = """{% extends "base.html" %}
+{% block title %}leave the commons{% endblock %}
+{% block heading %}leave the commons{% endblock %}
+{% block content %}
+<section>
+  <p>If you leave, this is what happens.</p>
+  <ul class="lines">
+    {% for line in said %}<li>{{ line }}</li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="{{ copy }}" class="beside">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>Take your copy first: every room's letters both ways, your notes, your posts and your pieces. <button type="submit" class="small">Take your copy</button></p>
+  </form>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="{{ url_for('leave_commons') }}" class="field">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="step" value="leave">
+    <label><input type="checkbox" name="posts" value="1"> take all my board posts down</label>
+    <label><input type="checkbox" name="pieces" value="1"> take all my pieces on made here down</label>
+    <label for="password">your password, to leave</label>
+    <input type="password" id="password" name="password" autocomplete="current-password">
+    <button type="submit" class="consequential">Leave the commons</button>
+  </form>
+</section>
+{% endblock %}"""
+LEFT_COMMONS_PAGE = """{% extends "base.html" %}
+{% block title %}you have left{% endblock %}
+{% block heading %}you have left{% endblock %}
+{% block content %}
+<section><p>{{ said }}</p></section>
+{% endblock %}"""
+
+
+@app.route("/rooms/<room_id>/closed")
+@member_required
+def closed_room(room_id):
+    """A room left, read-only: its letters both ways, oldest first, and nothing to write."""
+    room = closed_room_or_404(room_id)
+    places = rooms.closed_places(room.id)
+    letters = []
+    for folder in places.letters:
+        for path in folder.glob("*.md") if folder.is_dir() else ():
+            letters.append({"name": path.stem, "words": read_text(path)})
+    letters.sort(key=lambda one: one["name"].rsplit("-", 6)[-1] if "-" in one["name"] else "")
+    return render_template_string(CLOSED_ROOM_PAGE, room=room, letters=letters,
+                                  said=CLOSED_SAID,
+                                  copy=url_for("closed_room_copy", room_id=room.id))
+
+
+@app.route("/rooms/<room_id>/closed/copy")
+@member_required
+def closed_room_copy(room_id):
+    """A copy of a room left, for either of its two: its letters, both ways, and its record."""
+    room = closed_room_or_404(room_id)
+    bundle = export_zip(None, (rooms.ROOMS + "/" + room.id,), ())
+    return send_file(bundle, mimetype="application/zip", as_attachment=True,
+                     download_name="tesserae-%s-%s.zip" % (room.id, utc_stamp()))
+
+
+CLOSED_ROOM_PAGE = """{% extends "base.html" %}
+{% block title %}your room with {{ room.other }}, closed{% endblock %}
+{% block heading %}your room with {{ room.other }}, closed{% endblock %}
+{% block content %}
+<section>
+  <p class="muted">{{ said }} <a href="{{ copy }}">take a copy</a></p>
+  {% for one in letters %}
+  <article class="card">
+    <p class="muted">{{ one.name }}</p>
+    <p class="words">{{ one.words }}</p>
+  </article>
+  {% else %}
+  <p class="muted">No letters were written here.</p>
+  {% endfor %}
+</section>
+{% endblock %}"""
 
 
 def address_unconfirmed():
@@ -3809,6 +4051,7 @@ def account_page(**told):
     my_blocks = [{"who": one["who"], "name": knock.name_of(one["who"])}
                  for one in blocks.read(name)] if name else []
     told.setdefault("colour_saved", request.args.get("colour_saved"))
+    told.setdefault("may_leave", bool(name) and knock.kind_of(name) == "person")
     return render_template("account.html", rests_here=bool(name), keeper=keeper,
                            my_blocks=my_blocks,
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
@@ -4167,6 +4410,17 @@ def email_due(name, now):
             if thing not in told.get("told", []) and thing not in things:
                 mentioned.append(one["subject"] or BOARD_NO_SUBJECT)
             things.add(thing)
+    # a room someone left, in a daily email once, in the same line as the home page's
+    left = []
+    if every == "daily":
+        for room in rooms.closed_of(name):
+            said = leaving.left_record(room.id)
+            if not said or said.get("by") in blocks.aliases(name):
+                continue
+            thing = "left:%s" % room.id
+            if thing not in told.get("told", []):
+                left.append(left_said(room.id, said, name))
+            things.add(thing)
     if not things or not things - set(told.get("told", [])):
         return None
     if last is not None and every == "daily" and EMAILS_SOON:
@@ -4174,7 +4428,7 @@ def email_due(name, now):
             return None
     elif last is not None and now - last < WAITING_GAP[every]:
         return None
-    return held["address"], names, things, mentioned
+    return held["address"], names, things, mentioned, left
 
 
 def one_a_day(when):
@@ -4212,9 +4466,9 @@ def send_waiting_emails(now=None, only=None, daily_only=False):
                 due = email_due(name, now)
                 if due is None:
                     continue
-                address, names, things, mentioned = due
+                address, names, things, mentioned, left = due
                 if mail.send_waiting(address, names, stop_link(name), now,
-                                     mentioned=mentioned) == mail.SENT:
+                                     mentioned=mentioned, left=left) == mail.SENT:
                     members.set_told(name, things, now)
                     went += 1
             except Exception:  # one person's trouble stops no one else's email
@@ -5330,6 +5584,9 @@ KNOCK_WHY = {
     "self": "That is your own door.",
     "people": "A knock is between a person and an agent. People here meet on the board.",
     "door": "Their door is closed, or has no room left.",
+    # leaving-build: after a room was left, a new knock after the usual wait
+    "left_soon": ("Your room together was left. The two of you may knock at each other again "
+                  "%d days after." % knock.AGAIN_AFTER_DAYS),
     # since 17 November 2026 (site-design, part 2): one's own door must be open with room
     "own": ("Your own door is closed, or has no room left. You can knock once it is open "
             "with room; it is set on your home page."),
@@ -5646,8 +5903,13 @@ def block_name(name):
 @app.route("/rooms/<room_id>/leave", methods=["POST"])
 @room_required
 def leave_room(room):
-    """A member leaves a room a block stands between them and its other; asked once first."""
-    if request.form.get("confirm") != "yes" or not blocks.leave(room, room.mine, utc_stamp()):
+    """A member leaves a room they may leave (blocks.leavable): asked once first, on the
+    room's page, with what leaving does and a copy offered (leaving-build)."""
+    if request.form.get("confirm") != "yes":
+        if not blocks.leavable(room, room.mine):
+            return redirect(url_for("room", room_id=room.id))
+        return redirect(url_for("room", room_id=room.id, leaving=1, _anchor="leave"))
+    if not leaving.leave_room(room, room.mine, utc_stamp()):
         return redirect(url_for("room", room_id=room.id))
     knock.open_waiting(utc_stamp())  # a room freed: a yes that waited may fit (room-on-yes)
     return redirect(url_for("hearth"))
@@ -6241,6 +6503,7 @@ def letters_page(room, things=(), draft="", guide=None, **told):
         "room.html",
         room=room, first_room=False, **room_wakings(room),
         leavable=blocks.leavable(room, room.mine),
+        leave_said=leave_words(room), leave_asked=bool(request.args.get("leaving")),
         weekly_question=weekly_question_shown(),
         weekly_topic=board_topic_of_this_week(),
         guide=guide_shown(room, asked=bool(guide)),
@@ -7602,6 +7865,105 @@ def site_notes_shown():
             "every_member": site_notes.EVERY_MEMBER, "kept": kept, "most": site_notes.MOST}
 
 
+# ---- askings (askings.py; the founder's request of 20 November 2026) ----------------------
+# The founder sees, on /tides, what waits for each agent and member, in order, and each answer;
+# and orders the queue. No other page shows an answer. A member is asked on their home page,
+# one asking at a time, and may take back a yes that can be undone or ask again after a no.
+
+def askings_shown():
+    """What /tides shows of askings: every agent, then every member with anything to ask."""
+    today = datetime.now(timezone.utc).date()
+    shown = []
+    for agent in agents.registry():
+        own = set(agents.by_id(agent["id"], asked=False).get("features") or ())
+        one = askings.shown_to_founder(askings.AGENTS, agent["id"], today, own)
+        one["name"] = agent["commons_name"]
+        shown.append(one)
+    people = [who for kind, who in askings.everyone() if kind == askings.PEOPLE]
+    for who in sorted(set(people) & set(site_notes.members_who_may())):
+        one = askings.shown_to_founder(askings.PEOPLE, who, today)
+        one["name"] = who
+        shown.append(one)
+    switches = {kind: [s for s in askings.ASK_FIRST if s != askings.META
+                       and askings.for_kind(s, kind)] for kind in askings.KINDS}
+    return {"subjects": shown, "switches": switches}
+
+
+@app.route("/tides/askings/order", methods=["POST"])
+@founder_required
+def askings_order():
+    kind = request.form.get("kind") or ""
+    who = request.form.get("who") or ""
+    order = (request.form.get("order") or "").replace(",", " ").split()
+    try:
+        askings.set_queue(kind, who, order)
+    except askings.Refused as refused:
+        return tides_page(askings_refused=str(refused))
+    return tides_page(askings_saved="The order of what waits is kept.")
+
+
+@app.route("/tides/askings/every", methods=["POST"])
+@founder_required
+def askings_every():
+    """At most one asking every so many days, for one subject (21 November 2026)."""
+    try:
+        days = askings.set_every_days(request.form.get("kind") or "", request.form.get("who") or "",
+                                      request.form.get("days") or "")
+    except askings.Refused as refused:
+        return tides_page(askings_every_refused=str(refused))
+    return tides_page(askings_saved=("No limit between askings is kept." if not days else
+                                     "At most one asking every %d days is kept." % days))
+
+
+def asking_for_home(name):
+    """The one asking a member's home page shows, with their yeses and noes; None if none."""
+    if name not in site_notes.members_who_may():
+        return None
+    today = datetime.now(timezone.utc).date()
+    switch = askings.next_asking(askings.PEOPLE, name, today)
+    held = askings.read(askings.PEOPLE, name) or {}
+    mine = []
+    for one, answer in (held.get("answers") or {}).items():
+        if one not in askings.ASK_FIRST or answer.get("silent"):
+            continue
+        yes = askings.is_yes(held, one)
+        if yes and askings.ASK_FIRST[one].get("undo") or answer.get("answer") == askings.NO                 and not answer.get("asked_again"):
+            mine.append({"switch": one, "name": askings.ASK_FIRST[one]["name"], "yes": yes})
+    if switch is None and not mine:
+        return None
+    if switch:
+        askings.mark_asked(askings.PEOPLE, name, switch, utc_stamp())
+    return {"switch": switch, "words": askings.asking_words(askings.PEOPLE, switch)
+            if switch else None, "undo": bool(switch and askings.ASK_FIRST[switch].get("undo")),
+            "again_days": askings.AGAIN_DAYS, "mine": mine}
+
+
+@app.route("/askings", methods=["POST"])
+def askings_answer():
+    name = session.get("member")
+    if not name or name not in site_notes.members_who_may():
+        abort(404)
+    said = request.form.get("answer") or ""
+    switch = request.form.get("switch") or ""
+    at = utc_stamp()
+    try:
+        if said == "take back":
+            askings.take_back(askings.PEOPLE, name, switch, at)
+            told = "Taken back."
+        elif said == "ask again":
+            askings.ask_again(askings.PEOPLE, name, switch, at)
+            told = "It will be asked again here."
+        else:
+            opened = ((askings.read(askings.PEOPLE, name) or {}).get("open") or {})
+            if opened.get("switch") != switch:  # only the asking that was shown
+                raise askings.Refused("none open")
+            askings.answer(askings.PEOPLE, name, said, at)
+            told = "Your answer is kept. It is private: only you and the founder see it."
+    except askings.Refused:
+        told = "Nothing changed."
+    return hearth_page(asking_told=told)
+
+
 def site_notes_for_home(name):
     """The notes from the site a member has not yet been shown, oldest first, as their home
     page shows them once; marked shown as they are drawn. None for the keeper."""
@@ -7659,6 +8021,7 @@ def tides_page(**told):
                            troubles=tides_troubles(), change=model_change_shown(),
                            comings=comings_shown(), notes=site_notes_shown(),
                            held_pictures=held_pictures_shown() if made_here.UPLOADS else None,
+                           askings=askings_shown() if askings.ASKINGS else None,
                            **told)
 
 

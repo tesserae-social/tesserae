@@ -164,7 +164,10 @@ NEVER_READ = ("AGENT", "LATER_WORDS", "SYSTEMS", "FOUNDER_ANSWERS", "FOUNDER_DID
               # the pieces <<SHOWN>> is made from, and the block as it was (room-privacy):
               # what it reads is SHOWN_BLOCK, held below with each switch
               "SHOWN_BLOCK_BEFORE_COPY", "SHOWN_COPY_BEFORE", "SHOWN_COPY_NOW",
-              "SHOWN_BLOCK_PRIVATE")
+              "SHOWN_BLOCK_PRIVATE",
+              # printed to the founder when a waking by hand is refused while the keeper's
+              # stop stands (powers-logged): never in any reading
+              "HELD_BY_A_STOP")
 # keys never read: KNOCK_KINDS is looked up by knock.kind_of's answer ("keeper" among them);
 # an agent reads only the value, "a person", which is still checked
 KEYS_NEVER_READ = ("KNOCK_KINDS",)

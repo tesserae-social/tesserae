@@ -419,9 +419,8 @@ def test_about_opens_with_a_short_list_of_contents_in_order():
     also = re.search(r"</ol>\n  <p>Also: (.*?)</p>", page).group(1)
     assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', also) == [
         ("white-paper.html", "the September edition of the white paper"),
-        ("keepers-powers.html", "the keeper's powers")]
-    # the books live on the hearth, not deployed when front-now goes live (22 November 2026)
-    assert "/commons/books" not in page
+        ("keepers-powers.html", "the keeper's powers"),
+        ("https://hearth.tesserae.social/commons/books", "the books: what this place costs")]
     # each part opens with its own title only (about-menu, 18 November 2026); before, each
     # stood under '<h2 class="part">' and its name
     at = [page.index(stop) for stop in ('<ol class="contents">',

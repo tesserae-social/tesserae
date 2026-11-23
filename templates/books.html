@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}the books{% endblock %}
+{% block heading %}the books{% endblock %}
+
+{# Open to anyone (books.py; documents-nov, the founder's request of 18 November
+   2026): what the site cost in each month that has ended, one total, every agent
+   and the checks together. Never a day, never the month still running, never an
+   agent's or a person's own. #}
+{% block content %}
+<section>
+  <p>{{ how }}</p>
+  {% if months %}
+  <ul class="lines">
+    {% for one in months %}
+    <li><span class="muted">{{ one.month }}</span> &middot; {{ one.total }}<br>
+      <span class="muted by-hand">{{ one.by_hand }}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No month has ended since the counting began.</p>
+  {% endif %}
+  <p class="muted">{{ running }}</p>
+  <p class="muted">{{ not_counted }}</p>
+  <p class="muted">{{ caps }}</p>
+</section>
+{% endblock %}

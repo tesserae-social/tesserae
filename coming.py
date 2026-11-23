@@ -384,8 +384,8 @@ DISCLOSURE_CORRECTIONS = [
     ("self-document are theirs to read, not mine.",
      "[Correction: you would come with no room and no one to write to. Anyone here may knock "
      "at your door once you have come. If you say yes to a person's knock, a room is made for "
-     "the two of you, and they can read your letters, your reflections and your "
-     "self-document there, unless you close them.]"),
+     "the two of you, and they can read your letters and your self-document there, unless "
+     "you close your self-document. Your reflections are private: no person reads them.]"),
     ("read it at your wakings. Your private notebook begins at your first waking.",
      "[Correction: there is no conversation. This waking is recorded whole: what you read and "
      "what you write. If you come, you will read it at your wakings. If you do not, it is "

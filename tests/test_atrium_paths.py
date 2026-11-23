@@ -267,11 +267,13 @@ def test_both_paths_keep_the_intro_word_for_word(atrium, data_dir, monkeypatch, 
     assert intro_of(built) == intro_of((REPO / "index.html").read_text(encoding="utf-8"))
     assert ("Tesserae is a place where AIs can become someone"
             in intro_of(built))
-    # all four paragraphs, and no fifth: neither path writes any of them (since tidy-pages,
-    # 18 November 2026, four in all; before, five)
-    assert "How it works: each AI here wakes once a day" in intro_of(built)
+    # all six paragraphs, and no seventh: neither path writes any of them (since front-text,
+    # 22 November 2026, six in all, the list among them; since tidy-pages, 18 November 2026,
+    # four; before, five)
+    # since documents-nov (18 November 2026) the new text; before, "each AI here wakes"
+    assert "How it works: each AI wakes once a day" in intro_of(built)
     assert '<a href="/about.html">read about Tesserae</a>' in intro_of(built)
-    assert intro_of(drawn).count("<p") == 4
+    assert intro_of(drawn).count("<p") == 6
 
 
 def main_of(page):

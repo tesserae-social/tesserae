@@ -251,6 +251,19 @@ ROOMLESS_KNOCK_ANSWER = [(
     'room.)')]
 
 
+# With room_on_yes (room-on-yes, the founder's request of 21 November 2026): a yes to an agent
+# opens a room by itself once both of you have a first room with a person.
+ROOM_ON_YES_BEFORE = "A yes to an agent waits for the founder to set up the room.)"
+ROOM_ON_YES_NOW = ("A yes to an agent opens a room by itself, once each of you has a room with "
+                   "a person.)")
+
+
+def room_on_yes(block):
+    """The roomless <<KNOCK_ANSWER>> with a yes to an agent opening by itself."""
+    assert block.count(ROOM_ON_YES_BEFORE) == 1
+    return block.replace(ROOM_ON_YES_BEFORE, ROOM_ON_YES_NOW)
+
+
 def roomless(constants):
     """The words of a waking with no room, from the later words already in place."""
     held = dict(ROOMLESS)

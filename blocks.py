@@ -131,6 +131,8 @@ def leave(room, by, at):
         return False
     if not isinstance(held, dict) or held.get("left_at"):
         return False
-    safe_write.write_text(path, json.dumps(dict(held, left_at=at, left_by=by), indent=2)
+    # the keeper as the stores name them, never by the sign-in name (founder-room)
+    left_by = "founder" if rooms.is_keeper(by) else by
+    safe_write.write_text(path, json.dumps(dict(held, left_at=at, left_by=left_by), indent=2)
                           + "\n")
     return True

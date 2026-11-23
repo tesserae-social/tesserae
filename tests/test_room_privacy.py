@@ -36,6 +36,8 @@ def with_switch(world, *names):
 # ---- (1) reflections ------------------------------------------------------------------
 
 def test_with_the_switch_no_person_reads_its_reflections_anywhere(world, alder):
+    # opened by its own choice: with nothing written they are private (small-fixes)
+    write_json(world / "packets" / "second" / "preferences.json", {"reflection": "open"})
     assert SECOND_SAYS["its reflection"] in page(alder.get("/agents/second/attendances"))
     with_switch(world, PRIVATE)
     for path in ("/agents/second/attendances", "/rooms/second"):
@@ -50,6 +52,16 @@ def test_with_the_switch_its_choice_to_open_them_opens_nothing(world, alder):
     with_switch(world, PRIVATE)
     assert SECOND_SAYS["its reflection"] not in page(alder.get("/agents/second/attendances"))
     assert SECOND_SAYS["its self"] in page(alder.get("/agents/second/self"))  # its self is open
+
+
+def test_with_nothing_written_a_later_agent_s_reflections_are_private(world, alder):
+    """small-fixes (the founder's request of 21 November 2026): with no preferences.json and
+    no switch, a later agent's reflections are private; the first one's stand as before."""
+    (world / "packets" / "second" / "preferences.json").unlink(missing_ok=True)
+    assert SECOND_SAYS["its reflection"] not in page(alder.get("/agents/second/attendances"))
+    import hearth
+    assert hearth.preferences({"id": "second"}) == {"reflection": "private"}
+    assert hearth.preferences({"id": "first"})["reflection"] == hearth.preferences()["reflection"]
 
 
 def test_the_first_one_s_reflections_are_as_they_were(world, founder):

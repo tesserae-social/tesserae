@@ -69,6 +69,21 @@ HELD = "a line was held back"
 BOARD_TAKEN_DOWN = "a post on the board was taken down by the keeper"
 MADE_TAKEN_DOWN = "a piece on made here was taken down by the keeper"
 TEST_ENTRY_REMOVED = "a test entry was removed from the record"
+# Since powers-logged (the founder's request of 19 November 2026), written as they happen:
+# a backup downloaded through the hearth, by the hearth; a room made by hand without a
+# knock, by found_room.py on the host. And, by ledger_watch.py, once a day, an act done by
+# hand on the host and found by what it changed: the list of private words, the charter,
+# its page of changes, the site's code, an agent's entry in the registry, an agent's key.
+# Each says what was done and nothing of what was in it.
+BACKUP_DOWNLOADED = "a backup was downloaded by the keeper"
+ROOM_BY_HAND = "a room was made by hand, without a knock"
+PRIVATE_WORDS_CHANGED = "the list of private words was changed"
+CHARTER_CHANGED = "the charter was changed"
+CHARTER_CHANGES_CHANGED = "the page of changes to the charter was changed"
+CODE_CHANGED = "the site's code was changed (the public code says how)"
+ENTRY_CHANGED = "its entry in the registry was changed"
+ENTRY_TAKEN_OUT = "an agent's entry was taken out of the registry"
+AGENT_KEY_REPLACED = "its key was replaced"
 ACTS = {
     "line-held": HELD,
     "member-removed": "a member was removed",

@@ -3,7 +3,7 @@
 After a deploy, before the next dawn, the keeper may ask whether each agent
 would wake with the code now live:
 
-    DATA_DIR=/data python rehearse_waking.py [--agent <id>]
+    DATA_DIR=/data python rehearse_waking.py [--agent <id>] [--says <sentence>]
 
 The living record (DATA_DIR) is copied whole to a folder of its own in the
 host's temporary space, the links that work once (tokens/) left out, as every
@@ -36,6 +36,14 @@ each rehearsed agent's change still ahead is put on yesterday, and the line for
 each says which model its waking asked for. An agent with no change ahead is
 rehearsed as it is, and its line says so. The record itself is never changed.
 
+--says <sentence> asks whether a sentence is in each rehearsed agent's reading, and
+says only "is in its reading" or "is not in its reading": never the reading, and
+never the sentence. The sentence is given as text, or as the name of one of
+attend.py's sentences (REFLECTIONS_PRIVATE_TOLD, say), read as that agent's
+waking has it, its person's name and its spelling put in. Spaces and line breaks
+are matched loosely. It may be given more than once. (the founder's request of
+19 November 2026)
+
 Nothing in DATA_DIR is written. The exit code is 0 when every rehearsed waking
 completed, 1 when one did not, and 2 when nothing could be rehearsed.
 """
@@ -44,6 +52,7 @@ import argparse
 import io
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -76,6 +85,15 @@ NOT_A_KEY = "a rehearsal: no model is reached"
 
 INSIDE = "--inside"  # how the rehearsal runs itself as the process that holds one waking
 RESULT = "TESSERAE_REHEARSAL_RESULT"  # where that process writes what it found
+SAYS = "TESSERAE_REHEARSAL_SAYS"  # the sentences asked after with --says, as a JSON list
+# A sentence asked after by name: one of attend.py's own, in capitals.
+SENTENCE_NAME = re.compile(r"[A-Z][A-Z0-9_]+")
+
+# Since powers-logged (19 November 2026) attend.py holds no waking while the agent's own
+# rest or the keeper's stop stands, but on a copy marked as a rehearsal's and asked with
+# --rehearsal; a rehearsal marks its copy and asks so, and is held as it always was.
+REHEARSAL = "--rehearsal"           # attend.REHEARSAL
+REHEARSAL_COPY = ".rehearsal-copy"  # attend.REHEARSAL_COPY
 
 
 # ---- inside: the process that holds one waking ----------------------------
@@ -107,6 +125,9 @@ class Stub:
 
     def __init__(self):
         self.requests = []
+        # the words of each request's reading, held in this process only, so that --says
+        # may look in them; never printed, never written
+        self.readings = []
 
     def google(self, api_key=None):
         """Google's client, as a rehearsal has it, for an agent on Gemini (gemini.sdk_client)."""
@@ -121,6 +142,8 @@ class Stub:
                                  if isinstance(part.text, str)),
                     "blocks": sum(1 for part in first if isinstance(part.text, str)),
                     "photographs": sum(1 for part in first if part.inline_data is not None)})
+                stub.readings.append("\n".join(part.text for part in first
+                                               if isinstance(part.text, str)))
                 return types.GenerateContentResponse(candidates=[types.Candidate(
                     content=types.Content(role="model", parts=[types.Part(text="")]),
                     finish_reason="STOP")])
@@ -136,6 +159,7 @@ class Stub:
         class Messages:
             def create(self, **asked):
                 stub.requests.append(measured(asked))
+                stub.readings.append(words_of(asked))
                 return Reply()
 
         class Client:
@@ -169,6 +193,37 @@ def measured(asked):
             "model": asked.get("model")}
 
 
+def words_of(asked):
+    """The words of one request's reading, as one text: held for --says, never shown."""
+    messages = asked.get("messages") or []
+    first = messages[0].get("content") if messages else None
+    parts = first if isinstance(first, list) else [{"type": "text", "text": first or ""}]
+    return "\n".join(part.get("text", "") for part in parts if part.get("type") == "text")
+
+
+def loosely(text):
+    """Text with every run of spaces and line breaks made one space, for --says."""
+    return " ".join((text or "").split())
+
+
+def sentences_found(readings, asked, attend):
+    """For each sentence asked after with --says: True where it is in the reading (the
+    first request's, the one the waking is shown), False where it is not, None where no
+    reading was made, and "unnamed" where it names none of attend.py's sentences."""
+    found = []
+    for said in asked:
+        if not readings or attend is None:
+            found.append(None)
+            continue
+        if SENTENCE_NAME.fullmatch(said):
+            said = getattr(attend, said, None)  # as this waking had it, after its words were put in
+            if not isinstance(said, str):
+                found.append("unnamed")
+                continue
+        found.append(loosely(said) in loosely(readings[0]))
+    return found
+
+
 def where_it_failed(error):
     """The kind of error and the last line of this project's code it passed through."""
     place = None
@@ -187,6 +242,7 @@ def hold_inside():
     anthropic.Anthropic = stub.client  # before attend.py, or the screen, take it up
     found = {}
     said = io.StringIO()
+    attend = None
     try:
         with redirect_stdout(said):
             sys.path.insert(0, str(REPO))
@@ -195,7 +251,7 @@ def hold_inside():
             import attend
             attend.Anthropic = stub.client
             first = not any((attend.PACKET / "attendances").glob("*.json"))
-            sys.argv = ["attend.py", "--tide"] + (["--first"] if first else [])
+            sys.argv = ["attend.py", "--tide", REHEARSAL] + (["--first"] if first else [])
             attend.main()
         found["outcome"] = "completed"
     except SystemExit as stopped:
@@ -212,6 +268,9 @@ def hold_inside():
     if stub.requests:
         found["reading"] = stub.requests[0]
     found["requests"] = len(stub.requests)
+    asked = json.loads(os.environ.get(SAYS) or "[]")
+    if asked:  # only whether each is there: the reading itself goes nowhere
+        found["says"] = sentences_found(stub.readings, asked, attend)
     Path(os.environ[RESULT]).write_text(json.dumps(found), encoding="utf-8")
 
 
@@ -229,12 +288,13 @@ def leaving_out(record):
     return left_out
 
 
-def child_environment(copy, agent_id, result):
+def child_environment(copy, agent_id, result, says=()):
     """The environment one rehearsed waking runs in: the copy, never the record."""
     environment = os.environ.copy()
     environment["DATA_DIR"] = str(copy)
     environment["TESSERAE_AGENT"] = agent_id
     environment[RESULT] = str(result)
+    environment[SAYS] = json.dumps(list(says))
     environment["PYTHONIOENCODING"] = "utf-8"
     environment.pop("RESEND_API_KEY", None)
     environment.pop("GOOGLE_API_KEY", None)  # Google's SDK would take it before any other
@@ -244,12 +304,12 @@ def child_environment(copy, agent_id, result):
     return environment
 
 
-def rehearse(agent, copy, results):
+def rehearse(agent, copy, results, says=()):
     """Hold one agent's waking against the copy, and say what was found."""
     result = results / (agent["id"] + ".json")
     try:
         subprocess.run([sys.executable, str(Path(__file__).resolve()), INSIDE],
-                       cwd=REPO, env=child_environment(copy, agent["id"], result),
+                       cwd=REPO, env=child_environment(copy, agent["id"], result, says),
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
         return {"outcome": "failed", "reason": "still running after %d seconds" % TIMEOUT}
@@ -258,7 +318,7 @@ def rehearse(agent, copy, results):
     return json.loads(result.read_text(encoding="utf-8"))
 
 
-def line_for(agent, found, copy, new_model=None):
+def line_for(agent, found, copy, new_model=None, says=()):
     """One line of the report: the agent, its outcome, and the size of its reading; and,
     rehearsing on a new model, which model it was (new_model: True where its change was
     brought forward, False where it has none ahead)."""
@@ -277,7 +337,20 @@ def line_for(agent, found, copy, new_model=None):
             found["requests"], "" if found["requests"] == 1 else "s")
     if not agent.get("wakes"):
         said += " (its registry entry does not wake it)"
+    for asked, there in zip(says, found.get("says") or [None] * len(says)):
+        said += "\n  " + says_line(asked, there)
     return said
+
+
+def says_line(asked, there):
+    """One line for one --says: whether the sentence is in the reading, and nothing of either.
+    A sentence named is named again; one given as text is not repeated."""
+    which = asked if SENTENCE_NAME.fullmatch(asked) else "the sentence given"
+    if there == "unnamed":
+        return "%s: attend.py has no sentence by that name" % which
+    if there is None:
+        return "%s: no reading was made, so it cannot be said" % which
+    return "%s: %s its reading" % (which, "is in" if there else "is not in")
 
 
 def main(argv=None):
@@ -285,7 +358,13 @@ def main(argv=None):
     asked.add_argument("--agent", help="rehearse this agent alone")
     asked.add_argument("--on-new-model", action="store_true",
                        help="rehearse a waking on the new model set on /tides")
+    asked.add_argument("--says", action="append", default=[], metavar="SENTENCE",
+                       help="say only whether this sentence (text, or the name of one of "
+                            "attend.py's) is in each reading; may be given more than once")
     options = asked.parse_args(argv)
+    if any(not one.strip() for one in options.says):
+        print("--says was given no sentence; nothing was copied.")
+        return 2
 
     if not os.environ.get("DATA_DIR"):
         print("DATA_DIR is not set; nothing was copied. Name the record, e.g. DATA_DIR=/data.")
@@ -317,6 +396,11 @@ def main(argv=None):
         copy, results = Path(room) / "data", Path(room) / "results"
         results.mkdir()
         shutil.copytree(record, copy, symlinks=True, ignore=leaving_out(record))
+        # the copy, marked as the rehearsal's, so that attend.py lets a waking be held on it
+        # with --rehearsal while a rest or a stop stands, as before powers-logged; the
+        # record itself is never marked
+        (copy / REHEARSAL_COPY).write_text("a copy of the record, for a rehearsal\n",
+                                           encoding="utf-8")
         print("The record was copied to %s (tokens/ left out); the model is stubbed." % room)
         brought = {}
         if options.on_new_model:  # in the copy only: each change ahead put on yesterday
@@ -330,9 +414,9 @@ def main(argv=None):
                     brought[agent["id"]] = False
         lines, everyone = [], True
         for agent in chosen:
-            found = rehearse(agent, copy, results)
+            found = rehearse(agent, copy, results, options.says)
             everyone = everyone and found["outcome"] == "completed"
-            lines.append(line_for(agent, found, copy, brought.get(agent["id"])))
+            lines.append(line_for(agent, found, copy, brought.get(agent["id"]), options.says))
         for line in lines:
             print(line)
     finally:

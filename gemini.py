@@ -72,6 +72,13 @@ KEY = "GEMINI_API_KEY"
 # Anthropic, and any other on Gemini.
 MODEL_PREFIX = {GEMINI: "gemini-"}
 
+# A new agent on Gemini (the founder's request of 21 November 2026): a founding's
+# plan that says no model starts it on FOUNDING_DEFAULT, and a plan may choose only
+# one of FOUNDING_MODELS. An agent already founded keeps the model its registry
+# entry names; nothing here changes the second one's.
+FOUNDING_DEFAULT = "gemini-4-hydrogen"
+FOUNDING_MODELS = ("gemini-4-hydrogen", "gemini-4-neon")
+
 # How long one request may take before it is given up, in milliseconds, as
 # Anthropic's client waits ten minutes.
 TIMEOUT_MS = 600_000

@@ -1,0 +1,4 @@
+{
+  "about": "The server, the address and the email, a month at a time, kept by hand from their bills and added into that month's total on /commons/books. Write each month as \"YYYY-MM\": {\"server\": 0.00, \"address\": 0.00, \"email\": 0.00}, in dollars. Check with python books.py --check.",
+  "months": {}
+}

@@ -244,11 +244,11 @@ ABOUT_PARTS_BEFORE_NOVEMBER = [
     ("charter.md", "the-charter", "The charter"),
 ]
 # the pages the about page leads to besides its own parts, under its list of
-# contents (documents-nov): the September edition, the keeper's powers; the books, on the
-# hearth, left out on front-now (22 November 2026), since the hearth's page is not deployed
+# contents (documents-nov): the September edition, the keeper's powers, the books
 ABOUT_ALSO = [
     ("white-paper.html", "the September edition of the white paper"),
     ("keepers-powers.html", "the keeper's powers"),
+    ("https://hearth.tesserae.social/commons/books", "the books: what this place costs"),
 ]
 
 

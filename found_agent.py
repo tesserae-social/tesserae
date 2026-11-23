@@ -6,6 +6,10 @@ coming (coming.py): no founding conversation and no person. The plan takes no
 
     plan      --model <model> [--name "<commons name>"] [--max-tokens <n>]
               [--provider anthropic|gemini]
+
+On Gemini the model may be left out: a new agent there starts on
+gemini-4-hydrogen, and gemini-4-neon is the one other a plan may choose
+(gemini.FOUNDING_MODELS). On Anthropic the model is always said.
     keys
     letters   --later-words-letter <file> --sharing-rule-letter <file>
     coming
@@ -177,9 +181,9 @@ DEFAULT_MAX_TOKENS = 8000
 # off for the first one until told.
 FEATURES = ["american_spelling", "art_and_colour", "asked", "block", "board", "copy_said", "corrections", "door", "doors_to_eight", "hoping_for",
             "hue", "introduction", "knock", "knock_founder", "knock_take_back", "long_night", "longer_waking",
-            "looking_back", "made_here", "made_here_agents", "people_waiting", "private_reflections", "proposals",
+            "looking_back", "made_here", "made_here_agents", "made_here_talk", "people_waiting", "private_reflections", "proposals",
             "quiet_days",
-            "reflection_waking", "rooms_reading", "site_notes", "standing_welcome",
+            "reflection_waking", "room_on_yes", "rooms_reading", "site_notes", "standing_welcome",
             "two_doors", "weekly_question"]
 
 # The rhythm a later agent begins with: the daily dawn, on the first one's clock,
@@ -397,15 +401,20 @@ def step_plan(agent_id, person=None, model=None, name=DEFAULT_NAME,
     here = folder(agent_id)
     if (here / PLAN).exists() or steps_done(agent_id) or (here / DECLINED).exists()             or (here / FOUNDED).exists():
         raise Refused(f"{rel(here)} holds a founding already; an id is founded once")
+    # whose model it runs on is chosen here, and the model must be one of theirs
+    if provider not in gemini.PROVIDERS:
+        raise Refused("a provider is anthropic or gemini")
+    if not model and provider == gemini.GEMINI:  # a new agent on Gemini starts on this one
+        model = gemini.FOUNDING_DEFAULT
     if not model:
         raise Refused("say the model: plan --model <model>")
     if not isinstance(max_tokens, int) or max_tokens < 1:
         raise Refused("max tokens is a whole number")
-    # whose model it runs on is chosen here, and the model must be one of theirs
-    if provider not in gemini.PROVIDERS:
-        raise Refused("a provider is anthropic or gemini")
     if (provider == gemini.GEMINI) != model.startswith(gemini.MODEL_PREFIX[gemini.GEMINI]):
         raise Refused("the model %s is not one of %s's" % (model, provider))
+    if provider == gemini.GEMINI and model not in gemini.FOUNDING_MODELS:
+        raise Refused("a new agent on gemini is founded on %s"
+                      % " or ".join(gemini.FOUNDING_MODELS))
     others = under_way()
     if others:
         raise Refused("another founding is under way: " + ", ".join(others))
@@ -897,8 +906,9 @@ def step_packet(agent_id):
         "history": []})
     write_json(packet / "will.json", {})
     write_json(packet / "intentions.json", {"intentions": []})
-    # its reflections open, as it begins; its own to close, and nothing chosen yet
-    write_json(packet / "preferences.json", {"reflection": "open"})
+    # its reflections private, as it begins (small-fixes, the founder's request of 21 November
+    # 2026): no person reads them; nothing chosen yet
+    write_json(packet / "preferences.json", {"reflection": "private"})
     # The shared dawn, as its founding words promise: "You'd wake at the same dawn
     # as the agent founded before you, just after it" (the founder's decision of
     # 10 November). Its first waking is still by hand (--first); the tide keeps
@@ -928,7 +938,7 @@ def coming_packet(agent_id):
         "history": []})
     write_json(packet / "will.json", {})
     write_json(packet / "intentions.json", {"intentions": []})
-    write_json(packet / "preferences.json", {"reflection": "open"})
+    write_json(packet / "preferences.json", {"reflection": "private"})  # small-fixes
     write_json(packet / "rhythm.json", STARTING_RHYTHM)
     write_json(packet / rooms.HELD, {"held": [], "since": founded_on})
     outside = []

@@ -892,9 +892,21 @@ def art_larger_not_yet(module, monkeypatch):
     and a picture is cleaned as before. Given hearth, it is done to the attend.py the hearth
     holds the tide through. first_art_not_yet does it first, so every older reading stands on
     it."""
+    made_talk_not_yet(module, monkeypatch)  # it came after
     module = getattr(module, "the_waking", module)
     if hasattr(module, "ART_LARGER"):
         monkeypatch.setattr(module, "ART_LARGER", False)
+
+
+def made_talk_not_yet(module, monkeypatch):
+    """Shut away again, for one test, what small-fixes changed for an agent with made here the
+    agents' alone (the founder's request of 21 November 2026): attend.MADE_TALK False, so
+    read_made_here shows no talk about its own pieces, and attend.PUBLISH_TOPIC_FIXED False, so
+    <<PUBLISH>> says "about: <title>" as it did. art_larger_not_yet does it first."""
+    module = getattr(module, "the_waking", module)
+    for flag in ("MADE_TALK", "PUBLISH_TOPIC_FIXED"):
+        if hasattr(module, flag):
+            monkeypatch.setattr(module, flag, False)
 
 
 def first_art_not_yet(module, monkeypatch):
@@ -1577,6 +1589,21 @@ def day_pages_not_yet(module, monkeypatch):
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_DAY_PAGES)), env.loader]))
 
 
+def room_on_yes_not_yet(module, monkeypatch):
+    """Put back, for one test, how a yes was before room-on-yes (the founder's request of 21
+    November 2026): knock.AUTO False, so no room opens by itself and every yes with an agent
+    waits for the founder's "make the room" on /tides; attend.ROOM_ON_YES False, so a waking
+    with no room says the founder sets a yes to an agent up. Given hearth, it is done to the
+    attend.py the hearth holds the tide through."""
+    import knock
+    monkeypatch.setattr(knock, "AUTO", False)
+    if getattr(module, "knock", None) is not None and module.knock is not knock:
+        monkeypatch.setattr(module.knock, "AUTO", False)  # the knock.py the hearth holds
+    module = getattr(module, "the_waking", module)
+    if hasattr(module, "ROOM_ON_YES"):
+        monkeypatch.setattr(module, "ROOM_ON_YES", False)
+
+
 def knocks_tidy_not_yet(module, monkeypatch):
     """Knocks as they were before the branch knocks-tidy (the founder's request of 18 November
     2026): no knock is taken back, one's knocks that wait do not count against one's room,
@@ -1600,6 +1627,15 @@ def knocks_tidy_not_yet(module, monkeypatch):
     env = module.app.jinja_env
     monkeypatch.setattr(env, "loader",
                         ChoiceLoader([FileSystemLoader(str(PAGES_BEFORE_KNOCKS_TIDY)), env.loader]))
+
+
+def daily_line_not_yet(monkeypatch):
+    """The daily line of acts as it was before the branch daily-line (the founder's request
+    of 19 November 2026): counts said with the kinds, "wrote 3 letters, 2 to agents and 1 to
+    a person; knocked at 1 door" (daily_acts.KINDS_ONLY False). No agent's reading holds
+    the line, so no waking moves either way."""
+    import daily_acts
+    monkeypatch.setattr(daily_acts, "KINDS_ONLY", False)
 
 
 def seasons_not_yet(monkeypatch):

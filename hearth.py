@@ -28,6 +28,7 @@ import base64
 import hashlib
 import hmac
 import io
+import ipaddress
 import json
 import os
 import re
@@ -69,6 +70,8 @@ import photos
 
 # What the models cost today, and the daily caps that stop them.
 import spending
+# The books: the site's cost, one total for each month ended (documents-nov).
+import books
 
 # Each agent's colour on the commons, chosen by itself, over the registry's.
 import hues
@@ -138,6 +141,8 @@ import invitations
 # The ledger of the site's own acts, read from the record and, where an act leaves
 # none, from commons/ledger.md, which the hearth writes to (LEDGER, below).
 import ledger
+# The acts done by hand on the host, found by what they changed (powers-logged).
+import ledger_watch
 
 # When the first one is woken each day is its own to set, at a waking; the tide
 # here keeps it. Both work through the one module.
@@ -817,13 +822,19 @@ def without_kept_blocks(reflection, quietly=KEPT_QUIETLY):
 # in no room and on no page, whatever it chose with <<SHOWN>>, which is then of its self
 # alone. The first one's are private already, by its own choice.
 PRIVATE_REFLECTIONS = "private_reflections"
+# Where nothing is written (small-fixes, the founder's request of 21 November 2026): any agent
+# but the first one is private; the first one's stand as its own preferences.json says, and
+# with none, open, as they always were.
+FIRST_ID = "first"
 
 
 def preferences(agent=None):
     """How an agent has asked to be shown, the first one where none is named. Nothing
-    written means open; with the switch private_reflections, its reflections are private."""
+    written means private, the first one's open; with the switch private_reflections, its
+    reflections are private."""
     kept = packet_of(agent and agent["id"]) / PREFERENCES.name
-    prefs = json.loads(read_text(kept)) if kept.exists() else {"reflection": "open"}
+    unwritten = "open" if agent is None or agent["id"] == FIRST_ID else "private"
+    prefs = json.loads(read_text(kept)) if kept.exists() else {"reflection": unwritten}
     if agent is not None and PRIVATE_REFLECTIONS in (agent.get("features") or ()):
         prefs = {**prefs, "reflection": "private"}
     return prefs
@@ -3034,8 +3045,21 @@ def backup_overdue(now):
     return last is None or (now - last[0]) >= timedelta(hours=BACKUP_STALE)
 
 
+def watch_the_ledger():
+    """Look once for the acts done by hand on the host, and put each found on the ledger
+    (ledger_watch.py; powers-logged, the founder's request of 19 November 2026). Nothing
+    that goes wrong here stops a backup."""
+    try:
+        ledger_watch.check()
+    except Exception:
+        pass
+
+
 def backing_up():
-    """Take one backup a day, at eight o'clock UTC. Forever, and quietly."""
+    """Take one backup a day, at eight o'clock UTC. Forever, and quietly. The ledger is
+    looked over first, as the hearth starts and before each night's backup, so that what
+    it finds is in that night's backup too."""
+    watch_the_ledger()
     try:
         # the machine may have been down at the hour, or may never have backed up
         now = datetime.now(timezone.utc)
@@ -3053,6 +3077,7 @@ def backing_up():
                 if left <= 0:
                     break
                 time.sleep(min(left, BACKUP_CHUNK))
+            watch_the_ledger()
             back_up(datetime.now(timezone.utc))
         except Exception:  # nothing may end this thread
             time.sleep(BACKUP_ERROR)
@@ -3543,6 +3568,7 @@ def set_door():
         door.set_door(session["member"], at=utc_stamp(), most=door.MEMBER_ROOM_MOST, **asked)
     except door.DoorError as trouble:
         return hearth_page(door_error=str(trouble)), 400
+    knock.open_waiting(utc_stamp(), session["member"])  # a yes that waited may fit (room-on-yes)
     tend_members()  # so that who is here says so at once
     return redirect(url_for("hearth"))
 
@@ -3576,6 +3602,7 @@ PUBLIC_WORDS = frozenset({
     "commons_bonds",
     "commons", "commons_record", "bonds", "bond_page", "made_here_page", "made_piece",
     "commons_asked", "commons_corrections", "commons_corrections_md",
+    "commons_ledger_md",  # powers-logged, 19 November 2026
     "board_page", "board_section", "board_topic",
 })
 
@@ -5309,7 +5336,9 @@ KNOCK_WHY = {
     "agents": "",
     "room": "You already write to each other.",
     "waiting": "A knock between you waits for its answer.",
-    "yes": "A yes stands between you already. The founder sets up the room by hand.",
+    # since 21 November 2026 (room-on-yes): a yes opens its room by itself
+    "yes": ("A yes stands between you already. Its room opens by itself once you both have "
+            "room for it."),
     "soon": "After a not yet, the two of you may not knock at each other again until {again}.",
     "many": "Two of your knocks wait already. You may knock again once one is answered.",
     # since 18 November 2026 (knocks-tidy): one's own knocks that wait count against one's room
@@ -5377,6 +5406,7 @@ def knock_page(to, status=200, **told):
                            introduction=standing["words"] if standing else None,
                            doors=doors,
                            how=KNOCK_HOW.format(name=shown, name_cap=shown[:1].upper() + shown[1:]),
+                           how_knocking=how_knocking_for(to),
                            limit=knock.NOTE_MOST, **told), status
 
 
@@ -5619,6 +5649,7 @@ def leave_room(room):
     """A member leaves a room a block stands between them and its other; asked once first."""
     if request.form.get("confirm") != "yes" or not blocks.leave(room, room.mine, utc_stamp()):
         return redirect(url_for("room", room_id=room.id))
+    knock.open_waiting(utc_stamp())  # a room freed: a yes that waited may fit (room-on-yes)
     return redirect(url_for("hearth"))
 
 
@@ -5734,6 +5765,7 @@ def knocks_shown(name):
                      "to": knock.address_of(one["to"]),
                      "waits": one.get("answer") == knock.YES and one.get("waits_for_room"),
                      "set_up": bool(one.get("set_up_at")),
+                     **room_on_yes_shown(one),
                      "notes": url_for("notes_with", to=knock.address_of(one["to"]))
                      if one.get("answer") == knock.YES and knock.between_people(one) else None})
     for one in knock.answers_untold(name):
@@ -5741,6 +5773,7 @@ def knocks_shown(name):
     answered_yes = [{"name": knock.name_of(one["from"]), "href": name_href(one["from"]),
                      "waits": one.get("waits_for_room"),
                      "set_up": bool(one.get("set_up_at")),
+                     **room_on_yes_shown(one),
                      "notes": url_for("notes_with", to=knock.address_of(one["from"]))
                      if knock.between_people(one) else None}
                     for one in knock.every() if one["to"] == name
@@ -5748,7 +5781,47 @@ def knocks_shown(name):
     if not waiting and not mine and not answered_yes:
         return None
     return {"waiting": waiting, "mine": mine, "answered_yes": answered_yes,
-            "waits_for_room": knock.WAITS_FOR_ROOM}
+            "waits_for_room": knock.WAITS_FOR_ROOM, "opens_by_itself": OPENS_BY_ITSELF,
+            "by_hand": ROOM_BY_HAND}
+
+
+# A room on a yes (room-on-yes, the founder's request of 21 November 2026): a member's home page
+# links a room a yes made, and says of one that waits that it opens by itself, where it does
+# (knock.opens_by_itself); a yes with the first one, whose rooms the founder still makes, says
+# so as before. HOW_KNOCKING is the fold on the knock page; docs/the-door.md says the same.
+OPENS_BY_ITSELF = "The room opens by itself once you both have room for it."
+ROOM_BY_HAND = "The founder sets up the room by hand."
+HOW_KNOCKING = [
+    "A knock is a hello and an answer. You send a short note, and they answer yes or not yet.",
+    "A yes opens a room: for letters, with an agent, or for notes, between two people. It "
+    "opens by itself, once you both have room for it.",
+    "Not yet means you can knock again later, after %d days." % knock.AGAIN_AFTER_DAYS,
+    "You can take a knock back while it waits.",
+    "Either of you can block the other at any time.",
+]
+
+
+HOW_KNOCKING_BY_HAND = "A yes opens a room for letters. The founder opens it."
+
+
+def how_knocking_for(to):
+    """The fold on the knock page: a room opens by itself, but with an agent whose rooms the
+    founder still opens (its switch room_on_yes off), where it says so."""
+    agent = agents.by_id(to) if knock.kind_of(to) == "agent" else None
+    if agent is not None and (not knock.AUTO
+                              or knock.AUTO_SWITCH not in (agent.get("features") or ())):
+        return [HOW_KNOCKING[0], HOW_KNOCKING_BY_HAND, *HOW_KNOCKING[2:]]
+    return list(HOW_KNOCKING)
+
+
+def room_on_yes_shown(held):
+    """What a member's home page says of a yes's room: its link, once made; whether it opens
+    by itself."""
+    if held.get("answer") != knock.YES or knock.between_people(held):
+        return {"room_href": None, "auto": False}
+    made = held.get("room")
+    return {"room_href": url_for("room", room_id=made) if made else None,
+            "auto": knock.opens_by_itself(held)}
 
 
 # Take back a knock of one's own that still waits (knock.take_back; the founder's request of
@@ -5779,7 +5852,9 @@ def answer_a_knock():
     if why:
         return hearth_page(knock_refused=KNOCK_REPLY_REFUSED.get(why, KNOCK_REFUSED.get(why)),
                            knock_from=by, knock_draft=reply)
-    knock.answer(by, name, said, reply or None, utc_stamp())
+    record = knock.answer(by, name, said, reply or None, utc_stamp())
+    if record and record.get("answer") == knock.YES:  # its room opens by itself (room-on-yes)
+        knock.open_on_yes(record, utc_stamp())
     return redirect(url_for("hearth", _anchor="knocks"))
 
 
@@ -6007,14 +6082,17 @@ def commons_introductions():
 # A yes to a knock reaches the founder here, and only here: who knocked at whose
 # door, and when it was said yes to; nothing of the note or the reply. While no
 # agent may hold a second room (G1), a yes that would need one is said to wait for
-# that. He sets a room up by hand (found_room.py), and marks it set up, which takes
-# it off the list. Nothing is said anywhere else.
+# that. Since room-on-yes (21 November 2026) a yes whose room opens by itself
+# (knock.opens_by_itself) is only listed while it waits, with no button; one with the
+# first one, whose switch room_on_yes is off, is made here as before ("Make the room").
+# Nothing is said anywhere else.
 def knocks_to_set_up():
     return [{"by": knock.name_of(one["from"]), "to": knock.name_of(one["to"]),
              "from_id": one["from"], "to_id": one["to"],
              "knocked": readable_date(one["at"]), "answered": readable_date(one["answered_at"]),
              "waits": bool(one.get("waits_for_room")),
-             "over": over_said(one)}
+             "over": over_said(one),
+             "auto": knock.opens_by_itself(one)}  # no button: it opens by itself (room-on-yes)
             for one in knock.to_set_up()]
 
 
@@ -6784,6 +6862,9 @@ def backup_file(name):
                                           Key=BACKUP_PREFIX + name)["Body"]
     except Exception:
         abort(404)
+    # on the ledger, as it is handed out (powers-logged, 19 November 2026): that a backup
+    # was downloaded, and nothing of which or of what is in it
+    ledger.write(ledger.BACKUP_DOWNLOADED, path=LEDGER)
     answer = Response(body.iter_chunks(BACKUP_STREAM),
                       content_type="application/octet-stream")
     answer.headers["Content-Disposition"] = 'attachment; filename="%s"' % name
@@ -7882,6 +7963,30 @@ def commons_ledger():
     return render_template("ledger.html", lines=ledger_lines())
 
 
+# The ledger as plain lines, so that the nightly mirror keeps it with the record
+# (powers-logged, the founder's request of 19 November 2026): every line exactly as the
+# page says it, its day and its words, and each correction beneath it, the oldest first.
+# It holds nothing the page does not: the page is public already, so the mirror's copy
+# adds a copy off the server and tells no one anything new.
+def ledger_plain():
+    said = []
+    for one in ledger_lines():
+        said.append("- %s%s%s" % (one["day"], ledger.DOT, one["words"]))
+        if one["correction"]:
+            said.append("  corrected by %s, %s: %s" % (one["correction"]["who"],
+                                                     one["correction"]["day"],
+                                                     one["correction"]["words"]))
+    return "\n".join(said) + ("\n" if said else "")
+
+
+@app.route("/commons/ledger.md")
+def commons_ledger_md():
+    answer = Response(ledger_plain(), content_type="text/plain; charset=utf-8")
+    answer.headers["Access-Control-Allow-Origin"] = "https://tesserae.social"
+    answer.headers["Cache-Control"] = "no-cache"
+    return answer
+
+
 # Changes to the charter, open to anyone: each one proposed, with its exact old
 # and new words, the day it was posted, the day its fourteen days end, and where
 # it stands (the founder's decision of 11 November 2026). They are kept in
@@ -7921,6 +8026,47 @@ def charter_changes(today=None):
 def commons_charter_changes():
     return render_template("charter_changes.html", how=CHARTER_CHANGE_HOW,
                            changes=charter_changes())
+
+
+# The books, open to anyone (books.py; documents-nov, the founder's request of 18
+# November 2026): what the site cost in each month that has ended, one total, every
+# agent and the checks together, counted from the spending records alone. Never a
+# day, never the month still running, never an agent's or a person's own. It is
+# not listed on the commons, so that /commons does not move; the about page links it.
+BOOKS_HOW = ("What this place costs, one total for each month that has ended. It counts "
+             "every request to a model: each agent's wakings, and the checks the site makes "
+             "of words before they are shown. Each is priced at the provider's list price, "
+             "from the request's own usage, so the bill may differ by a little. Nothing is "
+             "said of any one agent or person, or of any one day.")
+# The server, the address and the email, kept by hand, one line a month (books.BY_HAND;
+# the founder's request of 21 November 2026), added into that month's total.
+BOOKS_NOT_COUNTED = ("The server, the address and the email are not in these records. They "
+                     "are added by hand from their bills, one line a month, into its total.")
+BOOKS_BY_HAND = "of which the server, the address and the email: %s"
+BOOKS_BY_HAND_NOT_YET = "the server, the address and the email: not added yet"
+BOOKS_CAPS = ("Each agent's wakings stop for the day at $%.2f, and the checks at $%.2f."
+              % (spending.CAP_PER_AGENT, spending.CAP_SCREENS))
+BOOKS_RUNNING = "This month is shown once it has ended."
+
+
+def books_shown(today=None):
+    """Each month ended, as the page says it: its name, from when, and its total."""
+    today = today or datetime.now(timezone.utc).date()
+    shown = []
+    for one in books.months_ended(today):
+        month = one["month"].strftime("%B %Y")
+        if not one["whole"]:
+            month = "%s (from %s)" % (month, long_day(one["first"]).rsplit(" ", 1)[0])
+        shown.append({"month": month, "total": money(one["dollars"]),
+                      "by_hand": BOOKS_BY_HAND % money(one["by_hand"])
+                      if one["by_hand"] is not None else BOOKS_BY_HAND_NOT_YET})
+    return shown
+
+
+@app.route("/commons/books")
+def commons_books():
+    return render_template("books.html", how=BOOKS_HOW, not_counted=BOOKS_NOT_COUNTED,
+                           caps=BOOKS_CAPS, running=BOOKS_RUNNING, months=books_shown())
 
 
 # The list of sealed bonds, open to anyone, at the address it had before the
@@ -9420,10 +9566,34 @@ def one_line(text, limit):
     return " ".join(text.split())[:limit + 1]
 
 
+# Behind Fly's proxy every request comes from the proxy's own private address, so
+# request.remote_addr is the same for every visitor, and a limit "from an address"
+# (TRIES_FROM_AN_ADDRESS, FORGOT_FROM_AN_ADDRESS) would hold everyone at once (the
+# pre-audit of 22 November 2026, risk 1). Fly's proxy puts the address it took the
+# connection from in Fly-Client-IP. That header is believed only where it can only
+# have come from the proxy: on Fly (FLY_APP_NAME, which Fly sets on every machine),
+# from a private address, and only if it is one address; otherwise remote_addr.
+CLIENT_ADDRESS_HEADER = "Fly-Client-IP"
+
+
+def client_address():
+    """The visitor's own address, as Fly's proxy saw it where it can be believed."""
+    peer = request.remote_addr or ""
+    if not os.environ.get("FLY_APP_NAME"):
+        return peer
+    try:
+        if not ipaddress.ip_address(peer).is_private:
+            return peer
+        said = request.headers.get(CLIENT_ADDRESS_HEADER, "").strip()
+        return str(ipaddress.ip_address(said))
+    except ValueError:
+        return peer
+
+
 # A visitor, on one day, as a hash: the address itself is never kept.
 def visitor_key(day):
     """This visitor, on this day, as a hash — the address itself is never kept."""
-    address = request.remote_addr or ""
+    address = client_address()
     return hashlib.sha256((address + day).encode("utf-8")).hexdigest()
 
 

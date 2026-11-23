@@ -655,6 +655,30 @@ def test_a_backup_that_is_not_there_is_not_there(founder, bucket):
     assert founder.get("/backups/" + NAME).status_code == 404
 
 
+# ---- each download on the ledger (powers-logged, 19 November 2026) -------
+
+def ledger_words(visitor):
+    said = page(visitor.get("/commons/ledger"))
+    return [piece.split("</span> &middot; ", 1)[1].split("</li>", 1)[0]
+            for piece in said.split('<li><span class="muted">')[1:]]
+
+
+def test_a_backup_handed_over_is_on_the_ledger_and_nothing_of_it(founder, bucket, hearth):
+    bucket.objects["backups/" + NAME] = b"an encrypted backup"
+    visitor = hearth.app.test_client()
+    assert "a backup was downloaded by the keeper" not in ledger_words(visitor)
+    assert founder.get("/backups/" + NAME).status_code == 200
+    words = ledger_words(visitor)
+    assert words.count("a backup was downloaded by the keeper") == 1
+    assert not any(STAMP in one or NAME in one for one in words)
+
+
+def test_a_backup_not_handed_over_is_not_on_the_ledger(founder, bucket, hearth):
+    assert founder.get("/backups/" + NAME).status_code == 404
+    assert "a backup was downloaded by the keeper" not in \
+        ledger_words(hearth.app.test_client())
+
+
 def test_the_backups_are_reached_from_the_keeping_menu(founder, bucket):
     said = page(founder.get("/attendances"))
     keeping = said.split('aria-label="keeping"')[1]

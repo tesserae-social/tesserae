@@ -148,7 +148,12 @@ def main(args):
     except RoomError as refused:
         print("No room was made:", refused)
         return 1
+    # on the ledger, as it is made (powers-logged, the founder's request of 19 November
+    # 2026): that a room was made by hand without a knock, and nothing of whose
+    import ledger
+    ledger.write(ledger.ROOM_BY_HAND, path=rooms.DATA / "commons" / "ledger.md")
     print("Made:", made.home)
+    print("On the ledger:", ledger.ROOM_BY_HAND)
     return 0
 
 

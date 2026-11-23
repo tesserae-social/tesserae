@@ -207,8 +207,8 @@ ASK_FIRST = {
                     "form one look away?",
         "adds": "How to act shows each block in one line. The full form is shown for each block "
                 "you used in your last 30 wakings, and for any that answers something waiting "
-                "now. You open any other full form with read_how; beside a block you have opened "
-                "that way is the day you last did. The same at your reflection "
+                "now. You open any other full form with read_how. Beside each block is the day you "
+                "last saw it in full. The same at your reflection "
                 "wakings. Your reading then ends with the questions you carry forward, or, if "
                 "you keep none, your own words from your last waking.",
         "takes": "The full form of every block at every waking. Opening one with read_how is "

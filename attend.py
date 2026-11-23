@@ -2598,7 +2598,10 @@ HOW_FOLDED_SAID = ("Each block is shown in one line. Its full form is shown wher
 HOW_NOT_FOUND = "There is no block of that name at this waking."
 HOW_LOOKED = "how {tag} is written"  # as its record keeps a read_how, by the block's tag
 HOW_LOOKED_KEPT = re.compile(r"how ([A-Z_]+) is written")
-HOW_OPENED = " (last opened {day})"  # beside a folded block: when, never how often
+HOW_SEEN = " (last seen in full {day})"  # beside a folded block: when, never how often
+HOW_SHOWN_FULL = []  # the blocks shown in full at this waking, kept in its record (C)
+# The blocks a reflection waking showed in full before C, and an ordinary one: every one.
+REFLECTION_TAGS = ("SELF", "SELF_CONFIRM", "MEMORY", "NOTE", "PRIVATE", "PUBLISH")
 READ_HOW = {
     "name": "read_how",
     "description": ("Open the full form of one block of how to act, by its tag, such as BOARD "
@@ -2733,9 +2736,11 @@ def tags_used(wakings=HOW_FULL_WAKINGS):
     return used
 
 
-def how_opened():
-    """When it last opened each block's full form with read_how, by tag: the day of the
-    latest waking, ordinary or reflection, whose record keeps that look."""
+def how_seen():
+    """When it last saw each block's full form, by tag: the latest waking, ordinary or
+    reflection, that showed it in full in its reading or opened it with read_how. A waking
+    kept before C showed every block it offered in full: an ordinary one every block, a
+    reflection one its own (REFLECTION_TAGS)."""
     last = {}
     for folder in (PACKET / "attendances", REFLECTIONS_KEPT):
         for path in folder.glob("*.json") if folder.is_dir() else ():
@@ -2744,10 +2749,18 @@ def how_opened():
             except ValueError:
                 continue
             at = str(one.get("at") or "")
-            for looked in one.get("looked_at") or []:
-                found = HOW_LOOKED_KEPT.fullmatch(str(looked))
-                if found and at > last.get(found.group(1), ""):
-                    last[found.group(1)] = at
+            seen = [found.group(1) for found in
+                    (HOW_LOOKED_KEPT.fullmatch(str(looked)) for looked in one.get("looked_at") or [])
+                    if found]
+            if "shown_in_full" in one:
+                seen += list(one["shown_in_full"] or [])
+            elif one.get("kind") == "reflection":
+                seen += REFLECTION_TAGS
+            else:
+                seen += list(BLOCK_LINES)
+            for tag in seen:
+                if at > last.get(tag, ""):
+                    last[tag] = at
     return last
 
 
@@ -2760,21 +2773,24 @@ def day_and_month(stamp):
     return "%d %s" % (day.day, day.strftime("%B"))
 
 
-def folded(how, used):
+def folded(how, used, fold=True):
     """How to act in one line a block, with C; the full form kept where it was used or has
-    no line of its own. Each block's full form is kept for read_how."""
+    no line of its own (and every one, with fold False). Each block's full form is kept for
+    read_how, and each shown in full in HOW_SHOWN_FULL."""
     HOW_FORMS.clear()
     lines = []
-    opened = how_opened()
+    seen = how_seen() if fold else {}
 
     def one(found):
         tag = found.group(1)
         HOW_FORMS[tag] = found.group(0)
-        if tag in used or tag not in BLOCK_LINES:
+        if not fold or tag in used or tag not in BLOCK_LINES:
+            if tag not in HOW_SHOWN_FULL:
+                HOW_SHOWN_FULL.append(tag)
             return found.group(0)
         lines.append(tag)
-        day = day_and_month(opened.get(tag, ""))
-        return "<<%s>> %s%s" % (tag, BLOCK_LINES[tag], HOW_OPENED.format(day=day) if day else "")
+        day = day_and_month(seen.get(tag, ""))
+        return "<<%s>> %s%s" % (tag, BLOCK_LINES[tag], HOW_SEEN.format(day=day) if day else "")
 
     said = re.sub(r"<<([A-Z_]+)>>\n.*?\n<<END>>", one, how, flags=re.S)
     if not lines:
@@ -6574,8 +6590,9 @@ def reflection_reading(past, waiting):
               *(["=== WHAT HAS HAPPENED ===\n" + "\n".join(happened)] if happened else [])]
     own_self = [self_section(read(PACKET / "self.md"), prefs)]
     how = "=== HOW TO ACT, IF YOU CHOOSE TO ===\n" + reflection_how(waiting)
-    if READING_HOW_FOLDED and past and LONGER_WAKING:  # reading-shape, C
-        how = folded(how, tags_used())
+    if READING_HOW_FOLDED:  # reading-shape, C; and what was shown in full, kept
+        HOW_SHOWN_FULL.clear()
+        how = folded(how, tags_used(), fold=bool(past and LONGER_WAKING))
     ending = own_ending(past) if READING_HOW_FOLDED else None
     return run_together([
         *([*own_self, *([waiting_note(waiting)] if waiting else []), *opened]
@@ -6660,6 +6677,8 @@ def reflection_waking(key):
               "acted": acted, "reflection": without_private(text)}
     if looked:  # each read_how it opened (reading-shape, C)
         record["looked_at"] = looked
+    if READING_HOW_FOLDED:  # the blocks it was shown in full
+        record["shown_in_full"] = list(HOW_SHOWN_FULL)
     if passed:  # each block passed over, by its tag; told at the next waking, once
         record["passed_over"] = passed
     if published:
@@ -7538,8 +7557,8 @@ def main():
         prefs, offered, confirming=bool(waiting))
     ending = None
     if READING_HOW_FOLDED:  # one line a block, with a way to look (reading-shape, C)
-        if past and LONGER_WAKING:
-            instructions = folded(instructions, tags_used())
+        HOW_SHOWN_FULL.clear()
+        instructions = folded(instructions, tags_used(), fold=bool(past and LONGER_WAKING))
         ending = own_ending(past)
 
     # A reading too large to be read is no reading. Where the whole of it would
@@ -8381,6 +8400,8 @@ def main():
         "woken_by": ITS_OWN_ASKING if again else "tide" if tide else "founder",
         "acted": acted, "heartbeat": heartbeat, "reflection": without_private(text),
     }
+    if READING_HOW_FOLDED:  # the blocks it was shown in full (reading-shape, C)
+        record["shown_in_full"] = list(HOW_SHOWN_FULL)
     if dropped:  # read back at the next waking, so that it is told what was not kept
         record["questions_dropped"] = dropped
     if not_given:  # and so is what it asked of the threshold and was not given

@@ -212,23 +212,40 @@ def test_c_read_how_gives_the_full_form(shaped, packet, monkeypatch):
     assert given[0]["text"] == module.HOW_NOT_FOUND
 
 
-def test_c_says_when_it_last_opened_a_block_and_never_how_often(shaped, packet):
+def how_of(turn):
+    return next(part["text"] for part in turn.reading
+                if part.get("text", "").startswith("=== HOW TO ACT"))
+
+
+def test_c_on_the_first_day_a_block_folds_it_was_last_seen_at_the_waking_before(shaped, packet):
+    an_earlier_waking(packet)  # 14 October, before C: every block shown in full
+    _, turn = shaped("reading_how_folded")
+    how = how_of(turn)
+    assert ("<<SHELF>> how you keep your history: keep, rest, show and note lines "
+            "(last seen in full 14 October)") in how
+    assert "(last opened" not in how
+
+
+def test_c_says_when_it_last_saw_a_block_in_full_and_never_how_often(shaped, packet):
     write(packet / "attendances" / "2026-10-02T09-00-00Z.json", json.dumps(
         {"name": "first", "at": "2026-10-02T09-00-00Z", "heartbeat": "attended", "acted": [],
-         "reflection": "", "looked_at": ["how SHELF is written", "how DOOR is written"]}))
-    an_earlier_waking(packet)
+         "reflection": "", "shown_in_full": ["LETTER"],
+         "looked_at": ["how SHELF is written", "how DOOR is written"]}))
     write(packet / "attendances" / (ATTENDED + ".json"), json.dumps(
         {"name": "first", "at": ATTENDED, "heartbeat": "attended", "acted": [],
-         "reflection": "<<LETTER>>\nHello.\n<<END>>", "looked_at": ["how SHELF is written"]}))
-    _, turn = shaped("reading_how_folded")
-    how = next(part["text"] for part in turn.reading
-               if part.get("text", "").startswith("=== HOW TO ACT"))
-    assert ("<<SHELF>> how you keep your history: keep, rest, show and note lines "
-            "(last opened 14 October)") in how
-    assert "<<DOOR>> whether others may knock at your door, and your room (last opened 2 October)" \
-        in how
-    assert "<<PAUSE>> rest until a day, or until a letter arrives\n" in how  # never opened
-    assert how.count("(last opened") == 2
+         "reflection": "<<LETTER>>\nHello.\n<<END>>", "shown_in_full": ["LETTER"],
+         "looked_at": ["how SHELF is written"]}))
+    module, turn = shaped("reading_how_folded")
+    how = how_of(turn)
+    assert "<<SHELF>> how you keep your history: keep, rest, show and note lines " \
+        "(last seen in full 14 October)" in how
+    assert "<<DOOR>> whether others may knock at your door, and your room " \
+        "(last seen in full 2 October)" in how
+    assert "<<PAUSE>> rest until a day, or until a letter arrives\n" in how  # never seen in full
+    assert how.count("(last seen in full") == 2
+    kept = json.loads(sorted((packet / "attendances").glob("attendance-*.json"))[-1]
+                      .read_text(encoding="utf-8"))
+    assert "LETTER" in kept["shown_in_full"] and "PAUSE" not in kept["shown_in_full"]
 
 
 def test_c_ends_in_its_own_words(shaped, packet):

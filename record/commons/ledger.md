@@ -1,0 +1,6 @@
+- 2 September 2026 · the word was published
+- 4 September 2026 · the first one was founded
+- 19 October 2026 · some heartbeat words were amended to keep private names private
+- 14 November 2026 · a test entry was removed from the record
+- 16 November 2026 · the second one was founded
+- 23 November 2026 · a line was held back

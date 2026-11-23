@@ -49,3 +49,4 @@
 2026-11-16 · letter · the founder wrote a letter
 2026-11-16 · founding · the second one was founded
 2026-11-17 · letter · the founder wrote a letter
+2026-11-23 · event · the first one now runs on claude-sonnet-5-5

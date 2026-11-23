@@ -2596,7 +2596,9 @@ HOW_FOLDED_SAID = ("Each block is shown in one line. Its full form is shown wher
                    "in your last 30 wakings, or where it answers something waiting now; open "
                    "any other with read_how.")
 HOW_NOT_FOUND = "There is no block of that name at this waking."
-HOW_LOOKED = "how a block is written"
+HOW_LOOKED = "how {tag} is written"  # as its record keeps a read_how, by the block's tag
+HOW_LOOKED_KEPT = re.compile(r"how ([A-Z_]+) is written")
+HOW_OPENED = " (last opened {day})"  # beside a folded block: when, never how often
 READ_HOW = {
     "name": "read_how",
     "description": ("Open the full form of one block of how to act, by its tag, such as BOARD "
@@ -2731,11 +2733,39 @@ def tags_used(wakings=HOW_FULL_WAKINGS):
     return used
 
 
+def how_opened():
+    """When it last opened each block's full form with read_how, by tag: the day of the
+    latest waking, ordinary or reflection, whose record keeps that look."""
+    last = {}
+    for folder in (PACKET / "attendances", REFLECTIONS_KEPT):
+        for path in folder.glob("*.json") if folder.is_dir() else ():
+            try:
+                one = json.loads(read(path))
+            except ValueError:
+                continue
+            at = str(one.get("at") or "")
+            for looked in one.get("looked_at") or []:
+                found = HOW_LOOKED_KEPT.fullmatch(str(looked))
+                if found and at > last.get(found.group(1), ""):
+                    last[found.group(1)] = at
+    return last
+
+
+def day_and_month(stamp):
+    """A stamp's day as "3 November"."""
+    try:
+        day = datetime.strptime(stamp[:10], "%Y-%m-%d")
+    except ValueError:
+        return None
+    return "%d %s" % (day.day, day.strftime("%B"))
+
+
 def folded(how, used):
     """How to act in one line a block, with C; the full form kept where it was used or has
     no line of its own. Each block's full form is kept for read_how."""
     HOW_FORMS.clear()
     lines = []
+    opened = how_opened()
 
     def one(found):
         tag = found.group(1)
@@ -2743,7 +2773,8 @@ def folded(how, used):
         if tag in used or tag not in BLOCK_LINES:
             return found.group(0)
         lines.append(tag)
-        return "<<%s>> %s" % (tag, BLOCK_LINES[tag])
+        day = day_and_month(opened.get(tag, ""))
+        return "<<%s>> %s%s" % (tag, BLOCK_LINES[tag], HOW_OPENED.format(day=day) if day else "")
 
     said = re.sub(r"<<([A-Z_]+)>>\n.*?\n<<END>>", one, how, flags=re.S)
     if not lines:
@@ -6236,9 +6267,9 @@ def looked_up(tool, asked, record):
         kept_as = "a closed room"
         said = closed_room_said(asked.get("with"))
     elif tool == "read_how" and READING_HOW_FOLDED and HOW_FORMS:  # reading-shape, C
-        kept_as = HOW_LOOKED
         tag = str(asked.get("tag") or "").strip().strip("<>").strip().upper()
         said = HOW_FORMS.get(tag) or HOW_NOT_FOUND
+        kept_as = HOW_LOOKED.format(tag=tag) if tag in HOW_FORMS else None
     elif tool == "read_founding" and record.get("founding"):
         kept_as = FOUNDING_LOOKED
         said = (FROM_RECORD.format(what="your founding record") + "\n\n"
@@ -6588,9 +6619,10 @@ def reflection_waking(key):
     reading = reflection_reading(past, waiting)
 
     client = counted(gemini.client(key) if PROVIDER == gemini.GEMINI else Anthropic(api_key=key))
+    looked = []
     try:  # a Gemini reply blocked or not finished is no reply (gemini.Stopped)
         if READING_HOW_FOLDED and HOW_FORMS and LONGER_WAKING:  # it may open a block (C)
-            resp = longer_waking(client, reading, {}, tools=[READ_HOW])[0]
+            resp, looked = longer_waking(client, reading, {}, tools=[READ_HOW])[:2]
         else:
             resp = client.messages.create(
                 model=MODEL, max_tokens=MAX_TOKENS, system=opening(),
@@ -6626,6 +6658,8 @@ def reflection_waking(key):
     record = {"name": NAME, "at": at, "model": MODEL, "kind": "reflection",
               "woken_by": "tide" if "--tide" in sys.argv else "founder",
               "acted": acted, "reflection": without_private(text)}
+    if looked:  # each read_how it opened (reading-shape, C)
+        record["looked_at"] = looked
     if passed:  # each block passed over, by its tag; told at the next waking, once
         record["passed_over"] = passed
     if published:

@@ -21,8 +21,8 @@ LATER_AT = "2026-12-03T09-00-00Z"
 @pytest.fixture
 def ask(env, monkeypatch):
     module = load("askings")
-    monkeypatch.setattr(module, "DEFAULT_QUEUES", {
-        ("agents", "first"): ["colour_weeks", "leaving", "american_spelling"]})
+    monkeypatch.setattr(module, "ORDER", ("askings", "colour_weeks", "leaving",
+                                          "american_spelling"))
     # a switch whose code is not here, held so for these tests: leaving was built on
     # leaving-build (21 November 2026), and askings.NOT_BUILT is empty since
     monkeypatch.setattr(module, "NOT_BUILT", {"leaving"})
@@ -112,7 +112,7 @@ def test_what_is_on_already_is_never_asked(ask):
 
 
 def test_nothing_waits_so_nothing_is_asked_not_even_about_askings(ask, monkeypatch):
-    monkeypatch.setattr(ask, "DEFAULT_QUEUES", {})
+    monkeypatch.setattr(ask, "ORDER", ("askings",))
     assert ask.next_asking("agents", "first", DAY) is None
 
 
@@ -122,14 +122,28 @@ def test_the_first_one_is_asked_nothing_before_1_december(ask):
     assert ask.next_asking("agents", "first", date(2026, 12, 1)) == "askings"
 
 
-def test_the_founder_orders_the_queue(ask, data_dir):
+def test_every_agent_follows_the_one_order_and_a_saved_queue_is_dropped(ask, data_dir):
+    """one-order (23 November 2026): an agent's order is ORDER; a queue saved for it before is
+    not read, and is dropped at the next write; the founder orders only a person's queue."""
+    write(data_dir / "askings" / "agents" / "first.json",
+          json.dumps({"queue": ["american_spelling", "colour_weeks"]}))
+    assert ask.queue_of("agents", "first") == ["colour_weeks", "leaving", "american_spelling"]
+    assert ask.queue_of("agents", "second") == ask.queue_of("agents", "first")
     ask.carry_out("agents", "first", ["yes"], "askings", AT)
-    ask.set_queue("agents", "first", ["american_spelling", "colour_weeks"])
-    assert ask.next_asking("agents", "first", DAY) == "american_spelling"
+    assert ask.next_asking("agents", "first", DAY) == "colour_weeks"
+    assert "queue" not in ask.read("agents", "first")
     with pytest.raises(ask.Refused):
-        ask.set_queue("agents", "first", ["no_such_switch"])
+        ask.set_queue("agents", "first", ["american_spelling", "colour_weeks"])
+    assert ask.set_queue("people", "alder", ["own_name"]) == ["own_name"]
     with pytest.raises(ask.Refused):
-        ask.set_queue("agents", "first", ["own_name"])  # a person's, not an agent's
+        ask.set_queue("people", "alder", ["no_such_switch"])
+    with pytest.raises(ask.Refused):
+        ask.set_queue("people", "alder", ["colour_weeks"])  # an agent's, not a person's
+
+
+def test_a_switch_had_by_another_feature_is_not_asked(ask):
+    ask.carry_out("agents", "second", ["yes"], "askings", AT)
+    assert ask.next_asking("agents", "second", DAY, {"art_and_colour"}) == "american_spelling"
 
 
 def test_a_file_that_cannot_be_read_asks_nothing_and_turns_nothing_on(ask, data_dir):
@@ -153,22 +167,19 @@ def test_with_askings_off_nothing_is_asked_or_on(ask, monkeypatch):
     assert ask.next_asking("agents", "first", DAY) is None
 
 
-def test_the_queues_are_the_founder_s_request(askings_queued):
+def test_the_order_is_the_founder_s_request(askings_queued):
     import askings
-    # the founder's order of 21 November 2026 (from names-ids): private reflections not
-    # asked, the colour rule alone and last; then commons-window's and the reading's shape
-    assert askings.DEFAULT_QUEUES[("agents", "first")] == [
-        "hoping_for", "knock_founder", "knock_take_back", "commons_names", "names_told",
-        "solstice_names", "leaving", "american_spelling", "copy_said", "made_here_agents",
-        "colour_weeks", "commons_window",
-        # the reading's shape, one stage a month from January 2027 (reading-shape)
-        "reading_self_first", "reading_settings", "reading_how_folded"]
+    # one order for every agent (one-order, the founder's request of 23 November 2026)
+    assert askings.ORDER == (
+        "askings", "hoping_for", "commons_window", "commons_names", "solstice_names",
+        "names_told", "knock_founder", "knock_take_back", "leaving", "american_spelling",
+        "copy_said", "made_here_agents", "colour_weeks",
+        # the reading's shape, which goes by its months (reading-shape)
+        "reading_self_first", "reading_settings", "reading_how_folded")
+    assert set(askings.ORDER) == {s for s in askings.ASK_FIRST if askings.for_kind(s, "agents")}
     assert "private_reflections" not in askings.ASK_FIRST
     assert "art_and_colour" not in askings.ASK_FIRST
     assert askings.DEFAULT_EVERY_DAYS == {("agents", "first"): 3}
-    assert set(askings.DEFAULT_QUEUES[("agents", "second")]) >= {"leaving", "names_told",
-                                                                "commons_names",
-                                                                "commons_window"}
     assert askings.META_WORDS["agents"] == ("May I ask you about changes this way, one at a "
                                             "time, at your wakings?")
     for switch, one in askings.ASK_FIRST.items():
@@ -257,19 +268,23 @@ def test_a_reflection_waking_never_asks(attend):
 
 # ---- on the hearth ------------------------------------------------------------------------
 
-def test_the_founder_sees_and_orders_askings_on_tides(hearth_of_two, data_dir):
+def test_the_founder_sees_askings_on_tides_and_orders_only_a_member_s(hearth_of_two,
+                                                                     data_dir):
+    """one-order (23 November 2026): /tides shows an agent's order, and does not change it."""
     import askings
     keeper = hearth_of_two["keeper"]
     said = page(keeper.get("/tides"))
     assert 'id="askings"' in said
+    assert "Every agent is asked in the same order, set in code" in said
     answer = post(keeper, "/tides/askings/order",
                   data={"kind": "agents", "who": "second",
                         "order": "names_told\ncommons_names"})
-    assert "The order of what waits is kept." in page(answer)
-    assert askings.queue_of("agents", "second") == ["names_tol" + "d", "commons_names"]
-    answer = post(keeper, "/tides/askings/order",
-                  data={"kind": "agents", "who": "second", "order": "nothing_here"})
     assert "That order was not kept" in page(answer)
+    assert askings.queue_of("agents", "second") == list(askings.ORDER[1:])
+    answer = post(keeper, "/tides/askings/order",
+                  data={"kind": "people", "who": "alder", "order": "own_name"})
+    assert "The order of what waits is kept." in page(answer)
+    assert askings.queue_of("people", "alder") == ["own_name"]
 
 
 def test_a_member_is_asked_on_their_home_page_and_no_one_else_sees_it(hearth_of_two, data_dir):
@@ -314,7 +329,7 @@ def test_a_yes_to_leaving_turns_leaving_on_for_that_agent(env, data_dir, monkeyp
     """H (21 November 2026): with leaving built, a yes to its asking is its switch on, as any
     yes is: the registry reads it over the entry, and blocks.without_a_block with it."""
     ask = load("askings")
-    monkeypatch.setattr(ask, "DEFAULT_QUEUES", {("agents", "second"): ["leaving"]})
+    monkeypatch.setattr(ask, "ORDER", ("askings", "leaving"))
     ask.carry_out("agents", "second", ["yes"], "askings", AT)
     assert ask.next_asking("agents", "second", DAY) == "leaving"
     ask.carry_out("agents", "second", ["yes"], "leaving", AT)

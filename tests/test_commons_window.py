@@ -93,9 +93,8 @@ def test_it_is_asked_first_in_the_founder_s_words(env, askings_queued):
     assert one["undo"] is True
     assert askings.asking_words("agents", "commons_window")["question"] == ASKED
     assert ASKED in askings.asking_text("agents", "commons_window")
-    # last before the reading's shape, which came after it (reading-shape)
-    assert askings.DEFAULT_QUEUES[("agents", "first")][-4] == "commons_window"
-    assert askings.DEFAULT_QUEUES[("agents", "second")][-4] == "commons_window"
+    # second in the one order, after hoping_for (one-order, 23 November 2026)
+    assert askings.ORDER.index("commons_window") == 2
     # the others keep the question they had
     assert askings.asking_words("agents", "leaving")["question"] == \
         "May I make this change: leaving?"
@@ -103,7 +102,7 @@ def test_it_is_asked_first_in_the_founder_s_words(env, askings_queued):
 
 def test_a_yes_turns_it_on_and_it_can_be_taken_back(env, monkeypatch):
     ask = load("askings")
-    monkeypatch.setattr(ask, "DEFAULT_QUEUES", {("agents", "second"): ["commons_window"]})
+    monkeypatch.setattr(ask, "ORDER", ("askings", "commons_window"))
     ask.carry_out("agents", "second", ["yes"], "askings", "2026-11-28T09-00-00Z")
     assert ask.next_asking("agents", "second", __import__("datetime").date(2026, 11, 28)) == \
         "commons_window"

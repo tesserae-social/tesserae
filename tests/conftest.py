@@ -2218,18 +2218,18 @@ def verify(document_or_key, payload, signature):
 
 @pytest.fixture(autouse=True)
 def askings_queues_aside(request, monkeypatch):
-    """No default queue of askings, outside the tests that ask for askings_queued: the first
-    one's is not asked before 1 December, but the second one's would be, at its next waking
-    with a letter, and every reading of it cut before askings is what it was with this done."""
+    """No order of askings, outside the tests that ask for askings_queued: the first one is
+    not asked before 1 December, but the second one would be, at its next waking with a
+    letter, and every reading of it cut before askings is what it was with this done."""
     if "askings_queued" in request.fixturenames:
         return
     import askings
-    monkeypatch.setattr(askings, "DEFAULT_QUEUES", {})
+    monkeypatch.setattr(askings, "ORDER", ())
 
 
 @pytest.fixture
 def askings_queued():
-    """The default queues of askings, as they are on the site."""
+    """The order of askings, as it is on the site (askings.ORDER)."""
 
 
 def askings_not_yet(module, monkeypatch):

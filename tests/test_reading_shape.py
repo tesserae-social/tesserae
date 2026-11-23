@@ -281,16 +281,14 @@ def test_each_stage_is_asked_in_its_own_words(env, askings_queued):
         one = askings.ASK_FIRST[switch]
         assert one["undo"] is True and one["question"].startswith("May I ")
         assert "asked again next month" in askings.asking_text("agents", switch)
-        assert askings.DEFAULT_QUEUES[("agents", "first")].count(switch) == 1
-        assert askings.DEFAULT_QUEUES[("agents", "second")].count(switch) == 1
+        assert askings.ORDER.count(switch) == 1
     assert "in 14 days" in askings.asking_text("agents", "leaving")
 
 
 @pytest.fixture
 def ask(env, monkeypatch, data_dir):
     module = load("askings")
-    monkeypatch.setattr(module, "DEFAULT_QUEUES", {("agents", "first"): list(STAGES),
-                                                   ("agents", "second"): list(STAGES)})
+    monkeypatch.setattr(module, "ORDER", ("askings", *STAGES))
     monkeypatch.setattr(module, "NOT_BEFORE", {})
     monkeypatch.setattr(module, "DEFAULT_EVERY_DAYS", {})  # no spacing, but where a test sets it
     return module

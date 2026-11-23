@@ -14,8 +14,9 @@ what it adds, what it takes away, and the answer is yes, no, or not yet.
   that is told once, in one line. Not yet asks again after AGAIN_DAYS. No is never asked
   again, unless the agent or person asks for that change by name. A yes may be taken back,
   where the change can be undone (each one's "undo").
-- What waits, and in what order, is the founder's: the queue, changed on /tides. A queue
-  never set is DEFAULT_QUEUES'.
+- What waits for an agent, and in what order, is ORDER, one order for every agent, in code;
+  each agent is asked only what it does not have. A person's queue is the founder's, changed
+  on /tides.
 - Answers are private. They are kept in DATA_DIR/askings/, in the encrypted backup and never
   in a copy, an export or the mirror, and shown on no page but the founder's /tides. The
   ledger is told only ANSWERED_LINE, with no name, no switch and no answer.
@@ -24,7 +25,7 @@ The files, one for each agent and each person:
 
     askings/agents/<agent id>.json
     askings/people/<member folder>.json
-        {"queue": [switch, ...],              the founder's order; absent: the default
+        {"queue": [switch, ...],              a person's order, from the founder; never an agent's
          "answers": {switch: {"answer": "yes" | "no" | "not yet", "at": stamp,
                               "taken_back": stamp, "asked_again": stamp}},
          "open": {"switch": switch, "asked_at": stamp},   an asking shown, not yet answered
@@ -243,18 +244,18 @@ RELEASE_MONTHS = {(AGENTS, "first"): {"reading_self_first": (2027, 1),
                                       "reading_how_folded": (2027, 3)}}
 AFTER_ASKINGS = {(AGENTS, "second"): MONTHLY}
 
-# The queue each one starts with, before the founder changes it (the founder's request of 20
-# November 2026): the first one's waiting switches, in the plan's order, and H's for both.
-DEFAULT_QUEUES = {
-    # the founder's order of 21 November 2026 (from names-ids), then commons-window's and the
-    # reading's shape
-    (AGENTS, "first"): ["hoping_for", "knock_founder", "knock_take_back", "commons_names",
-                        "names_told", "solstice_names", "leaving", "american_spelling",
-                        "copy_said", "made_here_agents", "colour_weeks", "commons_window",
-                        *MONTHLY],
-    (AGENTS, "second"): ["leaving", "names_told", "commons_names", "solstice_names",
-                         "commons_window", *MONTHLY],
-}
+# One order for every agent (one-order, the founder's request of 23 November 2026). Each agent
+# is asked only the switches it does not have; a queue once saved for an agent on /tides is
+# not read and is dropped at the next write. The reading's stages go by their months
+# (released), and come before the rest once their month has come.
+ORDER = (META, "hoping_for", "commons_window", "commons_names", "solstice_names", "names_told",
+         "knock_founder", "knock_take_back", "leaving", "american_spelling", "copy_said",
+         "made_here_agents", "colour_weeks", *MONTHLY)
+
+# A switch an agent has by another of its features: not asked (hues.py: art_and_colour gives
+# the colour weeks too).
+HAD_BY = {"colour_weeks": {"art_and_colour"}}
+
 DEFAULT_PEOPLE_QUEUE = []  # a person's queue is the founder's to set (own_name, by the move)
 
 # At most one asking every so many days, from the day the last one was first shown (the
@@ -345,6 +346,8 @@ def read(kind, who):
 def write(kind, who, held):
     import safe_write  # the file is put in place whole, or not at all
     path = path_of(kind, who)
+    if kind == AGENTS:
+        held.pop("queue", None)  # an agent's order is ORDER (one-order)
     path.parent.mkdir(parents=True, exist_ok=True)
     safe_write.write_text(path, json.dumps(held, indent=2, ensure_ascii=False) + "\n")
 
@@ -355,14 +358,21 @@ def for_kind(switch, kind):
 
 
 def queue_of(kind, who, held=None):
-    """The switches that wait for this one, in the founder's order."""
-    held = read(kind, who) if held is None else held
-    if held and isinstance(held.get("queue"), list):
-        queue = held["queue"]
+    """The switches that wait for this one, in order: ORDER for an agent, the founder's for a
+    person."""
+    if kind == AGENTS:
+        queue = ORDER
     else:
-        queue = DEFAULT_QUEUES.get((kind, who), DEFAULT_PEOPLE_QUEUE if kind == PEOPLE else [])
+        held = read(kind, who) if held is None else held
+        queue = held["queue"] if held and isinstance(held.get("queue"), list) \
+            else DEFAULT_PEOPLE_QUEUE
     return [one for one in queue if isinstance(one, str) and for_kind(one, kind)
             and one != META]
+
+
+def has(switch, already_on):
+    """Whether this one has the switch anyway, by itself or by a feature that gives it."""
+    return switch in already_on or bool(HAD_BY.get(switch, set()) & set(already_on))
 
 
 def answered(held, switch):
@@ -493,7 +503,7 @@ def next_asking(kind, who, today, already_on=()):
     if held is None:
         return None
     opened = (held.get("open") or {}).get("switch")
-    if opened in ASK_FIRST and opened not in already_on and (
+    if opened in ASK_FIRST and not has(opened, already_on) and (
             opened == META or opened in queue_of(kind, who, held)):
         return opened  # shown and not answered: it is the same asking until it is
     every = every_days(kind, who, held)
@@ -501,7 +511,7 @@ def next_asking(kind, who, today, already_on=()):
     if every and last is not None and today < last + timedelta(days=every):
         return None  # one asking every so many days, at most
     after = [switch for switch in queue_of(kind, who, held)
-             if switch not in NOT_BUILT and switch not in already_on
+             if switch not in NOT_BUILT and not has(switch, already_on)
              and released(kind, who, held, switch, today)]
     # a stage of the reading's shape, once its month has come, before the rest of the queue
     after = ([one for one in after if scheduled(kind, who, one)]
@@ -509,7 +519,7 @@ def next_asking(kind, who, today, already_on=()):
     if not is_yes(held, META):
         # a stage whose month is reckoned from the yes to askings waits for that yes too
         later = [switch for switch in queue_of(kind, who, held)
-                 if switch in AFTER_ASKINGS.get((kind, who), ()) and switch not in already_on
+                 if switch in AFTER_ASKINGS.get((kind, who), ()) and not has(switch, already_on)
                  and answered(held, switch) is None]
         if not (after or later):
             return None  # nothing waits: not even the asking about askings is asked
@@ -617,14 +627,17 @@ def ask_again(kind, who, name, at):
         held["answers"].pop(switch)
     else:
         one["asked_again"] = at
-    if switch not in queue_of(kind, who, held) and switch != META:
+    if kind == PEOPLE and switch not in queue_of(kind, who, held) and switch != META:
         held["queue"] = [switch, *queue_of(kind, who, held)]
     write(kind, who, held)
     return switch
 
 
 def set_queue(kind, who, order):
-    """The founder's order for one subject's queue: known switches, each once."""
+    """The founder's order for one person's queue: known switches, each once. An agent's
+    order is ORDER, in code (one-order)."""
+    if kind == AGENTS:
+        raise Refused("an agent's order is the site's, set in code")
     held = read(kind, who)
     if held is None:
         raise Refused("unreadable")
@@ -664,8 +677,8 @@ def set_every_days(kind, who, days):
 
 
 def everyone():
-    """Every subject with a file or a default queue: (kind, who), in a steady order."""
-    found = set(DEFAULT_QUEUES)
+    """Every subject with a file: (kind, who), in a steady order."""
+    found = set()
     for kind in KINDS:
         folder = data() / FOLDER / kind
         if folder.is_dir():
@@ -686,7 +699,7 @@ def shown_to_founder(kind, who, today, already_on=()):
             "switch": switch, "name": ASK_FIRST[switch]["name"],
             "answer": one["answer"] if one else None, "at": (one or {}).get("at", "")[:10],
             "taken_back": bool(one and one.get("taken_back")),
-            "on_anyway": switch in already_on, "not_built": switch in NOT_BUILT})
+            "on_anyway": has(switch, already_on), "not_built": switch in NOT_BUILT})
     return {"kind": kind, "who": who, "rows": rows,
             "open": (held.get("open") or {}).get("switch"),
             "every_days": every_days(kind, who, held),

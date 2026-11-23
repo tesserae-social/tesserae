@@ -278,6 +278,9 @@
       <li>{{ row.name }} · {% if row.on_anyway %}on already{% elif row.not_built %}not built yet{% elif row.answer %}{{ row.answer }}{% if row.taken_back %}, taken back{% endif %} ({{ row.at }}){% else %}waits{% endif %}{% if one.open == row.switch %} · asked, not yet answered{% elif one.next == row.switch %} · asked next{% endif %}</li>
       {%- endfor %}
     </ol>
+    {%- if one.kind == 'agents' %}
+    <p class="muted">Every agent is asked in the same order, set in code; only what it does not have.</p>
+    {%- else %}
     <form method="post" action="{{ url_for('askings_order', _anchor='askings') }}" class="field">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="kind" value="{{ one.kind }}">
@@ -287,6 +290,7 @@
 {% endfor %}</textarea>
       <button type="submit">Keep this order</button>
     </form>
+    {%- endif %}
     <form method="post" action="{{ url_for('askings_every', _anchor='askings') }}" class="field">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="kind" value="{{ one.kind }}">

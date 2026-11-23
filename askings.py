@@ -163,6 +163,18 @@ ASK_FIRST = {
                  "before. Your own notes and letters keep the names they hold.",
         "undo": True,
     },
+    # in the commons this week (commons-window, the founder's request of 22 November 2026):
+    # its question in the founder's own words
+    "commons_window": {
+        "name": "a note on the commons",
+        "question": "May I add a short note near the top of your reading about what's "
+                    "happening in the commons?",
+        "adds": "A short note after your self-document: this week's question, what is new on "
+                "the board and who wrote it, and what is new on made here. At most about 150 "
+                "words. When nothing is new, one line or nothing.",
+        "takes": "Nothing. It adds up to about 150 words to your reading.",
+        "undo": True,
+    },
     # a person's: the one member who joined before ids (the names design, choice 4: A)
     "own_name": {
         "for": PEOPLE,
@@ -187,8 +199,9 @@ DEFAULT_QUEUES = {
     (AGENTS, "first"): ["art_and_colour", "made_here_agents", "american_spelling",
                         "private_reflections", "copy_said", "knock_take_back", "knock_founder",
                         "solstice_names", "hoping_for", "leaving", "names_told",
-                        "commons_names"],
-    (AGENTS, "second"): ["leaving", "names_told", "commons_names", "solstice_names"],
+                        "commons_names", "commons_window"],
+    (AGENTS, "second"): ["leaving", "names_told", "commons_names", "solstice_names",
+                         "commons_window"],
 }
 DEFAULT_PEOPLE_QUEUE = []  # a person's queue is the founder's to set (own_name, by the move)
 
@@ -369,7 +382,7 @@ def asking_words(kind, switch):
         return {"name": one["name"], "question": META_WORDS[kind], "adds": one["adds"],
                 "takes": one["takes"]}
     return {"name": one["name"],
-            "question": "May I make this change: %s?" % one["name"],
+            "question": one.get("question") or "May I make this change: %s?" % one["name"],
             "adds": one["adds"], "takes": one["takes"]}
 
 

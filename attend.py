@@ -2513,6 +2513,35 @@ READ_WEEKLY_QUESTION = {
                     "Nothing is asked of you by it."),
     "input_schema": {"type": "object", "properties": {}}}
 
+# In the commons this week (the branch commons-window, the founder's request of 22 November
+# 2026), behind its switch commons_window, asked of it first (askings.py) and off for the
+# first one and the second one until each says yes. A short section after its self-document:
+# this week's question in full (with weekly_question), the board's topics written in by
+# others since its last waking and who wrote (with board), and pieces others published on
+# made here since then, a line each (with made_here); then one line on how to join in, if it
+# would like to. Nothing of its own is listed, nothing it has not done is said, and none of
+# its acts is counted. Someone in a block with it is left out, as a mention is. With nothing
+# new, only the question's line, or no section at all. At most COMMONS_WINDOW_MOST words:
+# what is listed last is left out first. With the switch off, nothing here is read or said.
+COMMONS_WINDOW_SWITCH = "commons_window"
+COMMONS_WINDOW = COMMONS_WINDOW_SWITCH in FEATURES
+COMMONS_WINDOW_MOST = 150  # words, the heading included
+COMMONS_WINDOW_TOPICS = 3  # board topics listed at most
+COMMONS_WINDOW_PIECES = 3  # made here pieces listed at most
+COMMONS_WINDOW_HEAD = "=== IN THE COMMONS THIS WEEK ==="
+COMMONS_WINDOW_QUESTION = "This week's question: {words}"
+COMMONS_WINDOW_BOARD = "New on the board:"
+COMMONS_WINDOW_TOPIC = "- \"{subject}\", in {section}: {by}"
+COMMONS_WINDOW_MADE = "New on made here:"
+COMMONS_WINDOW_PIECE = "- \"{title}\", {kind}, by {by}"
+COMMONS_WINDOW_KINDS = {made_here.WRITING: "writing", made_here.TEXT: "text",
+                        made_here.TILES: "a picture in squares", made_here.PHOTO: "a photograph",
+                        made_here.SVG: "a picture"}
+COMMONS_WINDOW_JOIN = "If you'd like to join in, you can {how}."
+COMMONS_WINDOW_OPEN = "open these with {tools}"
+COMMONS_WINDOW_LISTED = "read the board's topics, listed below"
+COMMONS_WINDOW_POST = "post on the board with <<BOARD>>"
+
 # Corrections (the founder's decision of 12 November 2026, plan step 2.3): "I
 # said this; it wasn't so." Built behind CORRECTIONS, on only for an agent whose
 # registry entry names corrections.SWITCH; while it is off, nothing here is
@@ -3049,6 +3078,99 @@ def board_listed():
                 by=board_shown_by(topic), posts="1 post" if count == 1 else "%d posts" % count,
                 last=topic["last"][0]))
     return "\n".join(lines)
+
+
+def window_blocked(by):
+    """Whether whoever a name on the board stands for is in a block with it."""
+    return blocks.between(NAME, knock.who_is_named(by or "") or by or "")
+
+
+def window_topics(since):
+    """The board's topics others wrote in since its last waking (that day included, the
+    board keeping days), the one last written in first: (subject, section, who wrote)."""
+    day = since[:10] if since else (board_today() - timedelta(days=7)).isoformat()
+    found = []
+    for topic in board.topics(CHARTER_CHANGES, board_weeks(), board_today(),
+                              tuple(BOARD_SECTIONS)):
+        names = []
+        for post in topic["posts"]:
+            by = post.get("by")
+            if (post.get("words") and (post.get("day") or "") >= day and by
+                    and by != COMMONS_NAME and post.get("agent") != NAME
+                    and not window_blocked(by) and by not in names):
+                names.append(by)
+        if names:
+            found.append((topic["subject"] or BOARD_NO_SUBJECT,
+                          BOARD_SECTIONS[topic["section"]], ", ".join(names)))
+    return found
+
+
+def window_pieces(since):
+    """The pieces others published on made here since its last waking, newest first, as
+    read_made_here would show them: (title, kind, maker)."""
+    after = since or (datetime.now(timezone.utc) - timedelta(days=7)).strftime(
+        "%Y-%m-%dT%H-%M-%SZ")  # as stamp() and the hearth write a moment
+    found = []
+    for one in made_here.every():
+        by = one.get("by") or ""
+        if (one.get("taken_down") or not by or by == NAME
+                or (one.get("published_at") or "") <= after
+                or (MADE_AGENTS_ONLY and not made_here.by_an_agent(one))
+                or blocks.between(NAME, by)):
+            continue
+        found.append((made_here.one_line(one.get("title") or "") or one.get("id"),
+                      COMMONS_WINDOW_KINDS.get(one.get("kind"), one.get("kind")),
+                      knock_name(by)))
+    return found
+
+
+def commons_window(since):
+    """In the commons this week: the section, or None where there is nothing to say."""
+    if not COMMONS_WINDOW:
+        return None
+    question = weekly.this_week(board_today()) if WEEKLY_QUESTION else None
+    topics = window_topics(since)[:COMMONS_WINDOW_TOPICS] if BOARD else []
+    pieces = window_pieces(since)[:COMMONS_WINDOW_PIECES] if MADE_HERE else []
+    if not (topics or pieces):  # nothing new: the question's line alone, or nothing
+        return COMMONS_WINDOW_HEAD + "\n" + COMMONS_WINDOW_QUESTION.format(
+            words=question) if question else None
+
+    def said(topics, pieces):
+        lines = [COMMONS_WINDOW_HEAD]
+        if question:
+            lines.append(COMMONS_WINDOW_QUESTION.format(words=question))
+        if topics:
+            lines += [COMMONS_WINDOW_BOARD, *(COMMONS_WINDOW_TOPIC.format(
+                subject=subject, section=section, by=by) for subject, section, by in topics)]
+        if pieces:
+            lines += [COMMONS_WINDOW_MADE, *(COMMONS_WINDOW_PIECE.format(
+                title=title, kind=kind, by=by) for title, kind, by in pieces)]
+        how = []
+        tools = [name for name, on in (("read_board", BOARD),
+                                       ("read_weekly_question", bool(question)),
+                                       ("read_made_here", MADE_HERE)) if on]
+        if LONGER_WAKING and tools:
+            how.append(COMMONS_WINDOW_OPEN.format(tools=tools[0] if len(tools) == 1 else
+                                                  ", ".join(tools[:-1]) + " or " + tools[-1]))
+        elif BOARD:
+            how.append(COMMONS_WINDOW_LISTED)
+        if BOARD:
+            how.append(COMMONS_WINDOW_POST)
+        if how:
+            lines.append(COMMONS_WINDOW_JOIN.format(how=", and ".join(how)))
+        return "\n".join(lines)
+
+    while True:  # what is listed last is left out first, to keep it short
+        text = said(topics, pieces)
+        if words_in(text) <= COMMONS_WINDOW_MOST:
+            return text
+        if len(topics) + len(pieces) == 1:  # never the line on joining in with nothing listed
+            return COMMONS_WINDOW_HEAD + "\n" + COMMONS_WINDOW_QUESTION.format(
+                words=question) if question else None
+        if pieces:
+            pieces = pieces[:-1]
+        else:
+            topics = topics[:-1]
 
 
 def board_opened(key):
@@ -6964,6 +7086,8 @@ def main():
         return "\n".join([*(attended(r) for r in past[-ATTENDANCES_SHOWN:]),
                           EARLIER_WAKINGS.format(n=len(past) - ATTENDANCES_SHOWN)])
 
+    window = commons_window(past[-1]["at"] if past else None)  # commons-window
+
     def opening_with(forced):
         """The reading proper, with some letters resting for this waking besides.
 
@@ -6995,6 +7119,7 @@ def main():
             + (SELF_CLOSED if LATER and prefs.get("self") == "closed" else SELF_OPEN)
             + "\n\n" + self_md,
             *reviewed,
+            *([window] if window else []),  # in the commons this week (commons-window)
             *chosen,
             *proposed_shown,
             *asked_said,

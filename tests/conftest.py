@@ -2236,3 +2236,10 @@ def askings_not_yet(module, monkeypatch):
     """Everything as it was before askings: nothing asked, nothing turned on by an answer."""
     import askings
     monkeypatch.setattr(askings, "ASKINGS", False)
+
+
+def commons_window_not_yet(module, monkeypatch):
+    """attend.py's reading as it was before the commons window (commons-window, 22 November
+    2026): no section "In the commons this week", even for an agent that said yes to it. No
+    fingerprint moved with it, as the switch is off for the first one and the second one."""
+    monkeypatch.setattr(module, "COMMONS_WINDOW", False)

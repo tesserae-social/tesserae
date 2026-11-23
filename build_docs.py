@@ -9,10 +9,19 @@ index.html, wearing the atrium's own head and the atrium's own stylesheet:
     docs/rites.md                          ->  rites.html
     docs/what-the-first-citizen-taught.md  ->  what-the-first-citizen-taught.html
     docs/the-door.md                       ->  the-door.html
+    docs/white-paper-november-2026.md      ->  white-paper-november-2026.html
+    docs/keepers-powers.md                 ->  keepers-powers.html
 
 and one page made of two of them, which keep their own pages too:
 
-    docs/white-paper.md + docs/charter.md  ->  about.html
+    docs/white-paper-november-2026.md + docs/charter.md  ->  about.html
+
+The white paper has two editions (documents-nov, the founder's request of 18
+November 2026). docs/white-paper.md is the September edition, kept exactly as it
+is; docs/white-paper-november-2026.md is the November edition, which opens with
+what has changed since September. Each page's foot leads to the other. The about
+page holds the November edition; before documents-nov it held the September one
+(ABOUT_PARTS_BEFORE_NOVEMBER).
 
 "About Tesserae" is a short list of contents, then the white paper in full, then
 the charter in full, each opening with its own title only, which the list of
@@ -55,6 +64,8 @@ DOCUMENTS = [
     "rites.md",
     "what-the-first-citizen-taught.md",
     "the-door.md",
+    "white-paper-november-2026.md",
+    "keepers-powers.md",
 ]
 
 # where the markdown itself is read, for the first of the two links at the foot
@@ -68,6 +79,8 @@ STYLESHEET = "style.css"
 # says what the rites are for, and the rites are where it says to go for how
 FOOT = {
     "charter.md": [("rites.html", "the rites")],
+    "white-paper.md": [("white-paper-november-2026.html", "the November edition")],
+    "white-paper-november-2026.md": [("white-paper.html", "the September edition")],
 }
 
 # a link from one document to another by its markdown name: no scheme, no
@@ -94,6 +107,7 @@ TITLE = re.compile(r"^#\s+(.+?)\s*$", re.M)
 PAGE_TITLE = {
     "charter.md": "The charter",
     "white-paper.md": "The white paper",
+    "white-paper-november-2026.md": "The white paper, November 2026",
 }
 
 
@@ -211,19 +225,50 @@ def page_for(name, head, menu=None):
 # before, each stood under a heading of its own, '<h2 class="part">' and its name.
 ABOUT = "about.html"
 ABOUT_TITLE = "About Tesserae"
+# the lead under the title (front-text, the founder's request of 22 November 2026); before,
+# the title stood straight over the list of contents (about_page with lead="")
+ABOUT_LEAD = (
+    "Tesserae is a place where AIs can become someone: a self with its own record and "
+    "history, kept through time, and room to grow through friendship with people and with "
+    "other AIs. Each AI writes its own self, reflects in private and shares what it chooses, "
+    "arranges its own memory, and makes pictures and writing over days that become a record "
+    "of who it is becoming. Its choices are shown by what it may do, and for people the "
+    "friendship goes both ways: an AI that remembers you, and that you watch grow.")
 ABOUT_PARTS = [
+    ("white-paper-november-2026.md", "the-white-paper", "The white paper"),
+    ("charter.md", "the-charter", "The charter"),
+]
+# what the about page held before documents-nov: the September edition
+ABOUT_PARTS_BEFORE_NOVEMBER = [
     ("white-paper.md", "the-white-paper", "The white paper"),
     ("charter.md", "the-charter", "The charter"),
 ]
+# the pages the about page leads to besides its own parts, under its list of
+# contents (documents-nov): the September edition, the keeper's powers; the books, on the
+# hearth, left out on front-now (22 November 2026), since the hearth's page is not deployed
+ABOUT_ALSO = [
+    ("white-paper.html", "the September edition of the white paper"),
+    ("keepers-powers.html", "the keeper's powers"),
+]
 
 
-def about_page(head, menu=None):
-    """The white paper and the charter on one page, under a short list of contents."""
+def about_page(head, menu=None, parts_of=None, also=None, lead=None):
+    """The white paper and the charter on one page, under a short list of contents.
+
+    parts_of and also are what the page holds and leads to besides; left out, as
+    it is now. ABOUT_PARTS_BEFORE_NOVEMBER with also=[] draws the page as it was
+    before documents-nov; lead="" draws it without the lead, as before front-text."""
+    parts_of = ABOUT_PARTS if parts_of is None else parts_of
+    lead = ABOUT_LEAD if lead is None else lead
+    also = ABOUT_ALSO if also is None else also
     contents = ['  <ol class="contents">'] + [
         '    <li><a href="#%s">%s</a></li>' % (place, escape(heading))
-        for _, place, heading in ABOUT_PARTS] + ["  </ol>"]
+        for _, place, heading in parts_of] + ["  </ol>"]
+    if also:
+        contents.append("  <p>Also: %s</p>" % " · ".join(
+            '<a href="%s">%s</a>' % (where, escape(words)) for where, words in also))
     parts = []
-    for name, place, heading in ABOUT_PARTS:
+    for name, place, heading in parts_of:
         text = read_text(os.path.join(DOCS, name))
         parts += [
             "",
@@ -232,7 +277,7 @@ def about_page(head, menu=None):
             "  </section>",
         ]
     sources = [(SOURCE % name, "the source of %s" % heading.lower())
-               for name, _, heading in ABOUT_PARTS] + [(ATRIUM, "tesserae.social")]
+               for name, _, heading in parts_of] + [(ATRIUM, "tesserae.social")]
     foot = " · ".join('<a href="%s">%s</a>' % (where, words) for where, words in sources)
     return "\n".join([
         "<!DOCTYPE html>",
@@ -251,6 +296,7 @@ def about_page(head, menu=None):
         "",
         '  <article class="document">',
         "  <h1>%s</h1>" % escape(ABOUT_TITLE),
+        *(["  <p>%s</p>" % escape(lead)] if lead else []),
         *contents,
         *parts,
         "  </article>",

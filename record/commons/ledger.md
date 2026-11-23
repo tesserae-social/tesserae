@@ -4,3 +4,4 @@
 - 14 November 2026 · a test entry was removed from the record
 - 16 November 2026 · the second one was founded
 - 23 November 2026 · a line was held back
+- 23 November 2026 · the site's code was changed (the public code says how)

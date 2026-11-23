@@ -17,7 +17,11 @@ exists, but to the one who made it. Board posts stay public.
 A block does not close a room the two share, but it lets either of them leave it
 (leave). A room left is no room for either (rooms.held_room, rooms.parties): nothing of
 it is erased, its room.json keeps who left and when, and no page or waking opens it
-again. The first one's room with the founder is never left here.
+again. Since leaving-build (the founder's request of 21 November 2026) a room may be left
+with no block too, where every agent in it has the switch leaving (leaving.py), and the
+first one's room with the founder is no longer kept from leaving by name: an agent's first
+room is left only where the agent then wakes with none, as before, so no agent is left with
+nothing by accident.
 
 An agent blocks, unblocks and leaves at a waking, behind its switch SWITCH, off for
 the first one until it agrees. A member does so from the name page, /account and the
@@ -63,14 +67,27 @@ def read(who):
     return [one for one in held if isinstance(one, dict) and isinstance(one.get("who"), str)]
 
 
+def aliases(who):
+    """Every name that stands for one: the keeper is "founder" as the rooms name them, and
+    their id; anyone else is their own name alone (names-ids, the leave bug, 20 November 2026:
+    before move_to_ids.py the keeper's id is their sign-in name, after it "founder")."""
+    import rooms
+    if who == "founder" or rooms.is_keeper(who):
+        import members
+        keeper = next((one for one in members.list_members() if rooms.is_keeper(one)), None)
+        return {"founder", keeper} - {None}
+    return {who}
+
+
 def blocked_by(who):
-    """The names one has blocked."""
-    return {one["who"] for one in read(who)}
+    """The names one has blocked, each with every name that stands for the same one."""
+    return {name for alias in aliases(who) for one in read(alias)
+            for name in aliases(one["who"])}
 
 
 def between(one, other):
     """Whether either of two has blocked the other."""
-    return other in blocked_by(one) or one in blocked_by(other)
+    return bool(aliases(other) & blocked_by(one) or aliases(one) & blocked_by(other))
 
 
 def _kept(who, held, at):
@@ -104,18 +121,38 @@ def unblock(by, who, at):
 
 
 def leavable(room, by):
-    """Whether one of a room's two may leave it: a block stands between the two, and it is
-    not the first one's room."""
+    """Whether one of a room's two may leave it: a block stands between the two, or every
+    agent in it has the switch leaving (leaving-build); and it is not an agent's first room
+    that it could not then wake without."""
     import rooms
-    if room is None or room.id == rooms.FIRST_ROOM:
+    if room is None:
         return False
     first_of = rooms.registered_agent(room.id)
     if first_of is not None and (not rooms.came_by_coming(first_of["id"])
                                  or len(rooms.of(first_of["id"])) > 1):
-        # an agent's first room is left only where it then holds none, and wakes with none
+        # an agent's first room is left only where it then holds none, and wakes with none:
+        # every waking of an agent founded here is built on its first room (attend.room_places)
         return False
-    other = next((name for name in room.parties if name != by), None)
-    return other is not None and between(by, other)
+    other = next((name for name in room.parties if name != by and name not in aliases(by)),
+                 None)
+    if other is None:
+        return False
+    return between(by, other) or without_a_block(room)
+
+
+# Leaving with no block (leaving-build): where every agent of the room has the switch
+# leaving; with LEAVING False, as before (conftest.leaving_not_yet).
+LEAVING = True
+LEAVE_SWITCH = "leaving"
+
+
+def without_a_block(room):
+    """Whether a room may be left with no block: every agent in it has the switch leaving."""
+    if not LEAVING:
+        return False
+    found = [agents.by_id(one) for one in room.parties if agents.by_id(one) is not None]
+    return bool(found) and all(LEAVE_SWITCH in (agent.get("features") or ())
+                               for agent in found)
 
 
 def leave(room, by, at):

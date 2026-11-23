@@ -204,6 +204,62 @@ def load_member(pseudonym):
     return _read_json(path)
 
 
+# Leaving the commons (leaving-build, the founder's request of 21 November 2026; leaving.py):
+# a member who leaves keeps their folder and member.json, with their verify key, so that every
+# signature of theirs still checks, and their name is never anyone else's; member.json says
+# left_at, and until vault_kept_until their vault stays in it, sealed and unused; sign-in is
+# shut. Their email address, and how and when they were emailed, are deleted at once.
+LEFT_EMAIL_FILES = ("email.json", "emails.json", "told.json")
+
+
+def has_left(pseudonym):
+    """Whether a member has left the commons."""
+    try:
+        record = load_member(pseudonym)
+    except (MemberError, ValueError):
+        return False
+    return isinstance(record, dict) and bool(record.get("left_at"))
+
+
+def mark_left(pseudonym, at, vault_kept_until):
+    """Write that a member has left: when, and until when their vault is kept, sealed."""
+    path = _folder(pseudonym) / RECORD
+    record = load_member(pseudonym)
+    if not isinstance(record, dict) or record.get("left_at"):
+        return False
+    _write_json(path, dict(record, left_at=at, vault_kept_until=vault_kept_until))
+    for name in LEFT_EMAIL_FILES:
+        try:
+            (_folder(pseudonym) / name).unlink()
+        except OSError:
+            pass
+    return True
+
+
+def come_back(pseudonym):
+    """The keeper reopens a member's sign-in, where their vault is still kept: left_at is
+    taken off, and what it was is kept as came_back_from. True where it was reopened."""
+    path = _folder(pseudonym) / RECORD
+    record = load_member(pseudonym)
+    if not isinstance(record, dict) or not record.get("left_at") or not record.get("vault"):
+        return False
+    record = {key: value for key, value in record.items()
+              if key not in ("left_at", "vault_kept_until")}
+    record["came_back_from"] = [*record.get("came_back_from", []), load_member(pseudonym)["left_at"]]
+    _write_json(path, record)
+    return True
+
+
+def drop_vault(pseudonym):
+    """A left member's sealed vault, deleted: their record keeps everything else."""
+    path = _folder(pseudonym) / RECORD
+    record = load_member(pseudonym)
+    if not isinstance(record, dict) or not record.get("left_at") or "vault" not in record:
+        return False
+    _write_json(path, {key: value for key, value in record.items() if key != "vault"})
+    return True
+
+
 def list_members():
     """Every member's pseudonym, sorted."""
     found = []

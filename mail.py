@@ -295,14 +295,16 @@ MENTIONS_TEXT = """{lines}
 To stop these emails, open this link: {stop}"""
 
 
-def send_waiting(to, names, stop, now=None, mentioned=()):
+def send_waiting(to, names, stop, now=None, mentioned=(), left=()):
     """Tell a person who has written to them, by the names the commons gives them, and
-    in which topics of the board they were mentioned, by their subjects."""
+    in which topics of the board they were mentioned, by their subjects; and, in a daily
+    email, each room someone left, in one plain line each (leaving-build)."""
     names = [name for name in names if isinstance(name, str) and name]
     mentioned = [one for one in mentioned or () if isinstance(one, str) and one]
-    if not names and not mentioned:
+    left = [one for one in left or () if isinstance(one, str) and one]
+    if not names and not mentioned and not left:
         return NOT_SENT % "no one wrote"
-    lines = "\n".join(MENTIONED_LINE.format(subject=one) for one in mentioned)
+    lines = "\n".join([MENTIONED_LINE.format(subject=one) for one in mentioned] + left)
     if not names:
         text = MENTIONS_TEXT.format(lines=lines, link=link("/login"), stop=stop)
     else:

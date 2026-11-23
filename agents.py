@@ -95,10 +95,15 @@ class RegistryError(Exception):
     """agents.json is there and will not do."""
 
 
-def registry():
-    """Every agent founded here, in the order of founding: each a dict of its public facts."""
+def registry(asked=True):
+    """Every agent founded here, in the order of founding: each a dict of its public facts.
+
+    With asked (askings.py), each entry's features also hold the switches it said yes to
+    and has not taken back. Those answers are private: asked=False gives the entries as
+    committed, and anything written out from the registry is written from that.
+    """
     if not FILE.is_file():
-        return [dict(FIRST)]
+        return with_asked([dict(FIRST)]) if asked else [dict(FIRST)]
     try:
         entries = json.loads(FILE.read_text(encoding="utf-8"))
     except ValueError as error:
@@ -137,6 +142,19 @@ def registry():
         raise RegistryError(f"{FILE.name}: the name {said_twice!r} is said twice")
     if entries[0]["id"] != FIRST["id"]:
         raise RegistryError(f"{FILE.name}: the first entry is not the first one")
+    return with_asked(entries) if asked else entries
+
+
+def with_asked(entries):
+    """The entries, each with the switches its askings turned on beside its own (askings.py)."""
+    try:  # read only here, so that the registry is read with little else loaded; the mirror
+        import askings  # draws the atrium from a checkout of a few files, and no answers
+    except ImportError:
+        return entries
+    for entry in entries:
+        yes = askings.on(askings.AGENTS, entry["id"]) - set(entry.get("features") or ())
+        if yes:
+            entry["features"] = [*(entry.get("features") or ()), *sorted(yes)]
     return entries
 
 
@@ -145,9 +163,10 @@ def first():
     return registry()[0]
 
 
-def by_id(agent_id):
+def by_id(agent_id, asked=True):
     """One agent's entry, by its id, or None where no agent founded here has it."""
-    return next((agent for agent in registry() if agent["id"] == agent_id), None)
+    entries = registry() if asked else registry(asked=False)
+    return next((agent for agent in entries if agent["id"] == agent_id), None)
 
 
 def public(among=None):

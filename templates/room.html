@@ -36,15 +36,21 @@
 {% if not pressing %}{% include "room_side.html" %}{% endif %}
 </div>
 {% if leavable -%}
-{# A block stands between the two of this room, so either may leave it (blocks.py).
-   Leaving closes it for both; nothing in it is erased. #}
+{# Either may leave this room (blocks.py; leaving-build): with a block between the two, or
+   where every agent in it has the switch leaving. Leaving closes it for both; nothing in it
+   is erased; with leaving-build each can still read it and copy it, a bond in it is
+   released, and the other is told once. Asked once first, with a copy offered. #}
 <section id="leave">
   <form method="post" action="{{ url_for('leave_room', room_id=room.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="muted">{{ leave_said.said }}{% if leave_said.bond %} {{ leave_said.bond }}{% endif %}{% if leave_said.told %} {{ leave_said.told }}{% endif %}</p>
+    {% if leave_asked or not leave_said.asked %}
+    {% if leave_said.asked %}<p>{{ leave_said.asked }} <a href="{{ url_for('agent_export', agent_id=room.parties[1]) if room.parties|length > 1 else '#' }}">take a copy</a></p>{% endif %}
     <input type="hidden" name="confirm" value="yes">
-    <p class="muted">You may leave this room. It closes for both of you, and nothing in it is
-      erased.</p>
+    <button type="submit" class="consequential small">{% if leave_said.asked %}Yes, leave this room{% else %}Leave this room{% endif %}</button>
+    {% else %}
     <button type="submit" class="consequential small">Leave this room</button>
+    {% endif %}
   </form>
 </section>
 {% endif -%}

@@ -179,10 +179,14 @@ DEFAULT_MAX_TOKENS = 8000
 # knock_take_back since 18 November 2026 (the branch knocks-tidy): it may take back a knock of
 # its own that waits, and its knocks that wait count against its room (knock.TAKE_BACK_SWITCH);
 # off for the first one until told.
+# reading_self_first, reading_settings and reading_how_folded since 22 November 2026 (the branch
+# reading-shape): the reading's shape in three stages; asked of the first one and the second one
+# one a month (askings.py), and a new agent's from its first waking.
 FEATURES = ["american_spelling", "art_and_colour", "asked", "block", "board", "copy_said", "corrections", "door", "doors_to_eight", "hoping_for",
             "hue", "introduction", "knock", "knock_founder", "knock_take_back", "long_night", "longer_waking",
             "looking_back", "made_here", "made_here_agents", "made_here_talk", "people_waiting", "private_reflections", "proposals",
             "quiet_days",
+            "reading_how_folded", "reading_self_first", "reading_settings",
             "reflection_waking", "room_on_yes", "rooms_reading", "site_notes", "standing_welcome",
             "two_doors", "weekly_question"]
 
@@ -1026,7 +1030,7 @@ def step_publish(agent_id):
     if bundle.exists():
         raise Refused(f"{rel(bundle)} is there already")
     write_json(bundle / "entry.json", entry)
-    registry = [*agents.registry(), entry]
+    registry = [*agents.registry(asked=False), entry]  # never an asking's answer
     (bundle / "agents.json").write_text(json.dumps(registry, indent=2, ensure_ascii=False) + "\n",
                                         encoding="utf-8")
     identity = bundle / "ids" / agent_id / DID

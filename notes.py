@@ -74,6 +74,9 @@ def opened(one, other):
 def closed(one, other):
     """Whether a block stands between the two, either way: then no note may be written."""
     import blocks
+    import members
+    if members.has_left(one) or members.has_left(other):  # leaving-build: closed, and kept
+        return True
     return bool(blocks.between(one, other))
 
 

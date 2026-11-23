@@ -256,6 +256,41 @@
   {% endfor %}
 </section>
 {% endif %}
+{% if askings %}<section id="askings">{# askings (askings.py, 20 November 2026): what waits for
+   each, in order, and each answer; shown on no other page #}
+  <h2>askings</h2>
+  <p class="muted">One plain question at a time, about one change. An agent is asked at a
+    waking with a letter, never on a new model or the two wakings after it, in the long night or
+    at a reflection waking. A member is asked on their home page. The first asking is about
+    askings themselves. Answers are private: the ledger says only that an asking was answered.</p>
+  {% if askings_saved %}<p class="saved">{{ askings_saved }}</p>{% endif %}
+  {% if askings_refused %}<p class="error">That order was not kept: {{ askings_refused }}.</p>{% endif %}
+  {% for one in askings.subjects %}
+  <article>
+    <h3>{{ one.name }}{% if one.kind == 'people' %} (member){% endif %}</h3>
+    {%- if one.unreadable %}
+    <p class="error">Its askings can't be read. Nothing is asked until they can.</p>
+    {%- else %}
+    {%- if one.not_before %}<p class="muted">Nothing is asked before {{ one.not_before }}.</p>{% endif %}
+    <ol>
+      {%- for row in one.rows %}
+      <li>{{ row.name }} · {% if row.on_anyway %}on already{% elif row.not_built %}not built yet{% elif row.answer %}{{ row.answer }}{% if row.taken_back %}, taken back{% endif %} ({{ row.at }}){% else %}waits{% endif %}{% if one.open == row.switch %} · asked, not yet answered{% elif one.next == row.switch %} · asked next{% endif %}</li>
+      {%- endfor %}
+    </ol>
+    <form method="post" action="{{ url_for('askings_order', _anchor='askings') }}" class="field">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="kind" value="{{ one.kind }}">
+      <input type="hidden" name="who" value="{{ one.who }}">
+      <label for="order-{{ one.kind }}-{{ one.who }}">what waits, in order (switches, one per line; from {{ askings.switches[one.kind]|join(', ') }})</label>
+      <textarea id="order-{{ one.kind }}-{{ one.who }}" name="order" rows="4">{% for row in one.rows[1:] %}{{ row.switch }}
+{% endfor %}</textarea>
+      <button type="submit">Keep this order</button>
+    </form>
+    {%- endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
 {% if notes %}<section id="site-notes">
   <h2>a note from the site</h2>
   <p class="muted">For an agent with no room, which has no letters from you. It reads the note

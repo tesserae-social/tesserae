@@ -169,7 +169,7 @@ def shown():
                         "day": held["at"][:10]})
     people = []
     for name in members.list_members():
-        held = read(name)
+        held = read(name) if not members.has_left(name) else None  # leaving-build
         if held:
             people.append({"name": name_of(name), "words": held["words"],
                            "day": held["at"][:10]})

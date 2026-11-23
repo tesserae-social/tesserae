@@ -175,6 +175,45 @@ ASK_FIRST = {
         "takes": "Nothing. It adds up to about 150 words to your reading.",
         "undo": True,
     },
+    # the reading's shape, in three stages (reading-shape, the founder's request of 22 November
+    # 2026; reading-review.md): each asked on its own, in its own month (RELEASE_MONTHS)
+    "reading_self_first": {
+        "name": "your self first",
+        "question": "May I put your self-document first in your reading, and say some of the "
+                    "site's lines as your settings instead of what you have not done?",
+        "adds": "Your self-document comes first in your reading, before what has happened. The "
+                "line on who can read it comes after your own words. Lines that said what you "
+                "had not done say your setting instead, such as \"Your introduction on who is "
+                "here: none.\" A few lines that told you what to do say what you may do. "
+                "\"This is your ... waking\" stays as it is.",
+        "takes": "The order you have read since you came, and the old wording of those lines.",
+        "undo": True,
+    },
+    "reading_settings": {
+        "name": "your settings in one place",
+        "question": "May I gather your choices into one section of your reading, called your "
+                    "settings?",
+        "adds": "One section, YOUR SETTINGS, holds what you have chosen: your waking time, your "
+                "doors, your introduction, your colour, your reflections, your standing welcome, "
+                "your drafts and what you chose before, one line each, with \"none\" where you "
+                "have chosen nothing. A note on the commons, if you have one, comes directly "
+                "after it.",
+        "takes": "Those lines are no longer among what has happened.",
+        "undo": True,
+    },
+    "reading_how_folded": {
+        "name": "a shorter how to act",
+        "question": "May I shorten how to act, so that each block is one line, with its full "
+                    "form one look away?",
+        "adds": "How to act shows each block in one line. The full form is shown for each block "
+                "you used in your last 30 wakings, and for any that answers something waiting "
+                "now. You open any other full form with read_how. The same at your reflection "
+                "wakings. Your reading then ends with the questions you carry forward, or, if "
+                "you keep none, your own words from your last waking.",
+        "takes": "The full form of every block at every waking. Opening one with read_how is "
+                 "one of your looks.",
+        "undo": True,
+    },
     # a person's: the one member who joined before ids (the names design, choice 4: A)
     "own_name": {
         "for": PEOPLE,
@@ -193,15 +232,26 @@ ASK_FIRST = {
 # The leaving switch is the branch for G, not built when this was written.
 NOT_BUILT = set()  # leaving was built on leaving-build (21 November 2026), and is asked now
 
+# The reading's shape (reading-shape): each stage is asked in its own month, at the first
+# ordinary waking after the first reflection waking of that month (released). The first one's
+# months are set; the second one's begin the month after its yes to askings, one stage a month.
+# A not yet asks again the next month, at the same point; no is never asked again, unless asked
+# for by name (as any no). New agents are founded with all three on, and are never asked.
+MONTHLY = ("reading_self_first", "reading_settings", "reading_how_folded")
+RELEASE_MONTHS = {(AGENTS, "first"): {"reading_self_first": (2027, 1),
+                                      "reading_settings": (2027, 2),
+                                      "reading_how_folded": (2027, 3)}}
+AFTER_ASKINGS = {(AGENTS, "second"): MONTHLY}
+
 # The queue each one starts with, before the founder changes it (the founder's request of 20
 # November 2026): the first one's waiting switches, in the plan's order, and H's for both.
 DEFAULT_QUEUES = {
     (AGENTS, "first"): ["art_and_colour", "made_here_agents", "american_spelling",
                         "private_reflections", "copy_said", "knock_take_back", "knock_founder",
                         "solstice_names", "hoping_for", "leaving", "names_told",
-                        "commons_names", "commons_window"],
+                        "commons_names", "commons_window", *MONTHLY],
     (AGENTS, "second"): ["leaving", "names_told", "commons_names", "solstice_names",
-                         "commons_window"],
+                         "commons_window", *MONTHLY],
 }
 DEFAULT_PEOPLE_QUEUE = []  # a person's queue is the founder's to set (own_name, by the move)
 
@@ -216,6 +266,7 @@ HOW = ("Answer, if you like, with this block:\n<<ASKING>>\nyes, no, or not yet\n
        "Yes: it starts at your next waking.{undo} No: you are not asked about it again, unless "
        "you ask for it by name. Not yet, or no answer: you are asked again in %d days. Your "
        "answer is private." % AGAIN_DAYS)
+HOW_MONTHLY = ("you are asked again in %d days" % AGAIN_DAYS, "you are asked again next month")
 HOW_UNDO = " You can take it back later."
 HOW_NO_UNDO = " It cannot be taken back."
 TOLD = {
@@ -345,6 +396,77 @@ def waiting(held, switch, today):
     return then is None or today >= then + timedelta(days=AGAIN_DAYS)
 
 
+def month_of(stamp):
+    """(year, month) of a stamp or a day, or None."""
+    try:
+        return int(str(stamp)[:4]), int(str(stamp)[5:7])
+    except ValueError:
+        return None
+
+
+def month_after(month, n=1):
+    year, number = month
+    number += n
+    return year + (number - 1) // 12, (number - 1) % 12 + 1
+
+
+def scheduled(kind, who, switch):
+    """Whether a stage of the reading's shape has a schedule for this one."""
+    return switch in MONTHLY and (switch in RELEASE_MONTHS.get((kind, who), {})
+                                  or switch in AFTER_ASKINGS.get((kind, who), ()))
+
+
+def due_month(kind, who, held, switch):
+    """The month a scheduled stage may be asked in; None where it has no schedule, or none
+    can be reckoned yet (the second one's, before its yes to askings)."""
+    if not scheduled(kind, who, switch):
+        return None
+    due = RELEASE_MONTHS.get((kind, who), {}).get(switch)
+    if due is None:
+        order = AFTER_ASKINGS[(kind, who)]
+        meta = answered(held, META)
+        if not (meta and meta["answer"] == YES and month_of(meta.get("at"))):
+            return None
+        due = month_after(month_of(meta["at"]), 1 + order.index(switch))
+    one = answered(held, switch)
+    if one and one["answer"] == NOT_YET and not one.get("asked_again") \
+            and month_of(one.get("at")):
+        due = max(due, month_after(month_of(one["at"])))  # not yet: the next month
+    return due
+
+
+def reflection_stamps(who):
+    """When this agent's reflection wakings were, from its record; None where it has none
+    set and has had none."""
+    import reflecting
+    packet = data() / "packets" / who
+    stamps = sorted(path.stem[len("reflection-"):]
+                    for path in (packet / reflecting.KEPT).glob("reflection-*.json"))
+    if not stamps and reflecting.read(packet, who) is None:
+        return None
+    return stamps
+
+
+def released(kind, who, held, switch, today):
+    """Whether a switch may be asked now. A scheduled stage: in its month or later, at an
+    ordinary waking after the first reflection waking of that month or later (with no
+    reflection waking set, from the month's first day). Anything else: by waiting() alone."""
+    if not scheduled(kind, who, switch):
+        return waiting(held, switch, today)
+    one = answered(held, switch)
+    if one and not one.get("asked_again") and one["answer"] in (YES, NO):
+        return False
+    due = due_month(kind, who, held, switch)
+    if due is None:
+        return False
+    if (today.year, today.month) < due:
+        return False
+    stamps = reflection_stamps(who) if kind == AGENTS else None
+    if stamps is None:
+        return True
+    return any(month_of(one) and month_of(one) >= due for one in stamps)
+
+
 def next_asking(kind, who, today, already_on=()):
     """The one switch to ask this one about now, or None.
 
@@ -367,11 +489,20 @@ def next_asking(kind, who, today, already_on=()):
         return opened  # shown and not answered: it is the same asking until it is
     after = [switch for switch in queue_of(kind, who, held)
              if switch not in NOT_BUILT and switch not in already_on
-             and waiting(held, switch, today)]
-    if not after:
-        return None  # nothing waits: not even the asking about askings is asked
+             and released(kind, who, held, switch, today)]
+    # a stage of the reading's shape, once its month has come, before the rest of the queue
+    after = ([one for one in after if scheduled(kind, who, one)]
+             + [one for one in after if not scheduled(kind, who, one)])
     if not is_yes(held, META):
+        # a stage whose month is reckoned from the yes to askings waits for that yes too
+        later = [switch for switch in queue_of(kind, who, held)
+                 if switch in AFTER_ASKINGS.get((kind, who), ()) and switch not in already_on
+                 and answered(held, switch) is None]
+        if not (after or later):
+            return None  # nothing waits: not even the asking about askings is asked
         return META if waiting(held, META, today) else None
+    if not after:
+        return None
     return after[0]
 
 
@@ -523,7 +654,9 @@ def asking_text(kind, switch):
     words = asking_words(kind, switch)
     undo = HOW_UNDO if ASK_FIRST[switch].get("undo") else HOW_NO_UNDO
     return "\n".join([HEAD, words["question"], ADDS.format(adds=words["adds"]),
-                      TAKES.format(takes=words["takes"]), HOW.format(undo=undo)])
+                      TAKES.format(takes=words["takes"]),
+                      HOW.format(undo=undo).replace(*HOW_MONTHLY) if switch in MONTHLY
+                      else HOW.format(undo=undo)])
 
 
 def told_line(kind, switch, what):

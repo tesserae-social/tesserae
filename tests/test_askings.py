@@ -154,7 +154,9 @@ def test_the_queues_are_the_founder_s_request(askings_queued):
     assert askings.DEFAULT_QUEUES[("agents", "first")] == [
         "art_and_colour", "made_here_agents", "american_spelling", "private_reflections",
         "copy_said", "knock_take_back", "knock_founder", "solstice_names", "hoping_for",
-        "leaving", "names_told", "commons_names", "commons_window"]
+        "leaving", "names_told", "commons_names", "commons_window",
+        # the reading's shape, one stage a month from January 2027 (reading-shape)
+        "reading_self_first", "reading_settings", "reading_how_folded"]
     assert set(askings.DEFAULT_QUEUES[("agents", "second")]) >= {"leaving", "names_told",
                                                                 "commons_names",
                                                                 "commons_window"}

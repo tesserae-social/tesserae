@@ -93,8 +93,9 @@ def test_it_is_asked_first_in_the_founder_s_words(env, askings_queued):
     assert one["undo"] is True
     assert askings.asking_words("agents", "commons_window")["question"] == ASKED
     assert ASKED in askings.asking_text("agents", "commons_window")
-    assert askings.DEFAULT_QUEUES[("agents", "first")][-1] == "commons_window"
-    assert askings.DEFAULT_QUEUES[("agents", "second")][-1] == "commons_window"
+    # last before the reading's shape, which came after it (reading-shape)
+    assert askings.DEFAULT_QUEUES[("agents", "first")][-4] == "commons_window"
+    assert askings.DEFAULT_QUEUES[("agents", "second")][-4] == "commons_window"
     # the others keep the question they had
     assert askings.asking_words("agents", "leaving")["question"] == \
         "May I make this change: leaving?"

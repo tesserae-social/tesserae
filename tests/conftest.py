@@ -2243,3 +2243,25 @@ def commons_window_not_yet(module, monkeypatch):
     2026): no section "In the commons this week", even for an agent that said yes to it. No
     fingerprint moved with it, as the switch is off for the first one and the second one."""
     monkeypatch.setattr(module, "COMMONS_WINDOW", False)
+
+
+# ---- the reading's shape (reading-shape, 22 November 2026) ---------------------------------
+# Each stage off again, for an agent that said yes to it: its reading word for word as before.
+# No fingerprint moved with them, as every stage is off for the first one and the second one.
+
+def reading_self_first_not_yet(module, monkeypatch):
+    """Its reading before reading_self_first: the old order, and every word A changed put back."""
+    for name, value in module.SHAPED_BEFORE.items():
+        monkeypatch.setattr(module, name, module.american_spelled(value) if module.AMERICAN
+                            else value)
+    monkeypatch.setattr(module, "READING_SELF_FIRST", False)
+
+
+def reading_settings_not_yet(module, monkeypatch):
+    """Its reading before reading_settings: its choices where they were."""
+    monkeypatch.setattr(module, "READING_SETTINGS", False)
+
+
+def reading_how_folded_not_yet(module, monkeypatch):
+    """Its reading before reading_how_folded: every block in full, its questions where they were."""
+    monkeypatch.setattr(module, "READING_HOW_FOLDED", False)

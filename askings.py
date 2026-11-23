@@ -263,8 +263,9 @@ DEFAULT_PEOPLE_QUEUE = []  # a person's queue is the founder's to set (own_name,
 # one.
 DEFAULT_EVERY_DAYS = {(AGENTS, "first"): 3}
 
-# No asking of the first one before this day (the founder's request of 20 November 2026).
-NOT_BEFORE = {(AGENTS, "first"): date(2026, 11, 27)}
+# No asking of the first one before this day (the founder's request of 20 November 2026;
+# 1 December, not 27 November, at the founder's request of 23 November 2026).
+NOT_BEFORE = {(AGENTS, "first"): date(2026, 12, 1)}
 
 # What an agent reads: the asking at a waking, and what became of it, told once at the next.
 HEAD = "=== A QUESTION FOR YOU, FROM THE FOUNDER ==="

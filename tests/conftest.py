@@ -2219,7 +2219,7 @@ def verify(document_or_key, payload, signature):
 @pytest.fixture(autouse=True)
 def askings_queues_aside(request, monkeypatch):
     """No default queue of askings, outside the tests that ask for askings_queued: the first
-    one's is not asked before 27 November, but the second one's would be, at its next waking
+    one's is not asked before 1 December, but the second one's would be, at its next waking
     with a letter, and every reading of it cut before askings is what it was with this done."""
     if "askings_queued" in request.fixturenames:
         return

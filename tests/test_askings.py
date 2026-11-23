@@ -13,9 +13,9 @@ from conftest import load, page, post, write
 from test_later_citizen import hearth_of_two, scratch_registry  # noqa: F401 - fixtures
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
 
-DAY = date(2026, 11, 28)
-AT = "2026-11-28T09-00-00Z"
-LATER_AT = "2026-11-29T09-00-00Z"
+DAY = date(2026, 12, 2)
+AT = "2026-12-02T09-00-00Z"
+LATER_AT = "2026-12-03T09-00-00Z"
 
 
 @pytest.fixture
@@ -55,9 +55,9 @@ def test_the_asking_about_askings_comes_first_and_nothing_else_until_it_is_yes(a
     assert ask.next_asking("agents", "first", DAY) == "askings"
     ask.carry_out("agents", "first", ["not yet"], "askings", AT)
     assert ask.next_asking("agents", "first", DAY) is None  # not yet: 14 days
-    assert ask.next_asking("agents", "first", date(2026, 12, 12)) == "askings"
-    ask.carry_out("agents", "first", ["yes"], "askings", "2026-12-12T09-00-00Z")
-    assert ask.next_asking("agents", "first", date(2026, 12, 12)) == "colour_weeks"
+    assert ask.next_asking("agents", "first", date(2026, 12, 16)) == "askings"
+    ask.carry_out("agents", "first", ["yes"], "askings", "2026-12-16T09-00-00Z")
+    assert ask.next_asking("agents", "first", date(2026, 12, 16)) == "colour_weeks"
     assert ask.on("agents", "first") == set()  # the asking about askings turns nothing on
 
 
@@ -116,9 +116,10 @@ def test_nothing_waits_so_nothing_is_asked_not_even_about_askings(ask, monkeypat
     assert ask.next_asking("agents", "first", DAY) is None
 
 
-def test_the_first_one_is_asked_nothing_before_27_november(ask):
-    assert ask.next_asking("agents", "first", date(2026, 11, 26)) is None
-    assert ask.next_asking("agents", "first", date(2026, 11, 27)) == "askings"
+def test_the_first_one_is_asked_nothing_before_1_december(ask):
+    # 1 December since the founder's request of 23 November 2026; before, 27 November
+    assert ask.next_asking("agents", "first", date(2026, 11, 30)) is None
+    assert ask.next_asking("agents", "first", date(2026, 12, 1)) == "askings"
 
 
 def test_the_founder_orders_the_queue(ask, data_dir):
@@ -141,7 +142,7 @@ def test_the_ledger_is_told_only_that_an_asking_was_answered(ask, data_dir):
     ask.carry_out("agents", "first", ["yes"], "askings", AT)
     ask.carry_out("agents", "first", ["no"], "colour_weeks", AT)
     lines = ledger_lines(data_dir)
-    assert lines == ["- 2026-11-28 · an asking was answered"] * 2
+    assert lines == ["- 2026-12-02 · an asking was answered"] * 2
 
 
 def test_with_askings_off_nothing_is_asked_or_on(ask, monkeypatch):
@@ -187,14 +188,14 @@ def test_a_yes_is_in_the_registry_s_features_and_never_in_what_is_written_out(as
 
 # ---- at a waking --------------------------------------------------------------------------
 
-def a_letter(data_dir, stamp="2026-11-28T08-00-00Z"):
+def a_letter(data_dir, stamp="2026-12-02T08-00-00Z"):
     write(data_dir / "rooms" / "first" / "letters" / "incoming" / f"founder-{stamp}.md",
           "A letter for the tests.\n")
 
 
 @pytest.fixture
 def late(clock, ask):
-    clock.set(datetime(2026, 11, 28, 12, tzinfo=timezone.utc))
+    clock.set(datetime(2026, 12, 2, 12, tzinfo=timezone.utc))
     return clock
 
 
@@ -210,13 +211,13 @@ def test_a_waking_with_a_letter_asks_once_and_keeps_the_answer_private(late, ask
     [kept] = sorted((packet / "attendances").glob("*.json"))
     record = json.loads(kept.read_text(encoding="utf-8"))
     assert ask.QUIETLY in record["reflection"] and "yes" not in record["reflection"].lower()
-    assert ledger_lines(data_dir) == ["- 2026-11-28 · an asking was answered"]
+    assert ledger_lines(data_dir) == ["- 2026-12-02 · an asking was answered"]
     # the next waking: its yes told once, and the next asking
-    a_letter(data_dir, "2026-11-28T12-01-00Z")
+    a_letter(data_dir, "2026-12-02T12-01-00Z")
     turn = wake("<<HEARTBEAT>>\nattended\n<<END>>")
     assert ask.TOLD["meta yes"] in turn.shown
     assert "May I make this change: color twice a year?" in turn.shown
-    a_letter(data_dir, "2026-11-28T12-06-00Z")
+    a_letter(data_dir, "2026-12-02T12-06-00Z")
     turn = wake("")
     assert ask.TOLD["meta yes"] not in turn.shown  # once
     assert "May I make this change: color twice a year?" not in turn.shown  # silence: 14 days
@@ -228,7 +229,7 @@ def test_no_asking_on_a_quiet_day(late, attend, wake, data_dir):
     assert not (data_dir / "askings" / "agents" / "first.json").exists()
 
 
-def test_no_asking_before_27_november_and_the_reading_does_not_move(ask, attend, wake,
+def test_no_asking_before_1_december_and_the_reading_does_not_move(ask, attend, wake,
                                                                     data_dir):
     a_letter(data_dir, "2026-10-15T08-00-00Z")
     turn = wake("")
@@ -361,17 +362,17 @@ def test_the_colour_rule_alone_is_its_own_switch(env):
 
 def test_at_most_one_asking_every_three_days_for_the_first_one(ask, monkeypatch):
     monkeypatch.setattr(ask, "DEFAULT_EVERY_DAYS", {("agents", "first"): 3})
-    ask.carry_out("agents", "first", ["yes"], "askings", AT)  # shown on 28 November
-    assert ask.next_asking("agents", "first", date(2026, 11, 30)) is None
-    assert ask.next_asking("agents", "first", date(2026, 12, 1)) == "colour_weeks"
-    ask.carry_out("agents", "first", ["no"], "colour_weeks", "2026-12-01T09-00-00Z")
-    assert ask.next_asking("agents", "first", date(2026, 12, 3)) is None
-    assert ask.next_asking("agents", "first", date(2026, 12, 4)) == "american_spelling"
+    ask.carry_out("agents", "first", ["yes"], "askings", AT)  # shown on 2 December
+    assert ask.next_asking("agents", "first", date(2026, 12, 4)) is None
+    assert ask.next_asking("agents", "first", date(2026, 12, 5)) == "colour_weeks"
+    ask.carry_out("agents", "first", ["no"], "colour_weeks", "2026-12-05T09-00-00Z")
+    assert ask.next_asking("agents", "first", date(2026, 12, 7)) is None
+    assert ask.next_asking("agents", "first", date(2026, 12, 8)) == "american_spelling"
     # the founder's own number, from /tides; 0 is no limit
     assert ask.set_every_days("agents", "first", "0") == 0
-    assert ask.next_asking("agents", "first", date(2026, 12, 2)) == "american_spelling"
+    assert ask.next_asking("agents", "first", date(2026, 12, 6)) == "american_spelling"
     ask.set_every_days("agents", "first", "7")
-    assert ask.next_asking("agents", "first", date(2026, 12, 7)) is None
+    assert ask.next_asking("agents", "first", date(2026, 12, 11)) is None
     for bad in ("x", "-1", "366"):
         with pytest.raises(ask.Refused):
             ask.set_every_days("agents", "first", bad)

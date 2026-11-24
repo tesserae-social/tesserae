@@ -6881,6 +6881,9 @@ def letters_to_rooms(text, views, at):
         room = view["room"]
         by_name.setdefault(room.other.lower(), view)
         by_name.setdefault(room.id, view)
+        if room.parties[0] == knock.FOUNDER_ADDRESS:  # the keeper: "founder" or "the founder"
+            by_name.setdefault(knock.FOUNDER_ADDRESS, view)
+            by_name.setdefault(knock.FOUNDER_NAME, view)
     first_name, sent, told = None, [], []
     for n, (said, drawn) in enumerate(letters_in_order(text), start=1):
         line, _, rest = said.partition("\n")
@@ -8033,7 +8036,8 @@ def main():
     for tag, do, act in (("BLOCK", blocks.block, BLOCK_ACT),
                          ("UNBLOCK", blocks.unblock, UNBLOCK_ACT)):
         for said_name in (every_block(text, tag) if BLOCKING else ()):
-            who = knock.who_is_named(said_name)
+            # "founder" or "the founder" is the keeper, as for <<LEAVE>> (letter-fix)
+            who = knock.who_is_named(said_name, founder=True)
             if who and who != NAME and do(NAME, who, at):
                 if act not in acted:
                     acted.append(act)

@@ -173,7 +173,7 @@ def test_the_drawing_is_done_in_another_process(monkeypatch):
 
 # ---- the switch --------------------------------------------------------------------------------
 
-def test_the_switch_is_the_first_one_s_and_the_second_one_s():
+def test_the_switch_is_the_first_one_s_the_second_one_s_and_new_agents():
     import agents
     import found_agent
     import made_here
@@ -182,7 +182,7 @@ def test_the_switch_is_the_first_one_s_and_the_second_one_s():
     assert "made_here_art_larger" in first["features"]
     assert "made_here_art_larger" in second["features"]
     assert "made_here_art_larger" in agents.FIRST["features"]
-    assert "made_here_art_larger" not in found_agent.FEATURES  # not a new agent's yet
+    assert "made_here_art_larger" in found_agent.FEATURES  # new agents' too, since new-agent-defaults
 
 
 def test_the_first_one_reads_the_larger_grid_and_nothing_else_of_draft_moved(attend):

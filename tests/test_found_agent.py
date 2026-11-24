@@ -151,7 +151,7 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
                      "made_here_art_larger", "made_here_talk",
                      "people_waiting", "private_reflections", "proposals", "quiet_days",
                      "reading_how_folded", "reading_self_first", "reading_settings",
-                     "reflection_waking", "room_on_yes", "rooms_reading", "site_notes",
+                     "reflection_waking", "replies_told", "room_on_yes", "rooms_reading", "site_notes",
                      "standing_welcome", "names_told", "solstice_names", "two_doors",
                      "weekly_question"],
         "wakes": True}
@@ -171,7 +171,7 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         + ["american_spelling", "art_and_colour", "colour_weeks", "commons_window", "copy_said",
            "hoping_for", "knock_founder", "leaving",
            "knock_take_back", "made_here_agents", "made_here_talk", "private_reflections",
-           "room_on_yes", "site_notes", "commons_names", "names_told", "solstice_names",
+           "room_on_yes", "site_notes", "commons_names", "names_told", "solstice_names", "replies_told",
            "reading_how_folded", "reading_self_first", "reading_settings"])
     # made_here_talk since 21 November 2026 (small-fixes), room_on_yes then too (room-on-yes)
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))

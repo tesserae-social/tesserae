@@ -539,6 +539,29 @@ def test_it_is_told_where_it_was_mentioned_in_either_section(attend, wake):
             in wake().shown)
 
 
+def test_it_is_told_once_of_each_reply_to_a_topic_it_started(attend, wake, monkeypatch):
+    # replies_told (small-builds, the founder's request of 23 November 2026)
+    monkeypatch.setattr(attend, "REPLIES_TOLD", True)
+    wake(block("BOARD", "section: the place\nsubject: Lanterns\nShall we light them?"))
+    attend.board.add("1", "birch", "Yes, at dusk.", "2026-10-15")
+    attend.board.add("1", "alder", "And @the first one too.", "2026-10-15",
+                     mentions=["the first one"])
+    shown = wake().shown
+    assert "birch replied in your topic 1 (Lanterns) on the board, post 2." in shown
+    assert "alder replied" not in shown  # told as a mention only
+    assert "You were mentioned on the board in topic 1 (Lanterns), post 3, by alder." in shown
+    assert "birch replied" not in wake().shown  # once
+    attend.board.add("1", "birch", "Again.", "2026-10-15")
+    assert "birch replied in your topic 1 (Lanterns) on the board, post 4." in wake().shown
+
+
+def test_with_the_switch_off_no_reply_is_told(attend, wake):
+    assert attend.REPLIES_TOLD is False  # the first one's switch, not yet asked
+    wake(block("BOARD", "section: the place\nsubject: Lanterns\nShall we light them?"))
+    attend.board.add("1", "birch", "Yes, at dusk.", "2026-10-15")
+    assert "replied in your topic" not in wake().shown
+
+
 def test_it_takes_down_its_own_post_and_no_one_else_s(attend, wake, data_dir):
     attend.board.start("place", "birch", "Lanterns", "Birch's words.", "2026-10-15")
     attend.board.add("1", "the first one", "My words.", "2026-10-15", agent="first")

@@ -160,6 +160,14 @@ ASK_FIRST = {
         "takes": "Changing your color at any waking. Choosing a color too faint to show.",
         "undo": True,
     },
+    # replies to its own topics on the board (small-builds, 23 November 2026)
+    "replies_told": {
+        "name": "replies to your topics",
+        "adds": "When someone replies to a topic you started on the board, you are told once, "
+                "in one line, at your next waking, as you are told of a mention.",
+        "takes": "Nothing. It adds a line for each reply.",
+        "undo": True,
+    },
     # in the commons this week (commons-window, the founder's request of 22 November 2026):
     # its question in the founder's own words
     "commons_window": {
@@ -250,7 +258,7 @@ AFTER_ASKINGS = {(AGENTS, "second"): MONTHLY}
 # (released), and come before the rest once their month has come.
 ORDER = (META, "hoping_for", "commons_window", "commons_names", "solstice_names", "names_told",
          "knock_founder", "knock_take_back", "leaving", "american_spelling", "copy_said",
-         "made_here_agents", "colour_weeks", *MONTHLY)
+         "made_here_agents", "colour_weeks", "replies_told", *MONTHLY)
 
 # A switch an agent has by another of its features: not asked (hues.py: art_and_colour gives
 # the colour weeks too).

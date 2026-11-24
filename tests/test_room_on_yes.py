@@ -82,6 +82,26 @@ def test_a_yes_over_a_door_waits_and_opens_once_there_is_room(world, monkeypatch
     assert door.read(HAZEL)["room"] == 2
 
 
+def test_a_yes_that_waited_opens_when_the_hearth_starts(world):
+    # small-builds, the founder's request of 23 November 2026: no door need be saved
+    import door
+    knock_at(world)
+    world.hearth.door.set_door(HAZEL, state="open", room=None, at="2026-10-15T10-00-00Z")
+    world.wake(YES)
+    assert not kept_knock(world, HAZEL, "second").get("set_up_at")
+    door.set_door(HAZEL, state="open", room=2, at="2026-10-16T10-00-00Z")  # by no page
+    assert not kept_knock(world, HAZEL, "second").get("set_up_at")
+    opened = world.hearth.open_waiting_at_start()
+    kept = kept_knock(world, HAZEL, "second")
+    assert len(opened) == 1 and kept["set_up_at"] and kept["room"] == "second-hazel"
+    assert world.hearth.open_waiting_at_start() == []  # once: nothing more waits
+
+
+def test_the_hearth_checks_the_waiting_yeses_as_it_starts():
+    source = (REPO / "hearth.py").read_text(encoding="utf-8")
+    assert source.count("\nstart_waiting_yeses()\n") == 1
+
+
 def test_without_the_switch_the_founder_makes_the_room(unswitched):
     knock_at(unswitched)
     unswitched.wake(YES)

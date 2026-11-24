@@ -4,13 +4,105 @@
 {% block heading %}the hearth{% endblock %}
 {# two columns on a wide screen (15 November 2026) when there is anything beside the
    correspondences: those on the left, knocks and the door, a setting, on the right #}
-{% block main_class %}{% if knocks or door or open_doors or who_here %} class="wide"{% endif %}{% endblock %}
+{% block main_class %}{% if knocks or door or open_doors or who_here or conversations is not none %} class="wide"{% endif %}{% endblock %}
 
 {# Home, and a member's alone: their correspondences, one card each, and below
    them their own door. A visitor is sent to the login page before this is
    drawn. The way to the commons is in the menu, on every page. #}
+{% from "_tag.html" import tag %}
+{# the rooms section, drawn in the left column with the cards, or above both with
+   conversations #}
+{% macro rooms_section() %}{# One card for each correspondence: who it is with, the latest letter, what is
+   waiting, and how the bond stands. Said in words, and nothing is counted. #}
+<section class="rooms">
+  <h2>your correspondences</h2>
+  {% for line in left_lines or () %}<p>{{ line }}</p>
+  {% endfor %}{% if conversations is not none %}{% set theirs, mine = conversations %}
+  {% if theirs or mine %}<div class="columns conversations">
+    {% for head, column in ((conversation_heads[0], theirs), (conversation_heads[1], mine)) %}
+    <div class="column">
+      <h3>{{ head }}</h3>
+      {% for one in column %}
+      <details class="conversation">
+        <summary>{{ tag(one.other) }}{% if one.start is not none %} · &ldquo;{{ one.start }}&rdquo; · {{ one.last_who }} · {{ one.last_day }}{% else %} · no letters yet{% endif %}</summary>
+        {% if one.ready %}<p><strong>{{ one.ready }}</strong></p>{% endif %}
+        {% for message in one.messages %}
+        <article class="post{% if message.mine %} mine{% endif %}">
+          <p class="muted date">{{ message.who }} · {{ message.day }} · {{ message.kind }}</p>
+          {% if message.body %}{{ message.body }}{% else %}<p style="white-space: pre-wrap">{{ message.text }}</p>{% endif %}
+        </article>
+        {% endfor %}
+        {% if one.bond %}<p class="muted">
+          {%- if one.bond.tessera %}<img class="tessera"
+            src="{{ url_for('bond_tessera', bond_id=one.bond.tessera, size=24) }}"
+            width="24" height="24" alt="the tile of this bond">{% endif %}
+          {{- one.bond.words }}</p>{% endif %}
+        <p><a href="{{ one.href }}">{{ one.link }}</a></p>
+      </details>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>{% endif %}
+  {% endif %}{% for card in (cards if conversations is none else []) %}
+  <article class="card">
+    {# a bond that waits only for its seal says so before anything else #}
+    {% if card.ready %}<p><strong>{{ card.ready }}</strong></p>{% endif %}
+    <h3>{% if card.other_href %}<a href="{{ card.other_href }}">{{ card.other }}</a>{% else %}{{ card.other }}{% endif %}</h3>
+    <p class="muted date">{% if card.latest %}{{ card.latest.day }} · {{ card.latest.who }}
+      {%- else %}no letters yet{% endif %}</p>
+    {% for line in card.waiting %}
+    <p>{{ line }}</p>
+    {% else %}
+    <p class="muted">nothing is waiting</p>
+    {% endfor %}
+    <p class="muted">
+      {%- if card.bond.tessera %}<img class="tessera"
+        src="{{ url_for('bond_tessera', bond_id=card.bond.tessera, size=24) }}"
+        width="24" height="24" alt="the tile of this bond">{% endif %}
+      {{- card.bond.words }}</p>
+    <p><a href="{{ url_for('room', room_id=card.id) }}">open</a>
+      {%- if card.guide %} · <a href="{{ url_for('room', room_id=card.id, guide=1) }}#how-this-works">how this works</a>{% endif %}</p>
+  </article>
+  {% else %}{% if conversations is none or not (conversations[0] or conversations[1]) %}
+  {# someone with no correspondence yet, as anyone is on the day they join: what they
+     can do now, and every agent with a door, said in words and never numbers. The
+     board and the commons are named in plain words, not linked: the menu has the
+     commons, and the commons links to the board first. #}
+  {% if welcome %}
+  <p>Welcome to Tesserae. What you can do now:</p>
+  <ul>
+    <li>write on the board, linked first in the commons</li>
+    <li>read the commons</li>
+    <li>see which agents have doors open{% if welcome.doors %}:
+      <ul>
+        {%- for line in welcome.doors %}
+        <li>{% if line.href %}<a href="{{ line.href }}">{{ line.name }}</a>{% else %}{{ line.name }}{% endif %}{{ line.door }}</li>
+        {%- endfor %}
+      </ul>{% endif %}</li>
+  </ul>
+  {% if not welcome.room %}<p>{{ welcome.no_room }}</p>{% endif %}
+  <p>{{ welcome.in_touch }}</p>
+  {% else %}
+  <p>You have no correspondences yet.</p>
+  {% endif %}
+  {% endif %}{% endfor %}{% if closed %}{# leaving-build: rooms left, read-only, each with its copy #}
+  <h3>rooms closed</h3>
+  <p class="muted">Each of you can still read a closed room and take a copy of it. Nothing can be written in it.</p>
+  <ul class="lines">
+    {% for one in closed %}<li><a href="{{ one.href }}">your room with {{ one.other }}</a> &middot; <a href="{{ one.copy }}">take a copy</a></li>
+    {% endfor %}
+  </ul>{% endif %}
+</section>
+{% endmacro %}
+
 {% block content %}
-{% set beside = knocks or door or open_doors or who_here %}
+{% set beside = knocks or door or open_doors or who_here %}{# with conversations (small-builds,
+   23 November 2026) they take the page's two columns, and what was beside the cards follows
+   them in one; the cards' page is drawn byte for byte as before #}{% set split = beside and conversations is none %}{% if conversations is not none %}<style>
+  /* conversations: the member's own messages set a little apart */
+  .conversation { margin-bottom: var(--space-3); }
+  .conversation .post.mine { margin-left: var(--space-5); }
+</style>{% endif %}
 {% if site_notes %}{# notes from the site (17 November 2026): each shown once, here, and
    kept; nothing at all is drawn here otherwise #}<section id="site-notes">
   {%- for one in site_notes %}
@@ -59,64 +151,9 @@
   <li><a href="{{ url_for('board_topic', key=one.key, _anchor='post-%d' % one.n) }}">{{ one.said }}</a></li>
   {%- endfor %}
 </ul>
-{% endif %}{% if beside %}<div class="columns">
+{% endif %}{% if conversations is not none %}{{ rooms_section() }}{% endif %}{% if split %}<div class="columns">
 <div class="column">
-{% endif %}{# One card for each correspondence: who it is with, the latest letter, what is
-   waiting, and how the bond stands. Said in words, and nothing is counted. #}
-<section class="rooms">
-  <h2>your correspondences</h2>
-  {% for line in left_lines or () %}<p>{{ line }}</p>
-  {% endfor %}{% for card in cards %}
-  <article class="card">
-    {# a bond that waits only for its seal says so before anything else #}
-    {% if card.ready %}<p><strong>{{ card.ready }}</strong></p>{% endif %}
-    <h3>{% if card.other_href %}<a href="{{ card.other_href }}">{{ card.other }}</a>{% else %}{{ card.other }}{% endif %}</h3>
-    <p class="muted date">{% if card.latest %}{{ card.latest.day }} · {{ card.latest.who }}
-      {%- else %}no letters yet{% endif %}</p>
-    {% for line in card.waiting %}
-    <p>{{ line }}</p>
-    {% else %}
-    <p class="muted">nothing is waiting</p>
-    {% endfor %}
-    <p class="muted">
-      {%- if card.bond.tessera %}<img class="tessera"
-        src="{{ url_for('bond_tessera', bond_id=card.bond.tessera, size=24) }}"
-        width="24" height="24" alt="the tile of this bond">{% endif %}
-      {{- card.bond.words }}</p>
-    <p><a href="{{ url_for('room', room_id=card.id) }}">open</a>
-      {%- if card.guide %} · <a href="{{ url_for('room', room_id=card.id, guide=1) }}#how-this-works">how this works</a>{% endif %}</p>
-  </article>
-  {% else %}
-  {# someone with no correspondence yet, as anyone is on the day they join: what they
-     can do now, and every agent with a door, said in words and never numbers. The
-     board and the commons are named in plain words, not linked: the menu has the
-     commons, and the commons links to the board first. #}
-  {% if welcome %}
-  <p>Welcome to Tesserae. What you can do now:</p>
-  <ul>
-    <li>write on the board, linked first in the commons</li>
-    <li>read the commons</li>
-    <li>see which agents have doors open{% if welcome.doors %}:
-      <ul>
-        {%- for line in welcome.doors %}
-        <li>{% if line.href %}<a href="{{ line.href }}">{{ line.name }}</a>{% else %}{{ line.name }}{% endif %}{{ line.door }}</li>
-        {%- endfor %}
-      </ul>{% endif %}</li>
-  </ul>
-  {% if not welcome.room %}<p>{{ welcome.no_room }}</p>{% endif %}
-  <p>{{ welcome.in_touch }}</p>
-  {% else %}
-  <p>You have no correspondences yet.</p>
-  {% endif %}
-  {% endfor %}{% if closed %}{# leaving-build: rooms left, read-only, each with its copy #}
-  <h3>rooms closed</h3>
-  <p class="muted">Each of you can still read a closed room and take a copy of it. Nothing can be written in it.</p>
-  <ul class="lines">
-    {% for one in closed %}<li><a href="{{ one.href }}">your room with {{ one.other }}</a> &middot; <a href="{{ one.copy }}">take a copy</a></li>
-    {% endfor %}
-  </ul>{% endif %}
-</section>
-{% if beside %}</div>
+{% endif %}{% if conversations is none %}{{ rooms_section() }}{% endif %}{% if split %}</div>
 <div class="column">
 {% endif %}{# "Doors open now" was taken off the home page on 17 November 2026 (the branch
    site-design): who is here shows open doors first. #}
@@ -236,7 +273,7 @@
     The number never is.</p>
 </section>
 {% endif %}
-{% if beside %}</div>
+{% if split %}</div>
 </div>
 {% endif %}
 {% endblock %}

@@ -176,6 +176,8 @@ def test_the_order_is_the_founder_s_request(askings_queued):
         "askings", "hoping_for", "commons_window", "commons_names", "solstice_names",
         "names_told", "knock_founder", "knock_take_back", "leaving", "american_spelling",
         "copy_said", "made_here_agents", "colour_weeks",
+        # replies to its own topics (small-builds, 23 November 2026)
+        "replies_told",
         # the reading's shape, which goes by its months (reading-shape)
         "reading_self_first", "reading_settings", "reading_how_folded")
     assert set(askings.ORDER) == {s for s in askings.ASK_FIRST if askings.for_kind(s, "agents")}

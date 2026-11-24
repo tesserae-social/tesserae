@@ -154,7 +154,7 @@ def name_of(who):
         record = None
     if record and record.get("role") == "keeper":
         return THE_FOUNDER
-    return who
+    return members.name_of(who) if record else who  # drawn from the id (names-ids)
 
 
 def shown():

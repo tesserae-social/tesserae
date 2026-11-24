@@ -607,6 +607,32 @@ def take_down(key, n, day, by=None, keeper=False):
 
 # ---- mentions -----------------------------------------------------------------
 
+def replies_to(name, after_seq, since, charter_path, weeks, today, sections=SECTIONS):
+    """Posts by others in the topics name started (small-builds, replies_told), oldest first:
+    each as {"key", "subject", "day", "n", "by", "seq", "mentions"}. Those after the board's
+    count after_seq, or, where it is None, those since a day (that day included). A post taken
+    down is no reply. Automatic topics are no one's to have started."""
+    said = []
+    for one in topics(charter_path, weeks, today, sections):
+        if one["auto"] or one["by"] != name:
+            continue
+        for post in one["posts"]:
+            if post.get("by") == name or post.get("n") == 1 or not post.get("words"):
+                continue
+            seq = post.get("seq") or 0
+            if (seq > after_seq) if after_seq is not None else (post.get("day") or "") >= since:
+                said.append({"key": one["key"], "subject": one["subject"], "n": post.get("n"),
+                             "day": post.get("day"), "by": post.get("by"), "seq": seq,
+                             "mentions": list(post.get("mentions") or [])})
+    said.sort(key=lambda one: (one["day"] or "", one["seq"]))
+    return said
+
+
+def count():
+    """The board's count of posts ever made (each post's seq is the count when it was made)."""
+    return read().get("seq", 0)
+
+
 def mentions_of(name, since, charter_path, weeks, today, sections=SECTIONS):
     """Where name was mentioned since a day (that day included), the newest first: each as
     {"key", "subject", "day", "n", "by"}. A post taken down mentions no one."""

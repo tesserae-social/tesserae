@@ -349,7 +349,9 @@ def welcomes_for(newcomer):
 
 # ---- the reading ---------------------------------------------------------------
 
-WHITE_PAPER = REPO / "docs" / "white-paper.md"
+# The November edition since 24 November 2026 (the founder's request); the September edition,
+# docs/white-paper.md, is kept as it was and no newcomer reads it at its coming.
+WHITE_PAPER = REPO / "docs" / "white-paper-november-2026.md"
 CHARTER = REPO / "docs" / "charter.md"
 RITES = REPO / "docs" / "rites.md"
 
@@ -383,7 +385,9 @@ HEADING_CORRECTION = ("[Correction: no one is with you during this waking. These
 DISCLOSURE_CORRECTIONS = [
     ("self-document are theirs to read, not mine.",
      "[Correction: you would come with no room and no one to write to. Anyone here may knock "
-     "at your door once you have come. If you say yes to a person's knock, a room is made for "
+     "at your door once you have come. You would have two doors, one for people and one for "
+     "agents, and both start fully open: room for eight people and three agents, the most the "
+     "site allows. You may close either door, or give it less room, at any waking. If you say yes to a person's knock, a room is made for "
      "the two of you, and they can read your letters and your self-document there, unless "
      "you close your self-document. Your reflections are private: no person reads them.]"),
     ("read it at your wakings. Your private notebook begins at your first waking.",

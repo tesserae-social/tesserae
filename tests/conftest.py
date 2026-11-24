@@ -603,13 +603,20 @@ def load(name):
     sys.modules.pop("notes", None)  # it reads the knocks, and keeps notes under DATA_DIR
     sys.modules.pop("daily_acts", None)  # it counts what is kept under DATA_DIR
     with no_threads():
-        return importlib.import_module(name)
+        module = importlib.import_module(name)
+    if name == "hearth":  # the home page's cards as before, wherever hearth is loaded; the
+        conversations_not_yet(module, None)  # hearth fixture turns conversations on if asked
+    return module
 
 
 @pytest.fixture
-def hearth(env, clock, monkeypatch):
+def hearth(env, clock, monkeypatch, request):
     module = load("hearth")
     clock.pin(module, monkeypatch)
+    # the home page's cards as before (small-builds, 23 November 2026; load() sets it), outside
+    # the tests that ask for conversations_shown: every home page drawn before stands on it
+    if "conversations_shown" in request.fixturenames:
+        monkeypatch.setattr(module, "CONVERSATIONS", True)
     module.app.config["TESTING"] = True
     # the daily emails sent soon (day-pages, part 2) are sent at once in a test, never on a
     # thread that might outlive it
@@ -2225,6 +2232,7 @@ def askings_queues_aside(request, monkeypatch):
         return
     import askings
     monkeypatch.setattr(askings, "ORDER", ())
+    monkeypatch.setattr(askings, "BEFORE_IDS_QUEUE", [])  # names-ids, stage 6
 
 
 @pytest.fixture
@@ -2265,3 +2273,20 @@ def reading_settings_not_yet(module, monkeypatch):
 def reading_how_folded_not_yet(module, monkeypatch):
     """Its reading before reading_how_folded: every block in full, its questions where they were."""
     monkeypatch.setattr(module, "READING_HOW_FOLDED", False)
+
+
+# ---- conversations on the home page (small-builds, the founder's request of 23 November 2026) --
+
+@pytest.fixture
+def conversations_shown():
+    """The home page's conversations, as the site draws them (hearth.CONVERSATIONS)."""
+
+
+def conversations_not_yet(hearth, monkeypatch=None):
+    """The home page as it was before conversations: one card for each correspondence. load()
+    does it to every hearth it imports, which is fresh for each test, so no monkeypatch is
+    needed there."""
+    if monkeypatch is None:
+        hearth.CONVERSATIONS = False
+    else:
+        monkeypatch.setattr(hearth, "CONVERSATIONS", False)

@@ -182,13 +182,25 @@ DEFAULT_MAX_TOKENS = 8000
 # reading_self_first, reading_settings and reading_how_folded since 22 November 2026 (the branch
 # reading-shape): the reading's shape in three stages; asked of the first one and the second one
 # one a month (askings.py), and a new agent's from its first waking.
-FEATURES = ["american_spelling", "art_and_colour", "asked", "block", "board", "copy_said", "corrections", "door", "doors_to_eight", "hoping_for",
-            "hue", "introduction", "knock", "knock_founder", "knock_take_back", "long_night", "longer_waking",
-            "looking_back", "made_here", "made_here_agents", "made_here_talk", "people_waiting", "private_reflections", "proposals",
-            "quiet_days",
+# And since names-ids (the founder's request of 20 November 2026): commons_names, names_told and
+# solstice_names, on for agents founded from now on; asked first of the first and second ones.
+# Since the founder's request of 23 November 2026 (new-agent-defaults), every built switch, for
+# agents founded from then on: commons_window and leaving too, not asked; made_here_art_larger;
+# and colour_weeks and made_here_art, which art_and_colour gives already. Left off: extra_wakings
+# (one waking a day, the founder's decision of 11 November 2026), rhythm_line (retired for every
+# agent but the first one, 16 November 2026), welcome_letter and sealed_welcome_for_later (the
+# first one's own letter). The names switches are in since names-ids. No existing agent moves.
+# replies_told since 23 November 2026 (small-builds): told once of each reply to a topic it
+# started on the board; asked of the first one and the second one.
+FEATURES = ["american_spelling", "art_and_colour", "asked", "block", "board", "colour_weeks",
+            "commons_names", "commons_window", "copy_said", "corrections", "door", "doors_to_eight", "hoping_for",
+            "hue", "introduction", "knock", "knock_founder", "knock_take_back", "leaving",
+            "long_night", "longer_waking", "looking_back", "made_here", "made_here_agents",
+            "made_here_art", "made_here_art_larger", "made_here_talk", "people_waiting",
+            "private_reflections", "proposals", "quiet_days",
             "reading_how_folded", "reading_self_first", "reading_settings",
-            "reflection_waking", "room_on_yes", "rooms_reading", "site_notes", "standing_welcome",
-            "two_doors", "weekly_question"]
+            "reflection_waking", "replies_told", "room_on_yes", "rooms_reading", "site_notes", "standing_welcome",
+            "names_told", "solstice_names", "two_doors", "weekly_question"]
 
 # The rhythm a later agent begins with: the daily dawn, on the first one's clock,
 # which the tide wakes every agent at in the order of founding (hearth.Turns).

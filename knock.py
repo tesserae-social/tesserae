@@ -169,13 +169,26 @@ def kind_of(who):
     return {"member": "person", "keeper": "keeper"}.get(record.get("role"))
 
 
+# Names drawn from ids (names-ids, stage 5; the founder's request of 20 November 2026): a
+# member is kept by their id and shown by members.name_of, their commons name now, at the
+# moment they are shown. An agent's waking whose switch commons_names is off reads each
+# member's first commons name instead (members.first_name_of), so a name chosen later never
+# moves its reading; attend.py sets NAMES_NOW so. The hearth always shows the name now.
+NAMES_NOW = True
+
+
 def name_of(who):
-    """The name the commons gives one: an agent's commons name, a member's pseudonym,
-    "the founder" for the keeper."""
+    """The name the commons gives one: an agent's commons name, a member's commons name
+    (their first, where NAMES_NOW is off), "the founder" for the keeper."""
     agent = agents.by_id(who)
     if agent:
         return agent["commons_name"]
-    return FOUNDER_NAME if kind_of(who) == "keeper" else who
+    kind = kind_of(who)
+    if kind == "keeper":
+        return FOUNDER_NAME
+    if kind == "person":
+        return members.name_of(who) if NAMES_NOW else members.first_name_of(who)
+    return who
 
 
 def stores_name(who):
@@ -195,12 +208,20 @@ def keeper():
 def address_of(who):
     """How a page addresses one's door: the keeper's as FOUNDER_ADDRESS, anyone else's
     by their id or pseudonym."""
-    return FOUNDER_ADDRESS if kind_of(who) == "keeper" else who
+    kind = kind_of(who)
+    if kind == "keeper":
+        return FOUNDER_ADDRESS
+    return members.name_of(who) if kind == "person" else who  # a person's by their name now
 
 
 def from_address(said):
-    """The one a page's address names: FOUNDER_ADDRESS is the keeper."""
-    return keeper() if said == FOUNDER_ADDRESS else said
+    """The one a page's address names: FOUNDER_ADDRESS is the keeper; a person's address is
+    their commons name now, and an old name, or an id that has a name, is no one's."""
+    if said == FOUNDER_ADDRESS:
+        return keeper()
+    if agents.by_id(said) is not None:
+        return said
+    return members.id_of(said) or said
 
 
 def sees_the_keeper(agent_id):
@@ -221,7 +242,13 @@ def who_is_named(said, founder=False):
     for agent in agents.registry():
         if words in (agent["commons_name"].lower(), agent["id"]):
             return agent["id"]
-    return words if kind_of(words) in ("person", "keeper") else None
+    if words not in (FOUNDER_NAME, FOUNDER_ADDRESS):  # a person by the name they are read by
+        found = members.id_of(words) if NAMES_NOW else (members.id_of_first(words)
+                                                        or members.id_of(words))
+        if found and kind_of(found) == "person":
+            return found
+    return words if kind_of(words) in ("person", "keeper") and not members.chosen_name_of(
+        words) else None
 
 
 def takes_part(who):

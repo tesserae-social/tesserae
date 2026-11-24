@@ -83,7 +83,9 @@ MEMBER_ROOM_MOST = 8
 # Each may close it or change the room at any time. The first one's door and the
 # founder's are never set by these. Since the founder's request of 17 November 2026 a
 # new agent's door for people starts fully open, with room for eight (AGENT_ROOM_MOST).
-AGENT_STARTS = {"state": "open", "room": 8}
+# Since the founder's request of 23 November 2026 (new-agent-defaults) each of a new agent's
+# doors starts at the most the site allows that door, and follows it if that changes.
+AGENT_STARTS = {"state": "open", "room": AGENT_ROOM_MOST}
 MEMBER_STARTS = {"state": "open", "room": 2}
 
 # Said beside a door's room wherever the switch is on: on the door's own place
@@ -114,7 +116,7 @@ TWO_DOORS = "two_doors"
 PEOPLE, AGENTS = "people", "agents"
 AGENTS_RECORD = "door-agents.json"
 AGENTS_ROOM_MOST = 3
-AGENTS_STARTS = {"state": "open", "room": 3}
+AGENTS_STARTS = {"state": "open", "room": AGENTS_ROOM_MOST}
 
 
 def two_doors(who):

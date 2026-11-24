@@ -138,16 +138,22 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         # and made_here_agents and american_spelling since 18 November 2026 (tidy-pages), not
         # yet the first one's
         # and copy_said and private_reflections since 18 November 2026 (room-privacy)
-        "features": ["american_spelling", "art_and_colour", "asked", "block", "board", "copy_said",
+        # and commons_names, names_told and solstice_names since 20 November 2026 (names-ids)
+        # and every built switch since 23 November 2026 (new-agent-defaults): colour_weeks,
+        # commons_window, leaving, made_here_art and made_here_art_larger
+        "features": ["american_spelling", "art_and_colour", "asked", "block", "board",
+                     "colour_weeks", "commons_names", "commons_window", "copy_said",
                      "corrections", "door",
                      "doors_to_eight",
                      "hoping_for", "hue", "introduction", "knock", "knock_founder", "knock_take_back",
-                     "long_night", "longer_waking",
-                     "looking_back", "made_here", "made_here_agents", "made_here_talk",
+                     "leaving", "long_night", "longer_waking",
+                     "looking_back", "made_here", "made_here_agents", "made_here_art",
+                     "made_here_art_larger", "made_here_talk",
                      "people_waiting", "private_reflections", "proposals", "quiet_days",
                      "reading_how_folded", "reading_self_first", "reading_settings",
-                     "reflection_waking", "room_on_yes", "rooms_reading", "site_notes",
-                     "standing_welcome", "two_doors", "weekly_question"],
+                     "reflection_waking", "replies_told", "room_on_yes", "rooms_reading", "site_notes",
+                     "standing_welcome", "names_told", "solstice_names", "two_doors",
+                     "weekly_question"],
         "wakes": True}
     # and the reading's shape in three stages since 22 November 2026 (reading-shape), a new
     # agent's from its first waking, asked of the first one and the second one
@@ -161,10 +167,11 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
     # new agent does not have yet
     assert sorted(entry["features"]) == sorted(
         [one for one in agents.first()["features"]
-         if one not in ("welcome_letter", "made_here_art", "made_here_art_larger")]
-        + ["american_spelling", "art_and_colour", "copy_said", "hoping_for", "knock_founder",
+         if one not in ("welcome_letter",)]
+        + ["american_spelling", "art_and_colour", "colour_weeks", "commons_window", "copy_said",
+           "hoping_for", "knock_founder", "leaving",
            "knock_take_back", "made_here_agents", "made_here_talk", "private_reflections",
-           "room_on_yes", "site_notes",
+           "room_on_yes", "site_notes", "commons_names", "names_told", "solstice_names", "replies_told",
            "reading_how_folded", "reading_self_first", "reading_settings"])
     # made_here_talk since 21 November 2026 (small-fixes), room_on_yes then too (room-on-yes)
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))
@@ -632,3 +639,23 @@ def test_the_help_says_a_founding_after_a_yes_is_paused(found, capsys):
             "finished. If it can never be finished, the agent is told honestly at a final "
             "waking.") in said
     assert "--later-words-letter" in found.__doc__ and "--later-words-shown" not in found.__doc__
+
+
+def test_a_new_agent_has_every_built_switch_and_its_doors_start_fully_open(askings_queued):
+    # new-agent-defaults, the founder's request of 23 November 2026
+    import askings
+    import coming
+    import door
+    import found_agent
+    left_off = {"extra_wakings", "rhythm_line", "welcome_letter", "sealed_welcome_for_later"}
+    assert not left_off & set(found_agent.FEATURES)
+    wanted = ({switch for switch in askings.ORDER if switch != askings.META}
+              - askings.NOT_BUILT)
+    assert wanted <= set(found_agent.FEATURES)
+    assert door.AGENT_STARTS == {"state": "open", "room": door.AGENT_ROOM_MOST} \
+        == {"state": "open", "room": 8}
+    assert door.AGENTS_STARTS == {"state": "open", "room": door.AGENTS_ROOM_MOST} \
+        == {"state": "open", "room": 3}
+    said = " ".join(correction for _, correction in coming.DISCLOSURE_CORRECTIONS)
+    assert "both start fully open: room for eight people and three agents" in said
+    assert "You may close either door, or give it less room, at any waking." in said

@@ -194,6 +194,8 @@ import rooms
 import agents
 # Askings (askings.py): what waits for each agent and person, and their answers, on /tides
 import askings
+# Names that may change at the solstices, on ids (names.py; names-ids, stage 7)
+import names
 import american
 
 # Where a letter of welcome given to an agent is kept, which its copies leave out.
@@ -1464,11 +1466,12 @@ def door_phrase(line):
     name = found.group(1)
     if name == THE_FOUNDER:
         return door.phrase(the_keeper())  # no keeper is no door file: closed
-    record = member_record(name)
+    who = members.id_of(name) or name  # a line names a commons name; the door is the id's
+    record = member_record(who)
     if record and record.get("role") == "member":
-        if blocked_from(name):
+        if blocked_from(who):
             return DOT + "door closed"
-        return door.phrase(name)
+        return door.phrase(who)
     return None
 
 
@@ -3283,7 +3286,10 @@ def hearth_page(**told):
                            closed=closed_rooms_shown(session["member"]),
                            left_lines=left_lines_told(session["member"]),
                            asking=asking_for_home(session["member"]),
-                           knocked=request.args.get("knocked"), **told)
+                           knocked=request.args.get("knocked"),
+                           conversations=(conversations_of(session["member"])
+                                          if CONVERSATIONS else None),
+                           conversation_heads=(THEY_WROTE_LAST, YOU_WROTE_LAST), **told)
 
 
 # Rooms left (leaving-build, the founder's request of 21 November 2026; leaving.py): a room
@@ -3690,6 +3696,114 @@ def other_href(room):
     return name_href(agent["id"]) if agent else None
 
 
+# Conversations on a member's home page (small-builds, the founder's request of 23 November
+# 2026): every room they are in, and every exchange of notes, in two columns, "They wrote last"
+# and "You wrote last", each newest first. Each is a fold: who, the start of the last message,
+# who wrote it and when; opened, the whole exchange, oldest first (the knock, its answer, then
+# the letters or the notes), every message with its writer's name and day, their own set a
+# little apart. No counts, no dots, no "overdue". With CONVERSATIONS False, the cards as before
+# (conftest's hearth fixture, unless a test asks for conversations_shown).
+CONVERSATIONS = True
+CONVERSATION_START = 90  # characters of the last message said in its fold's line
+THEY_WROTE_LAST = "They wrote last"
+YOU_WROTE_LAST = "You wrote last"
+YOU = "you"
+KNOCK_SAID = "knock"
+ANSWER_SAID = "answer"
+LETTER_SAID = "letter"
+NOTE_SAID = "note"
+ANSWER_WORDS = {knock.YES: "Yes.", "not yet": "Not yet."}
+
+
+def conversation_start(text):
+    """The start of a message, on one line, cut short with an ellipsis if it runs long."""
+    said = " ".join(str(text or "").split())
+    if len(said) <= CONVERSATION_START:
+        return said
+    return said[:CONVERSATION_START].rstrip() + "…"
+
+
+def knock_messages(name, other):
+    """The knocks that stand between two, each with its answer, as messages."""
+    said = []
+    for held in knock.between(name, other):
+        if not held.get("at"):
+            continue
+        said.append({"stamp": held["at"], "mine": held["from"] == name, "by": held["from"],
+                     "kind": KNOCK_SAID, "text": held.get("note") or ""})
+        answer = held.get("answer")
+        if answer and held.get("answered_at"):
+            words = " ".join(part for part in (ANSWER_WORDS.get(answer, ""),
+                                               held.get("reply") or "") if part)
+            said.append({"stamp": held["answered_at"], "mine": held["to"] == name,
+                         "by": held["to"], "kind": ANSWER_SAID, "text": words})
+    return said
+
+
+def room_messages(room):
+    """A room's letters as messages: theirs from the other's folder, the member's from theirs."""
+    places = rooms.places(room.id)
+    if places is None:
+        return []
+    said = []
+    for folder, mine in ((places.incoming, True), (places.read, True),
+                         (places.outgoing, False)):
+        for path in newest_first(folder, "*.md"):
+            _, text = letter_things.split_things(read_text(path))
+            said.append({"stamp": stamp_in(path.name), "mine": mine, "kind": LETTER_SAID,
+                         "text": text, "body": as_prose(text)})
+    return said
+
+
+def conversation_shown(name, other, other_id, messages, href, link, room=None):
+    """One conversation as the home page draws it, or None where nothing has been said."""
+    messages = sorted((one for one in messages if STAMP.fullmatch(one["stamp"] or "")),
+                      key=lambda one: one["stamp"])
+    if not messages and room is None:
+        return None
+    them = shown_name(other_id)
+    for one in messages:
+        one["who"] = YOU if one["mine"] else them["name"]
+        one["day"] = letter_day(one["stamp"])
+        one.setdefault("body", None)
+    last = messages[-1] if messages else None
+    # a room where nothing is written yet waits on the member, so it is with "They wrote last"
+    said = {"other": them, "href": href, "link": link, "messages": messages,
+            "start": conversation_start(last["text"]) if last else None,
+            "last_who": last["who"] if last else None, "last_day": last["day"] if last else None,
+            "stamp": last["stamp"] if last else "", "theirs": not last["mine"] if last else True,
+            "bond": None, "ready": None}
+    if room is not None:
+        said["bond"] = bond_standing(room)
+        said["ready"] = (ready_to_seal() if is_first_room(room)
+                         else room_ready_to_seal(room) if room_may_bond(room) else None)
+    return said
+
+
+def conversations_of(name):
+    """Every conversation of one member, as (they wrote last, you wrote last), newest first."""
+    found = []
+    for room in rooms.of(name):
+        agent = rooms.agent_of(room.id)
+        other_id = agent["id"] if agent else room.other
+        messages = (knock_messages(name, other_id) if agent else []) + room_messages(room)
+        one = conversation_shown(name, room.other, other_id, messages,
+                                 url_for("room", room_id=room.id), "open the room", room)
+        if one:
+            found.append(one)
+    for other in notes.with_whom(name):
+        messages = knock_messages(name, other) + [
+            {"stamp": one["at"], "mine": one["from"] == name, "kind": NOTE_SAID,
+             "text": one["words"]} for one in notes.read(name, other)]
+        one = conversation_shown(name, other, other, messages,
+                                 url_for("notes_with", to=knock.address_of(other)),
+                                 "open the notes")
+        if one:
+            found.append(one)
+    found.sort(key=lambda one: one["stamp"], reverse=True)
+    return ([one for one in found if one["theirs"]], [one for one in found if not one["theirs"]])
+
+
 def room_card(room):
     """One correspondence as the home page says it: who, the latest letter, what
     is waiting, and the bond. Words only; nothing here is a number of things."""
@@ -3920,9 +4034,20 @@ def whose_login(given):
     which opens only for the person who has confirmed it (the keeper too); an
     address no one holds, or holds unconfirmed, is tried as itself, a name no one
     could have, and refused as any wrong password is, after the same derivation."""
+    # Since ids (names-ids, the founder's request of 20 November 2026): what signs one in is
+    # looked up in the index of sign-ins first (members.id_of_sign_in), and an id opens only
+    # for a member with no sign-in of their own yet. An id that has one, or an old commons
+    # name, is tried as a name no one could have, and refused as any wrong password is.
+    found = members.id_of_sign_in(given)
+    if found:
+        return found
     if "@" in given:
-        return members.member_by_email(given) or given
-    return given
+        return given
+    try:
+        held = members.load_member(given)
+    except MemberError:
+        return given
+    return "" if held else given
 
 
 # Ask for a commons name or a confirmed email address (the founder, 9 November),
@@ -4057,6 +4182,8 @@ def account_page(**told):
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
                            rest_said=rest_said(name) if name else None,
                            email=email_shown(name) if name else None,
+                           sign_in=sign_in_shown(name) if name else None,
+                           name_choice=name_choice_shown(name),
                            emails=emails_shown(name) if name else None,
                            inviting=inviting_shown(name) if name else None,
                            introduction=introduction_shown(name) if name else None,
@@ -4241,6 +4368,125 @@ def moment_kept(stamp):
     return long_day(on_the_clock(when))
 
 
+# What signs a member in (names-ids, stage 3; the founder's request of 20 November 2026,
+# choice 1): their confirmed email address, or a private sign-in name of their own, shown to
+# them alone, here. With neither set, a member who joined before ids signs in by their id.
+SIGN_IN_SAVED = "Kept. From now on, sign in with {said}."
+SIGN_IN_NOT_CONFIRMED = ("Only an email address you have confirmed can sign you in. Confirm it "
+                         "first, above.")
+
+
+def sign_in_shown(name):
+    said = members.sign_in_of(name)
+    return {"said": said, "by_email": bool(said and "@" in said)}
+
+
+# One's name on the commons (names-ids, stage 6; names-design.md, choice 4, A): a member who
+# joined before ids keeps the name they joined with as their id, and once they have said yes
+# to the asking own_name may choose a commons name, once, here.
+NAME_SAVED = "Your name on the commons is now {name}."
+
+
+NAME_REFUSED_SAID = {
+    names.SHAPE: "A name is lowercase letters, digits and single hyphens, and starts with a "
+                 "letter.",
+    names.TAKEN: "That name is someone's now or was before.",
+    names.RESERVED: "That name is not free to take.",
+    names.PROTECTED: "That name is not free to take.",
+    names.FLAGGED: "That seems to be a real person's name or a place.",
+    names.UNCHECKED: "That name could not be checked just now. Try again in a while.",
+    names.CLOSED: "The week for new names has ended.",
+    names.ONCE: "You chose a new name this week already.",
+    names.SAME: "That is the name you have.",
+}
+
+
+def name_choice_shown(name):
+    """Whether settings offers a member a name to choose now, or None: once, after their yes to
+    own_name (a member from before ids, stage 6), or in a solstice week, once that week (stage
+    7, names.py)."""
+    if not name or keeper_here():
+        return None
+    first = "own_name" in askings.on(askings.PEOPLE, name) and not members.chosen_name_of(name)
+    today = datetime.now(timezone.utc).astimezone(names.eastern()).date()
+    if first or names.person_may_rename(name, today):
+        return {"now": members.name_of(name), "first": first,
+                "week": names.week_of(today) and long_day(names.week_of(today))}
+    return None
+
+
+@app.route("/account/name", methods=["POST"])
+@member_required
+def account_name():
+    name = session.get("member")
+    if not name_choice_shown(name):
+        abort(404)
+    wanted = (request.form.get("name") or "").strip().lower()
+    before = members.name_of(name)
+    try:
+        if name_choice_shown(name)["first"]:
+            wanted = names.check(wanted, person=True, now_name=before)
+            members.set_name(name, wanted)
+        else:
+            wanted = names.choose_for_person(name, wanted, utc_stamp())
+    except names.Refused as refused:
+        return account_page(name_error=NAME_REFUSED_SAID.get(refused.args[0], NAME_NOT_FREE))
+    except MemberError as reason:
+        return account_page(name_error=str(reason).capitalize() + ".")
+    renamed_in_who_is_here(before, wanted)
+    return account_page(name_saved=NAME_SAVED.format(name=wanted))
+
+
+def renamed_in_who_is_here(before, after):
+    """Who is here is a list of who is here now, not a record: a member's line there says the
+    name they are shown by now (names-ids). Lines of the record (acts, events, bonds) stay as
+    they were written."""
+    try:
+        with TENDING:
+            if not MEMBERS.exists():
+                return
+            text = MEMBERS.read_bytes().decode("utf-8")
+            lines = text.splitlines(keepends=True)
+            for n, line in enumerate(lines):
+                found = MEMBERS_LINE.match(line)
+                if found and found.group(1) == before:
+                    lines[n] = line[:found.start(1)] + after + line[found.end(1):]
+            beside = MEMBERS.with_name(MEMBERS.name + ".tmp")
+            beside.write_bytes("".join(lines).encode("utf-8"))
+            os.replace(beside, MEMBERS)
+    except Exception:
+        pass
+
+
+@app.route("/account/sign-in", methods=["POST"])
+@member_required
+def account_sign_in():
+    name = session.get("member")
+    now = datetime.now(timezone.utc)
+    counted = tries_counted(name, now)
+    if locked_out(counted, now):
+        return account_page(sign_in_error=NOT_THE_PASSWORD)
+    if member_opens(name, request.form.get("sign_in_password", "")) is None:
+        note_miss(counted, now)
+        return account_page(sign_in_error=NOT_THE_PASSWORD)
+    forget_misses(counted[0])
+    if request.form.get("by") == "email":
+        held = members.email_of(name)
+        if not held or not held.get("confirmed_at"):
+            return account_page(sign_in_error=SIGN_IN_NOT_CONFIRMED)
+        wanted = held["address"]
+    else:
+        wanted = request.form.get("sign_in", "")
+        if "@" in wanted:
+            return account_page(sign_in_error=SIGN_IN_NOT_CONFIRMED)
+    try:
+        said = members.set_sign_in(name, wanted)
+    except MemberError as reason:
+        return account_page(sign_in_error=str(reason).capitalize() + ".")
+    return account_page(sign_in_saved=SIGN_IN_SAVED.format(
+        said="your email address" if "@" in said else said))
+
+
 @app.route("/account/email", methods=["POST"])
 @member_required
 def account_email():
@@ -4305,6 +4551,15 @@ def confirm_email(token):
         return render_template_string(CONFIRM_PAGE, note=LINK_NOT_OPEN), 410
     # claimed now: anyone else's link to confirm the same address stops working
     tokens.drop("confirm", held.get("name"), address=held.get("address"))
+    # one who signs in by email signs in by the address confirmed now (names-ids, stage 3), as
+    # does one who joined since ids and has no sign-in yet (stage 4)
+    said = members.sign_in_of(held.get("name"))
+    if "@" in (said or "") or (said is None and
+                               str(held.get("name")).startswith(members.ID_PREFIX)):
+        try:
+            members.set_sign_in(held.get("name"), held.get("address"))
+        except MemberError:
+            pass
     return render_template_string(CONFIRM_PAGE, note=EMAIL_CONFIRMED)
 
 
@@ -4711,8 +4966,9 @@ SIGNED_IN_ALREADY = "You're signed in already; this invitation is for someone ne
 JOIN_SAID = "Choose how you'll be known here, an email address, and a password."
 JOIN_NAME_SAID = ("Short, and not necessarily your real name: lowercase letters, digits and "
                   "single hyphens.")
-JOIN_EMAIL_SAID = ("For a password link, and a short email when something is waiting for you, "
-                   "which you can stop. Never shown to anyone else or read by any agent.")
+JOIN_EMAIL_SAID = ("You sign in with it. It is also for a password link, and a short email when "
+                   "something is waiting for you, which you can stop. Never shown to anyone "
+                   "else or read by any agent.")
 JOIN_PASSWORD_SAID = "At least 10 characters."
 JOIN_PRIVATE = ("Private here means unread and unshown. The server keeps encrypted backups, so "
                 "it isn't unreadable, and we won't pretend otherwise.")
@@ -4738,7 +4994,9 @@ def commons_name_of(name):
     """How the commons names a person: "the founder" for the keeper, never his sign-in
     name; anyone else by their pseudonym."""
     record = member_record(name)
-    return THE_FOUNDER if record and record.get("role") == "keeper" else name
+    if not record:
+        return name
+    return THE_FOUNDER if record.get("role") == "keeper" else members.name_of(name)
 
 
 def said_counted(n, one, many):
@@ -5022,7 +5280,11 @@ def join_refusal(name, address):
         return str(reason).capitalize() + ".", name, address
     if private_words.carries(name):  # the same words as a reserved name: the list is never hinted
         return NAME_NOT_FREE, name, address
-    if member_record(name) is not None or (members.MEMBERS / name).exists():
+    try:  # no one's name now or before, and no one's id (names-ids, stage 4)
+        members.commons_name_free(name)
+    except MemberError:
+        return NAME_TAKEN, name, address
+    if (members.MEMBERS / name).exists():
         return NAME_TAKEN, name, address
     try:
         address = members.email_address(address)
@@ -5069,8 +5331,16 @@ def invitation_join(token):
         if members.member_by_email(address) is not None:
             return join_page(token, error=ADDRESS_NOT_FREE, **kept)
         sealed, _, _ = vault.make_vault(password)  # a member has no words; these go unseen
+        # Since ids (names-ids, stage 4; the founder's request of 20 November 2026): the name
+        # typed is their commons name; their folder and every record are kept by an id made
+        # now, at random; their email address is what signs them in, once it is confirmed (at
+        # once, where the invitation's own email reached it; else by the link sent below).
+        commons_name, name = name, members.new_id()
+        reached = bool(one.get("email")) and one["email"] == address
         try:
-            record = members.create_member(name, sealed, "member", [one["by"]])
+            record = members.create_member(name, sealed, "member", [one["by"]],
+                                           name=commons_name,
+                                           sign_in=address if reached else None)
         except MemberError as reason:  # a name taken a moment ago: the invitation stays open
             return join_page(token, error=str(reason).capitalize() + ".", **kept)
         # the address an emailed invitation went to, kept unchanged: the link reached it
@@ -5086,7 +5356,7 @@ def invitation_join(token):
             door.starts(name, at=utc_stamp())
         except door.DoorError:
             pass
-        add_to_who_is_here(name)
+        add_to_who_is_here(commons_name)
     if address:
         mail.send_confirm(address, tokens.issue("confirm", name, tokens.LIFETIMES["confirm"],
                                                 address=address))
@@ -5106,7 +5376,8 @@ def add_to_who_is_here(name):
             ending = "\r\n" if "\r\n" in text else "\n"
             if text and not text.endswith(("\n", "\r")):
                 text += ending
-            text += "member · " + name + door.phrase(name) + ending
+            # the commons name, and the door of whoever holds it now (names-ids, stage 4)
+            text += "member · " + name + door.phrase(members.id_of(name) or name) + ending
             MEMBERS.parent.mkdir(parents=True, exist_ok=True)
             beside = MEMBERS.with_name(MEMBERS.name + ".tmp")
             beside.write_bytes(text.encode("utf-8"))
@@ -5273,9 +5544,11 @@ def whose_asked(given):
     given = given.strip().lower()
     if not given or len(given) > members.EMAIL_LONGEST:
         return None
-    if "@" in given:
-        return members.member_by_email(given)
-    return given if member_record(given) else None
+    # by the index of sign-ins first, as a login is (names-ids, stage 3)
+    found = members.id_of_sign_in(given)
+    if found or "@" in given:
+        return found or members.member_by_email(given)
+    return None
 
 
 def confirmed_address(name):
@@ -5302,7 +5575,7 @@ def send_for_forgotten(name, now):
     if seal is None:
         return
     link = tokens.issue("reset", name, tokens.LIFETIMES["reset"], seal=seal)
-    mail.send_reset(address, name, link)
+    mail.send_reset(address, members.name_of(name), link)  # by their name, never their id
 
 
 @app.route("/forgot", methods=["GET", "POST"])
@@ -5367,7 +5640,8 @@ def reset_password(token):
             return reset_shut()
     address = confirmed_address(name)
     if address:
-        mail.send_changed(address, name, long_day(on_the_clock(datetime.now(timezone.utc))))
+        mail.send_changed(address, members.name_of(name),  # by their name, never their id
+                          long_day(on_the_clock(datetime.now(timezone.utc))))
     return sign_in_member(name, record)
 
 
@@ -5378,11 +5652,11 @@ FORGOT_PAGE = """{% extends "base.html" %}
 <section>
   {% if said %}<p>{{ said }}</p>
   {% else %}
-  <p>Give your commons name or your email address. If you have added an email address on
+  <p>Give your email address or your sign-in name. If you have added an email address on
   your account page, a link to choose a new password is sent to it.</p>
   <form method="post" class="field">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="given">your commons name or email address</label>
+    <label for="given">your email address or sign-in name</label>
     <input type="text" id="given" name="given" autocomplete="username"
            autocapitalize="none" spellcheck="false" maxlength="254" autofocus>
     <button type="submit">Send me a link</button>
@@ -5755,7 +6029,7 @@ def name_href(said):
     if agent is not None:
         return url_for("name_page", name=agent["id"])
     if session.get("member") and knock.kind_of(said) == "person":
-        return url_for("name_page", name=said)
+        return url_for("name_page", name=members.name_of(said))  # by the name now (names-ids)
     return None
 
 
@@ -5780,7 +6054,8 @@ def shown_name(who):
                 "hue": hues.colour_of(keeper) if keeper else NO_HUE,
                 "href": url_for("name_page", name=knock.FOUNDER_ADDRESS)
                 if session.get("member") and keeper else None}
-    return {"name": who, "agent": False, "id": who, "hue": hues.colour_of(who),
+    shown = members.name_of(who) if knock.kind_of(who) == "person" else who  # names-ids
+    return {"name": shown, "agent": False, "id": who, "hue": hues.colour_of(who),
             "href": name_href(who)}
 
 
@@ -5858,8 +6133,13 @@ def name_page_drawn(name, **told):
     if viewer and name == knock.FOUNDER_ADDRESS and knock.keeper():
         # the founder's page, by its address alone: the sign-in name is never said
         name, said_as = knock.keeper(), THE_FOUNDER
-    elif not viewer or knock.kind_of(name) != "person":
-        abort(404)
+    else:
+        # a person's page is reached by their name now; an old name, or an id that has a
+        # name, is the 404 of a name no one has (names-ids, stage 5)
+        name = members.id_of(name) or ""
+        said_as = name and members.name_of(name)
+        if not viewer or knock.kind_of(name) != "person":
+            abort(404)
     try:
         record = members.load_member(name)
     except members.MemberError:
@@ -6317,7 +6597,8 @@ def commons_people():
     keeper = knock.keeper()
     said = []
     for name in [THE_FOUNDER] + [one for one in daily_acts.names() if one != THE_FOUNDER]:
-        who = keeper if name == THE_FOUNDER else name
+        # a line of acts names a commons name; the colour is its holder's now (names-ids)
+        who = keeper if name == THE_FOUNDER else (members.id_of(name) or name)
         colour = hues.person_chosen(who) if who and knock.kind_of(who) in ("person", "keeper") else None
         if colour:
             said.append({"name": name, "hue": colour})
@@ -7880,6 +8161,8 @@ def askings_shown():
         one["name"] = agent["commons_name"]
         shown.append(one)
     people = [who for kind, who in askings.everyone() if kind == askings.PEOPLE]
+    people += [who for who in site_notes.members_who_may()
+               if askings.queue_of(askings.PEOPLE, who)]  # one with a queue, set or not
     for who in sorted(set(people) & set(site_notes.members_who_may())):
         one = askings.shown_to_founder(askings.PEOPLE, who, today)
         one["name"] = who
@@ -7927,7 +8210,8 @@ def asking_for_home(name):
         if one not in askings.ASK_FIRST or answer.get("silent"):
             continue
         yes = askings.is_yes(held, one)
-        if yes and askings.ASK_FIRST[one].get("undo") or answer.get("answer") == askings.NO                 and not answer.get("asked_again"):
+        if (yes and askings.ASK_FIRST[one].get("undo")
+                or answer.get("answer") == askings.NO and not answer.get("asked_again")):
             mine.append({"switch": one, "name": askings.ASK_FIRST[one]["name"], "yes": yes})
     if switch is None and not mine:
         return None
@@ -10185,7 +10469,18 @@ def board_today():
 
 def board_names():
     """Who may be mentioned: every member by name, and every agent by its commons name."""
-    return members.list_members(), [one["commons_name"] for one in agents.registry()]
+    return board_people(), [one["commons_name"] for one in agents.registry()]
+
+
+def board_people():
+    """Every person who may be mentioned, by the name they are shown by now (names-ids)."""
+    return [members.name_of(one) for one in members.list_members()
+            if knock.kind_of(one) == "person"]
+
+
+def mentioned_ids(mentioned):
+    """Mentions as kept: a person by their id, an agent by its commons name (names-ids)."""
+    return [members.id_of(one) or one for one in mentioned]
 
 
 def board_sections():
@@ -10254,8 +10549,10 @@ def board_words_linked(words, mentions):
     linked = {}
     for name in mentions or ():
         href = name_href(name)
-        if href:
-            linked[name.lower()] = href
+        if href:  # a person kept by id, linked by every name the words may hold (names-ids)
+            for written in (members.names_written(name) if knock.kind_of(name) == "person"
+                            else [name]):
+                linked[written.lower()] = href
     if not linked:
         return [(words, None)]
     said = re.compile("@(%s)(?![a-z0-9-])" % "|".join(
@@ -10440,7 +10737,7 @@ def board_section(section):
         return board_section_now(section, refused=BOARD_REFUSED[why], draft=words,
                                  draft_subject=subject)
     try:
-        mentioned = board.mentions_in(words, *board_names())
+        mentioned = mentioned_ids(board.mentions_in(words, *board_names()))
         key = board.start(section, session["member"], subject, words, board_today().isoformat(),
                           mentioned)
     except board.Unreadable:
@@ -10493,7 +10790,7 @@ def board_topic(key):
     if why:
         return board_topic_now(key, refused=BOARD_REFUSED[why], draft=words, draft_to=to)
     try:
-        mentioned = board.mentions_in(words, *board_names())
+        mentioned = mentioned_ids(board.mentions_in(words, *board_names()))
         n = board.add(key, session["member"], words, board_today().isoformat(), to=to,
                       mentions=mentioned,
                       charter_path=CHARTER_CHANGES, weeks=weeks, today=board_today())
@@ -10562,10 +10859,29 @@ def board_topic_of_this_week():
     return board.key_of("week", week) if week in board_weeks() else None
 
 
+# Every yes that waits, checked once when the hearth starts (small-builds, the founder's request
+# of 23 November 2026): a yes that waited for room opens now where it fits (knock.open_waiting,
+# room-on-yes), without anyone saving a door first. In a thread, as the other starts are, so
+# that nothing it does holds the site from coming up; a failure is said in the log and changes
+# nothing.
+def open_waiting_at_start():
+    try:
+        return knock.open_waiting(utc_stamp())
+    except Exception as error:  # never a reason for the hearth not to start
+        print("hearth: the waiting yeses were not checked at start: %s" % error,
+              file=sys.stderr, flush=True)
+        return []
+
+
+def start_waiting_yeses():
+    threading.Thread(target=open_waiting_at_start, name="waiting-yeses", daemon=True).start()
+
+
 start_tide()
 start_backups()
 start_emails()
 start_acts()
+start_waiting_yeses()
 
 
 if __name__ == "__main__":

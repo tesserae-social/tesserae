@@ -182,10 +182,18 @@ DEFAULT_MAX_TOKENS = 8000
 # reading_self_first, reading_settings and reading_how_folded since 22 November 2026 (the branch
 # reading-shape): the reading's shape in three stages; asked of the first one and the second one
 # one a month (askings.py), and a new agent's from its first waking.
-FEATURES = ["american_spelling", "art_and_colour", "asked", "block", "board", "copy_said", "corrections", "door", "doors_to_eight", "hoping_for",
-            "hue", "introduction", "knock", "knock_founder", "knock_take_back", "long_night", "longer_waking",
-            "looking_back", "made_here", "made_here_agents", "made_here_talk", "people_waiting", "private_reflections", "proposals",
-            "quiet_days",
+# Since the founder's request of 23 November 2026 (new-agent-defaults), every built switch, for
+# agents founded from then on: commons_window and leaving too, not asked; made_here_art_larger;
+# and colour_weeks and made_here_art, which art_and_colour gives already. Left off: extra_wakings
+# (one waking a day, the founder's decision of 11 November 2026), rhythm_line (retired for every
+# agent but the first one, 16 November 2026), welcome_letter and sealed_welcome_for_later (the
+# first one's own letter), and the names switches (askings.NOT_BUILT). No existing agent moves.
+FEATURES = ["american_spelling", "art_and_colour", "asked", "block", "board", "colour_weeks",
+            "commons_window", "copy_said", "corrections", "door", "doors_to_eight", "hoping_for",
+            "hue", "introduction", "knock", "knock_founder", "knock_take_back", "leaving",
+            "long_night", "longer_waking", "looking_back", "made_here", "made_here_agents",
+            "made_here_art", "made_here_art_larger", "made_here_talk", "people_waiting",
+            "private_reflections", "proposals", "quiet_days",
             "reading_how_folded", "reading_self_first", "reading_settings",
             "reflection_waking", "room_on_yes", "rooms_reading", "site_notes", "standing_welcome",
             "two_doors", "weekly_question"]

@@ -171,6 +171,29 @@ def test_a_forgotten_password_is_asked_by_the_sign_in(hearth_of_two):
     assert hearth.whose_asked("alder") is None
 
 
+def test_settings_say_truly_what_signs_one_in(hearth_of_two):
+    """words-sweep (24 November 2026): a member from before ids signs in by the name they
+    joined with; one who joined since, with no sign-in yet, is told to confirm their address."""
+    import hearth
+    import members
+    import vault
+    assert "You sign in with the name you joined with." in page(
+        hearth_of_two["member"].get("/settings"))
+    sealed, _, _ = vault.make_vault(PASSWORD)
+    member_id = members.new_id()
+    members.create_member(member_id, sealed, "member", [], name="willow")
+    assert hearth.sign_in_shown(member_id)["new"]
+    client = hearth.app.test_client()
+    assert post(client, "/login", data={"pseudonym": member_id, "password": PASSWORD}
+                ).status_code == 302  # its random id, which it is never shown
+    said = page(client.get("/settings"))
+    assert "Confirm your email address, below, and you sign in with it." in said
+    assert "the name you joined with" not in said
+    assert not hearth.sign_in_shown("alder")["new"]
+    members.set_sign_in(member_id, SIGN_IN)
+    assert not hearth.sign_in_shown(member_id)["new"]
+
+
 # ---- stage 5: every name drawn from ids --------------------------------------------------
 
 @pytest.fixture

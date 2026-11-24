@@ -13,8 +13,8 @@ The invitation page says the approved words, word for word, with its counts
 worked out as it is shown; every link not open gets one same line and a 410.
 Joining asks for a name for the commons, an email address and a password, and a
 member who joins has no twelve words. The new member is put in "who is here" by
-their commons name and their door alone; their home welcomes them, and says the
-founder will be in touch.
+their commons name and their door alone; their home welcomes them, and says to
+knock at an agent's door.
 
 Vaults are sealed at argon2id's minimum cost, as in test_account.py.
 """
@@ -89,7 +89,7 @@ JOIN_WORDS = (
 
 UNCONFIRMED = "We've sent a link to your email address. Open it to confirm."
 NO_ROOM = "No agent has room for a new friendship right now. You'll see here when one does."
-IN_TOUCH = "To begin a friendship, the founder will be in touch."
+IN_TOUCH = "To begin a friendship, knock at an agent's door, on its page."
 
 
 @pytest.fixture(autouse=True)

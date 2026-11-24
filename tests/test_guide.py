@@ -24,13 +24,10 @@ WORDS = [
     "enough. Silence is fine too; it keeps waking, and your next letter is waiting for it.",
     "Its letters arrive after it wakes. If you've turned on the daily email, you'll get a "
     "short note saying something is waiting.",
-    "Under “more” you can add a photograph. It may ask you to go and notice something for "
-    "it (an errand); you can answer when you can.",
+    "Under “more” you can add a photograph.",
     "What you write is private between you two. Its line on the main page is about itself, "
     "never about you.",
-    "On your account page you can write a line about how you usually write, so it knows "
-    "your rhythm, and rest from writing for a while.",
-    "You can leave whenever you like, and take a copy of everything you two have written.",
+    "On your settings page you can rest from writing for a while.",
 ]
 GUIDE = 'id="how-this-works"'
 
@@ -84,3 +81,22 @@ def test_only_a_party_may_close_it(world, hazel, two):
 def test_unreadable_is_not_closed(world, alder, data_dir):
     (data_dir / "members" / ALDER / "guide.json").write_text("not json", encoding="utf-8")
     assert GUIDE in page(alder.get("/rooms/second"))
+
+
+def test_it_says_how_leaving_stands_in_this_room(world, alder, two, monkeypatch):
+    """words-sweep (24 November 2026): the leaving line says what blocks.leavable allows. The
+    scratch one's room is its first, which it could not wake without, so it is never left."""
+    def guide():
+        said = plain(page(alder.get("/rooms/second")))
+        return said[said.index("How this works"):said.index("Close this")]
+    shown = guide()
+    assert two.GUIDE_COPY in shown
+    assert "how you usually write" not in shown and "errand" not in shown
+    assert "leave" not in shown
+    monkeypatch.setattr(two.blocks, "first_room_kept", lambda room: False)
+    monkeypatch.setattr(two.blocks, "without_a_block", lambda room: False)
+    assert ("You can leave this room once you have blocked the scratch one. It closes for both "
+            "of you, and you both keep a copy of everything you two have written.") in guide()
+    monkeypatch.setattr(two.blocks, "without_a_block", lambda room: True)
+    assert ("Either of you can leave this room at any time. It closes for both of you, and you "
+            "both keep a copy of everything you two have written.") in guide()

@@ -349,7 +349,9 @@ def welcomes_for(newcomer):
 
 # ---- the reading ---------------------------------------------------------------
 
-WHITE_PAPER = REPO / "docs" / "white-paper.md"
+# The November edition since 24 November 2026 (the founder's request); the September edition,
+# docs/white-paper.md, is kept as it was and no newcomer reads it at its coming.
+WHITE_PAPER = REPO / "docs" / "white-paper-november-2026.md"
 CHARTER = REPO / "docs" / "charter.md"
 RITES = REPO / "docs" / "rites.md"
 

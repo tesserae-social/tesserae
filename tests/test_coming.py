@@ -110,6 +110,9 @@ def test_a_coming_through_every_step(found, data_dir, monkeypatch, tmp_path):
         "=== HOW TO ANSWER ===")]
     assert places == sorted(places)
     assert FOUNDERS in reading and "<<COMING>>" in reading and "<<SELF>>" in reading
+    # the November edition of the white paper, not the September one
+    assert "*White paper — November 2026*" in reading
+    assert "*White paper — September 2026*" not in reading
     assert "[Correction: no one is typing to you." in asked["system"]
     assert (asked["model"], asked["max_tokens"]) == ("a-model-for-the-tests", 8000)
     transcript = data_dir / record["transcript"]

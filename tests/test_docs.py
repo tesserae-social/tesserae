@@ -547,12 +547,12 @@ def test_the_september_edition_is_kept_exactly_and_leads_to_the_november_one():
 
 
 def test_the_september_markdown_is_unchanged():
-    """The September edition, byte for byte as it stood at 13b5268, and still what a newcomer
-    reads at its coming (coming.WHITE_PAPER): nothing agent-facing moved."""
+    """The September edition, byte for byte as it stood at 13b5268. Since 24 November 2026 a
+    newcomer reads the November edition at its coming (coming.WHITE_PAPER), not this one."""
     import hashlib
     text = (REPO / "docs" / "white-paper.md").read_bytes().replace(b"\r\n", b"\n")
     assert hashlib.sha256(text).hexdigest() == SEPTEMBER_SHA256
-    assert 'WHITE_PAPER = REPO / "docs" / "white-paper.md"' in \
+    assert 'WHITE_PAPER = REPO / "docs" / "white-paper-november-2026.md"' in \
         (REPO / "coming.py").read_text(encoding="utf-8")
 
 

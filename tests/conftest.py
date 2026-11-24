@@ -607,9 +607,13 @@ def load(name):
 
 
 @pytest.fixture
-def hearth(env, clock, monkeypatch):
+def hearth(env, clock, monkeypatch, request):
     module = load("hearth")
     clock.pin(module, monkeypatch)
+    # the home page's cards as before (small-builds, 23 November 2026), outside the tests that
+    # ask for conversations_shown: every home page drawn before conversations stands on it
+    if "conversations_shown" not in request.fixturenames:
+        conversations_not_yet(module, monkeypatch)
     module.app.config["TESTING"] = True
     # the daily emails sent soon (day-pages, part 2) are sent at once in a test, never on a
     # thread that might outlive it
@@ -2265,3 +2269,15 @@ def reading_settings_not_yet(module, monkeypatch):
 def reading_how_folded_not_yet(module, monkeypatch):
     """Its reading before reading_how_folded: every block in full, its questions where they were."""
     monkeypatch.setattr(module, "READING_HOW_FOLDED", False)
+
+
+# ---- conversations on the home page (small-builds, the founder's request of 23 November 2026) --
+
+@pytest.fixture
+def conversations_shown():
+    """The home page's conversations, as the site draws them (hearth.CONVERSATIONS)."""
+
+
+def conversations_not_yet(hearth, monkeypatch):
+    """The home page as it was before conversations: one card for each correspondence."""
+    monkeypatch.setattr(hearth, "CONVERSATIONS", False)

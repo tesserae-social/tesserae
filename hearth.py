@@ -3283,7 +3283,10 @@ def hearth_page(**told):
                            closed=closed_rooms_shown(session["member"]),
                            left_lines=left_lines_told(session["member"]),
                            asking=asking_for_home(session["member"]),
-                           knocked=request.args.get("knocked"), **told)
+                           knocked=request.args.get("knocked"),
+                           conversations=(conversations_of(session["member"])
+                                          if CONVERSATIONS else None),
+                           conversation_heads=(THEY_WROTE_LAST, YOU_WROTE_LAST), **told)
 
 
 # Rooms left (leaving-build, the founder's request of 21 November 2026; leaving.py): a room
@@ -3688,6 +3691,114 @@ def other_href(room):
     """The address of the page of a room's other, its agent, or None."""
     agent = rooms.agent_of(room.id)
     return name_href(agent["id"]) if agent else None
+
+
+# Conversations on a member's home page (small-builds, the founder's request of 23 November
+# 2026): every room they are in, and every exchange of notes, in two columns, "They wrote last"
+# and "You wrote last", each newest first. Each is a fold: who, the start of the last message,
+# who wrote it and when; opened, the whole exchange, oldest first (the knock, its answer, then
+# the letters or the notes), every message with its writer's name and day, their own set a
+# little apart. No counts, no dots, no "overdue". With CONVERSATIONS False, the cards as before
+# (conftest's hearth fixture, unless a test asks for conversations_shown).
+CONVERSATIONS = True
+CONVERSATION_START = 90  # characters of the last message said in its fold's line
+THEY_WROTE_LAST = "They wrote last"
+YOU_WROTE_LAST = "You wrote last"
+YOU = "you"
+KNOCK_SAID = "knock"
+ANSWER_SAID = "answer"
+LETTER_SAID = "letter"
+NOTE_SAID = "note"
+ANSWER_WORDS = {knock.YES: "Yes.", "not yet": "Not yet."}
+
+
+def conversation_start(text):
+    """The start of a message, on one line, cut short with an ellipsis if it runs long."""
+    said = " ".join(str(text or "").split())
+    if len(said) <= CONVERSATION_START:
+        return said
+    return said[:CONVERSATION_START].rstrip() + "…"
+
+
+def knock_messages(name, other):
+    """The knocks that stand between two, each with its answer, as messages."""
+    said = []
+    for held in knock.between(name, other):
+        if not held.get("at"):
+            continue
+        said.append({"stamp": held["at"], "mine": held["from"] == name, "by": held["from"],
+                     "kind": KNOCK_SAID, "text": held.get("note") or ""})
+        answer = held.get("answer")
+        if answer and held.get("answered_at"):
+            words = " ".join(part for part in (ANSWER_WORDS.get(answer, ""),
+                                               held.get("reply") or "") if part)
+            said.append({"stamp": held["answered_at"], "mine": held["to"] == name,
+                         "by": held["to"], "kind": ANSWER_SAID, "text": words})
+    return said
+
+
+def room_messages(room):
+    """A room's letters as messages: theirs from the other's folder, the member's from theirs."""
+    places = rooms.places(room.id)
+    if places is None:
+        return []
+    said = []
+    for folder, mine in ((places.incoming, True), (places.read, True),
+                         (places.outgoing, False)):
+        for path in newest_first(folder, "*.md"):
+            _, text = letter_things.split_things(read_text(path))
+            said.append({"stamp": stamp_in(path.name), "mine": mine, "kind": LETTER_SAID,
+                         "text": text, "body": as_prose(text)})
+    return said
+
+
+def conversation_shown(name, other, other_id, messages, href, link, room=None):
+    """One conversation as the home page draws it, or None where nothing has been said."""
+    messages = sorted((one for one in messages if STAMP.fullmatch(one["stamp"] or "")),
+                      key=lambda one: one["stamp"])
+    if not messages and room is None:
+        return None
+    them = shown_name(other_id)
+    for one in messages:
+        one["who"] = YOU if one["mine"] else them["name"]
+        one["day"] = letter_day(one["stamp"])
+        one.setdefault("body", None)
+    last = messages[-1] if messages else None
+    # a room where nothing is written yet waits on the member, so it is with "They wrote last"
+    said = {"other": them, "href": href, "link": link, "messages": messages,
+            "start": conversation_start(last["text"]) if last else None,
+            "last_who": last["who"] if last else None, "last_day": last["day"] if last else None,
+            "stamp": last["stamp"] if last else "", "theirs": not last["mine"] if last else True,
+            "bond": None, "ready": None}
+    if room is not None:
+        said["bond"] = bond_standing(room)
+        said["ready"] = (ready_to_seal() if is_first_room(room)
+                         else room_ready_to_seal(room) if room_may_bond(room) else None)
+    return said
+
+
+def conversations_of(name):
+    """Every conversation of one member, as (they wrote last, you wrote last), newest first."""
+    found = []
+    for room in rooms.of(name):
+        agent = rooms.agent_of(room.id)
+        other_id = agent["id"] if agent else room.other
+        messages = (knock_messages(name, other_id) if agent else []) + room_messages(room)
+        one = conversation_shown(name, room.other, other_id, messages,
+                                 url_for("room", room_id=room.id), "open the room", room)
+        if one:
+            found.append(one)
+    for other in notes.with_whom(name):
+        messages = knock_messages(name, other) + [
+            {"stamp": one["at"], "mine": one["from"] == name, "kind": NOTE_SAID,
+             "text": one["words"]} for one in notes.read(name, other)]
+        one = conversation_shown(name, other, other, messages,
+                                 url_for("notes_with", to=knock.address_of(other)),
+                                 "open the notes")
+        if one:
+            found.append(one)
+    found.sort(key=lambda one: one["stamp"], reverse=True)
+    return ([one for one in found if one["theirs"]], [one for one in found if not one["theirs"]])
 
 
 def room_card(room):

@@ -290,6 +290,14 @@
 {% endfor %}</textarea>
       <button type="submit">Keep this order</button>
     </form>
+    <form method="post" action="{{ url_for('askings_every', _anchor='askings') }}" class="field">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="kind" value="{{ one.kind }}">
+      <input type="hidden" name="who" value="{{ one.who }}">
+      <label for="every-{{ one.kind }}-{{ one.who }}">at most one asking every so many days (0 for no limit){% if one.last_asked %}; the last was first shown on {{ one.last_asked }}{% endif %}</label>
+      <input id="every-{{ one.kind }}-{{ one.who }}" name="days" type="number" min="0" max="365" value="{{ one.every_days }}">
+      <button type="submit">Keep this</button>
+    </form>
     {%- endif %}
     <form method="post" action="{{ url_for('askings_every', _anchor='askings') }}" class="field">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -135,8 +135,10 @@ def validate_pseudonym(name):
 
 
 def _folder(name):
-    """The member's folder, once the name is known to be safe to make one of."""
-    validate_pseudonym(name)
+    """The member's folder, once the name is known to be safe to make one of. The keeper's
+    id, "founder", is reserved for anyone joining, and is the keeper's folder (KEEPER_ID)."""
+    if name != "founder":
+        validate_pseudonym(name)
     folder = MEMBERS / name
     if folder.resolve().parent != MEMBERS.resolve():
         raise MemberError("that name is not free to take")
@@ -265,7 +267,8 @@ def list_members():
     found = []
     for name in _names_on_disk():
         try:
-            validate_pseudonym(name)
+            if name != "founder":  # the keeper's id (KEEPER_ID)
+                validate_pseudonym(name)
         except MemberError:
             continue  # a folder no member could have been given is no member
         if (MEMBERS / name / RECORD).is_file():
@@ -383,15 +386,24 @@ def _past_keys(pseudonym, current):
 # ---------------------------------------------------------------- writing
 
 
-def create_member(pseudonym, vault, role, vouched_by, now=None):
-    """Write a new member's record, and give it back. Refuses a name or key already held."""
+def create_member(pseudonym, vault, role, vouched_by, now=None, name=None, sign_in=None):
+    """Write a new member's record, and give it back. Refuses a name or key already held.
+
+    pseudonym is the folder and id: for a member joining since ids, new_id(), with their
+    commons name (name) and what signs them in (sign_in) beside it."""
     folder = _folder(pseudonym)
+    if pseudonym == "founder" and role != "keeper":
+        raise MemberError("that name is not free to take")
+    if name is not None:
+        commons_name_free(name)
+    if sign_in is not None and sign_in_shape(sign_in) in _sign_in_index():
+        raise MemberError("that sign-in is taken")
     if role not in ROLES:
         raise MemberError("a member is a keeper or a member")
     if not isinstance(vouched_by, (list, tuple)):
         raise MemberError("vouched_by is a list of names")
-    for name in vouched_by:
-        validate_pseudonym(name)
+    for voucher in vouched_by:
+        validate_pseudonym(voucher)
     verify_key = _checked_vault(vault)
 
     if pseudonym in (name.lower() for name in _names_on_disk()):
@@ -421,6 +433,12 @@ def create_member(pseudonym, vault, role, vouched_by, now=None):
         except OSError:
             pass
         raise
+    if name is not None:
+        set_name(pseudonym, name, now)
+    if sign_in is not None:
+        set_sign_in(pseudonym, sign_in)
+    if name is not None or sign_in is not None:
+        record = load_member(pseudonym)
     return record
 
 
@@ -701,3 +719,277 @@ def told_of(pseudonym):
 def set_told(pseudonym, told, now=None):
     """Keep what an email that has just gone told a person of."""
     _write_json(_folder(pseudonym) / TOLD, {"at": _stamp(now), "told": sorted(told)})
+
+
+# ---------------------------------------------------------------- ids, names and sign-in
+#
+# The names design (tesserae-private/proposals/names-design.md; the founder's request of 20
+# November 2026). One string did three jobs: a person's sign-in name was also their public
+# name and their id. Now each person has three:
+#
+#   id        their folder, members/<id>/, and every record keyed by them: for a new member a
+#             random "p-" and IDS_LONG characters of ID_ALPHABET, made at joining and kept for
+#             good; for the keeper "founder" (KEEPER_ID, by move_to_ids.py), its DID's last part
+#             already; for a member who joined before ids, the pseudonym they joined with
+#             (the design's choice A), which stays their id.
+#   name      their commons name, shown to everyone they are shown to ("name" in member.json).
+#             A member who joined before ids and has chosen none is shown by their id, as
+#             before. The keeper is "the founder".
+#   sign_in   what signs them in, and nothing else: an email address, or a private sign-in
+#             name. Never shown on any page, to any agent, in any id or the mirror.
+#             members/sign-in.json maps each to an id; it is private, in the backup, and in no
+#             copy, export or mirror.
+#
+# members/names-held.json: every commons name anyone has held, by id. A name in it is never
+# given to anyone else, for joining or renaming. Private, in the backup.
+
+import secrets
+
+KEEPER_ID = "founder"
+ID_PREFIX = "p-"
+ID_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz"  # no 0, 1, i, l or o, which are misread
+IDS_LONG = 8
+SIGN_IN_INDEX = "sign-in.json"
+NAMES_HELD = "names-held.json"
+THE_FOUNDER = "the founder"
+NAMES_LOCK = threading.RLock()  # one change at a time to the index and the names held
+
+
+def new_id():
+    """A new account id: random, so it says nothing of who joined when or in what order."""
+    taken = set(_names_on_disk())
+    while True:
+        made = ID_PREFIX + "".join(secrets.choice(ID_ALPHABET) for _ in range(IDS_LONG))
+        if made not in taken:
+            return made
+
+
+def _sign_in_index():
+    path = MEMBERS / SIGN_IN_INDEX
+    if not path.is_file():
+        return {}
+    held = _read_json(path)
+    if not isinstance(held, dict):
+        raise MemberError("a member's record could not be read")
+    return {key: value for key, value in held.items()
+            if isinstance(key, str) and isinstance(value, str)}
+
+
+def sign_in_shape(text):
+    """A sign-in as it is kept: an email address, lowercased, or a private sign-in name in
+    a pseudonym's shape. MemberError if it is neither."""
+    if not isinstance(text, str) or not text.strip():
+        raise MemberError("a sign-in is an email address or a name")
+    said = text.strip().lower()
+    if "@" in said:
+        return email_address(said)
+    if not PSEUDONYM.fullmatch(said) or not PSEUDONYM_MIN <= len(said) <= PSEUDONYM_MAX:
+        raise MemberError("a sign-in name is lowercase letters, digits and single hyphens, "
+                          "and starts with a letter")
+    return said
+
+
+def set_sign_in(member_id, sign_in):
+    """Keep what signs this member in, in place of any they had. Refuses one held by another."""
+    said = sign_in_shape(sign_in)
+    with NAMES_LOCK:
+        record = load_member(member_id)
+        if record is None:
+            raise MemberError("there is no member by that name")
+        index = _sign_in_index()
+        if index.get(said) not in (None, member_id):
+            raise MemberError("that sign-in is taken")
+        index = {key: value for key, value in index.items() if value != member_id}
+        index[said] = member_id
+        MEMBERS.mkdir(parents=True, exist_ok=True)
+        _write_json(MEMBERS / SIGN_IN_INDEX, index)
+        _write_json(_folder(member_id) / RECORD, {**record, "id": member_id, "sign_in": said})
+    return said
+
+
+def sign_in_of(member_id):
+    """What signs a member in, for their own settings page alone; or None."""
+    try:
+        record = load_member(member_id)
+    except MemberError:
+        return None
+    said = record.get("sign_in") if isinstance(record, dict) else None
+    return said if isinstance(said, str) else None
+
+
+def id_of_sign_in(text):
+    """The id this sign-in opens for, or None.
+
+    The index first. An email address no one has as their sign-in opens for whoever has
+    confirmed it (as before ids). A bare name no one has as a sign-in is tried as an id only
+    for a member with no sign-in of their own yet: one who joined before ids and has not set
+    one. An old commons name never signs anyone in.
+    """
+    try:
+        said = sign_in_shape(text)
+    except MemberError:
+        return None
+    try:
+        index = _sign_in_index()
+    except MemberError:
+        index = {}
+    if said in index:
+        return index[said]
+    if "@" in said:
+        return member_by_email(said)
+    try:
+        record = load_member(said)
+    except MemberError:
+        return None
+    if isinstance(record, dict) and not record.get("sign_in"):
+        return said
+    return None
+
+
+def is_keeper_id(member_id):
+    try:
+        record = load_member(member_id)
+    except MemberError:
+        return False
+    return isinstance(record, dict) and record.get("role") == "keeper"
+
+
+def name_of(member_id):
+    """How a member is shown, drawn from their id at the moment it is drawn: "the founder"
+    for the keeper, their commons name, or, for one who joined before ids and has chosen
+    none, their id as before. A name no member has is given back as it is."""
+    try:
+        record = load_member(member_id)
+    except MemberError:
+        return member_id
+    if not isinstance(record, dict):
+        return member_id
+    if record.get("role") == "keeper":
+        return THE_FOUNDER
+    name = record.get("name")
+    return name if isinstance(name, str) and name else member_id
+
+
+def chosen_name_of(member_id):
+    """The commons name a member chose, or None where they have chosen none."""
+    try:
+        record = load_member(member_id)
+    except MemberError:
+        return None
+    name = record.get("name") if isinstance(record, dict) else None
+    return name if isinstance(name, str) and name else None
+
+
+def id_of(name):
+    """The id of whoever is named now by this commons name, or None.
+
+    "the founder" and "founder" are the keeper. A member who has chosen no name is named by
+    their id. An old name, held once and given up, is no one's: it names no one now.
+    """
+    if not isinstance(name, str):
+        return None
+    said = " ".join(name.split()).lower()
+    if said in (THE_FOUNDER, KEEPER_ID):
+        return next((one for one in list_members() if is_keeper_id(one)), None)
+    for one in list_members():
+        if chosen_name_of(one) == said:
+            return one
+    try:
+        record = load_member(said)
+    except MemberError:
+        return None
+    if isinstance(record, dict) and not chosen_name_of(said) and record.get("role") == "member":
+        return said
+    return None
+
+
+def _names_held():
+    path = MEMBERS / NAMES_HELD
+    if not path.is_file():
+        return {}
+    held = _read_json(path)
+    return held if isinstance(held, dict) else {}
+
+
+def name_held_by(name):
+    """The id that holds or once held this commons name, or None."""
+    for member_id, names in _names_held().items():
+        if isinstance(names, list) and name in names:
+            return member_id
+    return None
+
+
+def commons_name_free(name, for_id=None):
+    """Raise MemberError unless this may be someone's commons name: a pseudonym's shape, not
+    reserved, no one's now or before (save for_id's own), and no one's id."""
+    validate_pseudonym(name)
+    holder = name_held_by(name)
+    if holder is not None and holder != for_id:
+        raise MemberError("that name is not free to take")
+    for one in list_members():
+        if one == for_id:
+            continue
+        if one == name or chosen_name_of(one) == name:
+            raise MemberError("that name is not free to take")
+    return name
+
+
+def set_name(member_id, name, now=None):
+    """Give a member a commons name, kept with its history; and hold it for good."""
+    with NAMES_LOCK:
+        record = load_member(member_id)
+        if record is None:
+            raise MemberError("there is no member by that name")
+        commons_name_free(name, member_id)
+        history = record.get("names") if isinstance(record.get("names"), list) else []
+        history = [*history, {"name": name, "from": _stamp(now)}]
+        held = _names_held()
+        held[member_id] = sorted({*(held.get(member_id) or []), name})
+        MEMBERS.mkdir(parents=True, exist_ok=True)
+        _write_json(MEMBERS / NAMES_HELD, held)
+        _write_json(_folder(member_id) / RECORD,
+                    {**record, "id": member_id, "name": name, "names": history})
+    return name
+
+
+def first_name_of(member_id):
+    """The first commons name a member was shown by: their name at joining, or their id where
+    they joined before ids. What an agent reads where its switch commons_names is off, so a
+    later name never moves its reading (names-ids, stage 5)."""
+    try:
+        record = load_member(member_id)
+    except MemberError:
+        return member_id
+    if not isinstance(record, dict):
+        return member_id
+    if record.get("role") == "keeper":
+        return THE_FOUNDER
+    history = record.get("names") if isinstance(record.get("names"), list) else []
+    for one in history:
+        if isinstance(one, dict) and isinstance(one.get("name"), str) and one["name"]:
+            return one["name"]
+    return name_of(member_id)
+
+
+def names_written(member_id):
+    """Every name a member's own words may have been written under: their id and each commons
+    name they have held, newest first. For reading back what was written, never for showing."""
+    try:
+        record = load_member(member_id)
+    except MemberError:
+        return [member_id]
+    history = (record or {}).get("names") if isinstance((record or {}).get("names"), list) else []
+    said = [one["name"] for one in reversed(history)
+            if isinstance(one, dict) and isinstance(one.get("name"), str)]
+    return [*said, member_id]
+
+
+def id_of_first(name):
+    """The id of the member whose first commons name this is, or None (first_name_of)."""
+    if not isinstance(name, str):
+        return None
+    said = " ".join(name.split()).lower()
+    for one in list_members():
+        if not is_keeper_id(one) and first_name_of(one) == said:
+            return one
+    return None

@@ -67,13 +67,19 @@ PAGE_WORDS = (
     "This invitation is for you, works once, and lasts until {until}. "
     "Accept the invitation")
 
+def newcomer(hearth):
+    """The id the newcomer was given at joining (names-ids, stage 4): their folder, which
+    is no longer the name they typed, as it was before ids."""
+    return hearth.members.id_of(NEWCOMER)
+
+
 JOIN_WORDS = (
     "Choose how you'll be known here, an email address, and a password. "
     "a name for the commons "
     "Short, and not necessarily your real name: lowercase letters, digits and single hyphens. "
     "your email address "
-    "For a password link, and a short email when something is waiting for you, which you can "
-    "stop. Never shown to anyone else or read by any agent. "
+    "You sign in with it. It is also for a password link, and a short email when something is "
+    "waiting for you, which you can stop. Never shown to anyone else or read by any agent. "
     "a password At least 10 characters. "
     "the password again "
     "Private here means unread and unshown. The server keeps encrypted backups, so it isn't "
@@ -323,7 +329,7 @@ def test_no_other_member_may_withdraw_it_and_none_once_used(hearth, member, data
     join(hearth.app.test_client(), link)
     withdraw(member, one["id"])
     assert files(data_dir)[0]["withdrawn_at"] is None
-    assert files(data_dir)[0]["used_by"] == NEWCOMER
+    assert files(data_dir)[0]["used_by"] == newcomer(hearth)
 
 
 # ---- expiry ----------------------------------------------------------------------------
@@ -376,7 +382,7 @@ def test_joining_works_with_what_a_browser_sends_from_the_page(hearth, keeper, v
         "csrf_token": form, "name": NEWCOMER, "address": NEW_ADDRESS,
         "password": NEW_PASSWORD, "password_again": NEW_PASSWORD})
     assert answer.status_code == 302, page(answer)
-    assert hearth.member_record(NEWCOMER) is not None
+    assert hearth.member_record(newcomer(hearth)) is not None
 
 
 def test_the_counts_are_worked_out_as_it_is_shown(hearth, keeper, member, visitor, monkeypatch):
@@ -472,11 +478,11 @@ def test_joining_makes_a_member_vouched_by_the_inviter_with_no_words(
     client = hearth.app.test_client()
     answer = join(client, link, name="  Willow ")
     assert answer.status_code == 302 and answer.headers["Location"] == "/"
-    record = read_json(data_dir / "members" / NEWCOMER / "member.json")
+    record = read_json(data_dir / "members" / newcomer(hearth) / "member.json")
     assert record["role"] == "member" and record["vouched_by"] == [FOUNDER_NAME]
-    assert read_json(data_dir / "members" / NEWCOMER / "email.json")["address"] == NEW_ADDRESS
+    assert read_json(data_dir / "members" / newcomer(hearth) / "email.json")["address"] ==         NEW_ADDRESS
     [one] = files(data_dir)
-    assert one["used_by"] == NEWCOMER and one["used_at"]
+    assert one["used_by"] == newcomer(hearth) and one["used_at"]
     # a link to confirm the address went to it, and the words went nowhere
     [sent] = outbox.sent
     assert sent["to"] == NEW_ADDRESS and sent["subject"] == "Confirm your email address for Tesserae"
@@ -488,7 +494,7 @@ def test_joining_makes_a_member_vouched_by_the_inviter_with_no_words(
         assert str(words) not in place
         assert words.split()[0] + " " + words.split()[1] not in place
     with client.session_transaction() as held:
-        assert held["member"] == NEWCOMER and str(words) not in json.dumps(dict(held))
+        assert held["member"] == newcomer(hearth) and str(words) not in json.dumps(dict(held))
     # it works once
     assert hearth.app.test_client().get("/invitation/" + link).status_code == 410
     assert join(hearth.app.test_client(), link, name="another",
@@ -514,7 +520,7 @@ def test_an_invitation_is_used_once_even_with_two_joins_at_once(hearth, keeper, 
     for one in both:
         one.join()
     assert sorted(answers) == [302, 410]
-    assert sum((data_dir / "members" / name).exists() for name in ("willow", "aspen")) == 1
+    assert sum(hearth.members.id_of(name) is not None for name in ("willow", "aspen")) == 1
 
 
 def test_it_stays_open_if_the_name_is_taken_in_the_moment_between(hearth, keeper, data_dir,
@@ -558,12 +564,12 @@ def test_a_new_member_is_in_who_is_here_by_their_commons_name_and_their_door_alo
     # a new member's door starts open, with room for two (the founder's request of 14
     # November 2026), and who is here says so, with no number
     assert lines[-1] == "member · willow · door open · has room"
-    assert hearth.door.read(NEWCOMER)["room"] == 2
+    assert hearth.door.read(newcomer(hearth))["room"] == 2
     assert lines[:2] == ["citizen · the first one, unnamed by its own choosing · founded "
                          "4 September 2026, attends at dawn",
                          "member · the founder · keeps the hearth"]
     assert (commons / "events.md").read_bytes() == events  # nothing said on the commons
-    hearth.door.set_door(NEWCOMER, state="closed")
+    hearth.door.set_door(newcomer(hearth), state="closed")
     served = page(visitor.get("/commons/members.md"))
     assert "member · willow · door closed" in served
     assert NEW_ADDRESS not in served and FOUNDER_NAME not in served
@@ -686,11 +692,11 @@ def test_no_one_can_block_another_s_address_by_joining_with_it(
     owner = hearth.app.test_client()
     assert join(owner, second, address=NEW_ADDRESS.upper()).status_code == 302
     assert confirm_by(owner, outbox.sent[-1]).status_code == 200
-    assert hearth.members.member_by_email(NEW_ADDRESS) == NEWCOMER
+    assert hearth.members.member_by_email(NEW_ADDRESS) == newcomer(hearth)
     # the unconfirmed keeping is let go, and its link stops working
-    assert hearth.members.email_of("squatter") is None
+    assert hearth.members.email_of(hearth.members.id_of("squatter")) is None
     assert confirm_by(squatter, squatter_s_link).status_code == 410
-    assert hearth.members.member_by_email(NEW_ADDRESS) == NEWCOMER
+    assert hearth.members.member_by_email(NEW_ADDRESS) == newcomer(hearth)
     assert UNCONFIRMED not in html.unescape(page(squatter.get("/")))
     # and an address someone has confirmed is refused to a third who joins
     third = made_link(keeper)
@@ -906,13 +912,13 @@ def test_the_address_is_forgotten_once_used_and_counts_as_confirmed(
     assert 'value="%s"' % INVITED_KEPT in form
     answer = join(client, link, address=INVITED_KEPT)
     assert answer.status_code == 302
-    kept = hearth.members.email_of(NEWCOMER)
+    kept = hearth.members.email_of(newcomer(hearth))
     assert kept["address"] == INVITED_KEPT and kept["confirmed_at"]
-    assert hearth.members.member_by_email(INVITED_KEPT) == NEWCOMER
+    assert hearth.members.member_by_email(INVITED_KEPT) == newcomer(hearth)
     assert len(outbox.sent) == 1  # no link to confirm it
     assert UNCONFIRMED not in html.unescape(page(client.get("/")))
     [one] = files(data_dir)
-    assert one["email"] is None and one["used_by"] == NEWCOMER
+    assert one["email"] is None and one["used_by"] == newcomer(hearth)
     assert INVITED_HIDDEN not in page(member.get("/settings"))
 
 
@@ -922,7 +928,7 @@ def test_a_changed_address_is_confirmed_by_the_usual_link(hearth, member, reader
     link = emailed_link(outbox.sent[0])
     client = hearth.app.test_client()
     join(client, link, address=NEW_ADDRESS)
-    kept = hearth.members.email_of(NEWCOMER)
+    kept = hearth.members.email_of(newcomer(hearth))
     assert kept["address"] == NEW_ADDRESS and kept["confirmed_at"] is None
     sent = outbox.sent[-1]
     assert sent["to"] == NEW_ADDRESS
@@ -1207,3 +1213,36 @@ def test_nothing_is_said_beside_a_link_or_for_the_keeper(hearth, member, keeper,
     invite_by_email(keeper)
     said = plain(page(keeper.get("/settings")))
     assert "emailed invitation" not in said
+
+
+# ---- joining since ids (names-ids, stage 4; the founder's request of 20 November 2026) -------
+
+def test_a_newcomer_is_kept_by_a_random_id_and_shown_by_the_name_they_chose(
+        hearth, keeper, outbox, data_dir, commons):
+    client = hearth.app.test_client()
+    assert join(client, made_link(keeper)).status_code == 302
+    member_id = newcomer(hearth)
+    assert re.fullmatch(r"p-[a-z0-9]{8}", member_id)
+    assert not (data_dir / "members" / NEWCOMER).exists()
+    assert hearth.members.name_of(member_id) == NEWCOMER
+    assert hearth.members.did_for(member_id).endswith(member_id)
+    # their address signs them in once confirmed, and never before
+    other = hearth.app.test_client()
+    tried = post(other, "/login", data={"pseudonym": NEW_ADDRESS, "password": NEW_PASSWORD})
+    assert tried.status_code != 302
+    assert confirm_by(client, outbox.sent[-1]).status_code == 200
+    tried = post(other, "/login", data={"pseudonym": NEW_ADDRESS, "password": NEW_PASSWORD})
+    assert tried.status_code == 302
+    # the name they chose, or their id, signs no one in
+    for given in (NEWCOMER, member_id):
+        tried = post(hearth.app.test_client(), "/login",
+                     data={"pseudonym": given, "password": NEW_PASSWORD})
+        assert tried.status_code != 302
+
+
+def test_a_name_anyone_has_held_is_never_given_again(hearth, keeper, outbox):
+    assert join(hearth.app.test_client(), made_link(keeper)).status_code == 302
+    hearth.members.set_name(newcomer(hearth), "birch-tree")
+    said = html.unescape(page(join(hearth.app.test_client(), made_link(keeper),
+                                   address="another@example.org")))
+    assert "That name is already taken." in said

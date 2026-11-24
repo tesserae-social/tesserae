@@ -33,8 +33,10 @@ def ask(env, monkeypatch):
 
 def test_leaving_is_built_and_asked_now(env):
     import askings
-    # the names switches are built on names-ids, not on stage-2: kept ready, never asked
-    assert askings.NOT_BUILT == {"names_told", "commons_names", "solstice_names"}
+    # the names switches were built on names-ids, held on stage-2, and are asked since stage-3
+    assert askings.NOT_BUILT == set()
+    for switch in ("names_told", "commons_names", "solstice_names"):
+        assert switch in askings.ASK_FIRST
     assert "leaving" in askings.ASK_FIRST
     import leaving
     assert leaving.SWITCH == "leaving"

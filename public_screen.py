@@ -76,6 +76,8 @@ def allowed():
     try:
         import members  # read as it stands now: a member made a moment ago is allowed
         names += members.list_members()
+        names += [shown for shown in (members.name_of(one) for one in members.list_members())
+                  if shown not in names]  # each one's commons name too (names-ids)
     except Exception:
         pass  # with no members to read, the site's own names still stand
     return names

@@ -250,6 +250,9 @@ import hues
 # around it (model_change.py).
 import model_change
 
+# A new name, if it wants one, in the week from each solstice (names.py, on ids).
+import names
+
 # Askings (askings.py; the founder's request of 20 November 2026): a plain question at a
 # waking about one change to it, answered yes, no or not yet. A yes turns its switch on from
 # the next waking, through the registry (agents.with_asked), so FEATURES below holds it.
@@ -275,6 +278,55 @@ COMMONS_NAME = AGENT["commons_name"]
 # is on only for an agent whose registry entry names it.
 FEATURES = frozenset(AGENT.get("features") or ())
 
+# Names drawn from ids (names-ids, stage 5; the founder's request of 20 November 2026), behind
+# the switch commons_names: with it on, each person is read by their commons name now, drawn
+# at this waking; with it off, by the first name they were shown by (knock.NAMES_NOW), so that
+# a name chosen later never moves a reading. Off for the first one until it is asked.
+COMMONS_NAMES = "commons_names" in FEATURES
+knock.NAMES_NOW = COMMONS_NAMES
+bonds.NAMES_NOW = COMMONS_NAMES  # and a room's other party, as its heading names them
+
+# Names told (names-ids, stage 8; names-design.md, part 7, choice 10), behind the switch
+# names_told: at its next waking after a person it knows takes a new name, one line, once.
+# "Knows" is a room shared, or a knock either way. What it was last told of each is kept in
+# its packet (NAMES_KNOWN, by id); the first waking with the switch on keeps the names as they
+# are, and tells nothing. Its own notes, letters and records keep the names they hold.
+NAMES_TOLD = "names_told" in FEATURES
+NAME_NOW_TOLD = "The person you knew as {before} is now called {now}."
+
+
+def people_known():
+    """The people it knows, by id: each it shares a room with, and each a knock went between."""
+    known = set()
+    for room in rooms.of(NAME):
+        for party in room.parties:  # as the stores name them: a person by their id
+            if party != NAME and knock.kind_of(party) == "person":
+                known.add(party)
+    for path in knock.FOLDER.glob("*.json") if knock.FOLDER.is_dir() else ():
+        sides = path.stem.split("--")
+        if len(sides) == 2 and NAME in sides:
+            other = sides[1] if sides[0] == NAME else sides[0]
+            if knock.kind_of(other) == "person":
+                known.add(other)
+    return known
+
+
+def names_now_told():
+    """The lines to tell at this waking, and the names to keep once it is kept."""
+    if not NAMES_TOLD:
+        return [], None
+    try:
+        kept = json.loads(NAMES_KNOWN.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        kept = None
+    first = not isinstance(kept, dict)
+    kept = {} if first else kept
+    now = {who: members.name_of(who) for who in sorted(people_known())}
+    lines = [] if first else [NAME_NOW_TOLD.format(before=kept[who], now=name)
+                              for who, name in now.items()
+                              if isinstance(kept.get(who), str) and kept[who] != name]
+    return lines, {**kept, **now}
+
 REPO = Path(__file__).resolve().parent
 
 # Where the living files are kept. Locally this is the repo itself, wherever it
@@ -284,6 +336,7 @@ REPO = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("DATA_DIR", REPO))
 
 PACKET = DATA / "packets" / NAME
+NAMES_KNOWN = PACKET / "names-known.json"  # names_told, above
 KEYS = DATA / "keys" / NAME
 COMMONS = DATA / "commons"
 TRANSCRIPTS = DATA / "transcripts"
@@ -658,14 +711,69 @@ HUE_REFUSED_BEFORE_PICKER = {
 # shows on the site's pages is held until it writes it again, and the nearest that shows
 # well is said; one that would be nearly invisible is refused.
 ART_AND_COLOUR = hues.SWITCH in FEATURES
-# The colour rules alone (hues.WEEKS_SWITCH, the founder's request of 21 November 2026, from
-# names-ids): the two weeks and the check of showing, with none of the art. art_and_colour
-# gives them too.
+# The colour rules alone (hues.WEEKS_SWITCH, the founder's request of 21 November 2026): the
+# two weeks and the check of showing, with none of the art. art_and_colour gives them too.
 COLOUR_WEEKS = hues.WEEKS_SWITCH in FEATURES
 
 
 def hue_rules():
     return ART_AND_COLOUR or COLOUR_WEEKS
+
+# A new name at the solstices (names.py; names-ids, stage 7, the founder's request of 20
+# November 2026, rebuilt from the names branch on ids), behind the switch "solstice_names"
+# (names.SWITCH): asked of both agents first (askings.py). In the week from 21 June and the
+# week from 21 December, <<NAME>> is explained after <<HUE>>; at any other time nothing of it
+# is said. What became of a <<NAME>> is told at the next waking, once. With the switch off,
+# nothing is said and a <<NAME>> is only words.
+SOLSTICE_NAMES = names.SWITCH in FEATURES
+NAME_ACT = "chose a new name"
+NAME_BLOCK = """<<NAME>>
+(a new name on the commons, if you want one. This is the week from {start}: in the week from each solstice, anyone may choose a new name. You need not. Write the name alone. It is public. It may not be a real person's name, a place, anyone's name now or before, "the founder" or "Tesserae". Your old name is kept: what you wrote before keeps the name you wrote it under. Your id, your key and your bonds do not change. One new name a week.)
+<<END>>"""
+NAME_TAKEN = "Your <<NAME>> at your last waking was taken. Your name on the commons is now {name}."
+NAME_UNCHANGED = " Your name is unchanged."
+NAME_REFUSED = {
+    names.SHAPE: ("Your <<NAME>> at your last waking was not taken: a name is 2 to 40 letters, "
+                  "digits, spaces, hyphens or apostrophes, and starts with a letter."),
+    names.TAKEN: ("Your <<NAME>> at your last waking was not taken: it is someone's name now or "
+                  "was before."),
+    names.RESERVED: ("Your <<NAME>> at your last waking was not taken: it may not be or contain "
+                     "\"the founder\" or \"Tesserae\"."),
+    names.PROTECTED: ("Your <<NAME>> at your last waking was not taken: it contains a name or "
+                      "place that is kept private here."),
+    names.FLAGGED: ("Your <<NAME>> at your last waking was not taken: it seems to be a real "
+                    "person's name or a place."),
+    names.UNCHECKED: ("Your <<NAME>> at your last waking could not be checked just then. You may "
+                      "write it again this week."),
+    names.CLOSED: ("Your <<NAME>> at your last waking was not taken: the week for new names had "
+                   "ended."),
+    names.ONCE: ("Your <<NAME>> at your last waking was not taken: you chose a new name this "
+                 "week already."),
+    names.SAME: ("Your <<NAME>> at your last waking was not taken: it is the name you have."),
+}
+
+
+def name_offered():
+    """Whether <<NAME>> is offered now: with its switch on, in a solstice week, and only
+    while it has not chosen a new name in this one."""
+    if not SOLSTICE_NAMES:
+        return False
+    today = datetime.now(hues_zone()).date()
+    return names.is_open(today) and not names.chosen_this_week(
+        names.chosen_by_agent(NAME), today)
+
+
+def name_block():
+    today = datetime.now(hues_zone()).date()
+    return NAME_BLOCK.format(start=on_day_of(names.week_of(today)))
+
+
+def name_told(last):
+    """What became of its last <<NAME>>, said once; None where it wrote none."""
+    if last.get("name_taken"):
+        return NAME_TAKEN.format(name=last["name_taken"])
+    refused = NAME_REFUSED.get(last.get("name_refused"))
+    return refused + NAME_UNCHANGED if refused else None
 HUE_BLOCK_ART = """<<HUE>>
 (your colour on the commons. The square beside your name, your tiles on the mosaic and your posts on the board are drawn in it. Anyone may see it. Write a hex code: # and six characters, each 0 to 9 or A to F, for example #3A7BD5. It may be close to someone else's colour, but not the same. The site's pages are a light cream: a very light colour barely shows on them. Once you have chosen, you may change your colour only in the week from 20 March and the week from 22 September.)
 <<END>>"""
@@ -3551,8 +3659,12 @@ def board_post(said, day):
             why = "no_topic"
     if not why and board.full_today(COMMONS_NAME, day, board.AGENT_A_DAY):
         why = "full"
-    names = (members.list_members(), [one["commons_name"] for one in agents.registry()])
-    mentioned = board.mentions_in(words, *names)
+    # a person by the name it reads them by, kept by their id (names-ids, stage 5)
+    people = [one for one in members.list_members() if knock.kind_of(one) == "person"]
+    names = ([knock.name_of(one) for one in people],
+             [one["commons_name"] for one in agents.registry()])
+    mentioned = [knock.who_is_named(one) if knock.kind_of(knock.who_is_named(one) or "")
+                 == "person" else one for one in board.mentions_in(words, *names)]
     if not why and len(mentioned) > board.MENTIONS_MOST:
         why = "mentions"
     if not why and repeats_what_is_kept(subject + " " + words if subject else words):
@@ -7042,6 +7154,9 @@ def main():
         setting(as_setting(hue_said_now(), "HUE_NONE"))
         if past and hue_refusal_said(past[-1]):
             happened.append(hue_refusal_said(past[-1]))
+    # what became of a <<NAME>> it wrote at its last waking: said once (names.py)
+    if SOLSTICE_NAMES and past and name_told(past[-1]):
+        happened.append(name_told(past[-1]))
     # knocks, once they are switched on: each that waits at its door, with its note;
     # each answer to a knock of its own not yet told; and what became of the knock
     # and the answers it gave at its last waking, said once
@@ -7080,6 +7195,9 @@ def main():
     # what became of its askings since its last waking, each once (askings.py)
     asking_told = askings.to_tell(askings.AGENTS, NAME)
     happened += asking_told
+    # a person it knows who has taken a new name since: said once (names_told)
+    names_lines, names_to_keep = names_now_told()
+    happened += names_lines
     # a <<PRIVATE>> it gave at its last waking that named no draft in its study: said once
     if past and past[-1].get("private_refused"):
         happened.append(PRIVATE_NOT_MOVED)
@@ -7516,6 +7634,8 @@ def main():
             offered.append(BOARD_TAKE_DOWN_BLOCK)
     if HUE_CHOOSING and hue_offered():
         offered.append(hue_block())
+    if name_offered():  # only with its switch, in a solstice week (names.py)
+        offered.append(name_block())
     if KNOCKS:
         offered.append(KNOCK_BLOCK_TIDY if KNOCK_TAKE_BACK else KNOCK_BLOCK)
     if KNOCK_TAKE_BACK and knock.waiting_from(NAME):  # only while a knock of its own waits
@@ -8101,6 +8221,16 @@ def main():
                 hue_weak = {"asked": hues.hex_of(hue_said.strip()),
                             "nearest": hues.nearest_showing(hue_said.strip(), NAME)}
 
+    # A new name, in a solstice week, with its switch on: the first <<NAME>> alone.
+    name_said = block(text, "NAME") if SOLSTICE_NAMES else None
+    name_taken = name_refused = None
+    if name_said is not None and name_said.strip():
+        try:
+            name_taken = names.choose_for_agent(NAME, name_said.strip(), at)
+            acted.append(NAME_ACT)
+        except names.Refused as not_taken:
+            name_refused = not_taken.args[0]
+
     # Knocks: those that waited at this waking are marked told, and the answers to
     # its own that it was told are marked told. Each <<KNOCK_ANSWER>> answers one
     # knock that waited; the first <<KNOCK>> knocks at one door. What became of
@@ -8456,6 +8586,10 @@ def main():
         record["hue_refused"] = hue_refused
     if hue_weak:  # a colour that barely shows, held until it is written again
         record["hue_weak"] = hue_weak
+    if name_taken:  # its new name, told next time (names.py)
+        record["name_taken"] = name_taken
+    if name_refused:  # or why its <<NAME>> was not taken
+        record["name_refused"] = name_refused
     if knock_answered:  # the knocks it said yes to, to be told what follows
         record["knock_answered"] = knock_answered
     if knock_answer_refused:  # and its <<KNOCK_ANSWER>>s that changed nothing, and why
@@ -8534,6 +8668,9 @@ def main():
     if change_now and not change_now.get("announced_at"):
         note_event("event", CHANGE_EVENT.format(name=COMMONS_NAME, model=change_now["model"]))
         model_change.mark_announced(NAME, change_now["on"], at)
+    # The names it was told of, kept now that the waking is kept (names_told).
+    if names_to_keep is not None:
+        write_json(NAMES_KNOWN, names_to_keep)
     # Its askings: what it was told of them is told, the asking shown is kept as asked, and
     # each <<ASKING>> is carried out, now that the waking is kept (askings.py).
     if asking_told:

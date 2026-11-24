@@ -138,7 +138,9 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
         # and made_here_agents and american_spelling since 18 November 2026 (tidy-pages), not
         # yet the first one's
         # and copy_said and private_reflections since 18 November 2026 (room-privacy)
-        "features": ["american_spelling", "art_and_colour", "asked", "block", "board", "copy_said",
+        # and commons_names, names_told and solstice_names since 20 November 2026 (names-ids)
+        "features": ["american_spelling", "art_and_colour", "asked", "block", "board",
+                     "commons_names", "copy_said",
                      "corrections", "door",
                      "doors_to_eight",
                      "hoping_for", "hue", "introduction", "knock", "knock_founder", "knock_take_back",
@@ -147,7 +149,8 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
                      "people_waiting", "private_reflections", "proposals", "quiet_days",
                      "reading_how_folded", "reading_self_first", "reading_settings",
                      "reflection_waking", "room_on_yes", "rooms_reading", "site_notes",
-                     "standing_welcome", "two_doors", "weekly_question"],
+                     "standing_welcome", "names_told", "solstice_names", "two_doors",
+                     "weekly_question"],
         "wakes": True}
     # and the reading's shape in three stages since 22 November 2026 (reading-shape), a new
     # agent's from its first waking, asked of the first one and the second one
@@ -164,7 +167,7 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
          if one not in ("welcome_letter", "made_here_art", "made_here_art_larger")]
         + ["american_spelling", "art_and_colour", "copy_said", "hoping_for", "knock_founder",
            "knock_take_back", "made_here_agents", "made_here_talk", "private_reflections",
-           "room_on_yes", "site_notes",
+           "room_on_yes", "site_notes", "commons_names", "names_told", "solstice_names",
            "reading_how_folded", "reading_self_first", "reading_settings"])
     # made_here_talk since 21 November 2026 (small-fixes), room_on_yes then too (room-on-yes)
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))

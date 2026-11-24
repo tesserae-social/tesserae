@@ -2225,6 +2225,7 @@ def askings_queues_aside(request, monkeypatch):
         return
     import askings
     monkeypatch.setattr(askings, "ORDER", ())
+    monkeypatch.setattr(askings, "BEFORE_IDS_QUEUE", [])  # names-ids, stage 6
 
 
 @pytest.fixture

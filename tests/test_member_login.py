@@ -107,7 +107,7 @@ CONFIRMED = "2026-11-01T12:00:00Z"
 
 def test_the_login_box_asks_for_a_commons_name_or_an_email_address(visitor):
     said = page(visitor.get("/login"))
-    assert '<label for="pseudonym">commons name or email address</label>' in said
+    assert '<label for="pseudonym">email address or sign-in name</label>' in said
 
 
 @pytest.mark.parametrize("who, address, password", [(MEMBER, MEMBER_ADDRESS, MEMBER_PASSWORD),

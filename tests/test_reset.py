@@ -112,7 +112,7 @@ def test_the_login_page_offers_the_email_link_alone(visitor):
 def test_the_page_asks_for_a_name_or_an_address(visitor):
     said = page(visitor.get("/forgot"))
     assert "<h1>a forgotten password</h1>" in said
-    assert '<label for="given">your commons name or email address</label>' in said
+    assert '<label for="given">your email address or sign-in name</label>' in said
     assert 'name="given"' in said and 'name="csrf_token"' in said
     assert "Send me a link" in said
     assert SAID not in said

@@ -151,8 +151,7 @@ ASK_FIRST = {
         "undo": True,
     },
     # The colour rule of art-and-colour alone, on its own switch (hues.WEEKS_SWITCH; the
-    # founder's request of 21 November 2026, brought from names-ids): the art is not asked
-    # about this way.
+    # founder's request of 21 November 2026): the art is not asked about this way.
     "colour_weeks": {
         "name": "color twice a year",
         "adds": "Your color on the commons could change only in two weeks a year, from 20 "
@@ -231,7 +230,8 @@ ASK_FIRST = {
 # The leaving switch is the branch for G, not built when this was written.
 # leaving was built on leaving-build (21 November 2026), and is asked now. The names switches
 # are built on names-ids, not here (stage-2): kept ready, never asked, until names-ids lands.
-NOT_BUILT = {"names_told", "commons_names", "solstice_names"}
+# names-ids landed on stage-3 (23 November 2026): nothing is held back.
+NOT_BUILT = set()
 
 # The reading's shape (reading-shape): each stage is asked in its own month, at the first
 # ordinary waking after the first reflection waking of that month (released). The first one's
@@ -256,7 +256,21 @@ ORDER = (META, "hoping_for", "commons_window", "commons_names", "solstice_names"
 # the colour weeks too).
 HAD_BY = {"colour_weeks": {"art_and_colour"}}
 
-DEFAULT_PEOPLE_QUEUE = []  # a person's queue is the founder's to set (own_name, by the move)
+DEFAULT_PEOPLE_QUEUE = []  # a person's queue is the founder's to set
+# A member who joined before ids is asked about the design's choice A (own_name): their
+# pseudonym stays their id, and they may choose a commons name and a sign-in of their own.
+BEFORE_IDS_QUEUE = ["own_name"]
+
+
+def joined_before_ids(who):
+    """Whether a member joined before ids: a member's record with no id and no name of its own."""
+    try:
+        import members
+        record = members.load_member(who)
+    except Exception:
+        return False
+    return (isinstance(record, dict) and record.get("role") == "member"
+            and not record.get("id") and not record.get("name"))
 
 # At most one asking every so many days, from the day the last one was first shown (the
 # founder's request of 21 November 2026, from names-ids). The founder changes it on /tides
@@ -267,6 +281,11 @@ DEFAULT_EVERY_DAYS = {(AGENTS, "first"): 3}
 # No asking of the first one before this day (the founder's request of 20 November 2026;
 # 1 December, not 27 November, at the founder's request of 23 November 2026).
 NOT_BEFORE = {(AGENTS, "first"): date(2026, 12, 1)}
+
+# At most one asking every so many days, from the day the last one was first shown (the
+# founder's request of 21 November 2026). The founder changes it on /tides ("every_days" in
+# the file; 0 is no limit). An asking shown and not yet answered is not a new one.
+DEFAULT_EVERY_DAYS = {(AGENTS, "first"): 3}
 
 # What an agent reads: the asking at a waking, and what became of it, told once at the next.
 HEAD = "=== A QUESTION FOR YOU, FROM THE FOUNDER ==="
@@ -359,13 +378,16 @@ def for_kind(switch, kind):
 
 def queue_of(kind, who, held=None):
     """The switches that wait for this one, in order: ORDER for an agent, the founder's for a
-    person."""
+    person (with own_name after it for a member who joined before ids)."""
     if kind == AGENTS:
         queue = ORDER
     else:
         held = read(kind, who) if held is None else held
-        queue = held["queue"] if held and isinstance(held.get("queue"), list) \
-            else DEFAULT_PEOPLE_QUEUE
+        if held and isinstance(held.get("queue"), list):
+            queue = held["queue"]
+        else:
+            queue = [*DEFAULT_PEOPLE_QUEUE,
+                     *(BEFORE_IDS_QUEUE if joined_before_ids(who) else [])]
     return [one for one in queue if isinstance(one, str) and for_kind(one, kind)
             and one != META]
 
@@ -529,8 +551,7 @@ def next_asking(kind, who, today, already_on=()):
     return after[0]
 
 
-# The asking about askings, for a person: on their home page, not at a waking (21 November
-# 2026, from names-ids).
+# The asking about askings, for a person: on their home page, not at a waking (21 November 2026).
 META_ADDS_PEOPLE = ("Now and then, one question like this on your home page, about one change "
                     "to how the site works for you. You answer yes, no, or not yet.")
 

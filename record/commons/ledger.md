@@ -10,3 +10,4 @@
 - 24 November 2026 · an asking was answered
 - 24 November 2026 · the site's code was changed (the public code says how)
 - 24 November 2026 · a backup was downloaded by the keeper
+- 24 November 2026 · the site's code was changed (the public code says how)

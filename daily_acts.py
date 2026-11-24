@@ -85,14 +85,19 @@ def shown_words(words):
 
 
 def public_text(text):
-    """acts.md as it is handed out: every line but a day of "was here." alone."""
-    if WAS_HERE_SAID:
-        return text
+    """acts.md as it is handed out: every line but a day of "was here." alone; and a name that
+    is only someone's sign-in name said as their name now, so no sign-in is ever shown
+    (hotfix-ids, members.shown_for). Every other line exactly as written."""
+    import members
     kept = []
     for line in text.splitlines(keepends=True):
         found = LINE.match(line.strip())
         if found and not shown_words(found.group(3)):
             continue
+        if found:
+            shown = members.shown_for(found.group(2))
+            if shown != found.group(2):
+                line = line.replace(DOT + found.group(2) + DOT, DOT + shown + DOT, 1)
         kept.append(line)
     return "".join(kept)
 

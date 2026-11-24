@@ -264,7 +264,7 @@ def person_folder(name):
     if not isinstance(name, str) or agents.by_id(name) is not None:
         return None
     try:
-        members.validate_pseudonym(name)
+        members.validate_member_id(name)
     except (members.MemberError, ValueError):
         return None
     # read where the data is now, as packet() does

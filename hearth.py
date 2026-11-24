@@ -6591,18 +6591,43 @@ def commons_here():
 
 
 # The colour of each person named on the commons, for the atrium to draw their tiles in:
-# the founder, and everyone with a line of acts. Only those who have chosen a colour.
+# the founder, everyone with a line of acts, and everyone a letter line names. Only those
+# who have chosen a colour.
+#
+# Since hotfix-ids (24 November 2026): a line already written may name someone by an old
+# name (a joining name, a commons name held before, their id from before ids, "the founder"
+# or "founder"); each finds its holder by members.id_of_written, so their tiles keep their
+# colour after the keeper became "founder". A name that is only someone's sign-in is never
+# said here: it is said as their name now, as /commons/acts.md says it (members.shown_for).
 @app.route("/commons/people.json")
 def commons_people():
-    keeper = knock.keeper()
-    said = []
-    for name in [THE_FOUNDER] + [one for one in daily_acts.names() if one != THE_FOUNDER]:
-        # a line of acts names a commons name; the colour is its holder's now (names-ids)
-        who = keeper if name == THE_FOUNDER else (members.id_of(name) or name)
-        colour = hues.person_chosen(who) if who and knock.kind_of(who) in ("person", "keeper") else None
+    named = [THE_FOUNDER, *daily_acts.names(), *letter_writers()]
+    said, seen = [], set()
+    for name in named:
+        shown = members.shown_for(name)
+        if shown in seen:
+            continue
+        who = knock.keeper() if name == THE_FOUNDER else members.id_of_written(name)
+        colour = (hues.person_chosen(who)
+                  if who and knock.kind_of(who) in ("person", "keeper") else None)
         if colour:
-            said.append({"name": name, "hue": colour})
+            seen.add(shown)
+            said.append({"name": shown, "hue": colour})
     return commons_json(said)
+
+
+LETTER_LINE = re.compile(r"^-?\s*\d{4}-\d{2}-\d{2}\s*·\s*letter\s*·\s*(.+?) wrote a letter\b")
+
+
+def letter_writers():
+    """Everyone a letter line of events.md names as its writer, in the order first named."""
+    found = []
+    text = read_text(EVENTS) if EVENTS.exists() else ""
+    for line in text.splitlines():
+        match = LETTER_LINE.match(line.strip())
+        if match and match.group(1) not in found:
+            found.append(match.group(1))
+    return found
 
 
 @app.route("/commons/acts.md")
@@ -7188,9 +7213,17 @@ def first_upper(text):
 app.jinja_env.filters["first_upper"] = first_upper
 
 
+def shared_room(agent):
+    """The room whoever is signed in shares with this agent, as rooms.of finds it by their id
+    (the keeper's is "founder"), or None: its first room where they are its party, else a
+    later room with it, such as second-founder (hotfix-ids, 24 November 2026)."""
+    found = rooms_shared(agent)
+    return agent["room"] if agent["room"] in found else (found[0] if found else None)
+
+
 def party_to(agent):
     """Whether whoever is signed in shares a room with this agent."""
-    return any(rooms.agent_of(room.id)["id"] == agent["id"] for room in rooms_here())
+    return shared_room(agent) is not None
 
 
 def agent_page(kind, kept_for_the_keeper=None):
@@ -7668,10 +7701,11 @@ def tides_shown():
     rows = []
     for agent in agents.registry():
         standing = tide_stop(agent["id"])
-        ours = party_to(agent)
+        shared = shared_room(agent)  # the keeper's own room with it, never its first by default
+        ours = shared is not None
         rows.append({"agent": agent, "wakes": bool(agent.get("wakes")),
                      "reflections": reflection_note(preferences(agent)) if ours else None,
-                     "room": url_for("room", room_id=agent["room"]) if ours else None,
+                     "room": url_for("room", room_id=shared) if ours else None,
                      "rhythm_note": rhythm_note(agent["id"]) if agent.get("wakes") else None,
                      "reflection_time": (reflection_time_note(agent["id"])
                                          if agent.get("wakes") else None),
@@ -8165,11 +8199,30 @@ def askings_shown():
                if askings.queue_of(askings.PEOPLE, who)]  # one with a queue, set or not
     for who in sorted(set(people) & set(site_notes.members_who_may())):
         one = askings.shown_to_founder(askings.PEOPLE, who, today)
-        one["name"] = who
+        one["name"] = members.name_of(who)  # their name now, never their id or sign-in (hotfix-ids)
+        # each switch's place in what waits, for the plain-named boxes (hotfix-ids)
+        one["places"] = {row["switch"]: place for place, row in enumerate(one.get("rows", [])[1:], 1)}
         shown.append(one)
     switches = {kind: [s for s in askings.ASK_FIRST if s != askings.META
                        and askings.for_kind(s, kind)] for kind in askings.KINDS}
-    return {"subjects": shown, "switches": switches}
+    names = {switch: askings.ASK_FIRST[switch]["name"] for switch in askings.ASK_FIRST}
+    return {"subjects": shown, "switches": switches, "names": names}
+
+
+def order_asked(form):
+    """The order of what waits, as /tides sends it: the switches with a place, by place
+    (hotfix-ids); or as words, one switch per line, as before."""
+    if "order" in form:
+        return (form.get("order") or "").replace(",", " ").split()
+    placed = []
+    for key, said in form.items():
+        if not key.startswith("place-") or not (said or "").strip():
+            continue
+        try:
+            placed.append((int(said.strip()), key[len("place-"):]))
+        except ValueError:
+            raise askings.Refused("a place was not a whole number")
+    return [switch for _, switch in sorted(placed)]
 
 
 @app.route("/tides/askings/order", methods=["POST"])
@@ -8177,9 +8230,8 @@ def askings_shown():
 def askings_order():
     kind = request.form.get("kind") or ""
     who = request.form.get("who") or ""
-    order = (request.form.get("order") or "").replace(",", " ").split()
     try:
-        askings.set_queue(kind, who, order)
+        askings.set_queue(kind, who, order_asked(request.form))
     except askings.Refused as refused:
         return tides_page(askings_refused=str(refused))
     return tides_page(askings_saved="The order of what waits is kept.")

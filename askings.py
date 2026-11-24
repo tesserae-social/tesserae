@@ -256,9 +256,10 @@ AFTER_ASKINGS = {(AGENTS, "second"): MONTHLY}
 # is asked only the switches it does not have; a queue once saved for an agent on /tides is
 # not read and is dropped at the next write. The reading's stages go by their months
 # (released), and come before the rest once their month has come.
-ORDER = (META, "hoping_for", "commons_window", "commons_names", "solstice_names", "names_told",
-         "knock_founder", "knock_take_back", "leaving", "american_spelling", "copy_said",
-         "made_here_agents", "colour_weeks", "replies_told", *MONTHLY)
+# replies_told just after commons_window: the founder's request of 24 November 2026 (hotfix-ids).
+ORDER = (META, "hoping_for", "commons_window", "replies_told", "commons_names", "solstice_names",
+         "names_told", "knock_founder", "knock_take_back", "leaving", "american_spelling",
+         "copy_said", "made_here_agents", "colour_weeks", *MONTHLY)
 
 # A switch an agent has by another of its features: not asked (hues.py: art_and_colour gives
 # the colour weeks too).

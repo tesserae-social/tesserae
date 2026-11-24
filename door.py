@@ -149,7 +149,7 @@ def path_of(who, kind=PEOPLE):
     if is_agent(who):
         return DATA / "packets" / who / RECORD
     try:
-        members.validate_pseudonym(who)
+        members.validate_member_id(who)
     except MemberError:
         raise DoorError("there is no member by that name") from None
     return members.MEMBERS / who / RECORD

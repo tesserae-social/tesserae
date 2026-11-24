@@ -285,27 +285,22 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="kind" value="{{ one.kind }}">
       <input type="hidden" name="who" value="{{ one.who }}">
-      <label for="order-{{ one.kind }}-{{ one.who }}">what waits, in order (switches, one per line; from {{ askings.switches[one.kind]|join(', ') }})</label>
-      <textarea id="order-{{ one.kind }}-{{ one.who }}" name="order" rows="4">{% for row in one.rows[1:] %}{{ row.switch }}
-{% endfor %}</textarea>
-      <button type="submit">Keep this order</button>
-    </form>
-    <form method="post" action="{{ url_for('askings_every', _anchor='askings') }}" class="field">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="kind" value="{{ one.kind }}">
-      <input type="hidden" name="who" value="{{ one.who }}">
-      <label for="every-{{ one.kind }}-{{ one.who }}">at most one asking every so many days (0 for no limit){% if one.last_asked %}; the last was first shown on {{ one.last_asked }}{% endif %}</label>
-      <input id="every-{{ one.kind }}-{{ one.who }}" name="days" type="number" min="0" max="365" value="{{ one.every_days }}">
-      <button type="submit">Keep this</button>
+      <p class="muted">What waits, in order: give each a place, 1 first; leave it empty to not ask it.</p>
+      {%- for switch in askings.switches[one.kind] %}
+      <label for="place-{{ one.who }}-{{ switch }}">{{ askings.names[switch] }}</label>
+      <input id="place-{{ one.who }}-{{ switch }}" name="place-{{ switch }}" type="number" min="1" max="{{ askings.switches[one.kind]|length }}" value="{{ one.places.get(switch, '') }}">
+      {%- endfor %}
+      <button type="submit">Set the order</button>
     </form>
     {%- endif %}
+    {#- one spacing field for each agent or member, showing what is set now (hotfix-ids) #}
     <form method="post" action="{{ url_for('askings_every', _anchor='askings') }}" class="field">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="kind" value="{{ one.kind }}">
       <input type="hidden" name="who" value="{{ one.who }}">
-      <label for="every-{{ one.kind }}-{{ one.who }}">at most one asking every so many days (0 for no limit){% if one.last_asked %}; the last was first shown on {{ one.last_asked }}{% endif %}</label>
+      <label for="every-{{ one.kind }}-{{ one.who }}">at most one asking every so many days (0 for no limit); now {% if one.every_days %}every {{ one.every_days }} day{% if one.every_days != 1 %}s{% endif %}{% else %}no limit{% endif %}{% if one.last_asked %}; the last was first shown on {{ one.last_asked }}{% endif %}</label>
       <input id="every-{{ one.kind }}-{{ one.who }}" name="days" type="number" min="0" max="365" value="{{ one.every_days }}">
-      <button type="submit">Keep this</button>
+      <button type="submit">Set the spacing</button>
     </form>
     {%- endif %}
   </article>

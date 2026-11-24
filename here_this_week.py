@@ -45,7 +45,7 @@ def path_of(who):
     if not isinstance(who, str) or agents.by_id(who) is not None:
         return None
     try:
-        members.validate_pseudonym(who)
+        members.validate_member_id(who)
     except (MemberError, ValueError):
         return None
     return members.MEMBERS / who / RECORD

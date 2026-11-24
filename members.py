@@ -134,6 +134,15 @@ def validate_pseudonym(name):
     return name
 
 
+def validate_member_id(name):
+    """validate_pseudonym, and the keeper's id "founder" too: the one folder made of a reserved
+    word (KEEPER_ID). For finding a member's own files by their id; never for joining
+    (hotfix-ids, after move_to_ids.py on the host, 24 November 2026)."""
+    if name == KEEPER_ID:
+        return name
+    return validate_pseudonym(name)
+
+
 def _folder(name):
     """The member's folder, once the name is known to be safe to make one of. The keeper's
     id, "founder", is reserved for anyone joining, and is the keeper's folder (KEEPER_ID)."""
@@ -993,3 +1002,57 @@ def id_of_first(name):
         if not is_keeper_id(one) and first_name_of(one) == said:
             return one
     return None
+
+
+# ---- old names in lines already written (hotfix-ids, 24 November 2026) ----------------------
+# After stage 3 and move_to_ids.py, lines already written on the commons (the daily line of
+# acts, letter lines) may name a person by a name that is not their name now: a joining name
+# or any commons name they held, their id from before ids, or "the founder". So their tiles
+# keep their colour, an old name finds its holder (id_of_written). A sign-in name finds its
+# holder too, but is never shown: shown_for gives their name now in its place.
+
+def _by_sign_in(said):
+    """The id a bare sign-in name (never an address) is kept for in the index, or None."""
+    if "@" in said:
+        return None
+    try:
+        return _sign_in_index().get(said)
+    except MemberError:
+        return None
+
+
+def _written_id(said):
+    """The id a shown name finds: the name now, "the founder", a commons name once held (a
+    joining name too), or the id itself. None for a sign-in name or no one's."""
+    found = id_of(said)
+    if found:
+        return found
+    held = name_held_by(said)
+    if held:
+        return held
+    try:
+        record = load_member(said)
+    except MemberError:
+        return None
+    return said if isinstance(record, dict) else None
+
+
+def id_of_written(name):
+    """The id of whoever a line already written names, by any name it may hold; or None.
+    For finding a holder or a colour, never for signing in."""
+    if not isinstance(name, str) or not name.strip():
+        return None
+    said = " ".join(name.split()).lower()
+    return _written_id(said) or _by_sign_in(said)
+
+
+def shown_for(name):
+    """A name from a line already written as it may be shown: as written, unless it is only
+    someone's sign-in name, which is never shown; then their name now."""
+    if not isinstance(name, str):
+        return name
+    said = " ".join(name.split()).lower()
+    if _written_id(said):
+        return name
+    found = _by_sign_in(said)
+    return name_of(found) if found else name

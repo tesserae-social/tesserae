@@ -264,7 +264,7 @@ def as_lines(one):
 def drafts_folder(who):
     if is_agent(who):
         return DATA / "packets" / who / "private" / "drafts"
-    members.validate_pseudonym(who)
+    members.validate_member_id(who)  # the keeper's "founder" too (hotfix-ids)
     return members.MEMBERS / who / "drafts"
 
 

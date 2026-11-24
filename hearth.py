@@ -10673,10 +10673,29 @@ def board_topic_of_this_week():
     return board.key_of("week", week) if week in board_weeks() else None
 
 
+# Every yes that waits, checked once when the hearth starts (small-builds, the founder's request
+# of 23 November 2026): a yes that waited for room opens now where it fits (knock.open_waiting,
+# room-on-yes), without anyone saving a door first. In a thread, as the other starts are, so
+# that nothing it does holds the site from coming up; a failure is said in the log and changes
+# nothing.
+def open_waiting_at_start():
+    try:
+        return knock.open_waiting(utc_stamp())
+    except Exception as error:  # never a reason for the hearth not to start
+        print("hearth: the waiting yeses were not checked at start: %s" % error,
+              file=sys.stderr, flush=True)
+        return []
+
+
+def start_waiting_yeses():
+    threading.Thread(target=open_waiting_at_start, name="waiting-yeses", daemon=True).start()
+
+
 start_tide()
 start_backups()
 start_emails()
 start_acts()
+start_waiting_yeses()
 
 
 if __name__ == "__main__":

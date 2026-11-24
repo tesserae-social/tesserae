@@ -146,7 +146,8 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
                      "looking_back", "made_here", "made_here_agents", "made_here_talk",
                      "people_waiting", "private_reflections", "proposals", "quiet_days",
                      "reading_how_folded", "reading_self_first", "reading_settings",
-                     "reflection_waking", "room_on_yes", "rooms_reading", "site_notes",
+                     "reflection_waking", "replies_told", "room_on_yes", "rooms_reading",
+                     "site_notes",
                      "standing_welcome", "two_doors", "weekly_question"],
         "wakes": True}
     # and the reading's shape in three stages since 22 November 2026 (reading-shape), a new
@@ -164,7 +165,7 @@ def test_a_dry_run_through_every_step(found, data_dir, monkeypatch, tmp_path):
          if one not in ("welcome_letter", "made_here_art", "made_here_art_larger")]
         + ["american_spelling", "art_and_colour", "copy_said", "hoping_for", "knock_founder",
            "knock_take_back", "made_here_agents", "made_here_talk", "private_reflections",
-           "room_on_yes", "site_notes",
+           "room_on_yes", "site_notes", "replies_told",
            "reading_how_folded", "reading_self_first", "reading_settings"])
     # made_here_talk since 21 November 2026 (small-fixes), room_on_yes then too (room-on-yes)
     registry = json.loads((bundle / "agents.json").read_text(encoding="utf-8"))

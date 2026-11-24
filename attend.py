@@ -3493,6 +3493,34 @@ def board_mentions_said(past):
             not in blocks.blocked_by(NAME)]
 
 
+# Replies to its own topics (small-builds, the founder's request of 23 November 2026), behind
+# the switch "replies_told": asked of the first one and the second one, on for agents founded
+# from then on. Each reply by someone else to a topic it started on the board is told once, in
+# one line, under WHAT HAS HAPPENED, after its mentions: a reply that mentions it is told as a
+# mention only, and someone in a block with it is left out, as a mention is. Its record keeps
+# the board's count as it read it ("replies_seq"), so the next waking tells only what came
+# after; at the first waking with the switch, what came since its last waking's day.
+REPLIES_TOLD = "replies_told" in FEATURES
+BOARD_REPLIED = "{by} replied in your topic {key} ({subject}) on the board, post {n}."
+REPLIES_SEQ = []  # the board's count when this waking read it, kept in its record
+
+
+def board_replies_said(past):
+    """Each reply to a topic of its own since it was last told, one line each, oldest first."""
+    REPLIES_SEQ[:] = [board.count()]
+    after = next((one["replies_seq"] for one in reversed(past or [])
+                  if isinstance(one.get("replies_seq"), int)), None)
+    since = (past[-1]["at"][:10] if past else
+             (board_today() - timedelta(days=1)).isoformat())
+    return [BOARD_REPLIED.format(by=one["by"], key=one["key"], n=one["n"],
+                                 subject=one["subject"] or BOARD_NO_SUBJECT)
+            for one in board.replies_to(COMMONS_NAME, after, since, CHARTER_CHANGES,
+                                        board_weeks(), board_today(), tuple(BOARD_SECTIONS))
+            if COMMONS_NAME not in one["mentions"]
+            and (knock.who_is_named(one.get("by") or "") or one.get("by"))
+            not in blocks.blocked_by(NAME)]
+
+
 def board_own_standing():
     """Whether a post of its own stands on the board, in any section it may post in."""
     return any(post.get("by") == COMMONS_NAME and post.get("words")
@@ -7036,6 +7064,8 @@ def main():
         happened.append(BOARD_TAKE_DOWN_REFUSED)
     if BOARD:  # where it was mentioned on the board since its last waking
         happened.extend(board_mentions_said(past))
+    if BOARD and REPLIES_TOLD:  # replies to its own topics, each told once (small-builds)
+        happened.extend(board_replies_said(past))
     # its colour on the commons, where it may choose one, and a <<HUE>> it gave at its
     # last waking that was not taken: said once
     if HUE_CHOOSING:
@@ -8408,6 +8438,8 @@ def main():
         "woken_by": ITS_OWN_ASKING if again else "tide" if tide else "founder",
         "acted": acted, "heartbeat": heartbeat, "reflection": without_private(text),
     }
+    if BOARD and REPLIES_TOLD and REPLIES_SEQ:  # the board's count it was told up to
+        record["replies_seq"] = REPLIES_SEQ[0]
     if READING_HOW_FOLDED:  # the blocks it was shown in full (reading-shape, C)
         record["shown_in_full"] = list(HOW_SHOWN_FULL)
     if dropped:  # read back at the next waking, so that it is told what was not kept

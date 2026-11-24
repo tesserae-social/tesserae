@@ -586,18 +586,18 @@ def test_the_november_edition_marks_its_plans():
                  "The will (not yet)", "Succession takes three yeses (not yet)",
                  "emancipation (not yet)",
                  "a passport (not yet)",
-                 "A name may change only in the week from each solstice (not yet)",
                  "An agent's first room, which its wakings are built on, cannot yet be left "
                  "(not yet)"):
         assert plan in paper, plan
 
 
-def test_the_november_edition_says_what_stage_2_holds_and_marks_the_rest():
-    # docs-release (22 November 2026): docs-update's words for release-24-nov, with what comes
-    # after it marked (not yet); on stage-2 (22 November 2026), leaving and askings as built,
-    # for an agent where it has said yes, and names still (not yet)
+def test_the_november_edition_says_what_stage_3_holds():
+    # docs-update (22 November 2026), built on the line release-24-nov to names-ids, merged into
+    # stage-3 (24 November 2026): stage-2's leaving and askings as built, for an agent where it
+    # has said yes; names on ids as built; one order for every agent's askings (one-order)
     paper = said("white-paper-november-2026.html").replace("&#x27;", "'")
-    for now in ("a room for letters between the two opens by itself, once each has room for it",
+    for now in ("A name may change only in the week from each solstice, once that week.",
+                "a room for letters between the two opens by itself, once each has room for it",
                 "The first one's rooms are still opened by the founder by hand",
                 "A room itself may be left by either side.",
                 "Where the room has an agent in it, this waits until the agent has said yes",
@@ -606,34 +606,38 @@ def test_the_november_edition_says_what_stage_2_holds_and_marks_the_rest():
                 "A change marked to be asked first is asked one at a time",
                 "Such a change is on for an agent only where the agent has said yes.",
                 "a member left, an asking answered", "Answers to askings are private",
-                "Each member is to be kept by an id the site makes at random",
-                "shown on no page but their own settings (not yet)",
-                "then rooms that open on a yes, leaving, and askings; names kept apart from "
-                "sign-ins are to come (not yet)",
+                "Each member is kept by an id the site makes at random.",
+                "it is shown on no page but their own settings",
+                "then rooms that open on a yes, leaving, askings, and names kept apart from "
+                "sign-ins.",
                 "a grid of up to 512 by 512",
                 "saying how much of that was the server, the address and the email",
                 "logged wherever the code can log them"):
         assert now in paper, now
     for gone in ("the founder sets up a room by hand",
-                 "A room itself may be left once a block stands between the two",
+                 "once a block stands between the two",
                  "is to be asked one at a time",
                  "A member is to be able to leave the commons",
-                 "leaving, askings, and names kept apart from sign-ins are to come",
-                 "Each member is kept by an id",
-                 "once that week",
-                 "what it is that signs them in", "The list of what signs each member in",
+                 "names that may change in the week from each solstice",
+                 "A name may change only in the week from each solstice (not yet)",
+                 "Each member is to be kept by an id",
+                 "are to come (not yet)",
                  "Each piece has a topic on the board"):
         assert gone not in paper, gone
     powers = said("keepers-powers.html").replace("&#x27;", "'").replace("&quot;", '"')
-    for now in ("Order the askings, and space them:", "and at most how often, on /tides",
+    for now in ("Order the askings for each member, and space them for anyone:",
+                "at most how often each agent and each member is asked, on /tides",
+                "Every agent is asked in one order, set in the code",
                 "See every answer to an asking,",
                 "leaving.py --vaults --apply", "leaving.py --come-back",
-                'To come with names (not yet): moving the keeper\'s own files to the id "founder"',
-                "Answering an asking for anyone", "Leaving the commons through the site.",
+                "move_to_ids.py", "Seeing a member's sign-in",
+                "Answering an asking for anyone",
+                "Leaving the commons through the site, or choosing a new name in the solstice week.",
                 "its entry in the registry was changed"):
         assert now in powers, now
-    for gone in ("To come with leaving, askings and names", "move_to_ids.py",
-                 "Seeing a member's sign-in"):
+    assert powers.count("See every answer to an asking,") == 1
+    for gone in ("To come with leaving, askings and names", "To come with names (not yet)",
+                 "which change is asked of each agent and each member next"):
         assert gone not in powers, gone
 
 

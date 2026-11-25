@@ -171,7 +171,8 @@ def with_chosen(entries):
 
 def with_asked(entries):
     """The entries, each with the switches its askings turned on beside its own (askings.py);
-    then, since the seasons (seasons.py, 25 November 2026), every improvement, and each
+    then, since the seasons (seasons.py, 25 November 2026), each improvement it has been told
+    of (one is on from the waking that tells it, which attend.py turns on itself), and each
     preference as the agent set it. A preference it set off is taken out of its features and
     named in its "settings_off", so that what gives it anyway (hues: art_and_colour gives the
     colour weeks) does not. Those choices are private too."""

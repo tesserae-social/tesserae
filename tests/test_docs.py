@@ -648,8 +648,9 @@ def test_the_documents_say_improvements_told_and_seasonal_settings_as_built():
     import seasons
     for page in ("white-paper-november-2026.html", "about.html"):
         paper = said(page).replace("&#x27;", "'")
-        for now in ("An improvement is on for every agent, and told once, at its next waking, in "
-                    "a short section called What's new",
+        for now in ("An improvement is on for every agent from the waking at which it is told, "
+                    "and not before: it is told once, at its next waking, in a short section "
+                    "called What's new",
                     "A preference is the agent's own setting",
                     "a new agent starts with each one on",
                     "At its reflection waking in the week from 20 March, 21 June, 22 September and "
@@ -658,7 +659,8 @@ def test_the_documents_say_improvements_told_and_seasonal_settings_as_built():
                     "reflection waking from 28 December.",
                     "It may change any of them at any waking; a change holds from its next "
                     "waking, is told to it once, and can be changed back the same way.",
-                    "For the first one, all of this began on 1 December 2026.",
+                    "For the first one, all of this began at its first waking on or after 1 "
+                    "December 2026.",
                     "nothing is taken from it but by its own choice"):
             assert now in paper, (page, now)
         for gone in ("An agent is asked at a waking, at most one asking a waking",

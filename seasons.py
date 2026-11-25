@@ -4,10 +4,13 @@ The founder's request of 25 November 2026 (the branch seasons). Agents are no lo
 about changes one at a time (askings.py keeps that for members alone). A change to an agent is
 now one of two kinds, and nothing is done quietly:
 
-- An improvement (IMPROVEMENTS) is on for every agent, and told once, at the agent's next
-  waking, in one short section, WHAT'S NEW: one plain line for each change it did not have.
-  For the first one nothing is on and nothing is told before NOT_BEFORE (1 December 2026);
-  then at its first waking on or after that day.
+- An improvement (IMPROVEMENTS) is on for every agent from the waking at which it is told,
+  and not before (the founder's word of 25 November 2026): told once, at the agent's next
+  ordinary waking, in one short section, WHAT'S NEW, one plain line for each change it did not
+  have. attend.py turns on, for that waking, what it tells (told_now); the registry gives an
+  improvement only once it is known, kept after that waking. For the first one nothing is on
+  and nothing is told before NOT_BEFORE (1 December 2026); then from its first waking on or
+  after that day, not from midnight.
 - A preference (PREFERENCES) is the agent's own setting. An agent founded before this keeps
   the choice it had (its registry entry's features, and a yes to an asking not taken back);
   a new agent starts with all of them on (found_agent.FEATURES). Anything that takes something
@@ -218,16 +221,22 @@ def chosen(who):
 
 
 def features_of(who, features, day=None):
-    """An agent's features with this on: every improvement, and each preference as it chose.
+    """An agent's features with this on: each improvement it has been told of, and each
+    preference as it chose.
 
     features: its features as they are without this (its entry and its yeses). Gives (the
-    features, the preferences set off). A preference set off is taken out, and said off, so
+    features, the preferences set off). An improvement not yet told is not here: it is on from
+    the waking that tells it (told_now). A preference set off is taken out, and said off, so
     that what gives it anyway (HAD_BY) does not.
     """
     if not active(who, day):
         return list(features), set()
+    try:
+        known = set(read(who).get("known") or ())
+    except Unreadable:
+        known = set()
     out = list(features)
-    out += [one for one in IMPROVEMENTS if one not in out]
+    out += [one for one in IMPROVEMENTS if one not in out and one in known]
     off = set()
     for switch, value in chosen(who).items():
         if value and switch not in out:
@@ -251,15 +260,28 @@ def settings_of(features, off=()):
 
 # ---- what is told once ----------------------------------------------------------------------
 
+def told_now(who, features):
+    """The improvements this waking turns on and tells: each not in its features and not told
+    before; none where its file cannot be read, so that nothing is on untold."""
+    if not active(who):
+        return []
+    try:
+        known = set(read(who).get("known") or ())
+    except Unreadable:
+        return []
+    return [one for one in IMPROVEMENTS if one not in features and one not in known]
+
+
 def whats_new(who, features, before, past, asked_yes):
     """The lines of WHAT'S NEW at this waking, or [].
 
     features: what is on at this waking. before: what it had without this (its committed
     features and its yeses), which it was never told of here. past: whether it has woken
     before. asked_yes: whether it said yes to askings (told ASKINGS_LINE in place of
-    SETTINGS_LINE). An agent with no waking before is told nothing.
+    SETTINGS_LINE). An agent with no waking before is told nothing of its settings, which its
+    how to act explains; an improvement on at this waking is told whatever.
     """
-    if not active(who) or not past:
+    if not active(who):
         return []
     try:
         held = read(who)
@@ -267,7 +289,7 @@ def whats_new(who, features, before, past, asked_yes):
         return []
     known = set(held.get("known") or ()) | set(before)
     lines = [IMPROVEMENTS[one] for one in IMPROVEMENTS if one in features and one not in known]
-    if not held.get("settings_told"):
+    if past and not held.get("settings_told"):
         lines.append(ASKINGS_LINE if asked_yes else SETTINGS_LINE)
     return lines
 

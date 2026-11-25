@@ -278,17 +278,22 @@ MAX_TOKENS = AGENT.get("max_tokens")
 # Its name on the commons, which its heartbeat and its public lines carry.
 COMMONS_NAME = AGENT["commons_name"]
 
+# Improvements told and settings of its own (seasons.py, the founder's request of 25 November
+# 2026). SEASONS_HERE: whether they hold at this waking (for the first one, not before 1 December
+# 2026); with it False, nothing of them is said or kept. An improvement is on from the waking
+# that tells it, and not before: the registry gives those told already, and an ordinary waking
+# turns on here the ones it tells under WHAT'S NEW (TOLD_NOW); a reflection waking tells nothing
+# and turns nothing on. SETTINGS_OFF: the preferences it set off, which nothing gives it anyway.
+SEASONS_HERE = seasons.active(AGENT["id"])
+TOLD_NOW = (seasons.told_now(AGENT["id"], AGENT.get("features") or ())
+            if SEASONS_HERE and "--reflect" not in sys.argv else [])
+if TOLD_NOW:
+    AGENT = dict(AGENT, features=[*(AGENT.get("features") or ()), *TOLD_NOW])
+SETTINGS_OFF = frozenset(AGENT.get("settings_off") or ())
+
 # What it has agreed to have, of what was built behind a flag below: each flag
 # is on only for an agent whose registry entry names it.
 FEATURES = frozenset(AGENT.get("features") or ())
-
-# Improvements told and settings of its own (seasons.py, the founder's request of 25 November
-# 2026). Through the registry, FEATURES holds every improvement and each preference as it set
-# it. SEASONS_HERE: whether they hold at this waking (for the first one, not before 1 December
-# 2026); with it False, nothing of them is said or kept. SETTINGS_OFF: the preferences it set
-# off, which nothing gives it anyway.
-SEASONS_HERE = seasons.active(AGENT["id"])
-SETTINGS_OFF = frozenset(AGENT.get("settings_off") or ())
 
 # Names drawn from ids (names-ids, stage 5; the founder's request of 20 November 2026), behind
 # the switch commons_names: with it on, each person is read by their commons name now, drawn

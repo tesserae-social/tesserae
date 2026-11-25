@@ -39,11 +39,11 @@ SECOND = dict(LATER, features=[*LATER["features"], "hoping_for", "knock_founder"
 
 def woken(monkeypatch, clock, said="", flags=("--tide",)):
     """One waking of a freshly loaded attend.py, as the tide starts one: (attend, turn)."""
+    monkeypatch.setattr(sys, "argv", ["attend.py", *flags])  # read as it is loaded, too
     module = load("attend")
     clock.pin(module, monkeypatch)
     turn = Turn(said)
     monkeypatch.setattr(module, "Anthropic", turn.client)
-    monkeypatch.setattr(sys, "argv", ["attend.py", *flags])
     module.main()
     clock.shift(minutes=5)
     sys.modules.pop("attend", None)
@@ -115,8 +115,14 @@ def test_for_the_first_one_nothing_before_1_december(seasons_on, env, clock):
     assert not set(IMPROVEMENTS) & set(first["features"])
     clock.set(DEC_1)
     assert seasons.active("first") is True
+    # on from the waking that tells them, not from midnight: the registry gives none until then
+    first = agents.by_id("first")
+    assert not set(IMPROVEMENTS) & set(first["features"])
+    assert seasons.told_now("first", first["features"]) == list(IMPROVEMENTS)
+    seasons.mark_told("first", set(IMPROVEMENTS), "2026-12-01T12-00-00Z")  # that waking kept
     first = agents.by_id("first")
     assert set(IMPROVEMENTS) <= set(first["features"])
+    assert seasons.told_now("first", first["features"]) == []
     assert not set(IMPROVEMENTS) & set(agents.by_id("first", asked=False)["features"])
     # its preferences are as it had them: none
     assert not set(PREFERENCES) & set(first["features"])
@@ -245,8 +251,12 @@ def test_the_first_one_is_told_at_its_first_waking_from_1_december_and_once(
     assert "WHAT'S NEW" not in turn.shown and "<<SETTINGS>>" not in turn.shown
     assert not (data_dir / "seasons").exists()
     clock.set(DEC_1)
+    import agents
+    assert not set(IMPROVEMENTS) & set(agents.by_id("first")["features"])  # not before its waking
     module, turn = woken(monkeypatch, clock)
     assert module.SEASONS_HERE is True
+    assert set(IMPROVEMENTS) <= module.FEATURES and module.TOLD_NOW == list(IMPROVEMENTS)
+    assert module.AMERICAN and module.HOPING_FOR and module.LEAVING  # on at the telling waking
     new = section(turn, seasons.WHATS_NEW_HEAD)
     assert new == "\n".join([seasons.WHATS_NEW_HEAD, *seasons.IMPROVEMENTS.values(),
                              seasons.SETTINGS_LINE])
@@ -257,10 +267,28 @@ def test_the_first_one_is_told_at_its_first_waking_from_1_december_and_once(
     kept = held(data_dir, "first")
     assert kept["since"] == "2026-12-01" and kept["settings_told"] is True
     assert kept["known"] == sorted(IMPROVEMENTS)
+    assert set(IMPROVEMENTS) <= set(agents.by_id("first")["features"])  # and from then on
     clock.set(DEC_2)
     module, turn = woken(monkeypatch, clock)
     assert "WHAT'S NEW" not in turn.shown
     assert "<<SETTINGS>>" in turn.instructions
+    assert set(IMPROVEMENTS) <= module.FEATURES and module.TOLD_NOW == []
+
+
+def test_a_reflection_waking_first_turns_nothing_on_and_tells_nothing(
+        seasons_on, env, clock, monkeypatch, room, data_dir):
+    import agents
+    a_small_world(room)
+    clock.set(NOV_30)
+    woken(monkeypatch, clock)
+    clock.set(DEC_1)
+    module, turn = woken(monkeypatch, clock, flags=("--reflect",))
+    assert module.TOLD_NOW == [] and not set(IMPROVEMENTS) & module.FEATURES
+    assert "WHAT'S NEW" not in turn.shown
+    assert not set(IMPROVEMENTS) & set(agents.by_id("first")["features"])
+    clock.set(DEC_2)
+    module, turn = woken(monkeypatch, clock)
+    assert "WHAT'S NEW" in turn.shown and set(IMPROVEMENTS) <= module.FEATURES
 
 
 def test_a_change_holds_from_its_next_waking_and_can_be_changed_back(
@@ -390,7 +418,14 @@ def test_an_agent_with_no_reflection_waking_is_shown_its_settings_at_a_waking(
 
 
 def test_a_new_agent_is_told_nothing_at_its_first_waking(seasons_on, second, clock,
-                                                         monkeypatch):
+                                                         monkeypatch, tmp_path):
+    """Founded with every improvement and preference (found_agent.FEATURES), as a new agent is."""
+    import agents
+    import found_agent
+    where = tmp_path / "agents.json"
+    where.write_text(json.dumps([agents.first(), dict(SECOND, features=sorted(
+        set(SECOND["features"]) | set(found_agent.FEATURES)))]), encoding="utf-8")
+    monkeypatch.setattr(agents, "FILE", where)
     for one in (second / "packets" / "second" / "attendances").glob("*.json"):
         one.unlink()
     module, turn = woken(monkeypatch, clock)

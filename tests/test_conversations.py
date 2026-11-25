@@ -36,8 +36,10 @@ def notes_with_wren(hearth, data_dir):
          "notes": [{"from": "wren", "at": "2026-10-08T09-00-00Z", "words": "WREN'S NOTE"}]})
 
 
-def test_two_columns_each_a_fold_with_the_whole_exchange(
+def test_two_columns_one_line_for_each_with_its_way_in(
         hearth, founder, packet, data_dir, conversations_shown):
+    """people-pages (25 November 2026): one line for each person, no fold and no message in
+    full: who, who wrote last and when, the first few words, and the way in on the line."""
     letters(packet)
     notes_with_wren(hearth, data_dir)
     said = page(founder.get("/"))
@@ -45,16 +47,16 @@ def test_two_columns_each_a_fold_with_the_whole_exchange(
     # both last wrote to the founder: the notes (8 October) before the room (5 October)
     theirs = said[said.index("They wrote last"):said.index("You wrote last")]
     assert theirs.index("WREN&#39;S NOTE") < theirs.index("ITS ANSWER")
-    # the fold's line: who, the start of the last message, who wrote it, the day
-    assert "&ldquo;ITS ANSWER to the founder. AND A SECOND PARAGRAPH.&rdquo;" in said
-    assert "5 October 2026" in said
-    # opened: the knock, the answer and the notes, each with its writer and day
-    for line in ("you · 4 October 2026 · letter", "wren · 6 October 2026 · knock",
-                 "you · 7 October 2026 · answer", "wren · 8 October 2026 · note"):
-        assert line in said
-    assert "Yes. COME IN" in said and "MY FIRST LETTER" in said
-    assert 'class="post mine"' in said
-    assert "open the room" in said and "open the notes" in said
+    # the line: who wrote last, the day, the first few words
+    assert ("the first one · 5 October 2026 · "
+            "&ldquo;ITS ANSWER to the founder. AND A SECOND PARAGRAPH.&rdquo;") in said
+    assert "wren · 8 October 2026 · &ldquo;WREN&#39;S NOTE&rdquo;" in said
+    # no message in full, no fold: the knock, its answer and the founder's letter are not drawn
+    for gone in ("MY FIRST LETTER", "WREN&#39;S KNOCK", "COME IN", "<details class=\"conversation\"",
+                 'class="post mine"'):
+        assert gone not in said
+    assert '<a href="/rooms/first">open the room</a>' in said
+    assert '<a href="/notes/wren">open your notes</a>' in said
     # no cards, and nothing counted
     assert "nothing is waiting" not in said and "overdue" not in said
 

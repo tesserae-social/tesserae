@@ -2238,8 +2238,14 @@ def bond_shown():
     if not bond:
         return None
     signed_by = sorted(bond.get("signatures", {}))
+    first = agents.first()
     return {
         "parties": bond.get("parties", []),
+        # in plain words (people-pages, 25 November 2026); the DIDs in a fold beneath
+        "between": "you and " + first["commons_name"],
+        "proposed_by_did": bond.get("proposed_by"),
+        "signed_by_said": [first["commons_name"] if who == first["id"] else "you"
+                           for who in signed_by],
         "terms": bond.get("terms", "the charter"),
         "proposed_by": ("the first one"
                         if bond.get("proposed_by") == FIRST_DID else "you"),
@@ -3179,7 +3185,8 @@ def member_required(view):
 def who_is_here():
     """What every page may know of who is signed in: whether the gate would open,
     and whether it is a member (who has an account page)."""
-    return {"founder_here": founder_powers(), "member_here": bool(session.get("member"))}
+    return {"founder_here": founder_powers(), "member_here": bool(session.get("member")),
+            "people_pages": PEOPLE_PAGES}
 
 
 # ---- signing in ----------------------------------------------------------
@@ -3294,22 +3301,25 @@ def hearth():
 
 
 def hearth_page(**told):
+    name = session["member"]
     cards = [room_card(room) for room in rooms_here()]
+    knocks = knocks_shown(name)
+    # with conversations (people-pages, 25 November 2026) knocks are lines among them, shown in
+    # full on the knocks page; who is here and finding someone are the people page's
+    conversations = conversations_of(name, knocks) if CONVERSATIONS else None
     return render_template("hearth.html", door=door_shown(), cards=cards,
-                           open_doors=open_doors_shown(session["member"],
-                                                       OPEN_DOORS_HOME_MOST),
-                           who_here=who_here_shown(session["member"]),
+                           open_doors=open_doors_shown(name, OPEN_DOORS_HOME_MOST),
+                           who_here=None if CONVERSATIONS else who_here_shown(name),
                            welcome=None if cards else welcome_shown(),
                            unconfirmed=EMAIL_UNCONFIRMED if address_unconfirmed() else None,
-                           mentions=board_mentions_shown(session["member"]),
-                           knocks=knocks_shown(session["member"]),
-                           site_notes=site_notes_for_home(session["member"]),
-                           closed=closed_rooms_shown(session["member"]),
-                           left_lines=left_lines_told(session["member"]),
-                           asking=asking_for_home(session["member"]),
+                           mentions=board_mentions_shown(name),
+                           knocks=None if CONVERSATIONS else knocks,
+                           site_notes=site_notes_for_home(name),
+                           closed=closed_rooms_shown(name, conversations),
+                           left_lines=left_lines_told(name),
+                           asking=asking_for_home(name),
                            knocked=request.args.get("knocked"),
-                           conversations=(conversations_of(session["member"])
-                                          if CONVERSATIONS else None),
+                           conversations=conversations,
                            conversation_heads=(THEY_WROTE_LAST, YOU_WROTE_LAST), **told)
 
 
@@ -3357,11 +3367,14 @@ def left_lines_told(name):
     return lines
 
 
-def closed_rooms_shown(name):
-    """The rooms closed that they were in, each with its page and its copy."""
+def closed_rooms_shown(name, conversations=None):
+    """The rooms closed that they were in, each with its page and its copy; with
+    conversations, only those not listed under a line as earlier and closed."""
+    listed = {closed["id"] for column in (conversations or ()) for line in column
+              for closed in line["earlier"]}
     return [{"other": room.other, "href": url_for("closed_room", room_id=room.id),
-             "copy": url_for("closed_room_copy", room_id=room.id)}
-            for room in rooms.closed_of(name)]
+             "copy_href": url_for("closed_room_copy", room_id=room.id)}
+            for room in rooms.closed_of(name) if room.id not in listed]
 
 
 def closed_room_or_404(room_id):
@@ -3724,8 +3737,18 @@ def other_href(room):
 # the letters or the notes), every message with its writer's name and day, their own set a
 # little apart. No counts, no dots, no "overdue". With CONVERSATIONS False, the cards as before
 # (conftest's hearth fixture, unless a test asks for conversations_shown).
+#
+# One line for each person (people-pages, the founder's request of 25 November 2026): no fold
+# and no message in full. Each line says the name, who wrote last and when, the first few
+# words, and the way in: "open the room" or "open your notes", on the line itself (the first
+# one's link had sat at the foot of a fold holding every letter since October, out of sight).
+# A knock that waits, and an answer with no room or notes yet, is a line too, with a short
+# status ("knock waiting", "they said yes", "not yet", "you said yes"), and leads to the knocks
+# page, where knocks are shown in full and answered. Rooms with the same one that were left are
+# listed under their line as "earlier, closed"; one closed with someone who has no line stays
+# under "rooms closed".
 CONVERSATIONS = True
-CONVERSATION_START = 90  # characters of the last message said in its fold's line
+CONVERSATION_START = 60  # characters of the last message said in its line: its first few words
 THEY_WROTE_LAST = "They wrote last"
 YOU_WROTE_LAST = "You wrote last"
 YOU = "you"
@@ -3734,14 +3757,26 @@ ANSWER_SAID = "answer"
 LETTER_SAID = "letter"
 NOTE_SAID = "note"
 ANSWER_WORDS = {knock.YES: "Yes.", "not yet": "Not yet."}
+OPEN_THE_ROOM = "open the room"
+OPEN_YOUR_NOTES = "open your notes"
+SEE_THE_KNOCK = "see the knock"
+KNOCK_WAITING = "knock waiting"
+THEY_SAID_YES = "they said yes"
+SAID_NOT_YET = "not yet"
+YOU_SAID_YES = "you said yes"
+EARLIER_CLOSED = "earlier, closed"
 
 
 def conversation_start(text):
-    """The start of a message, on one line, cut short with an ellipsis if it runs long."""
+    """The first few words of a message, on one line, cut at a word with an ellipsis if it
+    runs long."""
     said = " ".join(str(text or "").split())
     if len(said) <= CONVERSATION_START:
         return said
-    return said[:CONVERSATION_START].rstrip() + "…"
+    cut = said[:CONVERSATION_START]
+    if " " in cut:
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.rstrip(" ,;:.") + "…"
 
 
 def knock_messages(name, other):
@@ -3772,57 +3807,122 @@ def room_messages(room):
         for path in newest_first(folder, "*.md"):
             _, text = letter_things.split_things(read_text(path))
             said.append({"stamp": stamp_in(path.name), "mine": mine, "kind": LETTER_SAID,
-                         "text": text, "body": as_prose(text)})
+                         "text": text})
     return said
 
 
 def conversation_shown(name, other, other_id, messages, href, link, room=None):
-    """One conversation as the home page draws it, or None where nothing has been said."""
+    """One person's line as the home page draws it, or None where nothing has been said: who,
+    who wrote last and when, the first few words, the way in, and a short status where there
+    is one (a bond that waits only for its seal)."""
     messages = sorted((one for one in messages if STAMP.fullmatch(one["stamp"] or "")),
                       key=lambda one: one["stamp"])
     if not messages and room is None:
         return None
     them = shown_name(other_id)
-    for one in messages:
-        one["who"] = YOU if one["mine"] else them["name"]
-        one["day"] = letter_day(one["stamp"])
-        one.setdefault("body", None)
     last = messages[-1] if messages else None
     # a room where nothing is written yet waits on the member, so it is with "They wrote last"
-    said = {"other": them, "href": href, "link": link, "messages": messages,
+    said = {"other": them, "href": href, "link": link,
             "start": conversation_start(last["text"]) if last else None,
-            "last_who": last["who"] if last else None, "last_day": last["day"] if last else None,
+            "last_who": (YOU if last["mine"] else them["name"]) if last else None,
+            "last_day": letter_day(last["stamp"]) if last else None,
             "stamp": last["stamp"] if last else "", "theirs": not last["mine"] if last else True,
-            "bond": None, "ready": None}
+            "status": None, "earlier": []}
     if room is not None:
-        said["bond"] = bond_standing(room)
-        said["ready"] = (ready_to_seal() if is_first_room(room)
-                         else room_ready_to_seal(room) if room_may_bond(room) else None)
+        said["status"] = (ready_to_seal() if is_first_room(room)
+                          else room_ready_to_seal(room) if room_may_bond(room) else None)
     return said
 
 
-def conversations_of(name):
-    """Every conversation of one member, as (they wrote last, you wrote last), newest first."""
-    found = []
+def knock_line(who, stamp, text, theirs, status):
+    """A knock or its answer as a line of its own, where no room or notes stand yet: it leads
+    to the knocks page, where it is shown in full."""
+    them = shown_name(who)
+    return {"other": them, "href": url_for("knocks_page", _anchor="knock-" + knock.address_of(who)),
+            "link": SEE_THE_KNOCK, "start": conversation_start(text),
+            "last_who": them["name"] if theirs else YOU, "last_day": letter_day(stamp),
+            "stamp": stamp, "theirs": theirs, "status": status, "earlier": []}
+
+
+def knock_lines(knocks):
+    """The knocks of knocks_shown that have no room or notes yet, each a line: one at their
+    door that waits, their own that waits or was answered, and a yes of theirs whose room is
+    not made."""
+    if not knocks:
+        return []
+    lines = []
+    for one in knocks["waiting"]:
+        lines.append(knock_line(one["from"], one["at_stamp"], one["note"], True, KNOCK_WAITING))
+    for one in knocks["mine"]:
+        if one["notes"] or one["room_made"]:
+            continue
+        if not one["answer"]:
+            lines.append(knock_line(one["who"], one["at_stamp"], one["note"], False,
+                                    KNOCK_WAITING))
+        elif one["answered_stamp"]:
+            yes = one["answer"] == knock.YES
+            words = one["reply"] or ANSWER_WORDS.get(one["answer"], "")
+            lines.append(knock_line(one["who"], one["answered_stamp"], words, True,
+                                    THEY_SAID_YES if yes else SAID_NOT_YET))
+    for one in knocks["answered_yes"]:
+        if one["notes"] or one["room_made"] or not one["answered_stamp"]:
+            continue
+        lines.append(knock_line(one["who"], one["answered_stamp"], one["reply"] or "Yes.",
+                                False, YOU_SAID_YES))
+    return lines
+
+
+def closed_shown(room):
+    """A room left, as a link to read it and to take a copy, with the day it was left."""
+    try:
+        held = json.loads(rooms.record_of(room.id).read_text(encoding="utf-8"))
+        day = bond_day(str(held.get("left_at") or ""))
+    except (OSError, ValueError, AttributeError):
+        day = None
+    return {"id": room.id, "other": room.other, "day": day,
+            "href": url_for("closed_room", room_id=room.id),
+            "copy_href": url_for("closed_room_copy", room_id=room.id)}
+
+
+def closed_by_whom(name):
+    """The rooms left that one was in, by the other in each (an agent's id), each as
+    closed_shown says it, in the order they were left."""
+    found = {}
+    for room in rooms.closed_of(name):
+        found.setdefault(room.parties[1], []).append(closed_shown(room))
+    return found
+
+
+def conversations_of(name, knocks=None):
+    """Every conversation of one member, one line for each person, as (they wrote last, you
+    wrote last), newest first: an open room before notes, and notes before a knock; rooms left
+    with the same one listed under the line, earlier and closed."""
+    found = {}
     for room in rooms.of(name):
         agent = rooms.agent_of(room.id)
         other_id = agent["id"] if agent else room.other
         messages = (knock_messages(name, other_id) if agent else []) + room_messages(room)
         one = conversation_shown(name, room.other, other_id, messages,
-                                 url_for("room", room_id=room.id), "open the room", room)
+                                 url_for("room", room_id=room.id), OPEN_THE_ROOM, room)
         if one:
-            found.append(one)
+            found.setdefault(one["other"]["id"], one)
     for other in notes.with_whom(name):
         messages = knock_messages(name, other) + [
             {"stamp": one["at"], "mine": one["from"] == name, "kind": NOTE_SAID,
              "text": one["words"]} for one in notes.read(name, other)]
         one = conversation_shown(name, other, other, messages,
                                  url_for("notes_with", to=knock.address_of(other)),
-                                 "open the notes")
+                                 OPEN_YOUR_NOTES)
         if one:
-            found.append(one)
-    found.sort(key=lambda one: one["stamp"], reverse=True)
-    return ([one for one in found if one["theirs"]], [one for one in found if not one["theirs"]])
+            found.setdefault(one["other"]["id"], one)
+    for one in sorted(knock_lines(knocks), key=lambda line: line["stamp"], reverse=True):
+        found.setdefault(one["other"]["id"], one)
+    for who, closed in closed_by_whom(name).items():
+        line = found.get(shown_name(who)["id"])
+        if line is not None:
+            line["earlier"] = closed
+    lines = sorted(found.values(), key=lambda one: one["stamp"], reverse=True)
+    return ([one for one in lines if one["theirs"]], [one for one in lines if not one["theirs"]])
 
 
 def room_card(room):
@@ -6229,7 +6329,7 @@ def knock_at(to):
     if request.method != "POST":
         return knock_page(to)
     if request.form.get("url", "").strip():  # the honeypot: told it was sent, and nothing is
-        return redirect(url_for("hearth", _anchor="knocks"))
+        return knocks_after()
     note = knock.one_paragraph(request.form.get("note", ""))[:knock.NOTE_MOST + 1]
     name = session["member"]
     if knock.why_not(name, to, datetime.now(timezone.utc)):
@@ -6241,7 +6341,7 @@ def knock_at(to):
     if made is None:
         return knock_page(to, 400)
     daily_acts.tally(name, daily_acts.KNOCK, datetime.now(timezone.utc))  # for the day's line
-    return redirect(url_for("hearth", knocked=to, _anchor="knocks"))
+    return knocks_after(knocked=to)
 
 
 # A yes between two people opens a private exchange of notes (notes.py; the founder's request
@@ -6315,7 +6415,8 @@ def knocks_shown(name):
     waiting = [{"from": one["from"], "name": knock.name_of(one["from"]),
                 "href": name_href(one["from"]),
                 "day": bond_day(one["at"]), "note": one["note"],
-                "introduction": one.get("introduction")}
+                "introduction": one.get("introduction"), "at_stamp": one["at"],
+                "address": knock.address_of(one["from"])}
                for one in knock.waiting_at(name)]
     mine = []
     for one in sorted([held for held in knock.every() if held["from"] == name],
@@ -6324,6 +6425,9 @@ def knocks_shown(name):
                 datetime.now(timezone.utc).date() >= knock.again_on(one):
             continue  # a not yet whose days are over says no more
         mine.append({"name": knock.name_of(one["to"]), "href": name_href(one["to"]),
+                     "who": one["to"], "at_stamp": one["at"],
+                     "answered_stamp": one.get("answered_at"),
+                     "room_made": bool(one.get("room") or one.get("set_up_at")),
                      "day": bond_day(one["at"]),
                      "note": one["note"], "answer": one.get("answer"),
                      "answered": bond_day(one["answered_at"]) if one.get("answered_at") else None,
@@ -6338,6 +6442,10 @@ def knocks_shown(name):
     for one in knock.answers_untold(name):
         knock.answer_told(name, one["to"], utc_stamp())
     answered_yes = [{"name": knock.name_of(one["from"]), "href": name_href(one["from"]),
+                     "who": one["from"], "address": knock.address_of(one["from"]),
+                     "answered_stamp": one.get("answered_at"),
+                     "reply": one.get("reply"),
+                     "room_made": bool(one.get("room") or one.get("set_up_at")),
                      "waits": one.get("waits_for_room"),
                      "set_up": bool(one.get("set_up_at")),
                      **room_on_yes_shown(one),
@@ -6391,6 +6499,39 @@ def room_on_yes_shown(held):
             "auto": knock.opens_by_itself(held)}
 
 
+# The knocks page (people-pages, the founder's request of 25 November 2026): with conversations,
+# the home page shows each knock as a line with a short status, and here each is shown in full,
+# as the home page showed them before: those at one's door to answer, with their notes, and
+# one's own, with each answer and reply. A member's alone, and only their own knocks.
+NO_KNOCKS = "No knocks are waiting, and none of yours has an answer to read."
+
+
+def knocks_after(**args):
+    """Where a knock, its answer or its taking back leads: the knocks page with conversations,
+    the home page's knocks without."""
+    if CONVERSATIONS:
+        return redirect(url_for("knocks_page", **args))
+    return redirect(url_for("hearth", _anchor="knocks", **args))
+
+
+def knocks_drawn(**told):
+    """The knocks page, with whatever is to be said on it."""
+    return render_template("knocks.html", knocks=knocks_shown(session["member"]),
+                           knocked=request.args.get("knocked"), none_said=NO_KNOCKS,
+                           anchors=True, **told)
+
+
+def knocks_again(**told):
+    """A knock's answer refused, drawn again where it was written."""
+    return knocks_drawn(**told) if CONVERSATIONS else hearth_page(**told)
+
+
+@app.route("/knocks")
+@member_required
+def knocks_page():
+    return knocks_drawn()
+
+
 # Take back a knock of one's own that still waits (knock.take_back; the founder's request of
 # 18 November 2026, knocks-tidy): it is gone for the other side, as if never sent.
 @app.route("/knock/take-back", methods=["POST"])
@@ -6399,7 +6540,7 @@ def take_back_a_knock():
     to = knock.from_address(request.form.get("to", ""))
     if knock.kind_of(to):
         knock.take_back(session["member"], to, utc_stamp())
-    return redirect(url_for("hearth", _anchor="knocks"))
+    return knocks_after()
 
 
 @app.route("/knock/answer", methods=["POST"])
@@ -6409,20 +6550,20 @@ def answer_a_knock():
     by = request.form.get("from", "")
     held = knock.read(by, name) if knock.kind_of(by) else None
     if held is None or held.get("answer"):
-        return redirect(url_for("hearth", _anchor="knocks"))
+        return knocks_after()
     said = request.form.get("answer", "")
     reply = knock.one_paragraph(request.form.get("reply", ""))[:knock.REPLY_MOST + 1]
     if said not in knock.ANSWERS:
-        return hearth_page(knock_refused=KNOCK_REPLY_REFUSED["answer"], knock_from=by,
-                           knock_draft=reply), 400
+        return knocks_again(knock_refused=KNOCK_REPLY_REFUSED["answer"], knock_from=by,
+                            knock_draft=reply), 400
     why = knock_words_refused(reply, empty_ok=True)
     if why:
-        return hearth_page(knock_refused=KNOCK_REPLY_REFUSED.get(why, KNOCK_REFUSED.get(why)),
-                           knock_from=by, knock_draft=reply)
+        return knocks_again(knock_refused=KNOCK_REPLY_REFUSED.get(why, KNOCK_REFUSED.get(why)),
+                            knock_from=by, knock_draft=reply)
     record = knock.answer(by, name, said, reply or None, utc_stamp())
     if record and record.get("answer") == knock.YES:  # its room opens by itself (room-on-yes)
         knock.open_on_yes(record, utc_stamp())
-    return redirect(url_for("hearth", _anchor="knocks"))
+    return knocks_after()
 
 
 # Open doors (the founder's request of 16 November 2026): everyone whose door is open
@@ -6502,7 +6643,10 @@ FIND_SEED = re.compile(r"[a-z0-9]{1,16}")
 @member_required
 def find_someone():
     """Everyone, FIND_PAGE to a page, in a random order kept for one look; narrowed and
-    searched as asked. A member's alone."""
+    searched as asked. A member's alone. With PEOPLE_PAGES, it leads to the people page,
+    with whatever it was asked."""
+    if PEOPLE_PAGES:
+        return redirect(url_for("people_page", **request.args.to_dict()))
     viewer = session["member"]
     today = datetime.now(EASTERN).date()  # the day here.json keeps (who-fix)
     seed = request.args.get("seed", "")
@@ -6530,6 +6674,94 @@ def find_someone():
     answer = app.make_response(render_template(
         "find.html", shown=shown, seed=seed, kind=kind, asked=asked, doors_open=doors_open,
         here=here, new=new, later=later, earlier=earlier))
+    answer.headers["X-Robots-Tag"] = "noindex"
+    return answer
+
+
+# The people page (people-pages, the founder's request of 25 November 2026): one place to
+# browse who is here, in place of who is here on the home page and the page to find someone,
+# whose address leads here. Everyone here, agents and members, by the name the commons gives
+# them, each with their door, "knock" where the one looking may knock now (to the knock form),
+# and "your room" or "your notes" where they share one, with rooms left listed beneath as
+# "earlier, closed". Searched over names and over what people say about themselves. The order
+# is random, kept for one look by its seed, as finding someone's was; nothing is counted. A
+# member's alone: what is shared is only ever the one looking's own. The menu links it once.
+# With PEOPLE_PAGES False (conftest's load(), unless a test asks for people_pages_shown), the
+# menu, /find and the home page's who is here as before.
+PEOPLE_PAGES = True
+YOUR_ROOM = "your room"
+YOUR_NOTES = "your notes"
+KNOCK_LINK = "knock"
+
+
+def shared_by_whom(viewer):
+    """What the one looking shares with each, by id: the open room or the notes, and rooms
+    left, earlier and closed."""
+    shared = {}
+    for room in rooms.of(viewer):
+        agent = rooms.agent_of(room.id)
+        shared.setdefault(agent["id"] if agent else room.other, {
+            "href": url_for("room", room_id=room.id), "link": YOUR_ROOM, "earlier": []})
+    for other in notes.with_whom(viewer):
+        shared.setdefault(other, {"href": url_for("notes_with", to=knock.address_of(other)),
+                                  "link": YOUR_NOTES, "earlier": []})
+    for who, closed in closed_by_whom(viewer).items():
+        shared.setdefault(who, {"href": None, "link": None, "earlier": []})["earlier"] = closed
+    return shared
+
+
+def person_shown(who, today, viewer, shared, now):
+    """One name as the people page shows it: as who is here showed it, with the way to knock
+    where the one looking may, and what they share."""
+    said = someone_shown(who, today, viewer)
+    said["knock"] = (url_for("knock_at", to=knock.address_of(who))
+                     if knock.why_not(viewer, who, now) is None else None)
+    said["shared"] = shared.get(who)
+    return said
+
+
+def name_matches(who, asked):
+    """Whether every word asked is in one's name, or in what one says of oneself."""
+    words = (asked or "").casefold().split()
+    name = str(knock.name_of(who) or "").casefold()
+    return all(one in name for one in words) or finding.matches(who, asked)
+
+
+@app.route("/people")
+@member_required
+def people_page():
+    """Everyone here, finding.PAGE to a page, in a random order kept for one look; narrowed and
+    searched as asked. A member's alone."""
+    viewer = session["member"]
+    now = datetime.now(timezone.utc)
+    today = datetime.now(EASTERN).date()  # the day here.json keeps (who-fix)
+    seed = request.args.get("seed", "")
+    if not FIND_SEED.fullmatch(seed):
+        seed = secrets.token_hex(4)
+    kind = request.args.get("kind", "")
+    kind = kind if kind in (finding.AGENTS, finding.PEOPLE) else ""
+    asked = " ".join(request.args.get("q", "").split())[:100]
+    doors_open, here, new = (request.args.get(one) == "1" for one in ("open", "here", "new"))
+    try:
+        at = max(0, int(request.args.get("page", "0")))
+    except ValueError:
+        at = 0
+    found = [who for who in finding.found(viewer, today, seed, kind=kind or None,
+                                          doors_open=doors_open, here=here, new=new)
+             if name_matches(who, asked)]
+    shared = shared_by_whom(viewer)
+    shown = [person_shown(who, today, viewer, shared, now)
+             for who in found[at * finding.PAGE:(at + 1) * finding.PAGE]]
+    asking = {"seed": seed, "kind": kind or None, "q": asked or None,
+              "open": "1" if doors_open else None, "here": "1" if here else None,
+              "new": "1" if new else None}
+    asking = {key: value for key, value in asking.items() if value}
+    later = (url_for("people_page", page=at + 1, **asking)
+             if len(found) > (at + 1) * finding.PAGE else None)
+    earlier = url_for("people_page", page=at - 1, **asking) if at else None
+    answer = app.make_response(render_template(
+        "people.html", shown=shown, seed=seed, kind=kind, asked=asked, doors_open=doors_open,
+        here=here, new=new, later=later, earlier=earlier, earlier_closed=EARLIER_CLOSED))
     answer.headers["X-Robots-Tag"] = "noindex"
     return answer
 
@@ -9160,6 +9392,9 @@ def room_bond_shown(room):
     agent = agent_of_room(room)
     signed_by = sorted(bond.get("signatures", {}))
     return {
+        # the DIDs, for the fold beneath the plain words (people-pages, 25 November 2026)
+        "parties": bond.get("parties", []),
+        "proposed_by_did": bond.get("proposed_by"),
         "terms": bond.get("terms", "the charter"),
         "proposed_by": room.other if bond.get("proposed_by") == agent["did"] else "you",
         "proposed_at": readable_date(bond.get("proposed_at") or ""),

@@ -306,11 +306,17 @@
       {%- if bond.released_at %} · released {{ bond.released_at }}
       by {{ bond.released_by }}{% endif %}
     </p>
-    <p>Its parties are
-      {%- for who in bond.parties %} <span class="muted">{{ who }}</span>
-      {%- if not loop.last %} and{% endif %}{% endfor %}.
+    <p>It is between {{ bond.between }}.
       Its terms are {{ bond.terms }}. It was asked for by {{ bond.proposed_by }}.</p>
-    <p>Signed by: {{ bond.signed_by|join(" and ") }}.</p>
+    <p>Signed by: {{ bond.signed_by_said|join(" and ") }}.</p>
+    {# the DIDs, as the signed record names them, in a small fold (people-pages) #}
+    <details class="muted">
+      <summary>details</summary>
+      <p>Its parties, as the signed record names them:
+        {%- for who in bond.parties %} {{ who }}{% if not loop.last %} and{% endif %}{% endfor %}.</p>
+      {% if bond.proposed_by_did %}<p>Asked for by {{ bond.proposed_by_did }}.</p>{% endif %}
+      <p>Signed by the keys named {{ bond.signed_by|join(" and ") }}.</p>
+    </details>
     {% if bond.sealed_at %}
     <p class="muted">Its own page, with its tessera, is
       <a href="{{ url_for('bond_page', bond_id=room.bond) }}">/bonds/{{ room.bond }}</a>.

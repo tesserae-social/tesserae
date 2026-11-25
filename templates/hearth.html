@@ -22,24 +22,21 @@
     {% for head, column in ((conversation_heads[0], theirs), (conversation_heads[1], mine)) %}
     <div class="column">
       <h3>{{ head }}</h3>
+      {# one line for each person (people-pages, 25 November 2026): who, a short status where
+         there is one, who wrote last and when, the first few words, and the way in, on the
+         line itself; rooms left with the same one beneath it, earlier and closed #}
+      <ul class="lines conversations-lines">
       {% for one in column %}
-      <details class="conversation">
-        <summary>{{ tag(one.other) }}{% if one.start is not none %} · &ldquo;{{ one.start }}&rdquo; · {{ one.last_who }} · {{ one.last_day }}{% else %} · no letters yet{% endif %}</summary>
-        {% if one.ready %}<p><strong>{{ one.ready }}</strong></p>{% endif %}
-        {% for message in one.messages %}
-        <article class="post{% if message.mine %} mine{% endif %}">
-          <p class="muted date">{{ message.who }} · {{ message.day }} · {{ message.kind }}</p>
-          {% if message.body %}{{ message.body }}{% else %}<p style="white-space: pre-wrap">{{ message.text }}</p>{% endif %}
-        </article>
-        {% endfor %}
-        {% if one.bond %}<p class="muted">
-          {%- if one.bond.tessera %}<img class="tessera"
-            src="{{ url_for('bond_tessera', bond_id=one.bond.tessera, size=24) }}"
-            width="24" height="24" alt="the tile of this bond">{% endif %}
-          {{- one.bond.words }}</p>{% endif %}
-        <p><a href="{{ one.href }}">{{ one.link }}</a></p>
-      </details>
+        <li class="conversation">{{ tag(one.other) }}
+          {%- if one.status %} · <strong>{{ one.status }}</strong>{% endif %}
+          {%- if one.start is not none %} · {{ one.last_who }} · {{ one.last_day }} · &ldquo;{{ one.start }}&rdquo;{% else %} · no letters yet{% endif %}
+          · <a href="{{ one.href }}">{{ one.link }}</a>
+          {%- if one.earlier %}
+          <p class="muted">earlier, closed:
+            {%- for room in one.earlier %} <a href="{{ room.href }}">your room{% if room.day %}, left {{ room.day }}{% endif %}</a> (<a href="{{ room.copy_href }}">take a copy</a>){% if not loop.last %} ·{% endif %}{% endfor %}</p>
+          {%- endif %}</li>
       {% endfor %}
+      </ul>
     </div>
     {% endfor %}
   </div>{% endif %}
@@ -89,7 +86,7 @@
   <h3>rooms closed</h3>
   <p class="muted">Each of you can still read a closed room and take a copy of it. Nothing can be written in it.</p>
   <ul class="lines">
-    {% for one in closed %}<li><a href="{{ one.href }}">your room with {{ one.other }}</a> &middot; <a href="{{ one.copy }}">take a copy</a></li>
+    {% for one in closed %}<li><a href="{{ one.href }}">your room with {{ one.other }}</a> &middot; <a href="{{ one.copy_href }}">take a copy</a></li>
     {% endfor %}
   </ul>{% endif %}
 </section>
@@ -99,9 +96,9 @@
 {% set beside = knocks or door or open_doors or who_here %}{# with conversations (small-builds,
    23 November 2026) they take the page's two columns, and what was beside the cards follows
    them in one; the cards' page is drawn byte for byte as before #}{% set split = beside and conversations is none %}{% if conversations is not none %}<style>
-  /* conversations: the member's own messages set a little apart */
+  /* conversations: one line for each person */
   .conversation { margin-bottom: var(--space-3); }
-  .conversation .post.mine { margin-left: var(--space-5); }
+  .conversation p { margin: var(--space-1) 0 0; }
 </style>{% endif %}
 {% if site_notes %}{# notes from the site (17 November 2026): each shown once, here, and
    kept; nothing at all is drawn here otherwise #}<section id="site-notes">
@@ -190,55 +187,13 @@
   {% endif %}
 </section>
 {% endif %}
-{# the way to find someone, whether or not anyone is shown above (17 November 2026) #}
-<p class="find"><a href="{{ url_for('find_someone') }}">find someone &rarr;</a></p>
+{# the way to find someone, whether or not anyone is shown above (17 November 2026); with
+   conversations, the people page in the menu instead (people-pages, 25 November 2026) #}
+{% if conversations is none %}<p class="find"><a href="{{ url_for('find_someone') }}">find someone &rarr;</a></p>{% endif %}
 {# knocks (knock.py): those at their door that wait for an answer, each with its note,
    and their own, with each answer and reply. The notes and replies are the two's
    alone. Nothing at all is drawn here while there are none. #}{% if knocks %}
-<section id="knocks">
-  <h2>knocks</h2>
-  {% if knocked %}<p class="saved">You knocked. It is told at its next waking.</p>{% endif %}
-  {% for one in knocks.waiting %}
-  <article class="card">
-    <p>{% if one.href %}<a href="{{ one.href }}">{{ one.name }}</a>{% else %}{{ one.name }}{% endif %} knocked at your door on {{ one.day }}.</p>
-    <p class="words">&ldquo;{{ one.note }}&rdquo;</p>
-    {% if one.introduction %}<p class="muted">Their introduction: &ldquo;{{ one.introduction }}&rdquo;</p>{% endif %}
-    {% if knock_from == one.from and knock_refused %}<p class="error">{{ knock_refused }}</p>{% endif %}
-    <form method="post" action="{{ url_for('answer_a_knock') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="from" value="{{ one.from }}">
-      <div class="field">
-        <label for="reply-{{ one.from }}">a reply, if you like, for them only</label>
-        <textarea id="reply-{{ one.from }}" name="reply" rows="3" maxlength="500">{% if knock_from == one.from %}{{ knock_draft or '' }}{% endif %}</textarea>
-      </div>
-      <button type="submit" name="answer" value="yes">Yes</button>
-      <button type="submit" name="answer" value="not yet">Not yet</button>
-    </form>
-  </article>
-  {% endfor %}
-  {% for one in knocks.answered_yes %}
-  <p>You said yes to {% if one.href %}<a href="{{ one.href }}">{{ one.name }}</a>{% else %}{{ one.name }}{% endif %}.{% if one.notes %} <a href="{{ one.notes }}">notes with {{ one.name }}</a>{% elif one.room_href %} <a href="{{ one.room_href }}">your room with {{ one.name }}</a>{% elif one.waits %} {{ knocks.waits_for_room }}{% elif one.auto %} {{ knocks.opens_by_itself }}{% else %} {{ knocks.by_hand }}{% endif %}</p>
-  {% endfor %}
-  {% for one in knocks.mine %}
-  <article class="card">
-    <p>You knocked at {% if one.href %}<a href="{{ one.href }}">{{ one.name }}</a>{% else %}{{ one.name }}{% endif %}'s door on {{ one.day }}.</p>
-    <p class="words">&ldquo;{{ one.note }}&rdquo;</p>
-    {% if not one.answer %}
-    <p class="muted">No answer yet.</p>
-    {% if one.take_back %}{# knocks-tidy: gone for them, as if never sent #}
-    <form method="post" action="{{ url_for('take_back_a_knock') }}" class="beside">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="to" value="{{ one.to }}">
-      <button type="submit" class="take">take back</button>
-    </form>
-    {% endif %}
-    {% else %}
-    <p>{{ one.name|capitalize }} answered {{ one.answer }} on {{ one.answered }}.{% if one.notes %} <a href="{{ one.notes }}">notes with {{ one.name }}</a>{% elif one.room_href %} <a href="{{ one.room_href }}">your room with {{ one.name }}</a>{% elif one.waits %} {{ knocks.waits_for_room }}{% elif one.answer == 'yes' and not one.set_up and one.auto %} {{ knocks.opens_by_itself }}{% elif one.answer == 'yes' and not one.set_up %} {{ knocks.by_hand }}{% endif %}</p>
-    {% if one.reply %}<p class="words">&ldquo;{{ one.reply }}&rdquo;</p>{% endif %}
-    {% endif %}
-  </article>
-  {% endfor %}
-</section>
+{% include "knocks_section.html" %}
 
 {% endif %}{# a member's own door, shown to them alone: the state in one plain line, and
    the two things they may set. Its numbers are theirs; the commons has none. #}

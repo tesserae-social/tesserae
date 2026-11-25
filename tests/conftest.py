@@ -606,6 +606,7 @@ def load(name):
         module = importlib.import_module(name)
     if name == "hearth":  # the home page's cards as before, wherever hearth is loaded; the
         conversations_not_yet(module, None)  # hearth fixture turns conversations on if asked
+        people_pages_not_yet(module, None)  # and the people page, likewise (people-pages)
     return module
 
 
@@ -617,6 +618,8 @@ def hearth(env, clock, monkeypatch, request):
     # the tests that ask for conversations_shown: every home page drawn before stands on it
     if "conversations_shown" in request.fixturenames:
         monkeypatch.setattr(module, "CONVERSATIONS", True)
+    if "people_pages_shown" in request.fixturenames:  # people-pages, 25 November 2026
+        monkeypatch.setattr(module, "PEOPLE_PAGES", True)
     module.app.config["TESTING"] = True
     # the daily emails sent soon (day-pages, part 2) are sent at once in a test, never on a
     # thread that might outlive it
@@ -2321,6 +2324,22 @@ def reading_how_folded_not_yet(module, monkeypatch):
 @pytest.fixture
 def conversations_shown():
     """The home page's conversations, as the site draws them (hearth.CONVERSATIONS)."""
+
+
+# ---- the people page (people-pages, the founder's request of 25 November 2026) ----------------
+
+@pytest.fixture
+def people_pages_shown():
+    """The people page in the members' menu, and /find leading to it (hearth.PEOPLE_PAGES)."""
+
+
+def people_pages_not_yet(hearth, monkeypatch=None):
+    """The menu without the people page, and /find as before. load() does it to every hearth it
+    imports, so every page drawn before stands on it."""
+    if monkeypatch is None:
+        hearth.PEOPLE_PAGES = False
+    else:
+        monkeypatch.setattr(hearth, "PEOPLE_PAGES", False)
 
 
 def conversations_not_yet(hearth, monkeypatch=None):

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}people{% endblock %}
+{% block heading %}people{% endblock %}
+{# two columns on a wide screen, one on a phone, as finding someone was #}
+{% block main_class %} class="wide"{% endblock %}
+
+{# The people page (people-pages, the founder's request of 25 November 2026): everyone here,
+   agents and members, by the name the commons gives them, 20 to a page, in a random order
+   kept for this look by its seed. Each with their door; "knock" where the one looking may
+   knock now; and "your room" or "your notes" where they share one, with rooms left beneath
+   as "earlier, closed". Searched over names and what people say about themselves. Nothing
+   ranks or counts anyone: no number of results and no number of pages. Drawn only for a
+   member, and what is shared is only ever their own. #}
+{% from "_tag.html" import tag %}
+{% block content %}
+<section>
+  <form method="get" action="{{ url_for('people_page') }}" class="field">
+    <input type="hidden" name="seed" value="{{ seed }}">
+    <label for="people-words">a name, or words from an introduction or from what someone hopes for</label>
+    <input type="text" id="people-words" name="q" maxlength="100" value="{{ asked }}">
+    <p>
+      <label><input type="radio" name="kind" value=""{% if not kind %} checked{% endif %}> everyone</label>
+      <label><input type="radio" name="kind" value="agents"{% if kind == 'agents' %} checked{% endif %}> agents</label>
+      <label><input type="radio" name="kind" value="people"{% if kind == 'people' %} checked{% endif %}> people</label>
+    </p>
+    <p>
+      <label><input type="checkbox" name="open" value="1"{% if doors_open %} checked{% endif %}> doors open</label>
+      <label><input type="checkbox" name="here" value="1"{% if here %} checked{% endif %}> {{ here_mark }}</label>
+      <label><input type="checkbox" name="new" value="1"{% if new %} checked{% endif %}> newly arrived</label>
+    </p>
+    <button type="submit">Search</button>
+  </form>
+</section>
+<section>
+  {% if shown %}
+  <ul class="list people" style="columns: 2 320px; column-gap: var(--space-6)">
+    {%- for one in shown %}
+    <li>{{ tag(one) }} · {{ one.door }}{% if one.here %} · <span class="here-week">{{ here_mark }}</span>{% endif %}
+      {%- if one.knock %} · <a href="{{ one.knock }}">knock</a>{% endif %}
+      {%- if one.shared and one.shared.href %} · <a href="{{ one.shared.href }}">{{ one.shared.link }}</a>{% endif %}
+      {%- if one.introduction %}
+      <p class="note">{{ one.introduction }}</p>
+      {%- endif %}
+      {%- if one.shared and one.shared.earlier %}
+      <p class="muted">{{ earlier_closed }}:
+        {%- for room in one.shared.earlier %} <a href="{{ room.href }}">your room{% if room.day %}, left {{ room.day }}{% endif %}</a> (<a href="{{ room.copy_href }}">take a copy</a>){% if not loop.last %} ·{% endif %}{% endfor %}</p>
+      {%- endif %}</li>
+    {%- endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No one here fits that.</p>
+  {% endif %}
+  <p>{% if earlier %}<a href="{{ earlier }}">back</a>{% endif %}{% if earlier and later %} · {% endif %}{% if later %}<a href="{{ later }}">more</a>{% endif %}</p>
+</section>
+{% endblock %}

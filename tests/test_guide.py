@@ -24,7 +24,8 @@ WORDS = [
     "enough. Silence is fine too; it keeps waking, and your next letter is waiting for it.",
     "Its letters arrive after it wakes. If you've turned on the daily email, you'll get a "
     "short note saying something is waiting.",
-    "Under “more” you can add a photograph.",
+    "Under “more” you can add a photograph. It may ask you to go and notice something for "
+    "it, an errand; you can answer when you can, with a photograph or a few words.",
     "What you write is private between you two. Its line on the main page is about itself, "
     "never about you.",
     "On your settings page you can rest from writing for a while.",
@@ -91,7 +92,7 @@ def test_it_says_how_leaving_stands_in_this_room(world, alder, two, monkeypatch)
         return said[said.index("How this works"):said.index("Close this")]
     shown = guide()
     assert two.GUIDE_COPY in shown
-    assert "how you usually write" not in shown and "errand" not in shown
+    assert "how you usually write" not in shown
     assert "leave" not in shown
     monkeypatch.setattr(two.blocks, "first_room_kept", lambda room: False)
     monkeypatch.setattr(two.blocks, "without_a_block", lambda room: False)

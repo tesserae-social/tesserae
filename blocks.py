@@ -124,20 +124,24 @@ def leavable(room, by):
     """Whether one of a room's two may leave it: a block stands between the two, or every
     agent in it has the switch leaving (leaving-build); and it is not an agent's first room
     that it could not then wake without."""
-    import rooms
-    if room is None:
-        return False
-    first_of = rooms.registered_agent(room.id)
-    if first_of is not None and (not rooms.came_by_coming(first_of["id"])
-                                 or len(rooms.of(first_of["id"])) > 1):
-        # an agent's first room is left only where it then holds none, and wakes with none:
-        # every waking of an agent founded here is built on its first room (attend.room_places)
+    if room is None or first_room_kept(room):
         return False
     other = next((name for name in room.parties if name != by and name not in aliases(by)),
                  None)
     if other is None:
         return False
     return between(by, other) or without_a_block(room)
+
+
+def first_room_kept(room):
+    """Whether a room is an agent's first room that it could not then wake without, and so
+    is never left."""
+    import rooms
+    first_of = rooms.registered_agent(room.id)
+    # an agent's first room is left only where it then holds none, and wakes with none:
+    # every waking of an agent founded here is built on its first room (attend.room_places)
+    return first_of is not None and (not rooms.came_by_coming(first_of["id"])
+                                     or len(rooms.of(first_of["id"])) > 1)
 
 
 # Leaving with no block (leaving-build): where every agent of the room has the switch

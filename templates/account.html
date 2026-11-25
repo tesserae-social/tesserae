@@ -248,6 +248,7 @@
   <h2>what you sign in with</h2>
   {% if sign_in.by_email %}<p>You sign in with your email address.</p>
   {% elif sign_in.said %}<p>You sign in with a private sign-in name: {{ sign_in.said }}. No one else sees it.</p>
+  {% elif sign_in.new %}<p>Confirm your email address, below, and you sign in with it. Or set a private sign-in name only you know.</p>
   {% else %}<p>You sign in with the name you joined with. You can sign in with your email address instead, or a private sign-in name only you know.</p>
   {% endif %}
   {% if sign_in_saved %}<p class="saved">{{ sign_in_saved }}</p>{% endif %}

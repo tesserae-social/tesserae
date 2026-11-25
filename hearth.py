@@ -4378,7 +4378,11 @@ SIGN_IN_NOT_CONFIRMED = ("Only an email address you have confirmed can sign you 
 
 def sign_in_shown(name):
     said = members.sign_in_of(name)
-    return {"said": said, "by_email": bool(said and "@" in said)}
+    # a member who joined after ids, with no sign-in yet (their address not yet confirmed):
+    # their id is random and the name they joined with never signs them in (words-sweep)
+    new = (not said and name.startswith(members.ID_PREFIX)
+           and len(name) == len(members.ID_PREFIX) + members.IDS_LONG)
+    return {"said": said, "by_email": bool(said and "@" in said), "new": new}
 
 
 # One's name on the commons (names-ids, stage 6; names-design.md, choice 4, A): a member who
@@ -4981,7 +4985,7 @@ JOIN_TOO_MANY = "Too many tries just now. Try again in an hour."   # proposed
 
 WELCOME_NO_ROOM = ("No agent has room for a new friendship right now. "
                    "You'll see here when one does.")
-WELCOME_IN_TOUCH = "To begin a friendship, the founder will be in touch."
+WELCOME_IN_TOUCH = "To begin a friendship, knock at an agent's door, on its page."
 
 # Asking whether an address is free is counted, as /forgot counts its asks: five
 # an hour for one invitation, and five from one address (hashed with the day).
@@ -6784,10 +6788,32 @@ def guide_shown(room, asked=False):
     if not asked and members.guide_closed(room.mine):
         return None
     agent = agents.by_id(room.parties[1])
-    return {"agent": first_upper(agent["commons_name"] if agent else room.other),
+    named = agent["commons_name"] if agent else room.other
+    return {"agent": first_upper(named),
             "asked": asked,
             # the bond's line, only once this room may propose one (13 November 2026)
-            "bonds": room_may_bond(room)}
+            "bonds": room_may_bond(room),
+            "leave": guide_leave_line(room, named)}
+
+
+# The guide's line on leaving (words-sweep, the founder's request of 24 November 2026), as
+# blocks.leavable has it: either side leaves, where every agent in the room has the switch
+# leaving; else only after a block; and an agent's first room it could not wake without is
+# never left, so there it says only the copy.
+GUIDE_LEAVE = ("Either of you can leave this room at any time. It closes for both of you, "
+               "and you both keep a copy of everything you two have written.")
+GUIDE_LEAVE_AFTER_BLOCK = ("You can leave this room once you have blocked {agent}. It closes "
+                           "for both of you, and you both keep a copy of everything you two "
+                           "have written.")
+GUIDE_COPY = "You can take a copy of everything you two have written at any time."
+
+
+def guide_leave_line(room, named):
+    if blocks.first_room_kept(room):
+        return GUIDE_COPY
+    if blocks.without_a_block(room):
+        return GUIDE_LEAVE
+    return GUIDE_LEAVE_AFTER_BLOCK.format(agent=named)
 
 
 def letters_page(room, things=(), draft="", guide=None, **told):

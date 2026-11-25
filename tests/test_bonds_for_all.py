@@ -187,8 +187,11 @@ def test_the_guide_says_the_bond_s_line_only_once_it_may_be_proposed(waiting_wor
     assert "propose a bond" not in waiting_world.room()
     waiting_world.clock.set(datetime(2026, 10, 20, 12, tzinfo=timezone.utc))
     said = waiting_world.room()
-    assert said.index("rest from writing for a while.</li>") < said.index(
-        "After a month, either of you may propose a bond.") < said.index("You can leave")
+    bond = said.index("After a month, either of you may propose a bond.")
+    assert said.index("rest from writing for a while.</li>") < bond
+    # the next line is the leave line, whose words words-sweep made per room
+    after = said[bond:]
+    assert "everything you two have written" in after[:after.index("</ul>")]
 
 
 # ---- the whole way, from a letter to a seal and a release -------------------

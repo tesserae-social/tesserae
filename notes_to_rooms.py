@@ -6,7 +6,9 @@ Since person-rooms a yes between two people opens a room of letters (rooms.PEOPL
 place of notes (notes.py). Each yes between two people that stood before then has no room. This
 makes one for each, at the address rooms.address_for_people gives, and writes each note into it
 as a letter, by its writer, at the moment it was written, oldest first. A yes with no notes gets
-its room too, empty but for the knock and its answer at its top. The notes files are left as
+its room too, empty but for the knock and its answer at its top. A room is made even where a
+door is full (the dry run says so), so no notes are lost; from then on it counts against both
+doors like any room. The notes files are left as
 they are: nothing in DATA_DIR/notes/ is changed or removed.
 
     python notes_to_rooms.py              a dry run: lists every room and letter, changes nothing
@@ -82,7 +84,8 @@ def plan():
         letters = [(store(rooms, note["from"]), note["at"], note["words"])
                    for note in notes.read(one, other)]
         gone = [who for who in (one, other) if members.has_left(who)]
-        found.append({"knock": held, "room": address, "letters": letters, "left": gone})
+        found.append({"knock": held, "room": address, "letters": letters, "left": gone,
+                      "over": not gone and not knock.room_fits(held)})
     return found
 
 
@@ -93,6 +96,9 @@ def listed(found):
         lines.append("room     rooms/%s  (knock %s--%s, answered %s)%s" % (
             one["room"], held["from"], held["to"], held.get("answered_at"),
             "  closed: %s has left" % ", ".join(one["left"]) if one["left"] else ""))
+        if one.get("over"):
+            lines.append("note     a door is full: the room is made anyway, so no notes are "
+                         "lost, and counts against both doors from now on")
         for by, at, words in one["letters"]:
             lines.append("letter   from-%s/%s-%s.md  (%d characters)" % (by, by, at, len(words)))
     if not found:

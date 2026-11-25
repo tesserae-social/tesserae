@@ -230,13 +230,14 @@ def in_use(who, kind=None):
     """
     # read only here: rooms.py asks the members' store who someone is
     import rooms
-    # a room of two people is not counted (person-rooms, 25 November 2026): it opens at a yes
-    # whatever either's room, as their notes did, and is never against a door
-    found = [room for room in rooms.of(who) if room.kind != rooms.PEOPLE_KIND]
+    # a room of two people counts as any room with a person (person-rooms, the founder's word of
+    # 25 November 2026); no agent is ever in one, so no agent's count moves
+    found = rooms.of(who)
     if kind is None:
         return len(found)
-    wanted = rooms.AGENTS_KIND if kind == AGENTS else rooms.PERSON_KIND
-    return sum(1 for room in found if room.kind == wanted)
+    wanted = ((rooms.AGENTS_KIND,) if kind == AGENTS
+              else (rooms.PERSON_KIND, rooms.PEOPLE_KIND))
+    return sum(1 for room in found if room.kind in wanted)
 
 
 # ---------------------------------------------------------------- saying

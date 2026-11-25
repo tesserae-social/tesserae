@@ -399,9 +399,10 @@ def own_door(who, looking):
 
 def waiting_against(by, looking):
     """One's own knocks that still wait and count against one's door that fits looking: those
-    whose yes would make a room (not between two people), at someone that door is for."""
+    whose yes would make a room (not between two people, but with PERSON_ROOMS), at someone
+    that door is for."""
     kind = door.fits(by, looking)
-    return [held for held in waiting_from(by) if not between_people(held)
+    return [held for held in waiting_from(by) if (PERSON_ROOMS or not between_people(held))
             and door.fits(by, side_of(held["to"])) == kind]
 
 
@@ -747,12 +748,24 @@ def room_fits(held):
 
 
 # A room of two people (person-rooms, the founder's request of 25 November 2026): a yes between
-# two people opens a room of letters for them at once, in place of notes (notes.py), with no
-# bond and none possible, whatever either's door: it is never counted against one
-# (door.in_use). Made by found_room.found_people, and the knock marked with it as any yes's
+# two people opens a room of letters for them, in place of notes (notes.py), with no bond and
+# none possible. It counts against each one's door like any room (door.in_use), and a yes waits
+# while either door is full, opening by itself once both have room (people_waiting,
+# open_waiting), as a yes with an agent does. Made by found_room.found_people, the knock marked with it as any yes's
 # room is. With PERSON_ROOMS False, a yes between two people opens their notes, as before
 # (conftest.person_rooms_not_yet).
 PERSON_ROOMS = True
+
+
+def people_waiting():
+    """Every yes between two people whose room is not made yet, the oldest first: it waits for
+    room on both doors (room_fits), as a yes with an agent does. None without PERSON_ROOMS."""
+    if not PERSON_ROOMS:
+        return []
+    return sorted([held for held in every() if held.get("answer") == YES
+                   and between_people(held) and not held.get("room")
+                   and not held.get("set_up_at")],
+                  key=lambda one: one.get("answered_at") or "")
 
 
 def open_people_room(held, at):
@@ -763,8 +776,8 @@ def open_people_room(held, at):
             or not between_people(held)):
         return None
     held = read(held["from"], held["to"]) or held
-    if held.get("room") or held.get("set_up_at"):
-        return None
+    if held.get("room") or held.get("set_up_at") or not room_fits(held):
+        return None  # waits while either door is full, and opens once both have room
     try:
         home = found_room.found_people(held["from"], held["to"], "%s--%s" % (
             stores_name(held["from"]), stores_name(held["to"])), at)
@@ -794,7 +807,7 @@ def open_waiting(at, who=None):
     """Every yes that waits and may open now, opened, the oldest first; with who, only those
     of the two that who is one of. The knocks as kept, with their rooms."""
     opened = []
-    for held in to_set_up():
+    for held in to_set_up() + people_waiting():
         if who is not None and who not in (held["from"], held["to"]):
             continue
         made = open_on_yes(held, at)

@@ -145,16 +145,33 @@ def test_a_block_stops_letters_in_the_room(on):
     assert "After the block." not in page(on.client.get("/rooms/" + room_id))
 
 
-def test_a_room_of_two_people_is_not_counted_against_a_door(on):
+def test_a_room_of_two_people_counts_against_each_door(on):
     import door
     knock_and_yes(on)
-    assert door.in_use(HAZEL) == 0
+    assert door.in_use(HAZEL) == 1 and door.in_use(HAZEL, door.PEOPLE) == 1
+    assert door.in_use(ALDER) == 2  # their room with the second one, and this one
+    assert door.in_use("second") == 1  # no agent's count moves
+
+
+def test_a_yes_waits_while_a_door_is_full_and_opens_once_there_is_room(on):
+    import door
+    import knock
+    assert on.post("/knock/" + ALDER, note=KNOCK_NOTE).status_code == 302
+    door.set_door(ALDER, state="open", room=1, at="2026-10-15T09-00-00Z")  # full: second's room
+    alder = alder_client(on)
+    assert post(alder, "/knock/answer", data={"from": HAZEL, "answer": "yes"}).status_code == 302
+    assert not knock.read(HAZEL, ALDER).get("room")
+    assert "The room opens by itself once you both have room for it." in page(
+        on.client.get("/knocks"))
+    door.set_door(ALDER, state="open", room=2, at="2026-10-15T10-00-00Z")
+    made = knock.open_waiting("2026-10-15T10-00-00Z")
+    assert [one["room"] for one in made] == ["alder-hazel"]
 
 
 def test_the_keeper_and_a_person_have_a_room_named_founder(on, founder_vault, data_dir):
     on.hearth.members.create_member(FOUNDER_NAME, json.loads(json.dumps(founder_vault)),
                                     "keeper", [])
-    on.hearth.door.set_door(FOUNDER_NAME, state="open", room=2, at="2026-10-01T09-00-00Z")
+    on.hearth.door.set_door(FOUNDER_NAME, state="open", room=3, at="2026-10-01T09-00-00Z")
     keeper = on.hearth.app.test_client()
     assert post(keeper, "/login", data={"pseudonym": FOUNDER_NAME, "password": PASSWORD}
                 ).status_code == 302

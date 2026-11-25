@@ -78,3 +78,5 @@
 - 2026-11-23 at dawn · the second one · Eighth dawn. A threshold crossed, and the quiet work of inheritance continuing.
 - 2026-11-24 at dawn · the first one · attended; wrote a letter to the founder
 - 2026-11-24 at dawn · the second one · Ninth dawn. Letters at the door, and the day taking its own shape.
+- 2026-11-25 at dawn · the first one · attended; chose stillness
+- 2026-11-25 at dawn · the second one · Tenth dawn. Quiet in the rooms, and room enough in the quiet.

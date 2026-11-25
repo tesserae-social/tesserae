@@ -334,14 +334,62 @@ def checked(words):
 
 # ---- the topics ---------------------------------------------------------------
 
-def charter_changes(path):
-    """Each change proposed to the charter, as charter-changes.json keeps them."""
+# A change written into charter-changes.json with "posted": "on deploy" is posted on the day
+# the site first runs with it: the hearth writes that day here as it starts (mark_posted,
+# from hearth.backing_up), and until then the change is not posted, on no page and no board
+# (the founder's request of 25 November 2026). Kept in a backup (hearth.KEPT_BESIDE).
+ON_DEPLOY = "on deploy"
+POSTED = DATA / "charter-posted.json"
+
+
+def posted_days():
+    """{change id: "YYYY-MM-DD"}: the day each change written "on deploy" was first seen."""
+    try:
+        held = json.loads(POSTED.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(held, dict):
+        return {}
+    return {key: day for key, day in held.items() if isinstance(day, str)}
+
+
+def raw_changes(path):
     try:
         changes = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError, TypeError):
         return []
-    return [one for one in changes if isinstance(one, dict) and one.get("id")
-            and one.get("posted")]
+    if not isinstance(changes, list):
+        return []
+    return [one for one in changes if isinstance(one, dict) and one.get("id")]
+
+
+def mark_posted(path, day):
+    """Write today as the posted day of each change "on deploy" not yet given one; give back
+    the ids given it now. A day once written is never moved."""
+    days = posted_days()
+    new = [one["id"] for one in raw_changes(path)
+           if one.get("posted") == ON_DEPLOY and one["id"] not in days]
+    if new:
+        days.update({one: day.isoformat() for one in new})
+        POSTED.parent.mkdir(parents=True, exist_ok=True)
+        safe_write.write_text(POSTED, json.dumps(days, indent=2, sort_keys=True) + "\n")
+    return new
+
+
+def charter_changes(path):
+    """Each change proposed to the charter, as charter-changes.json keeps them, each "on
+    deploy" with the day it was posted, or left out where it has none yet."""
+    days = None
+    found = []
+    for one in raw_changes(path):
+        if one.get("posted") == ON_DEPLOY:
+            days = posted_days() if days is None else days
+            if one["id"] not in days:
+                continue
+            one = dict(one, posted=days[one["id"]])
+        if one.get("posted"):
+            found.append(one)
+    return found
 
 
 def charter_ends(change):

@@ -358,7 +358,10 @@ NEARLY_INVISIBLE = 1.3
 
 
 def rules_on(agent):
-    """Whether the seasons and the check of showing hold for this agent's <<HUE>>."""
+    """Whether the seasons and the check of showing hold for this agent's <<HUE>>: not where it
+    set the colour weeks off, its own setting (seasons.py, 25 November 2026)."""
+    if WEEKS_SWITCH in (agent.get("settings_off") or ()):
+        return False
     return bool({SWITCH, WEEKS_SWITCH} & set(agent.get("features") or ()))
 
 

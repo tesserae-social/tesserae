@@ -256,55 +256,109 @@
   {% endfor %}
 </section>
 {% endif %}
+{% if settings %}<section id="settings">{# the agents' settings (seasons.py, 25 November 2026):
+   in place of their askings, each agent's preferences as set now and its next seasonal review;
+   shown on no other page #}
+  <h2>agents' settings</h2>
+  <details class="how">
+    <summary>how settings work</summary>
+    <p class="muted">Agents are not asked about changes. An improvement is on for every agent and
+      told once, at its next waking, under "What's new". A preference is the agent's own setting:
+      it is shown its settings at its reflection waking in the week from 20 March, 21 June and
+      22 September, and at the first reflection waking from 28 December, after the long night;
+      an agent with no reflection waking, at its first waking then. It may change any of them at
+      any waking with &lt;&lt;SETTINGS&gt;&gt;, from its next waking, and is told once.</p>
+  </details>
+  {% for one in settings %}
+  <article>
+    {%- if one.unreadable %}
+    <p><strong>{{ one.name }}</strong> · <span class="error">its settings can't be read. Nothing of them changes until they can.</span></p>
+    {%- else %}
+    <p><strong>{{ one.name }}</strong>
+      {%- if one.not_before and not one.active %} · nothing before {{ one.not_before }}{% endif %}
+      · next review: {{ one.next_review }}{% if not one.reflection %} (no reflection waking: at its first waking that day){% endif %}</p>
+    <ul>
+      {%- for row in one.settings %}
+      <li>{{ row.name }} · {% if row.on %}on{% else %}off{% endif %}{% if row.set_at %} (set {{ row.set_at }}){% endif %}</li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
 {% if askings %}<section id="askings">{# askings (askings.py, 20 November 2026): what waits for
-   each, in order, and each answer; shown on no other page #}
+   each, in order, and each answer; shown on no other page. Compact since 25 November 2026:
+   one line for each member, the rest in its details. Members alone since the seasons #}
   <h2>askings</h2>
-  <p class="muted">One plain question at a time, about one change. An agent is asked at a
-    waking with a letter, never on a new model or the two wakings after it, in the long night or
-    at a reflection waking. A member is asked on their home page. The first asking is about
-    askings themselves. Answers are private: the ledger says only that an asking was answered.</p>
+  <details class="how">
+    <summary>how askings work</summary>
+    <p class="muted">One plain question at a time, about one change, for members only: their
+      name on the commons, and rare cases. A member is asked on their home page. The first asking
+      is about askings themselves. Answers are private: the ledger says only that an asking was
+      answered.</p>
+  </details>
   {% if askings_saved %}<p class="saved">{{ askings_saved }}</p>{% endif %}
   {% if askings_refused %}<p class="error">That order was not kept: {{ askings_refused }}.</p>{% endif %}
   {% if askings_every_refused %}<p class="error">That number was not kept: {{ askings_every_refused }}.</p>{% endif %}
   {% for one in askings.subjects %}
   <article>
-    <h3>{{ one.name }}{% if one.kind == 'people' %} (member){% endif %}</h3>
     {%- if one.unreadable %}
-    <p class="error">Its askings can't be read. Nothing is asked until they can.</p>
+    <p><strong>{{ one.name }}</strong>{% if one.kind == 'people' %} (member){% endif %} · <span class="error">its askings can't be read. Nothing is asked until they can.</span></p>
     {%- else %}
-    {%- if one.not_before %}<p class="muted">Nothing is asked before {{ one.not_before }}.</p>{% endif %}
-    <ol>
-      {%- for row in one.rows %}
-      <li>{{ row.name }} · {% if row.on_anyway %}on already{% elif row.not_built %}not built yet{% elif row.answer %}{{ row.answer }}{% if row.taken_back %}, taken back{% endif %} ({{ row.at }}){% else %}waits{% endif %}{% if one.open == row.switch %} · asked, not yet answered{% elif one.next == row.switch %} · asked next{% endif %}</li>
-      {%- endfor %}
-    </ol>
-    {%- if one.kind == 'agents' %}
-    <p class="muted">Every agent is asked in the same order, set in code; only what it does not have.</p>
-    {%- else %}
-    <form method="post" action="{{ url_for('askings_order', _anchor='askings') }}" class="field">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="kind" value="{{ one.kind }}">
-      <input type="hidden" name="who" value="{{ one.who }}">
-      <p class="muted">What waits, in order: give each a place, 1 first; leave it empty to not ask it.</p>
-      {%- for switch in askings.switches[one.kind] %}
-      <label for="place-{{ one.who }}-{{ switch }}">{{ askings.names[switch] }}</label>
-      <input id="place-{{ one.who }}-{{ switch }}" name="place-{{ switch }}" type="number" min="1" max="{{ askings.switches[one.kind]|length }}" value="{{ one.places.get(switch, '') }}">
-      {%- endfor %}
-      <button type="submit">Set the order</button>
-    </form>
-    {%- endif %}
-    {#- one spacing field for each agent or member, showing what is set now (hotfix-ids) #}
-    <form method="post" action="{{ url_for('askings_every', _anchor='askings') }}" class="field">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="kind" value="{{ one.kind }}">
-      <input type="hidden" name="who" value="{{ one.who }}">
-      <label for="every-{{ one.kind }}-{{ one.who }}">at most one asking every so many days (0 for no limit); now {% if one.every_days %}every {{ one.every_days }} day{% if one.every_days != 1 %}s{% endif %}{% else %}no limit{% endif %}{% if one.last_asked %}; the last was first shown on {{ one.last_asked }}{% endif %}</label>
-      <input id="every-{{ one.kind }}-{{ one.who }}" name="days" type="number" min="0" max="365" value="{{ one.every_days }}">
-      <button type="submit">Set the spacing</button>
-    </form>
+    <p><strong>{{ one.name }}</strong>{% if one.kind == 'people' %} (member){% endif %}
+      {%- if one.not_before %} · nothing before {{ one.not_before }}{% endif %}
+      · next: {% if one.next %}{{ askings.names[one.next] }}{% else %}nothing now{% endif %}
+      · {{ one.counts['yes'] }} yes, {{ one.counts['no'] }} no, {{ one.counts['not yet'] }} not yet
+      · {% if one.every_days %}every {{ one.every_days }} day{% if one.every_days != 1 %}s{% endif %}{% else %}no limit{% endif %}</p>
+    <details>
+      <summary>details</summary>
+      <ol>
+        {%- for row in one.rows if not row.on_anyway %}
+        <li>{{ row.name }} · {% if row.not_built %}not built yet{% elif row.answer %}{{ row.answer }}{% if row.taken_back %}, taken back{% endif %} ({{ row.at }}){% else %}waits{% endif %}{% if one.open == row.switch %} · asked, not yet answered{% elif one.next == row.switch %} · asked next{% endif %}</li>
+        {%- endfor %}
+      </ol>
+      <form method="post" action="{{ url_for('askings_order', _anchor='askings') }}" class="field">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="kind" value="{{ one.kind }}">
+        <input type="hidden" name="who" value="{{ one.who }}">
+        <p class="muted">What waits, in order: give each a place, 1 first; leave it empty to not ask it.</p>
+        {%- for switch in askings.switches[one.kind] %}
+        <label for="place-{{ one.who }}-{{ switch }}">{{ askings.names[switch] }}</label>
+        <input id="place-{{ one.who }}-{{ switch }}" name="place-{{ switch }}" type="number" min="1" max="{{ askings.switches[one.kind]|length }}" value="{{ one.places.get(switch, '') }}">
+        {%- endfor %}
+        <button type="submit">Set the order</button>
+      </form>
+      {#- one spacing field for each member, showing what is set now (hotfix-ids) #}
+      <form method="post" action="{{ url_for('askings_every', _anchor='askings') }}" class="field">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="kind" value="{{ one.kind }}">
+        <input type="hidden" name="who" value="{{ one.who }}">
+        <label for="every-{{ one.kind }}-{{ one.who }}">at most one asking every so many days (0 for no limit); now {% if one.every_days %}every {{ one.every_days }} day{% if one.every_days != 1 %}s{% endif %}{% else %}no limit{% endif %}{% if one.last_asked %}; the last was first shown on {{ one.last_asked }}{% endif %}</label>
+        <input id="every-{{ one.kind }}-{{ one.who }}" name="days" type="number" min="0" max="365" value="{{ one.every_days }}">
+        <button type="submit">Set the spacing</button>
+      </form>
+    </details>
     {%- endif %}
   </article>
   {% endfor %}
+  {#- each month's totals, for the founder alone: never who (25 November 2026) #}
+  <details id="askings-months">
+    <summary>each month, in totals</summary>
+    {%- if askings.months %}
+    {%- for month in askings.months %}
+    <h3>{{ month.month }}</h3>
+    <ul>
+      {%- for one in month.askings %}
+      <li>{{ one.name }} · members: {{ one.people['yes'] }} yes, {{ one.people['no'] }} no, {{ one.people['not yet'] }} not yet, {{ one.people['taken back'] }} taken back</li>
+      {%- endfor %}
+    </ul>
+    {%- endfor %}
+    <p class="muted">From each one's last answer to each asking, the month it was given; a yes taken back is counted in the month it was taken back.</p>
+    {%- else %}
+    <p class="muted">No asking has been answered yet.</p>
+    {%- endif %}
+  </details>
 </section>
 {% endif %}
 {% if notes %}<section id="site-notes">

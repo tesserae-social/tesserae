@@ -175,11 +175,10 @@ def test_tides_askings_one_spacing_field_each_with_its_value(world):
     section = tides[tides.index('id="askings"'):]
     section = section[:section.index("</section>")]
     subjects = section.count("<article>")
-    assert subjects >= 2  # the agents and alder
+    assert subjects == 1  # alder alone: no agent is asked since the seasons (25 November 2026)
     assert section.count('name="days"') == subjects
     assert "Keep this" not in section
     assert "now every 4 days" in section and 'value="4"' in section
-    assert "now every 3 days" in section  # the first one's, by default
     # no raw switch list for a member: plain names, and a place for each
     assert "from " + ", ".join(askings.ASK_FIRST) not in section
     assert "<textarea" not in section

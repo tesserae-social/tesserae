@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}knocks{% endblock %}
+{% block back %}<a href="{{ url_for('hearth') }}">&larr; home</a>{% endblock %}
+{% block heading %}knocks{% endblock %}
+
+{# The knocks page (people-pages, the founder's request of 25 November 2026): each knock in
+   full, as the home page showed them before it showed them as lines. Those at one's own door
+   that wait for an answer, with each note and the form to answer; one's own, with each
+   answer and reply. The notes and replies are the two's alone. A member's alone. #}
+{% block content %}
+{% if knocks %}{% include "knocks_section.html" %}
+{% else %}
+{% if knocked %}<p class="saved">You knocked. It is told at its next waking.</p>{% endif %}
+<p class="muted">{{ none_said }}</p>
+{% endif %}
+{% endblock %}

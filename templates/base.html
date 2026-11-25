@@ -507,7 +507,8 @@
      agent's self, its chronicle and a copy are reached from its room, under
      "more"; their old addresses still open. A link is drawn only to whoever
      may open what it leads to. Since 17 November 2026 (who-fix) the line at the top
-     comes first on every page, before the way back, the title and its small line. #}
+     comes first on every page, before the way back, the title and its small line. Since
+     25 November 2026 (people-pages) a member's line links the people page once, after home. #}
   {% macro menu(pages) -%}
     {% for name, label, href in pages %}
       {%- if not loop.first %} · {% endif -%}
@@ -519,9 +520,14 @@
   {% set here = request.endpoint %}
 
   <nav class="menu top" aria-label="pages">
-    {{ menu([(none, 'tesserae.social', 'https://tesserae.social'),
-             ('hearth', 'home', url_for('hearth')), ('account', 'settings', url_for('account')),
-             ('commons', 'the commons', url_for('commons')), ('logout', 'log out', none)]
+    {{ menu(([(none, 'tesserae.social', 'https://tesserae.social'),
+              ('hearth', 'home', url_for('hearth')), ('people_page', 'people', url_for('people_page')),
+              ('account', 'settings', url_for('account')),
+              ('commons', 'the commons', url_for('commons')), ('logout', 'log out', none)]
+             if people_pages else
+             [(none, 'tesserae.social', 'https://tesserae.social'),
+              ('hearth', 'home', url_for('hearth')), ('account', 'settings', url_for('account')),
+              ('commons', 'the commons', url_for('commons')), ('logout', 'log out', none)])
             if member_here else
             [(none, 'tesserae.social', 'https://tesserae.social'),
              ('login', 'log in', url_for('login')),

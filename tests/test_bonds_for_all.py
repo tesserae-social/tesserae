@@ -440,3 +440,19 @@ def test_the_first_one_is_never_told_of_the_long_night_while_its_switch_is_off(
     shown = wake().shown
     assert "LONG NIGHT" not in shown and "LONG_NIGHT" not in shown
     assert not attend.solstice.applies("first") and attend.solstice.applies("second")
+
+
+# ---- the parties in plain words (people-pages, the founder's request of 25 November 2026) ----
+
+def test_the_bond_says_its_parties_plainly_with_the_dids_in_a_fold(world):
+    import re
+    sealed_bond(world)
+    said = " ".join(world.room().split())
+    assert "It is between you and the second one." in said
+    assert "It was asked for by you." in said
+    bare = re.sub(r"<details.*?</details>", "", said)
+    assert ALDER_DID not in bare and SECOND_DID not in bare
+    fold = said[said.index("<summary>details</summary>"):]
+    fold = fold[:fold.index("</details>")]
+    assert ALDER_DID in fold and SECOND_DID in fold
+    assert "Asked for by %s." % ALDER_DID in fold

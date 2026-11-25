@@ -606,6 +606,7 @@ def load(name):
         module = importlib.import_module(name)
     if name == "hearth":  # the home page's cards as before, wherever hearth is loaded; the
         conversations_not_yet(module, None)  # hearth fixture turns conversations on if asked
+        people_pages_not_yet(module, None)  # and the people page, likewise (people-pages)
     return module
 
 
@@ -617,6 +618,8 @@ def hearth(env, clock, monkeypatch, request):
     # the tests that ask for conversations_shown: every home page drawn before stands on it
     if "conversations_shown" in request.fixturenames:
         monkeypatch.setattr(module, "CONVERSATIONS", True)
+    if "people_pages_shown" in request.fixturenames:  # people-pages, 25 November 2026
+        monkeypatch.setattr(module, "PEOPLE_PAGES", True)
     module.app.config["TESTING"] = True
     # the daily emails sent soon (day-pages, part 2) are sent at once in a test, never on a
     # thread that might outlive it
@@ -2246,6 +2249,47 @@ def askings_not_yet(module, monkeypatch):
     monkeypatch.setattr(askings, "ASKINGS", False)
 
 
+def agent_askings_again(monkeypatch, module=None):
+    """Agents asked again, as before the seasons (25 November 2026): askings.AGENTS_ASKED True,
+    in the askings module given or the one imported."""
+    if module is None:
+        import askings as module
+    monkeypatch.setattr(module, "AGENTS_ASKED", True)
+
+
+# ---- the seasons (seasons.py; the founder's request of 25 November 2026) --------------------
+
+@pytest.fixture(autouse=True)
+def seasons_aside(request, monkeypatch, clock):
+    """Improvements and settings set aside (seasons.SEASONS False), outside the tests that ask
+    for seasons_on: every reading of an agent cut before the seasons is what it was with this
+    done. For the first one nothing moves before 1 December 2026 in any case, and every reading
+    of it is cut with attend.py loaded on an earlier day (conftest.NOW, 15 October 2026).
+    seasons.py reads its day off the tests' clock, always."""
+    import seasons
+    clock.pin(seasons, monkeypatch)
+    if "seasons_on" in request.fixturenames:
+        return
+    monkeypatch.setattr(seasons, "SEASONS", False)
+
+
+@pytest.fixture
+def seasons_on():
+    """Improvements and settings, as on the site (seasons.SEASONS)."""
+
+
+def improvements_not_yet(module, monkeypatch):
+    """One reading as it was before the seasons, for a test that has seasons_on: nothing of them
+    said or kept at this waking (attend.SEASONS_HERE False), and seasons.SEASONS False, so
+    that the registry gives no improvement and no setting. Done before attend.py is loaded
+    (module None), the reading is exactly as before; done after, its features were read
+    already."""
+    import seasons
+    monkeypatch.setattr(seasons, "SEASONS", False)
+    if hasattr(module, "SEASONS_HERE"):
+        monkeypatch.setattr(module, "SEASONS_HERE", False)
+
+
 def commons_window_not_yet(module, monkeypatch):
     """attend.py's reading as it was before the commons window (commons-window, 22 November
     2026): no section "In the commons this week", even for an agent that said yes to it. No
@@ -2280,6 +2324,22 @@ def reading_how_folded_not_yet(module, monkeypatch):
 @pytest.fixture
 def conversations_shown():
     """The home page's conversations, as the site draws them (hearth.CONVERSATIONS)."""
+
+
+# ---- the people page (people-pages, the founder's request of 25 November 2026) ----------------
+
+@pytest.fixture
+def people_pages_shown():
+    """The people page in the members' menu, and /find leading to it (hearth.PEOPLE_PAGES)."""
+
+
+def people_pages_not_yet(hearth, monkeypatch=None):
+    """The menu without the people page, and /find as before. load() does it to every hearth it
+    imports, so every page drawn before stands on it."""
+    if monkeypatch is None:
+        hearth.PEOPLE_PAGES = False
+    else:
+        monkeypatch.setattr(hearth, "PEOPLE_PAGES", False)
 
 
 def conversations_not_yet(hearth, monkeypatch=None):

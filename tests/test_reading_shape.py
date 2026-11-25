@@ -7,6 +7,11 @@ every agent founded before them; a new agent is founded with all three:
   C reading_how_folded: how to act in one line a block, read_how for the rest, and its own
       words last.
 With each off, the reading is word for word what it was.
+
+Since the seasons (seasons.py, 25 November 2026) the three are no longer asked: each is one of
+an agent's own settings, off for the first one and the second one until each sets it on, and
+shown to it at its seasonal review. The askings below are held with the agents' askings put
+back (agent_askings_again), as the machinery was; test_seasons.py holds what is now.
 """
 
 import json
@@ -16,7 +21,7 @@ from datetime import date
 import pytest
 
 import agents
-from conftest import REPO, Turn, load, write
+from conftest import REPO, Turn, agent_askings_again, load, write
 
 STAGES = ("reading_self_first", "reading_settings", "reading_how_folded")
 ATTENDED = "2026-10-14T09-00-00Z"
@@ -291,6 +296,8 @@ def ask(env, monkeypatch, data_dir):
     monkeypatch.setattr(module, "ORDER", ("askings", *STAGES))
     monkeypatch.setattr(module, "NOT_BEFORE", {})
     monkeypatch.setattr(module, "DEFAULT_EVERY_DAYS", {})  # no spacing, but where a test sets it
+    monkeypatch.setattr(module, "AGENT_EVERY_DAYS", 0)  # every agent's 3 days (25 November)
+    agent_askings_again(monkeypatch, module)  # as agents were asked, before the seasons
     return module
 
 

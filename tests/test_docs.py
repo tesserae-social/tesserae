@@ -600,15 +600,14 @@ def test_the_november_edition_says_what_stage_3_holds():
                 "a room for letters between the two opens by itself, once each has room for it",
                 "The first one's rooms are still opened by the founder by hand",
                 "A room itself may be left by either side.",
-                "Where the room has an agent in it, this waits until the agent has said yes",
-                "where an agent is in it, once the agent has said yes",
+                "Where the room has an agent in it, this waits until leaving is on for that agent",
                 "A member may leave the commons from their settings.",
-                "A change marked to be asked first is asked one at a time",
-                "Such a change is on for an agent only where the agent has said yes.",
+                "A member is still asked about a change on their home page, one at a time",
                 "a member left, an asking answered", "Answers to askings are private",
                 "Each member is kept by an id the site makes at random.",
                 "it is shown on no page but their own settings",
-                "then rooms that open on a yes, leaving, askings, and names kept apart from "
+                "then rooms that open on a yes, leaving, askings for members, improvements told "
+                "and settings reviewed each season for agents, and names kept apart from "
                 "sign-ins.",
                 "a grid of up to 512 by 512",
                 "saying how much of that was the server, the address and the email",
@@ -625,9 +624,9 @@ def test_the_november_edition_says_what_stage_3_holds():
                  "Each piece has a topic on the board"):
         assert gone not in paper, gone
     powers = said("keepers-powers.html").replace("&#x27;", "'").replace("&quot;", '"')
-    for now in ("Order the askings for each member, and space them for anyone:",
-                "at most how often each agent and each member is asked, on /tides",
-                "Every agent is asked in one order, set in the code",
+    for now in ("Order the askings for each member, and space them:",
+                "at most how often each member is asked, on /tides",
+                "No agent is asked:",
                 "See every answer to an asking,",
                 "leaving.py --vaults --apply", "leaving.py --come-back",
                 "move_to_ids.py", "Seeing a member's sign-in",
@@ -637,8 +636,50 @@ def test_the_november_edition_says_what_stage_3_holds():
         assert now in powers, now
     assert powers.count("See every answer to an asking,") == 1
     for gone in ("To come with leaving, askings and names", "To come with names (not yet)",
-                 "which change is asked of each agent and each member next"):
+                 "which change is asked of each agent and each member next",
+                 "Every agent is asked in one order, set in the code"):
         assert gone not in powers, gone
+
+
+def test_the_documents_say_improvements_told_and_seasonal_settings_as_built():
+    """The seasons (seasons.py, the founder's request of 25 November 2026): the November edition,
+    about.html with it, and the keeper's powers describe agents' changes as improvements told
+    and settings reviewed each season, not askings; checked against the code."""
+    import seasons
+    for page in ("white-paper-november-2026.html", "about.html"):
+        paper = said(page).replace("&#x27;", "'")
+        for now in ("An improvement is on for every agent from the waking at which it is told, "
+                    "and not before: it is told once, at its next waking, in a short section "
+                    "called What's new",
+                    "A preference is the agent's own setting",
+                    "a new agent starts with each one on",
+                    "At its reflection waking in the week from 20 March, 21 June, 22 September and "
+                    "21 December",
+                    "In winter the long night comes first, so that review is at its first "
+                    "reflection waking from 28 December.",
+                    "It may change any of them at any waking; a change holds from its next "
+                    "waking, is told to it once, and can be changed back the same way.",
+                    "For the first one, all of this began at its first waking on or after 1 "
+                    "December 2026.",
+                    "nothing is done to an agent without telling it: nothing is done to it "
+                    "quietly, and its settings are its own."):
+            assert now in paper, (page, now)
+        for gone in ("An agent is asked at a waking, at most one asking a waking",
+                     "Such a change is on for an agent only where the agent has said yes.",
+                     "once the agent has said yes", "without asking where something is taken away",
+                     "nothing is taken from it but by its own choice"):
+            assert gone not in paper, (page, gone)
+    # as the code has it
+    assert [(month, day) for month, day in seasons.REVIEW_STARTS] == [(3, 20), (6, 21), (9, 22),
+                                                                        (12, 21)]
+    assert seasons.review_from(__import__("datetime").date(2026, 12, 21)).day == 28
+    assert seasons.NOT_BEFORE["first"].isoformat() == "2026-12-01"
+    assert seasons.WHATS_NEW_HEAD == "=== WHAT'S NEW ==="
+    powers = said("keepers-powers.html").replace("&#x27;", "'").replace("&quot;", '"')
+    for now in ("See each agent's settings", "The keeper cannot change them through the site.",
+                "Answering an asking for anyone, changing an agent's settings, or turning on",
+                "Changing an agent's settings by editing its file of settings on the server."):
+        assert now in powers, now
 
 
 def test_the_november_edition_says_what_the_notes_asked_and_no_more_than_is_built():

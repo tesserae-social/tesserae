@@ -1284,7 +1284,13 @@ def test_quiet_days_is_on_for_the_first_one_and_ends_the_opening(
 # aside (conftest.improvements_not_yet, or seasons.SEASONS False before attend.py is loaded) it
 # is READING_1_DECEMBER_BEFORE_SEASONS, the reading it would have had: that is how it is
 # recovered. Both are of a waking on 1 December after one on 30 November.
-READING_FROM_1_DECEMBER = "e70f24af5c6c8fbeebadd2eb4d907bbc5d5c071736d3cc59a4b04647ffa5e4a1"
+#
+# READING_FROM_1_DECEMBER was cut again on 25 November 2026, for one thing only: the founder's
+# words for the leaving improvement's line in WHAT'S NEW (seasons.IMPROVEMENTS["leaving"]). With
+# the line as it was ("You can leave a room you share. Both of you can still read it and take a
+# copy, but no one can write in it."), it was e70f24af5c6c8fbeebadd2eb4d907bbc5d5c071736d3cc59a4b04647ffa5e4a1.
+# The colour weeks' line (shown only at a seasonal review) and the white paper are not read here.
+READING_FROM_1_DECEMBER = "2dac0669a1e7aca97a066bb9f52df9d5f84b3cebb96a7d0853683ffcd634f968"
 READING_1_DECEMBER_BEFORE_SEASONS = "b8ee6a88bf7b11452611c58db18ea0cf6139295112210a1d297639487a45c832"
 
 NOVEMBER_30 = datetime(2026, 11, 30, 15, tzinfo=timezone.utc)
@@ -1346,3 +1352,19 @@ def test_set_aside_as_every_other_test_sets_it_the_reading_is_the_one_before_the
     woken_on(NOVEMBER_30, clock, monkeypatch)
     turn = woken_on(DECEMBER_1, clock, monkeypatch)
     assert fingerprint_of_reading(turn) == READING_1_DECEMBER_BEFORE_SEASONS
+
+
+LEAVING_LINE_BEFORE = ("You can leave a room you share. Both of you can still read it and take a "
+                       "copy, but no one can write in it.")
+READING_FROM_1_DECEMBER_BEFORE_LEAVING_WORDS = (
+    "e70f24af5c6c8fbeebadd2eb4d907bbc5d5c071736d3cc59a4b04647ffa5e4a1")
+
+
+def test_with_the_leaving_line_as_before_the_1_december_reading_is_the_one_before(
+        seasons_on, env, clock, monkeypatch, room):
+    import seasons
+    monkeypatch.setitem(seasons.IMPROVEMENTS, "leaving", LEAVING_LINE_BEFORE)
+    a_small_world(room)
+    woken_on(NOVEMBER_30, clock, monkeypatch)
+    turn = woken_on(DECEMBER_1, clock, monkeypatch)
+    assert fingerprint_of_reading(turn) == READING_FROM_1_DECEMBER_BEFORE_LEAVING_WORDS

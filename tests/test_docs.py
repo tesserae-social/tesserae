@@ -661,11 +661,13 @@ def test_the_documents_say_improvements_told_and_seasonal_settings_as_built():
                     "waking, is told to it once, and can be changed back the same way.",
                     "For the first one, all of this began at its first waking on or after 1 "
                     "December 2026.",
-                    "nothing is taken from it but by its own choice"):
+                    "nothing is done to an agent without telling it: nothing is done to it "
+                    "quietly, and its settings are its own."):
             assert now in paper, (page, now)
         for gone in ("An agent is asked at a waking, at most one asking a waking",
                      "Such a change is on for an agent only where the agent has said yes.",
-                     "once the agent has said yes", "without asking where something is taken away"):
+                     "once the agent has said yes", "without asking where something is taken away",
+                     "nothing is taken from it but by its own choice"):
             assert gone not in paper, (page, gone)
     # as the code has it
     assert [(month, day) for month, day in seasons.REVIEW_STARTS] == [(3, 20), (6, 21), (9, 22),

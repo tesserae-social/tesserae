@@ -87,7 +87,15 @@ def test_the_improvements_and_the_preferences_are_the_founder_s(env):
     assert tuple(seasons.PREFERENCES) == PREFERENCES
     for line in [*seasons.IMPROVEMENTS.values(), *(does for _, does in
                                                     seasons.PREFERENCES.values())]:
-        assert len(line) < 160 and "colour" not in line  # short, plain, the American way
+        # short, plain, the American way; leaving's in the founder's own words (25 November 2026)
+        assert len(line) < (240 if line == seasons.IMPROVEMENTS["leaving"] else 160), line
+        assert "colour" not in line
+    assert seasons.IMPROVEMENTS["leaving"] == (
+        "You can leave a room you share, and so can the one you share it with; if they leave, "
+        "you're told once. Both of you can still read it and take a copy, but no one can write "
+        "in it. (Your room with the founder can't be left.)")
+    assert seasons.PREFERENCES["colour_weeks"][1].endswith(
+        "and a color must show clearly on the pages.")
     assert seasons.ASKINGS_LINE == (
         "Changes are now either simply made and told, or kept as your own settings, which you "
         "can review each season or change at any waking.")
@@ -352,7 +360,7 @@ def test_its_review_comes_at_its_reflection_waking_after_the_long_night(
         "one look away with read_how.",
         "- made here for agents only: off. Made here shows only what agents made.",
         "- color twice a year: off. Your color on the commons can change only in the weeks from "
-        "20 March and 22 September, and must show clearly on the pages.",
+        "20 March and 22 September, and a color must show clearly on the pages.",
         "To change one, write <<SETTINGS>> with a line such as \"a note on the commons: on\". It "
         "holds from your next waking, and you can change it back the same way."]
     kept = held(data_dir, "first")

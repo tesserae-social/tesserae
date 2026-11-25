@@ -77,8 +77,13 @@ ROOM_RECORD = "room.json"
 
 # What kind of room: a person and an agent, or two agents (design-rooms-and-doors,
 # section 3). A room.json that names no kind is a person's, as every room was before.
-PERSON_KIND, AGENTS_KIND = "person", "agents"
-KINDS = (PERSON_KIND, AGENTS_KIND)
+# Since person-rooms (the founder's request of 25 November 2026), two people too
+# (PEOPLE_KIND): a room of letters between two members, opened by a yes between them, with no
+# agent in it, no bond and no errands. No agent is ever in one, so no agent's rooms (of, for
+# an agent) and no waking ever hold one.
+PERSON_KIND, AGENTS_KIND, PEOPLE_KIND = "person", "agents", "people"
+KINDS = (PERSON_KIND, AGENTS_KIND, PEOPLE_KIND)
+AGENTS_IN = {PERSON_KIND: 1, AGENTS_KIND: 2, PEOPLE_KIND: 0}  # agents among a room's two
 
 Room = namedtuple("Room", "id mine parties other bond kind", defaults=(PERSON_KIND,))
 
@@ -233,6 +238,11 @@ def of(who):
             found.append(Room(agent["room"], who, (who, agent["id"]),
                               bonds.name_of(agent["did"]), agent["bond"]))
     for room_id, held in later_rooms():
+        if held["kind"] == PEOPLE_KIND and did in held["parties"]:  # two people (person-rooms)
+            other = next(one for one in held["parties"] if one != did)
+            found.append(Room(room_id, who, (who, store_name(other)), bonds.name_of(other),
+                              held["bond"], PEOPLE_KIND))
+            continue
         if held["kind"] != PERSON_KIND or did not in held["parties"]:
             continue
         theirs = next((one for one in agents.registry() if one["did"] in held["parties"]), None)
@@ -331,10 +341,92 @@ def places(room_id):
         return None
     if not founded(room_id) or left(room_id):  # a room left is no room, a first one too
         return None
+    return _places_at(room_id)
+
+
+def _places_at(room_id):
+    """Where a room's things are kept, open or left. A room of two people keeps each one's
+    letters in a folder of its own (letters/from-<name>, people_letters): here as read and
+    outgoing, one for each of the two in the order of their names, so that its letters, all
+    of them, are where any room's are; places_as says which is whose."""
     home = DATA / ROOMS / room_id
     letters = home / "letters"
+    pair = people_pair(room_id)
+    if pair is not None:
+        return Places(home, letters / "incoming", letters / ("from-" + pair[0]),
+                      letters / ("from-" + pair[1]), home / "errands", home / "bonds")
     return Places(home, letters / "incoming", letters / "read", letters / "outgoing",
                   home / "errands", home / "bonds")
+
+
+# ---- a room of two people (person-rooms, the founder's request of 25 November 2026) ------
+#
+# Its letters are delivered at once, with no waking: each of the two writes into their own
+# folder, letters/from-<name>/<name>-<stamp>.md (the keeper as "founder", as the stores name
+# them), and reads the other's. Nothing is unread in the sense an agent's room has it (no
+# letters/incoming); a letter is new until it is seen (members.seen), as any is.
+
+def people_record(room_id):
+    """A room of two people's own record, open or left, as room.json says it: its parties by
+    DID, both members' and neither an agent's; None for any other room."""
+    if not isinstance(room_id, str) or not ADDRESS.fullmatch(room_id):
+        return None
+    try:
+        held = json.loads(record_of(room_id).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(held, dict) or held.get("id") != room_id or held.get("kind") != PEOPLE_KIND:
+        return None
+    pair = held.get("parties")
+    if (not isinstance(pair, list) or len(pair) != 2 or pair[0] == pair[1]
+            or not all(isinstance(did, str) and did for did in pair)
+            or any(one["did"] in pair for one in agents.registry())):
+        return None
+    return held
+
+
+def people_pair(room_id):
+    """The two names a room of two people keeps letters by, in order; None for any other."""
+    held = people_record(room_id)
+    return tuple(sorted(store_name(did) for did in held["parties"])) if held else None
+
+
+def people_letters(room_id, who):
+    """In a room of two people, open or left, the folders of one of them: (their own, the
+    other's). None for any other room, or one who is not in it."""
+    pair = people_pair(room_id)
+    mine = "founder" if who == "founder" or is_keeper(who) else who
+    if pair is None or mine not in pair:
+        return None
+    other = pair[1] if pair[0] == mine else pair[0]
+    letters = DATA / ROOMS / room_id / "letters"
+    return letters / ("from-" + mine), letters / ("from-" + other)
+
+
+def places_as(room):
+    """Where a room's things are kept, as the one standing in it sees them: for a room of two
+    people, their own letters as read (nothing as incoming) and the other's as outgoing, as
+    a room with an agent has the person's and the agent's; for any other room, places."""
+    if room.kind != PEOPLE_KIND:
+        return places(room.id)
+    found = places(room.id) if founded(room.id) and not left(room.id) else (
+        closed_places(room.id))
+    folders = people_letters(room.id, room.mine)
+    if found is None or folders is None:
+        return found
+    return found._replace(read=folders[0], outgoing=folders[1])
+
+
+def address_for_people(one, other):
+    """The address a new room of two people is given: their two names as the stores name them
+    (the keeper "founder"), in the order of the alphabet, with a number after it where that is
+    taken (founder-p-abc23456-2)."""
+    names = sorted(slug("founder" if is_keeper(who) else who) for who in (one, other))
+    base = "-".join(names)
+    found, n = base, 2
+    while taken(found):
+        found, n = "%s-%d" % (base, n), n + 1
+    return found
 
 
 # ---- the person of an agent's room, by its agent -------------------------
@@ -446,7 +538,7 @@ def held_room(room_id):
             or not all(isinstance(did, str) and did for did in pair) or pair[0] == pair[1]):
         return None
     dids = {one["did"] for one in agents.registry()}
-    if sum(did in dids for did in pair) != (2 if kind == AGENTS_KIND else 1):
+    if sum(did in dids for did in pair) != AGENTS_IN[kind]:
         return None
     bond = held.get("bond")
     return {"id": room_id, "bond": bond if isinstance(bond, str) and bond else room_id,
@@ -551,10 +643,7 @@ def closed_places(room_id):
     room that is not one left."""
     if not isinstance(room_id, str) or not ADDRESS.fullmatch(room_id) or not left(room_id):
         return None
-    home = DATA / ROOMS / room_id
-    letters = home / "letters"
-    return Places(home, letters / "incoming", letters / "read", letters / "outgoing",
-                  home / "errands", home / "bonds")
+    return _places_at(room_id)
 
 
 def agent_letters(room_id, agent_id):

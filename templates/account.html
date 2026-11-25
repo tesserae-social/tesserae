@@ -227,6 +227,18 @@
   </form>
   {% endfor %}
 </details>
+{% endif %}{% if put_away %}<details class="setting" id="put-away">{# person-rooms: closed rooms put away, for them only #}
+  <summary>{{ put_away_head }}</summary>
+  <p class="muted">Only you see this. The other side's view does not change.</p>
+  {% for one in put_away %}
+  <form method="post" action="{{ url_for('put_room_away', room_id=one.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="back" value="yes">
+    <input type="hidden" name="from" value="settings">
+    <p><a href="{{ one.href }}">your room with {{ one.other }}</a>{% if one.day %}, left {{ one.day }}{% endif %} &middot; <a href="{{ one.copy_href }}">take a copy</a> <button type="submit" class="small">bring back</button></p>
+  </form>
+  {% endfor %}
+</details>
 {% endif %}{# said plainly (the founder's request of 17 November 2026) #}<p class="muted" id="here-this-week">{{ here_told }}</p>
 {% if name_choice or name_saved %}<details class="setting" id="your-name" open>{# names-ids: a
    member from before ids, once they said yes to choosing a name #}

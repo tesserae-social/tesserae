@@ -179,6 +179,51 @@ def told(room_id, who, at):
                    dict(said, told={**(said.get("told") or {}), who: at}))
 
 
+# ---- a closed room put away (person-rooms, the founder's request of 25 November 2026) ----
+# Either side of a closed room may put it away, for themselves only: it leaves their home page
+# and the people page, and is listed on their settings, still to be read and copied, and can be
+# brought back. Nothing is erased, and the other side's view does not change. Kept by the one
+# who put it away, beside their member record:
+#
+#     DATA_DIR/members/<id>/put-away.json    {"<room id>": "<when it was put away>"}
+
+PUT_AWAY = "put-away.json"
+
+
+def _put_away_path(who):
+    if not isinstance(who, str) or not who or "/" in who or "\\" in who or who.startswith("."):
+        return None
+    return DATA / "members" / who / PUT_AWAY
+
+
+def put_away_of(who):
+    """The rooms one has put away, by id, each with when: {room id: stamp}."""
+    path = _put_away_path(who)
+    held = read_json(path) if path else None
+    return {key: value for key, value in held.items() if isinstance(key, str)} if isinstance(
+        held, dict) else {}
+
+
+def put_away(who, room_id, at):
+    """Put a closed room away, for one side only. True where it was not put away already."""
+    path = _put_away_path(who)
+    held = put_away_of(who)
+    if path is None or room_id in held or not path.parent.is_dir():
+        return False
+    write_json(path, {**held, room_id: at})
+    return True
+
+
+def bring_back(who, room_id):
+    """Bring back a room one put away. True where it was put away."""
+    path = _put_away_path(who)
+    held = put_away_of(who)
+    if path is None or room_id not in held:
+        return False
+    write_json(path, {key: value for key, value in held.items() if key != room_id})
+    return True
+
+
 # ---- the commons (choices 6 to 11) -----------------------------------------------------
 #
 # A member may leave the commons, from /account/leave, in two steps, with a copy offered

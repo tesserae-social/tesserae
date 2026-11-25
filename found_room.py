@@ -136,6 +136,29 @@ def found_later(agent_id, other, from_knock, at):
     return home
 
 
+def found_people(one, other, from_knock, at):
+    """A room of two people (person-rooms, the founder's request of 25 November 2026), made
+    from a knock between them answered yes: its address is rooms.address_for_people's, its
+    parties their two DIDs, and it has a folder of letters for each, and nothing else: no
+    bond, no errands. Its home is given back."""
+    import members
+    dids = sorted({members.did_for(one), members.did_for(other)})
+    if len(dids) != 2 or any(agent["did"] in dids for agent in agents.registry()):
+        raise RoomError("a room of two people is between two members")
+    room_id = rooms.address_for_people(one, other)
+    home = rooms.DATA / rooms.ROOMS / room_id
+    if home.exists():
+        raise RoomError("something of that room is on the disk already")
+    for did in dids:
+        (home / "letters" / ("from-" + rooms.store_name(did))).mkdir(parents=True)
+    said = {"id": room_id, "bond": room_id, "parties": dids, "kind": rooms.PEOPLE_KIND,
+            "opened_at": at, "from_knock": from_knock}
+    beside = home / (rooms.ROOM_RECORD + ".tmp")
+    beside.write_text(json.dumps(said, indent=2) + "\n", encoding="utf-8")
+    os.replace(beside, home / rooms.ROOM_RECORD)
+    return home
+
+
 def main(args):
     if "DATA_DIR" not in os.environ:
         print("Say DATA_DIR: a room is made where it is meant to be, and nowhere else.")

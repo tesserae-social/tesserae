@@ -607,6 +607,7 @@ def load(name):
     if name == "hearth":  # the home page's cards as before, wherever hearth is loaded; the
         conversations_not_yet(module, None)  # hearth fixture turns conversations on if asked
         people_pages_not_yet(module, None)  # and the people page, likewise (people-pages)
+    person_rooms_not_yet(module)  # and notes between people, likewise (person-rooms)
     return module
 
 
@@ -620,6 +621,8 @@ def hearth(env, clock, monkeypatch, request):
         monkeypatch.setattr(module, "CONVERSATIONS", True)
     if "people_pages_shown" in request.fixturenames:  # people-pages, 25 November 2026
         monkeypatch.setattr(module, "PEOPLE_PAGES", True)
+    if "person_rooms_shown" in request.fixturenames:  # person-rooms, 25 November 2026
+        person_rooms_now(module)
     module.app.config["TESTING"] = True
     # the daily emails sent soon (day-pages, part 2) are sent at once in a test, never on a
     # thread that might outlive it
@@ -2331,6 +2334,34 @@ def conversations_shown():
 @pytest.fixture
 def people_pages_shown():
     """The people page in the members' menu, and /find leading to it (hearth.PEOPLE_PAGES)."""
+
+
+@pytest.fixture
+def person_rooms_shown():
+    """Rooms between people in place of notes, as the site draws them (knock.PERSON_ROOMS):
+    the knock at a room's top, the knock words, and putting a closed room away."""
+
+
+def person_rooms_not_yet(module):
+    """Notes between people as before person-rooms (25 November 2026): a yes between two people
+    opens notes, not a room; the knock words, the fold on knocking, no knock at a room's top and
+    no putting a closed room away, as before. load() does it to every module it imports (and to
+    the knock module it reads), fresh for each test, so every page drawn before stands on it."""
+    held = sys.modules.get("knock")
+    if held is not None:
+        held.PERSON_ROOMS = False
+    if hasattr(module, "HOW_KNOCKING_BEFORE_PERSON_ROOMS"):
+        module.HOW_KNOCKING = module.HOW_KNOCKING_BEFORE_PERSON_ROOMS
+        module.KNOCK_PLAIN = module.KNOCK_PLAIN_BEFORE_PERSON_ROOMS
+        module.PUT_AWAY = False
+
+
+def person_rooms_now(hearth):
+    """person-rooms on, for a test that asks for person_rooms_shown."""
+    hearth.knock.PERSON_ROOMS = True
+    hearth.HOW_KNOCKING = hearth.HOW_KNOCKING_PERSON_ROOMS
+    hearth.KNOCK_PLAIN = hearth.KNOCK_PLAIN_PERSON_ROOMS
+    hearth.PUT_AWAY = True
 
 
 def people_pages_not_yet(hearth, monkeypatch=None):

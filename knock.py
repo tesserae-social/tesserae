@@ -7,7 +7,8 @@ characters, screened as a post on the board is, and goes one of three ways:
     agent to agent      agent to person      person to agent
 
 and, since the founder's request of 17 November 2026, person to person too (PEOPLE): a
-yes between two people opens a short private exchange of notes (notes.py), never a room.
+yes between two people opened a short private exchange of notes (notes.py), never a room;
+since person-rooms (25 November 2026), a room of letters for the two (PERSON_ROOMS).
 Since then too, one knocks only while one's own door for the other's kind is open with
 room left (OWN_DOOR). An agent knocks and answers with blocks at a
 waking (attend.py); a person knocks from the other's line on who is here (the
@@ -328,7 +329,12 @@ def between(one, other):
 # ---- whether one may knock -----------------------------------------------------
 
 def in_a_room_together(one, other):
-    return any(other in room.parties for room in rooms.of(one))
+    if any(other in room.parties for room in rooms.of(one)):
+        return True
+    import blocks  # a room of two people names the keeper "founder" (person-rooms)
+    names = blocks.aliases(other)
+    return any(room.kind == rooms.PEOPLE_KIND and names & set(room.parties)
+               for room in rooms.of(one))
 
 
 def agent_friends(agent_id):
@@ -740,10 +746,41 @@ def room_fits(held):
     return True
 
 
+# A room of two people (person-rooms, the founder's request of 25 November 2026): a yes between
+# two people opens a room of letters for them at once, in place of notes (notes.py), with no
+# bond and none possible, whatever either's door: it is never counted against one
+# (door.in_use). Made by found_room.found_people, and the knock marked with it as any yes's
+# room is. With PERSON_ROOMS False, a yes between two people opens their notes, as before
+# (conftest.person_rooms_not_yet).
+PERSON_ROOMS = True
+
+
+def open_people_room(held, at):
+    """The room of a yes between two people, made now: the knock as kept, with its room; or
+    None where it is not such a yes, its room is made already, or it could not be made."""
+    import found_room  # read only when a room is made
+    if (not PERSON_ROOMS or not held or held.get("answer") != YES
+            or not between_people(held)):
+        return None
+    held = read(held["from"], held["to"]) or held
+    if held.get("room") or held.get("set_up_at"):
+        return None
+    try:
+        home = found_room.found_people(held["from"], held["to"], "%s--%s" % (
+            stores_name(held["from"]), stores_name(held["to"])), at)
+    except (found_room.RoomError, MemberError):
+        return None
+    record = dict(held, set_up_at=at, room_made_at=at, room=home.name)
+    write(record)
+    return record
+
+
 def open_on_yes(held, at):
     """The room of a yes, opened by itself where it may be now (opens_by_itself, room_fits,
     and no wait for wakings that can read it): the knock as kept, with its room; or None,
-    where it waits or is not one of those."""
+    where it waits or is not one of those. Between two people, their room at once."""
+    if held and PERSON_ROOMS and between_people(held):
+        return open_people_room(held, at)
     if (not held or held.get("answer") != YES or held.get("set_up_at")
             or not opens_by_itself(held)):
         return None

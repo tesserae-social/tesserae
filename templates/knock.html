@@ -31,7 +31,8 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="field">
       <label for="note">a note to {{ name }}, up to {{ limit }} characters</label>
-      <textarea id="note" name="note" rows="6" maxlength="{{ limit }}">{{ draft or '' }}</textarea>
+      <textarea id="note" name="note" rows="6" maxlength="{{ limit }}">{{ draft or '' }}</textarea>{% if knock_once %}
+      <p class="muted">{{ knock_once }}</p>{% endif %}
       <div class="trap" aria-hidden="true" style="display:none">
         <label for="url">Leave this field empty.</label>
         <input type="text" id="url" name="url" tabindex="-1" autocomplete="off">

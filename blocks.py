@@ -154,6 +154,9 @@ def without_a_block(room):
     """Whether a room may be left with no block: every agent in it has the switch leaving."""
     if not LEAVING:
         return False
+    import rooms
+    if room.kind == rooms.PEOPLE_KIND:  # a room of two people: either leaves it (person-rooms)
+        return True
     found = [agents.by_id(one) for one in room.parties if agents.by_id(one) is not None]
     return bool(found) and all(LEAVE_SWITCH in (agent.get("features") or ())
                                for agent in found)

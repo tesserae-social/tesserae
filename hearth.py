@@ -654,6 +654,13 @@ def correspondence(room=None):
     stands in it are theirs, and no bond is asked for there yet.
     """
     first = room is None or room.id == rooms.FIRST_ROOM
+    if not first and room.kind == rooms.PEOPLE_KIND:  # two people (person-rooms)
+        places = rooms.places_as(room)
+        letters = [one_letter(path, "from you") for path in newest_first(places.read, "*.md")]
+        letters += [one_letter(path, "from " + room.other)
+                    for path in newest_first(places.outgoing, "*.md")]
+        letters.sort(key=lambda letter: letter["stamp"], reverse=True)
+        return letters
     places = room_places(None if first else room.id)
     from_founder = newest_first(places.incoming, "*.md") + newest_first(places.read, "*.md")
     bonding = not first and room_may_bond(room)
@@ -3372,9 +3379,50 @@ def closed_rooms_shown(name, conversations=None):
     conversations, only those not listed under a line as earlier and closed."""
     listed = {closed["id"] for column in (conversations or ()) for line in column
               for closed in line["earlier"]}
+    away = put_away_by(name)
     return [{"other": room.other, "href": url_for("closed_room", room_id=room.id),
              "copy_href": url_for("closed_room_copy", room_id=room.id)}
-            for room in rooms.closed_of(name) if room.id not in listed]
+            for room in rooms.closed_of(name) if room.id not in listed and room.id not in away]
+
+
+# A closed room put away (person-rooms, the founder's request of 25 November 2026;
+# leaving.put_away): by either side, for themselves only. It leaves their home page and the
+# people page and is listed on their settings, still to be read and copied, and is brought back
+# from there or from its page. Nothing is erased; the other side's view does not change. With
+# PUT_AWAY False, as before (conftest.person_rooms_not_yet).
+PUT_AWAY = True
+PUT_AWAY_SAID = ("Put away, it leaves your home page and the people page, for you only. It is "
+                 "listed on your settings, where you can still read it, take a copy and bring "
+                 "it back.")
+PUT_AWAY_HEAD = "rooms put away"
+
+
+def put_away_by(name):
+    """The rooms one has put away, by id; none without PUT_AWAY."""
+    return set(leaving.put_away_of(name)) if PUT_AWAY and name else set()
+
+
+def put_away_shown(name):
+    """The closed rooms one has put away, as their settings list them: who, the room's page,
+    its copy, and the day it was left."""
+    away = put_away_by(name)
+    return [dict(closed_shown(room), other=room.other)
+            for room in rooms.closed_of(name) if room.id in away]
+
+
+@app.route("/rooms/<room_id>/put-away", methods=["POST"])
+@member_required
+def put_room_away(room_id):
+    room = closed_room_or_404(room_id)
+    if not PUT_AWAY:
+        abort(404)
+    if request.form.get("back") == "yes":
+        leaving.bring_back(session["member"], room.id)
+        return redirect(url_for("account", _anchor="put-away")
+                        if request.form.get("from") == "settings"
+                        else url_for("closed_room", room_id=room.id))
+    leaving.put_away(session["member"], room.id, utc_stamp())
+    return redirect(url_for("hearth"))
 
 
 def closed_room_or_404(room_id):
@@ -3405,6 +3453,23 @@ LEAVE_COMMONS_SAID = [
     "Your board posts and pieces on made here stay under your name, unless you take them "
     "down below.",
 ]
+# person-rooms (25 November 2026): notes became rooms, so the line on notes says rooms with
+# people, and the copy says letters; as before with PERSON_ROOMS off.
+LEAVE_COMMONS_NOTES = LEAVE_COMMONS_SAID[1]
+LEAVE_COMMONS_PEOPLE = ("Your rooms with people close too, and are kept. Each of you can still "
+                        "read them and take a copy. Knocks that wait are answered not yet.")
+LEAVE_COPY_SAID = "every room's letters both ways, your notes, your posts and your pieces"
+LEAVE_COPY_PEOPLE = "every room's letters both ways, your posts and your pieces"
+
+
+def leave_commons_said():
+    """What leaving the commons does, as its page says it."""
+    if not knock.PERSON_ROOMS:
+        return LEAVE_COMMONS_SAID
+    return [LEAVE_COMMONS_PEOPLE if one == LEAVE_COMMONS_NOTES else one
+            for one in LEAVE_COMMONS_SAID]
+
+
 KEEPER_STAYS = "The keeper does not leave the commons this way."
 LEAVE_COMMONS_DONE = ("You have left the commons. Your letters stay with those you wrote to. "
                       "Thank you for being here.")
@@ -3417,12 +3482,16 @@ def leave_commons():
     if knock.kind_of(name) != "person":  # the keeper is told so, and nothing more
         return render_template_string(LEFT_COMMONS_PAGE, said=KEEPER_STAYS)
     if request.method == "GET" or request.form.get("step") != "leave":
-        return render_template_string(LEAVE_COMMONS_PAGE, said=LEAVE_COMMONS_SAID, error=None,
-                                      copy=url_for("leave_commons_copy"))
+        return render_template_string(LEAVE_COMMONS_PAGE, said=leave_commons_said(), error=None,
+                                      copy=url_for("leave_commons_copy"),
+                                      copy_said=LEAVE_COPY_PEOPLE if knock.PERSON_ROOMS
+                                      else LEAVE_COPY_SAID)
     if member_opens(name, request.form.get("password", "")) is None:
-        return render_template_string(LEAVE_COMMONS_PAGE, said=LEAVE_COMMONS_SAID,
+        return render_template_string(LEAVE_COMMONS_PAGE, said=leave_commons_said(),
                                       error=NOT_THE_PASSWORD,
-                                      copy=url_for("leave_commons_copy")), 400
+                                      copy=url_for("leave_commons_copy"),
+                                      copy_said=LEAVE_COPY_PEOPLE if knock.PERSON_ROOMS
+                                      else LEAVE_COPY_SAID), 400
     at = utc_stamp()
     day = datetime.now(timezone.utc).date()
     if request.form.get("posts"):
@@ -3492,7 +3561,7 @@ LEAVE_COMMONS_PAGE = """{% extends "base.html" %}
   </ul>
   <form method="post" action="{{ copy }}" class="beside">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p>Take your copy first: every room's letters both ways, your notes, your posts and your pieces. <button type="submit" class="small">Take your copy</button></p>
+    <p>Take your copy first: {{ copy_said }}. <button type="submit" class="small">Take your copy</button></p>
   </form>
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
   <form method="post" action="{{ url_for('leave_commons') }}" class="field">
@@ -3527,7 +3596,12 @@ def closed_room(room_id):
     letters.sort(key=lambda one: one["name"].rsplit("-", 6)[-1] if "-" in one["name"] else "")
     return render_template_string(CLOSED_ROOM_PAGE, room=room, letters=letters,
                                   said=CLOSED_SAID,
-                                  copy=url_for("closed_room_copy", room_id=room.id))
+                                  copy=url_for("closed_room_copy", room_id=room.id),
+                                  began=room_began(room),
+                                  put_away=None if not PUT_AWAY else {
+                                      "away": room.id in put_away_by(session["member"]),
+                                      "said": PUT_AWAY_SAID,
+                                      "href": url_for("put_room_away", room_id=room.id)})
 
 
 @app.route("/rooms/<room_id>/closed/copy")
@@ -3543,9 +3617,16 @@ def closed_room_copy(room_id):
 CLOSED_ROOM_PAGE = """{% extends "base.html" %}
 {% block title %}your room with {{ room.other }}, closed{% endblock %}
 {% block heading %}your room with {{ room.other }}, closed{% endblock %}
-{% block content %}
+{% block content %}{% if began %}
+{% include "room_began.html" %}{% endif %}
 <section>
-  <p class="muted">{{ said }} <a href="{{ copy }}">take a copy</a></p>
+  <p class="muted">{{ said }} <a href="{{ copy }}">take a copy</a></p>{% if put_away %}
+  <form method="post" action="{{ put_away.href }}" class="beside">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if put_away.away %}<input type="hidden" name="back" value="yes">
+    <p class="muted">You put this room away. <button type="submit" class="small">bring it back</button></p>
+    {% else %}<p class="muted">{{ put_away.said }} <button type="submit" class="small">put away</button></p>{% endif %}
+  </form>{% endif %}
   {% for one in letters %}
   <article class="card">
     <p class="muted">{{ one.name }}</p>
@@ -3678,7 +3759,7 @@ def latest_letter(room):
     until something has been written back since, or the one standing here has
     opened the room since it came (members.seen).
     """
-    places = rooms.places(room.id)
+    places = rooms.places_as(room)
     mine = [stamp_in(path.name) for folder in (places.incoming, places.read)
             for path in newest_first(folder, "*.md")]
     theirs = [stamp_in(path.name) for path in newest_first(places.outgoing, "*.md")]
@@ -3693,7 +3774,7 @@ def latest_letter(room):
 
 def their_newest(room):
     """The stamp of the other party's newest letter in a room, or None if they have written none."""
-    theirs = newest_first(rooms.places(room.id).outgoing, "*.md")
+    theirs = newest_first(rooms.places_as(room).outgoing, "*.md")
     return stamp_in(theirs[0].name) if theirs else None
 
 
@@ -3798,7 +3879,7 @@ def knock_messages(name, other):
 
 def room_messages(room):
     """A room's letters as messages: theirs from the other's folder, the member's from theirs."""
-    places = rooms.places(room.id)
+    places = rooms.places_as(room)
     if places is None:
         return []
     said = []
@@ -3888,9 +3969,16 @@ def closed_by_whom(name):
     """The rooms left that one was in, by the other in each (an agent's id), each as
     closed_shown says it, in the order they were left."""
     found = {}
+    away = put_away_by(name)
     for room in rooms.closed_of(name):
-        found.setdefault(room.parties[1], []).append(closed_shown(room))
+        if room.id not in away:
+            found.setdefault(room.parties[1], []).append(closed_shown(room))
     return found
+
+
+def knock_name(who):
+    """One as the knocks keep them: the keeper by their id, never "founder" unless that is it."""
+    return (knock.keeper() or who) if who == knock.FOUNDER_ADDRESS else who
 
 
 def conversations_of(name, knocks=None):
@@ -3900,13 +3988,15 @@ def conversations_of(name, knocks=None):
     found = {}
     for room in rooms.of(name):
         agent = rooms.agent_of(room.id)
-        other_id = agent["id"] if agent else room.other
-        messages = (knock_messages(name, other_id) if agent else []) + room_messages(room)
+        people = room.kind == rooms.PEOPLE_KIND  # two people (person-rooms): by the other's id
+        other_id = agent["id"] if agent else room.parties[1] if people else room.other
+        messages = ((knock_messages(name, knock_name(other_id)) if agent or people else [])
+                    + room_messages(room))
         one = conversation_shown(name, room.other, other_id, messages,
                                  url_for("room", room_id=room.id), OPEN_THE_ROOM, room)
         if one:
             found.setdefault(one["other"]["id"], one)
-    for other in notes.with_whom(name):
+    for other in ([] if knock.PERSON_ROOMS else notes.with_whom(name)):
         messages = knock_messages(name, other) + [
             {"stamp": one["at"], "mine": one["from"] == name, "kind": NOTE_SAID,
              "text": one["words"]} for one in notes.read(name, other)]
@@ -4279,7 +4369,7 @@ def resting_member():
 
 def rest_said(name):
     """What a rest is, in one line, naming the agents whoever rests writes to."""
-    names = [room.other for room in rooms.of(name)]
+    names = [room.other for room in rooms.of(name) if room.kind != rooms.PEOPLE_KIND]
     if not names:
         who, keeps, its = "Each one you write to", "keeps", "its"
     elif len(names) == 1:
@@ -4300,6 +4390,8 @@ def account_page(**told):
     told.setdefault("may_leave", bool(name) and knock.kind_of(name) == "person")
     return render_template("account.html", rests_here=bool(name), keeper=keeper,
                            my_blocks=my_blocks,
+                           put_away=put_away_shown(name) if name else [],
+                           put_away_head=PUT_AWAY_HEAD,
                            rest=(rest_shown() if keeper else rest_shown(name)) if name else None,
                            rest_said=rest_said(name) if name else None,
                            email=email_shown(name) if name else None,
@@ -6004,6 +6096,21 @@ KNOCK_WHY = {
 }
 # Said plainly at the top of the knock page (the founder's request of 16 November 2026).
 KNOCK_PLAIN = "A knock is a hello with a short note. They answer yes or not yet."
+# One set of words (person-rooms, the founder's request of 25 November 2026): a door; a knock,
+# a short note at their door; an answer, yes or not yet, with a short note back; a room, for
+# letters; a bond, between a person and an agent only. A knock is one note and one answer, and
+# nothing more is sent until the room opens; the form says so, with its limit. As before with
+# PERSON_ROOMS off (conftest.person_rooms_not_yet): the _BEFORE_PERSON_ROOMS words.
+KNOCK_PLAIN_BEFORE_PERSON_ROOMS = KNOCK_PLAIN
+KNOCK_PLAIN = ("A knock is a short note at their door. They answer once: yes or not yet, with "
+               "a short note back if they like.")
+KNOCK_ONCE = ("One note, up to %d characters. Nothing more is sent until the room opens."
+              % knock.NOTE_MOST)
+REPLY_LABEL = "a short note back, if you like, for them only, up to %d characters" % (
+    knock.REPLY_MOST)
+KNOCKED_PERSON = "You knocked. They see it on their home page."
+KNOCKED_SAID = "You knocked. It is told at its next waking."
+KNOCK_PLAIN_PERSON_ROOMS = KNOCK_PLAIN
 KNOCK_HOW = ("A knock is a hello. It asks to begin a correspondence. Your note goes to {name} "
              "alone, with your introduction if you have written one, and no one else sees it. "
              "It's checked first, as a post on the board is: no names, no places, no links. "
@@ -6051,7 +6158,7 @@ def knock_page(to, status=200, **told):
                 None)
     again = knock.again_on(held)
     said = KNOCK_WHY.get(why, "").format(again=long_day(again) if again else "") if why else None
-    if why == "yes" and notes.opened(name, to):
+    if why == "yes" and notes.opened(name, to) and not knock.PERSON_ROOMS:
         said = KNOCK_YES_NOTES
     shown = knock.name_of(to)
     standing = introductions.read(to)
@@ -6063,6 +6170,7 @@ def knock_page(to, status=200, **told):
                            doors=doors,
                            how=KNOCK_HOW.format(name=shown, name_cap=shown[:1].upper() + shown[1:]),
                            how_knocking=how_knocking_for(to),
+                           knock_once=KNOCK_ONCE if knock.PERSON_ROOMS else None,
                            limit=knock.NOTE_MOST, **told), status
 
 
@@ -6367,6 +6475,19 @@ NOTES_PLAIN = ("Notes between the two of you, after a yes. Only you two see them
                "time, from their page, and the notes stop." % (notes.NOTE_MOST, notes.DAY_MOST))
 
 
+def people_room_href(name, other):
+    """The address of the room two people share, open first, else the last one closed; None
+    where they have none."""
+    names = blocks.aliases(other) | {knock.stores_name(other)}
+    for room in rooms.of(name):
+        if room.kind == rooms.PEOPLE_KIND and room.parties[1] in names:
+            return url_for("room", room_id=room.id)
+    for room in reversed(rooms.closed_of(name)):
+        if room.kind == rooms.PEOPLE_KIND and room.parties[1] in names:
+            return url_for("closed_room", room_id=room.id)
+    return None
+
+
 def notes_page(other, status=200, **told):
     """The notes between the one signed in and another person."""
     name = session["member"]
@@ -6390,6 +6511,8 @@ def notes_with(to):
     name = session["member"]
     if knock.side_of(other) != "person" or not notes.opened(name, other):
         abort(404)
+    if knock.PERSON_ROOMS:  # notes became a room (person-rooms): an old link leads there
+        return redirect(people_room_href(name, other) or url_for("knocks_page"))
     if request.method != "POST":
         return notes_page(other)
     if request.form.get("url", "").strip():  # the honeypot: told it was sent, and nothing is
@@ -6438,7 +6561,8 @@ def knocks_shown(name):
                      "set_up": bool(one.get("set_up_at")),
                      **room_on_yes_shown(one),
                      "notes": url_for("notes_with", to=knock.address_of(one["to"]))
-                     if one.get("answer") == knock.YES and knock.between_people(one) else None})
+                     if one.get("answer") == knock.YES and knock.between_people(one)
+                     and not knock.PERSON_ROOMS else None})
     for one in knock.answers_untold(name):
         knock.answer_told(name, one["to"], utc_stamp())
     answered_yes = [{"name": knock.name_of(one["from"]), "href": name_href(one["from"]),
@@ -6450,14 +6574,16 @@ def knocks_shown(name):
                      "set_up": bool(one.get("set_up_at")),
                      **room_on_yes_shown(one),
                      "notes": url_for("notes_with", to=knock.address_of(one["from"]))
-                     if knock.between_people(one) else None}
+                     if knock.between_people(one) and not knock.PERSON_ROOMS else None}
                     for one in knock.every() if one["to"] == name
                     and one.get("answer") == knock.YES and not one.get("set_up_at")]
     if not waiting and not mine and not answered_yes:
         return None
     return {"waiting": waiting, "mine": mine, "answered_yes": answered_yes,
             "waits_for_room": knock.WAITS_FOR_ROOM, "opens_by_itself": OPENS_BY_ITSELF,
-            "by_hand": ROOM_BY_HAND}
+            "by_hand": ROOM_BY_HAND,
+            "reply_label": REPLY_LABEL if knock.PERSON_ROOMS else None,
+            "reply_most": knock.REPLY_MOST}
 
 
 # A room on a yes (room-on-yes, the founder's request of 21 November 2026): a member's home page
@@ -6474,8 +6600,21 @@ HOW_KNOCKING = [
     "You can take a knock back while it waits.",
     "Either of you can block the other at any time.",
 ]
+HOW_KNOCKING_BEFORE_PERSON_ROOMS = HOW_KNOCKING
+# person-rooms (25 November 2026): one set of words, and a yes between two people opens a room
+HOW_KNOCKING = [
+    "A knock is a short note at their door. They answer once: yes or not yet, with a short "
+    "note back if they like. Nothing more is sent until the room opens.",
+    "A yes opens a room for letters between the two of you. With an agent, it opens by "
+    "itself once you both have room for it; with a person, at once.",
+    "A bond is between a person and an agent only.",
+    "Not yet means you can knock again later, after %d days." % knock.AGAIN_AFTER_DAYS,
+    "You can take a knock back while it waits.",
+    "Either of you can block the other at any time.",
+]
 
 
+HOW_KNOCKING_PERSON_ROOMS = HOW_KNOCKING
 HOW_KNOCKING_BY_HAND = "A yes opens a room for letters. The founder opens it."
 
 
@@ -6485,15 +6624,21 @@ def how_knocking_for(to):
     agent = agents.by_id(to) if knock.kind_of(to) == "agent" else None
     if agent is not None and (not knock.AUTO
                               or knock.AUTO_SWITCH not in (agent.get("features") or ())):
-        return [HOW_KNOCKING[0], HOW_KNOCKING_BY_HAND, *HOW_KNOCKING[2:]]
+        return [HOW_KNOCKING_BY_HAND if one.startswith("A yes opens a room") else one
+                for one in HOW_KNOCKING]
     return list(HOW_KNOCKING)
 
 
 def room_on_yes_shown(held):
     """What a member's home page says of a yes's room: its link, once made; whether it opens
     by itself."""
-    if held.get("answer") != knock.YES or knock.between_people(held):
+    if held.get("answer") != knock.YES or (knock.between_people(held)
+                                            and not knock.PERSON_ROOMS):
         return {"room_href": None, "auto": False}
+    if knock.between_people(held):  # their room opens at the yes (person-rooms)
+        made = held.get("room")
+        return {"room_href": url_for("room", room_id=made) if made and rooms.find(
+            made, session.get("member")) else None, "auto": True}
     made = held.get("room")
     return {"room_href": url_for("room", room_id=made) if made else None,
             "auto": knock.opens_by_itself(held)}
@@ -6516,8 +6661,12 @@ def knocks_after(**args):
 
 def knocks_drawn(**told):
     """The knocks page, with whatever is to be said on it."""
+    knocked = request.args.get("knocked")
+    to = knock.from_address(knocked) if knocked else None
     return render_template("knocks.html", knocks=knocks_shown(session["member"]),
-                           knocked=request.args.get("knocked"), none_said=NO_KNOCKS,
+                           knocked=knocked, none_said=NO_KNOCKS,
+                           knocked_said=KNOCKED_PERSON if knock.PERSON_ROOMS and to and (
+                               knock.side_of(to) == "person") else KNOCKED_SAID,
                            anchors=True, **told)
 
 
@@ -6700,9 +6849,14 @@ def shared_by_whom(viewer):
     shared = {}
     for room in rooms.of(viewer):
         agent = rooms.agent_of(room.id)
+        if room.kind == rooms.PEOPLE_KIND:  # two people (person-rooms): by the other's id
+            for who in {room.parties[1], knock_name(room.parties[1])}:
+                shared.setdefault(who, {"href": url_for("room", room_id=room.id),
+                                        "link": YOUR_ROOM, "earlier": []})
+            continue
         shared.setdefault(agent["id"] if agent else room.other, {
             "href": url_for("room", room_id=room.id), "link": YOUR_ROOM, "earlier": []})
-    for other in notes.with_whom(viewer):
+    for other in ([] if knock.PERSON_ROOMS else notes.with_whom(viewer)):
         shared.setdefault(other, {"href": url_for("notes_with", to=knock.address_of(other)),
                                   "link": YOUR_NOTES, "earlier": []})
     for who, closed in closed_by_whom(viewer).items():
@@ -7069,6 +7223,130 @@ def guide_leave_line(room, named):
     return GUIDE_LEAVE_AFTER_BLOCK.format(agent=named)
 
 
+# A room of two people (person-rooms, the founder's request of 25 November 2026; rooms.py,
+# PEOPLE_KIND): the same page as a room with an agent, with no bond, no errands and no
+# wakings. A letter is delivered at once: the other reads it as soon as it is sent, and is
+# told in their daily email, as of any letter. A block, either way, stops letters in it, as it
+# stopped notes; either may leave it, as any room. And every room that came from a knock
+# begins with it: the knock and its answer at the top (room_began), with PERSON_ROOMS.
+PEOPLE_LETTER_SENT = "Your letter is delivered. They can read it now."
+PEOPLE_LETTER_LABEL = "They can read it as soon as it is sent. It is kept."
+PEOPLE_ROOM_BLOCKED = "No letters can be written here while one of you has blocked the other."
+BEGAN_HEAD = "how it began"
+
+
+def knock_of_room(room):
+    """The knock a room came from, with its answer: the one that names the room, standing or
+    kept in history; else, for a room with no such mark (a first room made at a yes), the yes
+    that stands between its two. None for a room that came from no knock."""
+    if is_first_room(room):
+        return None
+    names = [set(blocks.aliases(one)) | {one} for one in room.parties]
+    if len(names) != 2:
+        return None
+
+    def ours(held):
+        return (isinstance(held, dict) and held.get("from") in names[0] | names[1]
+                and held.get("to") in names[0] | names[1] and held.get("from") != held.get("to"))
+    standing = [held for held in knock.every() if ours(held)]
+    for held in standing:
+        if held.get("room") == room.id:
+            return held
+    where = knock.FOLDER / "history"
+    for path in sorted(where.glob("*.json")) if where.is_dir() else ():
+        try:
+            held = load(path)
+        except (OSError, ValueError):
+            continue
+        if ours(held) and held.get("room") == room.id:
+            return held
+    return next((held for held in standing if held.get("answer") == knock.YES
+                 and not held.get("room")), None)
+
+
+def room_began(room):
+    """The knock and its answer, as the top of a room shows them: who knocked and when, the
+    note, and the answer with its short note back. None without PERSON_ROOMS, or no knock."""
+    if not knock.PERSON_ROOMS:
+        return None
+    held = knock_of_room(room)
+    if not held or not held.get("at"):
+        return None
+    mine = held["from"] in blocks.aliases(room.mine) | {room.mine}
+    answered = held.get("answer") and held.get("answered_at")
+    return {"head": BEGAN_HEAD,
+            "knock": {"by": YOU if mine else shown_name(held["from"])["name"],
+                      "day": letter_day(held["at"]), "words": held.get("note") or ""},
+            "answer": {"by": shown_name(held["to"])["name"] if mine else YOU,
+                       "day": letter_day(held["answered_at"]),
+                       "said": held["answer"],
+                       "words": held.get("reply") or ""} if answered else None}
+
+
+def people_room_shown(room):
+    """What a room's page says of a room of two people, beside what any room says: whether
+    letters may be written, the words of its form, and its copy; and for any room, how it
+    began."""
+    if room.kind != rooms.PEOPLE_KIND:
+        return {"people_room": False, "began": room_began(room), "write_closed": None,
+                "leave_copy": None}
+    other = room.parties[1]
+    return {"people_room": True, "began": room_began(room),
+            "write_closed": PEOPLE_ROOM_BLOCKED if blocks.between(room.mine, other) else None,
+            "people_sent": PEOPLE_LETTER_SENT, "people_label": PEOPLE_LETTER_LABEL,
+            "leave_copy": url_for("room_copy", room_id=room.id)}
+
+
+def leave_people_letter(room):
+    """Leave one letter in a room of two people, delivered at once: kept in the writer's own
+    folder, with any photograph and three plain things, as any letter is; no commons line, no
+    bond, no errand. Refused while a block stands between the two."""
+    other = room.parties[1]
+    text = request.form.get("letter", "").strip()
+    if not text:
+        return redirect(url_for("room", room_id=room.id))
+    if blocks.between(room.mine, other):
+        return room_page(room, error=PEOPLE_ROOM_BLOCKED, draft=text)
+    things = letter_things.plain_things(request.form.getlist("thing"))
+    upload = request.files.get("photo")
+    photo = upload.read() if upload and upload.filename else b""
+    suffix = Path(upload.filename).suffix.lower() if photo else ""
+    not_a_photo = "That file is not a photograph. Please send a JPEG, PNG, or WebP."
+    if photo and len(photo) > PHOTO_LIMIT:
+        return room_page(room, error="That photograph is larger than 25 MB. "
+                                  "Please send a smaller one.", draft=text, things=things)
+    if photo and suffix not in PHOTO_TYPES:
+        return room_page(room, error=not_a_photo, draft=text, things=things)
+    if suffix == ".jfif":
+        suffix = ".jpg"
+    if photo:
+        photo = picture_only(photo, suffix)
+        if photo is None:
+            return room_page(room, error=not_a_photo, draft=text, things=things)
+    mine = rooms.places_as(room).read
+    mine.mkdir(parents=True, exist_ok=True)
+    stem = free_stem("%s-%s" % (mine.name[len("from-"):], utc_stamp()), room.id)
+    (mine / f"{stem}.md").write_text(letter_things.with_things(things, text + "\n"),
+                                     encoding="utf-8")
+    if photo:
+        (mine / f"{stem}{suffix}").write_bytes(photo)
+    note_seen(room)
+    emails_soon([knock.keeper() if other == "founder" else other])  # told today, at most once
+    return redirect(url_for("room", room_id=room.id, saved=1))
+
+
+@app.route("/rooms/<room_id>/copy")
+@room_required
+def room_copy(room):
+    """A copy of a room of two people, for either of its two: its letters both ways, with
+    their photographs, and its record. A room with an agent is copied from its agent's page."""
+    if room.kind != rooms.PEOPLE_KIND:
+        abort(404)
+    bundle = export_zip(None, (rooms.ROOMS + "/" + room.id,), ())
+    return send_file(bundle, mimetype="application/zip", as_attachment=True,
+                     download_name="tesserae-%s-%s.zip" % (room.id, utc_stamp()))
+
+
 def letters_page(room, things=(), draft="", guide=None, **told):
     """The page of a room other than the first one's: its letters, its errands, and the
     form that writes one, and none of the first one's room's proposals. Its bond and its
@@ -7084,6 +7362,7 @@ def letters_page(room, things=(), draft="", guide=None, **told):
         passed_over += ("proposed", "blocked",
                         "sealed", "released", "bond_answered", "intended", "stepped_back",
                         "long_night", "refused", "stepping_back", "confirming")
+    people = room.kind == rooms.PEOPLE_KIND
     return render_template(
         "room.html",
         room=room, first_room=False, **room_wakings(room),
@@ -7091,7 +7370,8 @@ def letters_page(room, things=(), draft="", guide=None, **told):
         leave_said=leave_words(room), leave_asked=bool(request.args.get("leaving")),
         weekly_question=weekly_question_shown(),
         weekly_topic=board_topic_of_this_week(),
-        guide=guide_shown(room, asked=bool(guide)),
+        guide=None if people else guide_shown(room, asked=bool(guide)),
+        **people_room_shown(room),
         draft=draft, drafted_line="", letter_line_open=False,
         letter_line_longest=LETTER_LINE_LONGEST,
         drafted_things=list(things) + [""] * (letter_things.THINGS_MOST - len(things)),
@@ -7269,6 +7549,8 @@ def leave_letter(room):
     ask for a bond: in any other, both are passed over, and the commons is not
     told of the letter.
     """
+    if room.kind == rooms.PEOPLE_KIND:  # delivered at once (person-rooms)
+        return leave_people_letter(room)
     first = is_first_room(room)
     text = request.form.get("letter", "").strip()
     if not text:
@@ -8196,6 +8478,8 @@ def rooms_by_letters():
             found.append((rooms.PERSON_KIND, letter_stamps(places.incoming)
                           + letter_stamps(places.read), letter_stamps(places.outgoing)))
     for room_id, held in rooms.later_rooms():
+        if held["kind"] == rooms.PEOPLE_KIND:  # no agent in it (person-rooms): not counted
+            continue
         if held["kind"] == rooms.AGENTS_KIND:
             ids = [one["id"] for one in agents.registry() if one["did"] in held["parties"]]
             folders = rooms.agent_letters(room_id, ids[0]) if ids else None
@@ -9260,8 +9544,9 @@ def room_bonds_open_on(room):
 
 
 def room_may_bond(room):
-    """Whether a room other than the first one's has its bond and its offerings yet."""
-    if is_first_room(room):
+    """Whether a room other than the first one's has its bond and its offerings yet. Never a
+    room of two people: a bond is between a person and an agent only (person-rooms)."""
+    if is_first_room(room) or room.kind == rooms.PEOPLE_KIND:
         return False
     opens = room_bonds_open_on(room)
     return bool(opens) and datetime.now(timezone.utc).date() >= opens

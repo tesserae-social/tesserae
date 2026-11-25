@@ -1,6 +1,6 @@
 <section id="knocks">
   <h2>knocks</h2>
-  {% if knocked %}<p class="saved">You knocked. It is told at its next waking.</p>{% endif %}
+  {% if knocked %}<p class="saved">{{ knocked_said or 'You knocked. It is told at its next waking.' }}</p>{% endif %}
   {% for one in knocks.waiting %}
   <article class="card"{% if anchors %} id="knock-{{ one.address }}"{% endif %}>
     <p>{% if one.href %}<a href="{{ one.href }}">{{ one.name }}</a>{% else %}{{ one.name }}{% endif %} knocked at your door on {{ one.day }}.</p>
@@ -11,8 +11,8 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="from" value="{{ one.from }}">
       <div class="field">
-        <label for="reply-{{ one.from }}">a reply, if you like, for them only</label>
-        <textarea id="reply-{{ one.from }}" name="reply" rows="3" maxlength="500">{% if knock_from == one.from %}{{ knock_draft or '' }}{% endif %}</textarea>
+        <label for="reply-{{ one.from }}">{{ knocks.reply_label or 'a reply, if you like, for them only' }}</label>
+        <textarea id="reply-{{ one.from }}" name="reply" rows="3" maxlength="{{ knocks.reply_most or 500 }}">{% if knock_from == one.from %}{{ knock_draft or '' }}{% endif %}</textarea>
       </div>
       <button type="submit" name="answer" value="yes">Yes</button>
       <button type="submit" name="answer" value="not yet">Not yet</button>

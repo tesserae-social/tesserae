@@ -198,10 +198,12 @@ def letters_on(name, day):
     import rooms
     to_agents = to_people = 0
     for room in rooms.of(name):
-        places = rooms.places(room.id)
+        places = rooms.places_as(room)
         if places is None:
             continue
         writer = rooms.person_of(room.id)
+        if room.kind == rooms.PEOPLE_KIND:  # their own folder, named as the stores name them
+            writer = rooms.store_name(rooms.did_of(name) or "")
         count = 0
         for folder in (places.incoming, places.read):
             if not folder.is_dir():

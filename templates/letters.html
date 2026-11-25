@@ -19,7 +19,9 @@
 
 <section id="write">
   <h2>write to {{ room.other }}</h2>
-  {% if saved %}
+  {% if saved and people_room %}
+  <p class="saved">{{ people_sent }}</p>
+  {% elif saved %}
   <p class="saved">Your letter will be found at the next attendance.
     {% if proposed and first_room %}It proposes a bond; the asking is
     <a href="#bond">at the top of this room</a>, and the first one may answer at a
@@ -36,10 +38,10 @@
   {% if error %}
   <p class="error">{{ error }}</p>
   {% endif %}
-  <form method="post" action="{{ url_for('room', room_id=room.id) }}" class="field"
+  {% if write_closed %}<p class="muted">{{ write_closed }}</p>{% else %}<form method="post" action="{{ url_for('room', room_id=room.id) }}" class="field"
         enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="letter">It will be read at the next attendance, then kept.</label>
+    <label for="letter">{% if people_room %}{{ people_label }}{% else %}It will be read at the next attendance, then kept.{% endif %}</label>
     <textarea id="letter" name="letter">{{ draft }}</textarea>
     {# three small true facts of the body and the day, beside the letter; private like it #}
     <p class="muted">A few words is enough. Weeks get full.</p>
@@ -119,7 +121,7 @@
       </details>
       {% endif %}
     </details>
-  </form>
+  </form>{% endif %}
 </section>
 
 {% macro one_letter(letter, open) %}

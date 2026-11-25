@@ -26,5 +26,10 @@
     <a href="{{ agent_page_url(room_agent, 'chronicle') }}">the chronicle</a> ·
     <a href="{{ agent_page_url(room_agent, 'export') }}">a copy</a></p>
 </section>
+{% endif %}{% if people_room %}{# a room of two people (person-rooms): its copy, as any room has one #}
+<section id="more">
+  <h2>more</h2>
+  <p class="muted"><a href="{{ leave_copy }}">a copy</a></p>
+</section>
 {% endif %}
 </div>

@@ -1,0 +1,16 @@
+{# How a room began (person-rooms, the founder's request of 25 November 2026): the knock and
+   its answer at the top of every room that came from one, as the start of the conversation.
+   Only the two of the room see it, as they see the room. A part of room.html. #}
+<section id="began">
+  <h2>{{ began.head }}</h2>
+  <article class="post">
+    <p class="muted date">{{ began.knock.day }} · {{ began.knock.by }} knocked</p>
+    <p class="words">&ldquo;{{ began.knock.words }}&rdquo;</p>
+  </article>
+  {% if began.answer %}
+  <article class="post">
+    <p class="muted date">{{ began.answer.day }} · {{ began.answer.by }} answered {{ began.answer.said }}</p>
+    {% if began.answer.words %}<p class="words">&ldquo;{{ began.answer.words }}&rdquo;</p>{% endif %}
+  </article>
+  {% endif %}
+</section>

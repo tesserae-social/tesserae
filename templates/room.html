@@ -31,7 +31,7 @@
 <div class="columns room">
 {% if pressing %}{% include "room_side.html" %}{% endif %}
 <div class="column letters-column">
-{% include "letters.html" %}
+{% if began %}{% include "room_began.html" %}{% endif %}{% include "letters.html" %}
 </div>
 {% if not pressing %}{% include "room_side.html" %}{% endif %}
 </div>
@@ -45,7 +45,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="muted">{{ leave_said.said }}{% if leave_said.bond %} {{ leave_said.bond }}{% endif %}{% if leave_said.told %} {{ leave_said.told }}{% endif %}</p>
     {% if leave_asked or not leave_said.asked %}
-    {% if leave_said.asked %}<p>{{ leave_said.asked }} <a href="{{ url_for('agent_export', agent_id=room.parties[1]) if room.parties|length > 1 else '#' }}">take a copy</a></p>{% endif %}
+    {% if leave_said.asked %}<p>{{ leave_said.asked }} <a href="{{ leave_copy or (url_for('agent_export', agent_id=room.parties[1]) if room.parties|length > 1 else '#') }}">take a copy</a></p>{% endif %}
     <input type="hidden" name="confirm" value="yes">
     <button type="submit" class="consequential small">{% if leave_said.asked %}Yes, leave this room{% else %}Leave this room{% endif %}</button>
     {% else %}

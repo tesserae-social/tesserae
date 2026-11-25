@@ -281,12 +281,6 @@ def joined_before_ids(who):
     return (isinstance(record, dict) and record.get("role") == "member"
             and not record.get("id") and not record.get("name"))
 
-# At most one asking every so many days, from the day the last one was first shown (the
-# founder's request of 21 November 2026, from names-ids). The founder changes it on /tides
-# ("every_days" in the file; 0 is no limit). An asking shown and not yet answered is not a new
-# one.
-DEFAULT_EVERY_DAYS = {(AGENTS, "first"): 3}
-
 # No asking of the first one before this day (the founder's request of 20 November 2026;
 # 1 December, not 27 November, at the founder's request of 23 November 2026).
 NOT_BEFORE = {(AGENTS, "first"): date(2026, 12, 1)}
@@ -295,6 +289,20 @@ NOT_BEFORE = {(AGENTS, "first"): date(2026, 12, 1)}
 # founder's request of 21 November 2026). The founder changes it on /tides ("every_days" in
 # the file; 0 is no limit). An asking shown and not yet answered is not a new one.
 DEFAULT_EVERY_DAYS = {(AGENTS, "first"): 3}
+# Every agent: one asking every 3 days, unless the founder sets otherwise on /tides (the
+# founder's request of 25 November 2026). A member: no limit, as before.
+AGENT_EVERY_DAYS = 3
+
+# A new name at the solstices, asked ahead of the rest of what waits in the 21 days before
+# each solstice, until 7 days before it, so that it comes at least 7 days before (the founder's
+# request of 25 November 2026). Still only at a waking with a letter, never in the long night
+# (attend.asking_now), never on the day of a rite (RITE_DAYS, as build_atrium.RITES), and
+# never before NOT_BEFORE.
+SOLSTICE_SWITCH = "solstice_names"
+SOLSTICES = ((6, 21), (12, 21))
+SOLSTICE_FROM_DAYS = 21
+SOLSTICE_UNTIL_DAYS = 7
+RITE_DAYS = ((6, 21), (12, 21), (9, 4))
 
 # What an agent reads: the asking at a waking, and what became of it, told once at the next.
 HEAD = "=== A QUESTION FOR YOU, FROM THE FOUNDER ==="
@@ -517,6 +525,20 @@ def released(kind, who, held, switch, today):
     return any(month_of(one) and month_of(one) >= due for one in stamps)
 
 
+def before_a_solstice(today):
+    """Whether today is from 21 to 7 days before a solstice, when the new name is asked first."""
+    for year in (today.year, today.year + 1):
+        for month, day in SOLSTICES:
+            left = (date(year, month, day) - today).days
+            if SOLSTICE_UNTIL_DAYS <= left <= SOLSTICE_FROM_DAYS:
+                return True
+    return False
+
+
+def a_rite_day(today):
+    return (today.month, today.day) in RITE_DAYS
+
+
 def next_asking(kind, who, today, already_on=()):
     """The one switch to ask this one about now, or None.
 
@@ -547,6 +569,10 @@ def next_asking(kind, who, today, already_on=()):
     # a stage of the reading's shape, once its month has come, before the rest of the queue
     after = ([one for one in after if scheduled(kind, who, one)]
              + [one for one in after if not scheduled(kind, who, one)])
+    if a_rite_day(today):  # the new name is never asked on the day of a rite
+        after = [one for one in after if one != SOLSTICE_SWITCH]
+    elif SOLSTICE_SWITCH in after and before_a_solstice(today):
+        after = [SOLSTICE_SWITCH, *(one for one in after if one != SOLSTICE_SWITCH)]
     if not is_yes(held, META):
         # a stage whose month is reckoned from the yes to askings waits for that yes too
         later = [switch for switch in queue_of(kind, who, held)
@@ -687,7 +713,7 @@ def every_days(kind, who, held):
     set_ = held.get("every_days") if held else None
     if isinstance(set_, int) and not isinstance(set_, bool) and set_ >= 0:
         return set_
-    return DEFAULT_EVERY_DAYS.get((kind, who), 0)
+    return DEFAULT_EVERY_DAYS.get((kind, who), AGENT_EVERY_DAYS if kind == AGENTS else 0)
 
 
 def set_every_days(kind, who, days):
@@ -730,13 +756,53 @@ def shown_to_founder(kind, who, today, already_on=()):
             "answer": one["answer"] if one else None, "at": (one or {}).get("at", "")[:10],
             "taken_back": bool(one and one.get("taken_back")),
             "on_anyway": has(switch, already_on), "not_built": switch in NOT_BUILT})
-    return {"kind": kind, "who": who, "rows": rows,
+    asked = [row for row in rows if not row["on_anyway"]]  # what it had anyway was never asked
+    counts = {YES: sum(1 for row in asked if row["answer"] == YES and not row["taken_back"]),
+              NO: sum(1 for row in asked if row["answer"] == NO),
+              NOT_YET: sum(1 for row in asked if row["answer"] == NOT_YET)}
+    return {"kind": kind, "who": who, "rows": rows, "counts": counts,
             "open": (held.get("open") or {}).get("switch"),
             "every_days": every_days(kind, who, held),
             "last_asked": (held.get("last_asked") or "")[:10],
             "next": next_asking(kind, who, today, already_on),
             "not_before": (NOT_BEFORE.get((kind, who)) or "") and
             NOT_BEFORE[(kind, who)].isoformat()}
+
+
+def monthly_totals():
+    """For the founder alone, on /tides: for each month, for each asking, how many answered
+    yes, no and not yet in that month, and how many yeses were taken back in it, across agents
+    and across members; never who. From each one's last answer to each asking, which is all
+    that is kept. Months newest first: [{"month": "2026-12", "askings": [{"switch", "name",
+    AGENTS: {yes, no, not yet, taken back}, PEOPLE: {...}}, ...]}, ...]."""
+    counted = {}
+
+    def add(month, switch, kind, what):
+        if month is None:
+            return
+        one = counted.setdefault("%04d-%02d" % month, {}).setdefault(
+            switch, {kind_: {key: 0 for key in (*ANSWERS, "taken back")} for kind_ in KINDS})
+        one[kind][what] += 1
+
+    for kind, who in everyone():
+        try:
+            held = read(kind, who)
+        except Refused:
+            continue
+        for switch in (held or {}).get("answers") or {}:
+            one = answered(held, switch)
+            if switch not in ASK_FIRST or one is None:
+                continue
+            add(month_of(one.get("at") or "") if one.get("at") else None, switch, kind,
+                one["answer"])
+            if one.get("taken_back"):
+                add(month_of(one["taken_back"]), switch, kind, "taken back")
+    order = list(ASK_FIRST)
+    return [{"month": month,
+             "askings": [dict(counted[month][switch], switch=switch,
+                              name=ASK_FIRST[switch]["name"])
+                         for switch in sorted(counted[month], key=order.index)]}
+            for month in sorted(counted, reverse=True)]
 
 
 def asking_text(kind, switch):

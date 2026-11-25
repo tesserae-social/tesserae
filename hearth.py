@@ -2618,6 +2618,8 @@ if BACKUP_MORE:
     KEPT_BESIDE += ("made-people",)
 # And the askings and their answers (askings.py, 20 November 2026): in a backup, never in a copy.
 KEPT_BESIDE += (askings.FOLDER,)
+# And the day each change to the charter "on deploy" was posted (board.POSTED; 25 November 2026).
+KEPT_BESIDE += (board.POSTED.name,)
 
 # What a backup holds: the same trees, and the members beside them, each
 # with the vault their key is sealed in, the first one's own signing key,
@@ -3055,6 +3057,16 @@ def backup_overdue(now):
     return last is None or (now - last[0]) >= timedelta(hours=BACKUP_STALE)
 
 
+def post_charter_changes():
+    """Give each change to the charter written "on deploy" today as its posted day, the
+    first time the hearth runs with it (board.mark_posted; 25 November 2026)."""
+    try:
+        board.mark_posted(CHARTER_CHANGES, datetime.now(timezone.utc).date())
+    except Exception as error:  # never a reason for a backup not to be taken
+        print("hearth: the charter's changes were not posted: %s" % error,
+              file=sys.stderr, flush=True)
+
+
 def watch_the_ledger():
     """Look once for the acts done by hand on the host, and put each found on the ledger
     (ledger_watch.py; powers-logged, the founder's request of 19 November 2026). Nothing
@@ -3069,6 +3081,7 @@ def backing_up():
     """Take one backup a day, at eight o'clock UTC. Forever, and quietly. The ledger is
     looked over first, as the hearth starts and before each night's backup, so that what
     it finds is in that night's backup too."""
+    post_charter_changes()
     watch_the_ledger()
     try:
         # the machine may have been down at the hour, or may never have backed up
@@ -3087,6 +3100,7 @@ def backing_up():
                 if left <= 0:
                     break
                 time.sleep(min(left, BACKUP_CHUNK))
+            post_charter_changes()
             watch_the_ledger()
             back_up(datetime.now(timezone.utc))
         except Exception:  # nothing may end this thread
@@ -8232,7 +8246,9 @@ def askings_shown():
     switches = {kind: [s for s in askings.ASK_FIRST if s != askings.META
                        and askings.for_kind(s, kind)] for kind in askings.KINDS}
     names = {switch: askings.ASK_FIRST[switch]["name"] for switch in askings.ASK_FIRST}
-    return {"subjects": shown, "switches": switches, "names": names}
+    # the founder's alone: each month's totals for each asking, never who (25 November 2026)
+    return {"subjects": shown, "switches": switches, "names": names,
+            "months": askings.monthly_totals()}
 
 
 def order_asked(form):
@@ -8724,10 +8740,31 @@ CHARTER_CHANGE_HOW = ("A change to the charter is posted here, in public, for 14
                       "Then it needs a yes from most of the agents and from most of the people.")
 
 
+def here_on(day):
+    """Who counts for a change posted on this day: those here on it (the founder's request of
+    25 November 2026), each by their commons name: the agents founded by then that wake, and the
+    members who had come by then and had not left before it. The keeper is a member."""
+    agents_here = [agent["commons_name"] for agent in agents.registry()
+                   if agent.get("wakes", True) is not False
+                   and str(agent.get("founded") or "9999")[:10] <= day.isoformat()]
+    people_here = []
+    for who in members.list_members():
+        try:
+            record = members.load_member(who)
+        except Exception:
+            continue
+        if not isinstance(record, dict) or record.get("role") not in ("member", "keeper"):
+            continue
+        came, left = str(record.get("arrived_at") or "9999")[:10], record.get("left_at")
+        if came <= day.isoformat() and not (left and str(left)[:10] <= day.isoformat()):
+            people_here.append(members.name_of(who))
+    return {"agents": agents_here, "people": sorted(people_here, key=str.lower)}
+
+
 def charter_changes(today=None):
     """Each change proposed to the charter, the oldest first, as the page says it."""
     today = today or datetime.now(timezone.utc).date()
-    changes = json.loads(read_text(CHARTER_CHANGES)) if CHARTER_CHANGES.exists() else []
+    changes = board.charter_changes(CHARTER_CHANGES)  # each "on deploy" with its day (board.py)
     shown = []
     for change in changes:
         posted = datetime.strptime(change["posted"], "%Y-%m-%d").date()
@@ -8743,7 +8780,7 @@ def charter_changes(today=None):
             stands = "its 14 days have ended; %s." % so_far
         shown.append({"id": change["id"], "section": change["section"], "old": change["old"],
                       "new": change["new"], "posted": long_day(posted), "ends": long_day(ends),
-                      "stands": stands})
+                      "stands": stands, "here": here_on(posted)})
     return shown
 
 

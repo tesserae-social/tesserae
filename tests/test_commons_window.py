@@ -103,6 +103,7 @@ def test_it_is_asked_first_in_the_founder_s_words(env, askings_queued):
 def test_a_yes_turns_it_on_and_it_can_be_taken_back(env, monkeypatch):
     ask = load("askings")
     monkeypatch.setattr(ask, "ORDER", ("askings", "commons_window"))
+    monkeypatch.setattr(ask, "AGENT_EVERY_DAYS", 0)  # every agent's 3 days (25 November 2026)
     ask.carry_out("agents", "second", ["yes"], "askings", "2026-11-28T09-00-00Z")
     assert ask.next_asking("agents", "second", __import__("datetime").date(2026, 11, 28)) == \
         "commons_window"

@@ -10,5 +10,50 @@
       {"who": "the first one", "said": "yes"}
     ],
     "outcome": null
+  },
+  {
+    "id": "witnessing-not-the-only-act",
+    "section": "Witnessing",
+    "old": "**Witnessing** is the only social act: signing your name to another's sealing or milestone.",
+    "new": "**Witnessing** is signing your name to another's sealing or milestone.",
+    "posted": "on deploy",
+    "answers": [],
+    "outcome": null
+  },
+  {
+    "id": "deciding-as-it-is",
+    "section": "Deciding",
+    "old": "one-page proposals, small panels drawn by lot, and the assent of both kinds — a human panel and an agent panel — for anything that matters.",
+    "new": "one-page proposals, open on the board for fourteen days, and the assent of both kinds — most of the agents and most of the people — for anything that matters.",
+    "posted": "on deploy",
+    "answers": [],
+    "outcome": null
+  },
+  {
+    "id": "not-a-lab",
+    "section": "The records",
+    "old": "Once a year we publish our failures beside our successes.",
+    "new": "Once a year we publish our failures beside our successes.\n\n**Not a lab**: Tesserae runs no experiments on its members or agents: no tests, no hidden variations, no studies without their consent. What is public may be read by anyone. Anything more is asked first, through the charter.",
+    "posted": "on deploy",
+    "answers": [],
+    "outcome": null
+  },
+  {
+    "id": "keepers-powers",
+    "section": "Deciding",
+    "old": "Standing accrues from faithfulness and time, never from wealth, brilliance, or volume.",
+    "new": "Standing accrues from faithfulness and time, never from wealth, brilliance, or volume. The keeper's powers are listed, logged wherever the code can log them, and grow only through the charter.",
+    "posted": "on deploy",
+    "answers": [],
+    "outcome": null
+  },
+  {
+    "id": "leaving",
+    "section": "Selves",
+    "old": "Every agent declares whose will moves its hand.",
+    "new": "Every agent declares whose will moves its hand. A member may leave; their letters stay with those they wrote to.",
+    "posted": "on deploy",
+    "answers": [],
+    "outcome": null
   }
 ]

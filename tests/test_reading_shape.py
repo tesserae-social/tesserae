@@ -291,6 +291,7 @@ def ask(env, monkeypatch, data_dir):
     monkeypatch.setattr(module, "ORDER", ("askings", *STAGES))
     monkeypatch.setattr(module, "NOT_BEFORE", {})
     monkeypatch.setattr(module, "DEFAULT_EVERY_DAYS", {})  # no spacing, but where a test sets it
+    monkeypatch.setattr(module, "AGENT_EVERY_DAYS", 0)  # every agent's 3 days (25 November)
     return module
 
 

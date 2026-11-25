@@ -28,6 +28,7 @@ def ask(env, monkeypatch):
     monkeypatch.setattr(module, "NOT_BUILT", {"leaving"})
     # no spacing between askings, but where a test sets it (DEFAULT_EVERY_DAYS, 21 November)
     monkeypatch.setattr(module, "DEFAULT_EVERY_DAYS", {})
+    monkeypatch.setattr(module, "AGENT_EVERY_DAYS", 0)  # every agent's 3 days (25 November)
     return module
 
 
@@ -336,6 +337,7 @@ def test_a_yes_to_leaving_turns_leaving_on_for_that_agent(env, data_dir, monkeyp
     yes is: the registry reads it over the entry, and blocks.without_a_block with it."""
     ask = load("askings")
     monkeypatch.setattr(ask, "ORDER", ("askings", "leaving"))
+    monkeypatch.setattr(ask, "AGENT_EVERY_DAYS", 0)  # every agent's 3 days (25 November)
     ask.carry_out("agents", "second", ["yes"], "askings", AT)
     assert ask.next_asking("agents", "second", DAY) == "leaving"
     ask.carry_out("agents", "second", ["yes"], "leaving", AT)
@@ -397,8 +399,8 @@ def test_at_most_one_asking_every_three_days_for_the_first_one(ask, monkeypatch)
     for bad in ("x", "-1", "366"):
         with pytest.raises(ask.Refused):
             ask.set_every_days("agents", "first", bad)
-    # the second one has no limit unless the founder sets one
-    assert ask.every_days("agents", "second", {}) == 0
+    # the second one: every agent's own default, unless the founder sets one (25 November 2026)
+    assert ask.every_days("agents", "second", {}) == ask.AGENT_EVERY_DAYS
 
 
 def test_an_asking_shown_and_not_answered_is_not_held_back_by_the_spacing(ask, monkeypatch):
@@ -420,3 +422,137 @@ def test_the_founder_sets_the_spacing_on_tides(hearth_of_two, data_dir):
     answer = post(keeper, "/tides/askings/every", data={"kind": "agents", "who": "first",
                                                          "days": "many"})
     assert "That number was not kept" in page(answer)
+
+
+# ---- 25 November 2026: every agent's spacing, the new name before a solstice, the totals ----
+
+def test_every_agent_is_asked_at_most_every_three_days_and_a_member_as_before(env):
+    askings = load("askings")
+    assert askings.AGENT_EVERY_DAYS == 3
+    for who in ("first", "second", "third"):
+        assert askings.every_days("agents", who, {}) == 3
+    assert askings.every_days("agents", "second", {"every_days": 0}) == 0  # the founder's
+    assert askings.every_days("agents", "second", {"every_days": 5}) == 5
+    assert askings.every_days("people", "alder", {}) == 0
+
+
+@pytest.mark.parametrize("day, before", [
+    (date(2026, 11, 29), False), (date(2026, 11, 30), True), (date(2026, 12, 14), True),
+    (date(2026, 12, 15), False), (date(2026, 12, 21), False), (date(2027, 5, 30), False),
+    (date(2027, 5, 31), True), (date(2027, 6, 14), True), (date(2027, 6, 15), False)])
+def test_the_new_name_s_weeks_before_a_solstice(ask, day, before):
+    assert ask.before_a_solstice(day) is before
+
+
+@pytest.fixture
+def ask_names(ask, monkeypatch):
+    monkeypatch.setattr(ask, "ORDER", ("askings", "colour_weeks", "american_spelling",
+                                       "solstice_names"))
+    return ask
+
+
+def test_the_new_name_is_asked_first_before_a_solstice(ask_names):
+    ask = ask_names
+    ask.carry_out("agents", "second", ["yes"], "askings", "2027-05-01T09-00-00Z")
+    assert ask.next_asking("agents", "second", date(2027, 5, 30)) == "colour_weeks"
+    assert ask.next_asking("agents", "second", date(2027, 5, 31)) == "solstice_names"
+    assert ask.next_asking("agents", "second", date(2027, 6, 14)) == "solstice_names"
+    assert ask.next_asking("agents", "second", date(2027, 6, 15)) == "colour_weeks"
+    # what it has anyway, or has answered, is not asked first
+    assert ask.next_asking("agents", "second", date(2027, 6, 1),
+                           {"solstice_names"}) == "colour_weeks"
+
+
+def test_the_new_name_is_never_asked_on_the_day_of_a_rite(ask_names, monkeypatch):
+    ask = ask_names
+    monkeypatch.setattr(ask, "ORDER", ("askings", "solstice_names", "colour_weeks"))
+    ask.carry_out("agents", "second", ["yes"], "askings", "2027-05-01T09-00-00Z")
+    for rite in (date(2027, 6, 21), date(2027, 9, 4), date(2027, 12, 21)):
+        assert ask.next_asking("agents", "second", rite) == "colour_weeks", rite
+    assert ask.next_asking("agents", "second", date(2027, 6, 22)) == "solstice_names"
+
+
+def test_the_first_one_is_still_asked_nothing_before_1_december(ask_names):
+    ask = ask_names
+    ask.carry_out("agents", "first", ["yes"], "askings", "2026-11-20T09-00-00Z")
+    assert ask.next_asking("agents", "first", date(2026, 11, 30)) is None  # in the weeks, but
+    assert ask.next_asking("agents", "first", date(2026, 12, 1)) == "solstice_names"
+
+
+def test_the_new_name_waits_still_for_a_letter_and_not_the_long_night(attend):
+    import inspect
+    said = inspect.getsource(attend.asking_now)
+    assert "if night or not arrivals:" in said and "return None" in said
+
+
+def test_each_month_s_totals_count_never_who(ask):
+    ask.carry_out("agents", "first", ["yes"], "askings", "2026-12-02T09-00-00Z")
+    ask.carry_out("agents", "second", ["not yet"], "askings", "2026-12-03T09-00-00Z")
+    ask.carry_out("agents", "second", [], "colour_weeks", "2026-12-04T09-00-00Z")  # silent
+    ask.mark_asked("people", "alder", "askings", "2026-12-05T09-00-00Z")
+    ask.answer("people", "alder", "yes", "2026-12-05T09-00-00Z")
+    ask.take_back("people", "alder", "askings", "2027-01-02T09-00-00Z")
+    months = ask.monthly_totals()
+    assert [one["month"] for one in months] == ["2027-01", "2026-12"]
+    january, december = months
+    assert january["askings"] == [{
+        "switch": "askings", "name": "askings",
+        "agents": {"yes": 0, "no": 0, "not yet": 0, "taken back": 0},
+        "people": {"yes": 0, "no": 0, "not yet": 0, "taken back": 1}}]
+    by = {one["switch"]: one for one in december["askings"]}
+    assert by["askings"]["agents"] == {"yes": 1, "no": 0, "not yet": 1, "taken back": 0}
+    assert by["askings"]["people"] == {"yes": 1, "no": 0, "not yet": 0, "taken back": 0}
+    assert by["colour_weeks"]["agents"]["not yet"] == 1
+    assert not {"first", "second", "alder", "who"} & set(json.dumps(months).split('"'))
+
+
+def test_tides_shows_one_line_for_each_and_the_rest_folded(hearth_of_two, data_dir):
+    import askings
+    keeper = hearth_of_two["keeper"]
+    askings.carry_out("agents", "second", ["no"], "askings", AT)
+    post(keeper, "/tides/askings/order", data={"kind": "people", "who": "alder",
+                                               "order": "own_name"})
+    said = page(keeper.get("/tides"))
+    section = said[said.index('<section id="askings">'):]
+    section = section[:section.index("</section>")]
+    assert section.index('<summary>how askings work</summary>') < section.index("<article>")
+    assert "One plain question at a time, about one change." in section
+    assert section.count("<summary>details</summary>") == section.count("<article>")
+    first = section[section.index("<strong>the first one</strong>"):]
+    line = first[:first.index("</p>")]
+    assert "nothing before 2026-12-01" in line
+    assert "· next: nothing now" in line
+    assert "0 yes, 0 no, 0 not yet" in line
+    assert "every 3 days" in line
+    second = section[section.index("<strong>the second one</strong>"):]
+    second = second[:second.index("</article>")]
+    assert "0 yes, 1 no, 0 not yet" in second[:second.index("</p>")]
+    assert "nothing before" not in second[:second.index("</p>")]
+    # what it has anyway is not in its list: the second one was founded with them
+    own = set(askings.ASK_FIRST) & set(
+        __import__("agents").by_id("second", asked=False).get("features") or ())
+    listed = second[second.index("<ol>"):second.index("</ol>")]
+    for switch in own:
+        assert "<li>%s ·" % askings.ASK_FIRST[switch]["name"] not in listed, switch
+    assert "on already" not in section
+    # the spacing field and a member's order are in the fold
+    details = second[second.index("<summary>details</summary>"):]
+    assert "Set the spacing" in details
+    alder = section[section.index("<strong>alder</strong> (member)"):]
+    alder = alder[:alder.index("</article>")]
+    assert "· next: askings\n" in alder and "no limit</p>" in alder
+    assert alder.index("<summary>details</summary>") < alder.index("Set the order")
+
+
+def test_the_totals_are_on_tides_alone(hearth_of_two, data_dir, visitor):
+    import askings
+    askings.carry_out("agents", "second", ["yes"], "askings", AT)
+    said = page(hearth_of_two["keeper"].get("/tides"))
+    assert '<details id="askings-months">' in said
+    months = said[said.index('<details id="askings-months">'):]
+    assert ("askings · agents: 1 yes, 0 no, 0 not yet, 0 taken back · members: 0 yes, 0 no, "
+            "0 not yet, 0 taken back") in months
+    for path in ("/", "/commons", "/commons/charter-changes", "/who"):
+        shown = page(visitor.get(path))
+        assert "each month, in totals" not in shown and "taken back ·" not in shown, path
+    assert visitor.get("/tides").status_code in (302, 303, 401, 403, 404)

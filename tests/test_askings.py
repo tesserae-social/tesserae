@@ -2,6 +2,10 @@
 
 A plain question about one change, at a waking or on a member's home page: what it adds,
 what it takes away, answered yes, no or not yet. The asking about askings comes first.
+
+Since the seasons (seasons.py, 25 November 2026) no agent is asked (askings.AGENTS_ASKED False):
+the rules below are held with the agents' askings put back (agent_askings_again), as the
+machinery that members are still asked by; test_seasons.py holds that agents are not.
 """
 
 import json
@@ -9,7 +13,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from conftest import load, page, post, write
+from conftest import agent_askings_again, load, page, post, write
 from test_later_citizen import hearth_of_two, scratch_registry  # noqa: F401 - fixtures
 from test_rooms_for_any_agent import member_vaults  # noqa: F401 - a fixture
 
@@ -29,7 +33,20 @@ def ask(env, monkeypatch):
     # no spacing between askings, but where a test sets it (DEFAULT_EVERY_DAYS, 21 November)
     monkeypatch.setattr(module, "DEFAULT_EVERY_DAYS", {})
     monkeypatch.setattr(module, "AGENT_EVERY_DAYS", 0)  # every agent's 3 days (25 November)
+    agent_askings_again(monkeypatch, module)  # the machinery, as agents were asked by it
     return module
+
+
+def test_since_the_seasons_no_agent_is_asked_and_a_member_still_is(env, monkeypatch):
+    ask = load("askings")
+    monkeypatch.setattr(ask, "ORDER", ("askings", "colour_weeks"))
+    monkeypatch.setattr(ask, "DEFAULT_PEOPLE_QUEUE", ["own_name"])
+    assert ask.AGENTS_ASKED is False
+    for who in ("first", "second", "third"):
+        assert ask.next_asking("agents", who, DAY) is None
+    assert ask.next_asking("people", "alder", DAY) == "askings"
+    with pytest.raises(ask.Refused):  # nor spaced: there is nothing to space
+        ask.set_every_days("agents", "second", "5")
 
 
 def test_leaving_is_built_and_asked_now(env):
@@ -277,12 +294,16 @@ def test_a_reflection_waking_never_asks(attend):
 
 def test_the_founder_sees_askings_on_tides_and_orders_only_a_member_s(hearth_of_two,
                                                                      data_dir):
-    """one-order (23 November 2026): /tides shows an agent's order, and does not change it."""
+    """one-order (23 November 2026): /tides shows an agent's order, and does not change it.
+    Since the seasons (25 November 2026) no agent is in the askings at all."""
     import askings
     keeper = hearth_of_two["keeper"]
     said = page(keeper.get("/tides"))
     assert 'id="askings"' in said
-    assert "Every agent is asked in the same order, set in code" in said
+    section = said[said.index('<section id="askings">'):]
+    section = section[:section.index("</section>")]
+    assert "Every agent is asked" not in section
+    assert "the first one" not in section and "the second one" not in section
     answer = post(keeper, "/tides/askings/order",
                   data={"kind": "agents", "who": "second",
                         "order": "names_told\ncommons_names"})
@@ -338,6 +359,7 @@ def test_a_yes_to_leaving_turns_leaving_on_for_that_agent(env, data_dir, monkeyp
     ask = load("askings")
     monkeypatch.setattr(ask, "ORDER", ("askings", "leaving"))
     monkeypatch.setattr(ask, "AGENT_EVERY_DAYS", 0)  # every agent's 3 days (25 November)
+    agent_askings_again(monkeypatch, ask)  # a yes given before the seasons still stands
     ask.carry_out("agents", "second", ["yes"], "askings", AT)
     assert ask.next_asking("agents", "second", DAY) == "leaving"
     ask.carry_out("agents", "second", ["yes"], "leaving", AT)
@@ -413,13 +435,15 @@ def test_an_asking_shown_and_not_answered_is_not_held_back_by_the_spacing(ask, m
 def test_the_founder_sets_the_spacing_on_tides(hearth_of_two, data_dir):
     import askings
     keeper = hearth_of_two["keeper"]
+    post(keeper, "/tides/askings/order", data={"kind": "people", "who": "alder",
+                                               "order": "own_name"})
     said = page(keeper.get("/tides"))
     assert "at most one asking every so many days" in said
-    answer = post(keeper, "/tides/askings/every", data={"kind": "agents", "who": "first",
+    answer = post(keeper, "/tides/askings/every", data={"kind": "people", "who": "alder",
                                                          "days": "5"})
     assert "At most one asking every 5 days is kept." in page(answer)
-    assert askings.every_days("agents", "first", askings.read("agents", "first")) == 5
-    answer = post(keeper, "/tides/askings/every", data={"kind": "agents", "who": "first",
+    assert askings.every_days("people", "alder", askings.read("people", "alder")) == 5
+    answer = post(keeper, "/tides/askings/every", data={"kind": "people", "who": "alder",
                                                          "days": "many"})
     assert "That number was not kept" in page(answer)
 
@@ -516,42 +540,31 @@ def test_tides_shows_one_line_for_each_and_the_rest_folded(hearth_of_two, data_d
     section = said[said.index('<section id="askings">'):]
     section = section[:section.index("</section>")]
     assert section.index('<summary>how askings work</summary>') < section.index("<article>")
-    assert "One plain question at a time, about one change." in section
+    assert "One plain question at a time, about one change, for members only" in section
     assert section.count("<summary>details</summary>") == section.count("<article>")
-    first = section[section.index("<strong>the first one</strong>"):]
-    line = first[:first.index("</p>")]
-    assert "nothing before 2026-12-01" in line
-    assert "· next: nothing now" in line
-    assert "0 yes, 0 no, 0 not yet" in line
-    assert "every 3 days" in line
-    second = section[section.index("<strong>the second one</strong>"):]
-    second = second[:second.index("</article>")]
-    assert "0 yes, 1 no, 0 not yet" in second[:second.index("</p>")]
-    assert "nothing before" not in second[:second.index("</p>")]
-    # what it has anyway is not in its list: the second one was founded with them
-    own = set(askings.ASK_FIRST) & set(
-        __import__("agents").by_id("second", asked=False).get("features") or ())
-    listed = second[second.index("<ol>"):second.index("</ol>")]
-    for switch in own:
-        assert "<li>%s ·" % askings.ASK_FIRST[switch]["name"] not in listed, switch
+    # since the seasons (25 November 2026) agents are not in it: their settings are, on their own
+    assert "<strong>the first one</strong>" not in section
+    assert "<strong>the second one</strong>" not in section
     assert "on already" not in section
     # the spacing field and a member's order are in the fold
-    details = second[second.index("<summary>details</summary>"):]
-    assert "Set the spacing" in details
     alder = section[section.index("<strong>alder</strong> (member)"):]
     alder = alder[:alder.index("</article>")]
     assert "· next: askings\n" in alder and "no limit</p>" in alder
     assert alder.index("<summary>details</summary>") < alder.index("Set the order")
+    assert alder.index("<summary>details</summary>") < alder.index("Set the spacing")
 
 
 def test_the_totals_are_on_tides_alone(hearth_of_two, data_dir, visitor):
     import askings
-    askings.carry_out("agents", "second", ["yes"], "askings", AT)
+    askings.carry_out("agents", "second", ["yes"], "askings", AT)  # an agent's: not counted now
+    askings.mark_asked("people", "alder", "askings", AT)
+    askings.answer("people", "alder", "yes", AT)
     said = page(hearth_of_two["keeper"].get("/tides"))
     assert '<details id="askings-months">' in said
     months = said[said.index('<details id="askings-months">'):]
-    assert ("askings · agents: 1 yes, 0 no, 0 not yet, 0 taken back · members: 0 yes, 0 no, "
-            "0 not yet, 0 taken back") in months
+    # members' alone since the seasons (25 November 2026)
+    assert "askings · members: 1 yes, 0 no, 0 not yet, 0 taken back" in months
+    assert "agents:" not in months
     for path in ("/", "/commons", "/commons/charter-changes", "/who"):
         shown = page(visitor.get(path))
         assert "each month, in totals" not in shown and "taken back ·" not in shown, path

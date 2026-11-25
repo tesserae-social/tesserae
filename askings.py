@@ -35,6 +35,13 @@ The files, one for each agent and each person:
 
 A file that cannot be read turns nothing on and asks nothing: an asking is never guessed at.
 ASKINGS False asks nothing and turns nothing on (conftest.askings_not_yet).
+
+Since the seasons (seasons.py, the founder's request of 25 November 2026) agents are not asked
+(AGENTS_ASKED False). A change to an agent is an improvement, made and told, or a preference,
+its own setting, reviewed each season. A yes an agent gave before still stands, as its choice
+now, until it changes that setting; the agents' part of what is below is kept, unused, for what
+was answered. Members are asked as before: their name on the commons, and rare cases, with
+their order and spacing on /tides. conftest.agent_askings_again puts the agents' back.
 """
 
 import json
@@ -44,6 +51,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ASKINGS = True
+AGENTS_ASKED = False  # since the seasons (25 November 2026): no agent is asked
 
 ROOT = Path(__file__).resolve().parent
 FOLDER = "askings"  # under DATA_DIR: in a backup (hearth.KEPT_BESIDE), never in a copy
@@ -544,7 +552,7 @@ def next_asking(kind, who, today, already_on=()):
 
     already_on: what is on for them anyway (an agent's registry features); never asked.
     """
-    if not ASKINGS:
+    if not ASKINGS or kind == AGENTS and not AGENTS_ASKED:
         return None
     not_before = NOT_BEFORE.get((kind, who))
     if not_before and today < not_before:
@@ -717,7 +725,10 @@ def every_days(kind, who, held):
 
 
 def set_every_days(kind, who, days):
-    """The founder's spacing for one subject: whole days, 0 to 365; 0 is no limit."""
+    """The founder's spacing for one subject: whole days, 0 to 365; 0 is no limit. Not for an
+    agent since the seasons: no agent is asked."""
+    if kind == AGENTS and not AGENTS_ASKED:
+        raise Refused("no agent is asked now")
     held = read(kind, who)
     if held is None:
         raise Refused("unreadable")
@@ -769,10 +780,10 @@ def shown_to_founder(kind, who, today, already_on=()):
             NOT_BEFORE[(kind, who)].isoformat()}
 
 
-def monthly_totals():
+def monthly_totals(kinds=KINDS):
     """For the founder alone, on /tides: for each month, for each asking, how many answered
     yes, no and not yet in that month, and how many yeses were taken back in it, across agents
-    and across members; never who. From each one's last answer to each asking, which is all
+    and across members (or those of kinds alone: members, since the seasons); never who. From each one's last answer to each asking, which is all
     that is kept. Months newest first: [{"month": "2026-12", "askings": [{"switch", "name",
     AGENTS: {yes, no, not yet, taken back}, PEOPLE: {...}}, ...]}, ...]."""
     counted = {}
@@ -785,6 +796,8 @@ def monthly_totals():
         one[kind][what] += 1
 
     for kind, who in everyone():
+        if kind not in kinds:
+            continue
         try:
             held = read(kind, who)
         except Refused:

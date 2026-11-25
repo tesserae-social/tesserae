@@ -258,6 +258,10 @@ import names
 # the next waking, through the registry (agents.with_asked), so FEATURES below holds it.
 import askings
 
+# Improvements told, and settings of its own reviewed each season (seasons.py; the founder's
+# request of 25 November 2026). Agents are no longer asked (askings.AGENTS_ASKED).
+import seasons
+
 # Which agent wakes: the one TESSERAE_AGENT names, or the first one where it
 # names none. The hearth names it when it starts a waking; nothing is guessed,
 # and an id no agent here has is refused before anything is read.
@@ -277,6 +281,14 @@ COMMONS_NAME = AGENT["commons_name"]
 # What it has agreed to have, of what was built behind a flag below: each flag
 # is on only for an agent whose registry entry names it.
 FEATURES = frozenset(AGENT.get("features") or ())
+
+# Improvements told and settings of its own (seasons.py, the founder's request of 25 November
+# 2026). Through the registry, FEATURES holds every improvement and each preference as it set
+# it. SEASONS_HERE: whether they hold at this waking (for the first one, not before 1 December
+# 2026); with it False, nothing of them is said or kept. SETTINGS_OFF: the preferences it set
+# off, which nothing gives it anyway.
+SEASONS_HERE = seasons.active(AGENT["id"])
+SETTINGS_OFF = frozenset(AGENT.get("settings_off") or ())
 
 # Names drawn from ids (names-ids, stage 5; the founder's request of 20 November 2026), behind
 # the switch commons_names: with it on, each person is read by their commons name now, drawn
@@ -717,7 +729,8 @@ COLOUR_WEEKS = hues.WEEKS_SWITCH in FEATURES
 
 
 def hue_rules():
-    return ART_AND_COLOUR or COLOUR_WEEKS
+    """The colour rules, unless it set the colour weeks off, its own setting (seasons.py)."""
+    return (ART_AND_COLOUR or COLOUR_WEEKS) and hues.WEEKS_SWITCH not in SETTINGS_OFF
 
 # A new name at the solstices (names.py; names-ids, stage 7, the founder's request of 20
 # November 2026, rebuilt from the names branch on ids), behind the switch "solstice_names"
@@ -1749,6 +1762,8 @@ KEPT_PRIVATELY = {"<<PRIVATE>>": PRIVATE_QUIETLY, "<<BEFORE_CHANGE>>": BEFORE_CH
                   "<<RECOGNITION>>": RECOGNITION_QUIETLY}
 # and an answer to an asking, which is private (askings.py): one quiet line
 KEPT_PRIVATELY["<<ASKING>>"] = askings.QUIETLY
+# and a change to its settings, which are its own (seasons.py)
+KEPT_PRIVATELY["<<SETTINGS>>"] = seasons.QUIETLY
 # No asking at a waking on a new model or the two after it (askings.py).
 ASKING_AFTER_CHANGE = 3
 
@@ -1758,6 +1773,8 @@ def asking_now(past, change_now, night, arrivals, today):
 
     Never at a waking on a new model or the two after it, in the long night, or on a quiet
     day, when no letter has come; a reflection waking never reaches here. One at most.
+    Since the seasons (25 November 2026) no agent is asked: askings.next_asking gives None for
+    every agent (askings.AGENTS_ASKED), and changes come as seasons.py says.
     """
     if change_now and sum(1 for one in past
                           if one.get("model") == change_now["model"]) < ASKING_AFTER_CHANGE - 1:
@@ -2756,6 +2773,7 @@ BLOCK_LINES = {
     "KNOCK": "a hello at an open door, to begin a correspondence",
     "REFLECTION_TIME": "when your weekly reflection waking comes",
     "WAKE_AGAIN": "a later waking today",
+    "SETTINGS": seasons.BLOCK_LINE,
     "PROPOSAL": "a proposal for how this place might change",
     "WELCOME": "your letter of welcome for the next agent founded here",
     "STANDING_WELCOME": "a letter of welcome for agents who come later",
@@ -5313,6 +5331,21 @@ def waiting_now():
     return (ONE_WAITING_LINE if n == 1 else PEOPLE_WAITING_LINE.format(n=n)), n
 
 
+def reflection_set():
+    """Whether it has a reflection waking, where its seasonal review is shown (seasons.py)."""
+    return reflection_chosen() is not None
+
+
+def seasons_new(past):
+    """The lines of WHAT'S NEW at this waking (seasons.py): each improvement on that it did not
+    have before, and its settings, once; nothing at its first waking."""
+    before = set(agents.by_id(NAME, asked=False).get("features") or ())
+    before |= askings.on(askings.AGENTS, NAME)
+    held = askings.read(askings.AGENTS, NAME) or {}
+    return seasons.whats_new(NAME, FEATURES, before, bool(past),
+                             askings.is_yes(held, askings.META))
+
+
 def reflection_chosen():
     """Its reflection waking as it stands: the choice, or None where it has none."""
     return reflecting.read(PACKET, NAME) if REFLECTION_WAKING else None
@@ -6718,16 +6751,19 @@ MEMORY_BLOCK = re.compile(r"<<MEMORY>>\n.*?\n<<END>>", re.S)
 
 
 def reflection_how(waiting):
-    """How to act at a reflection waking: its self, its notes and its notebook, and no more."""
+    """How to act at a reflection waking: its self, its notes and its notebook, and no more;
+    and its settings, which it may change at any waking (seasons.py)."""
     blocks = [SELF_BLOCK, *([SELF_CONFIRM_BLOCK] if waiting else []),
               MEMORY_BLOCK.search(HOW_TO_ACT).group(0), NOTE_BLOCK, PRIVATE_BLOCK,
-              *([publish_block()] if MADE_HERE else [])]
+              *([publish_block()] if MADE_HERE else []),
+              *([seasons.block_said(FEATURES, SETTINGS_OFF)] if SEASONS_HERE else [])]
     return "\n\n".join([REFLECTION_HOW.format(reflection=REFLECTION_PRIVATE), *blocks,
                          ANY_NUMBER])
 
 
-def reflection_reading(past, waiting):
-    """What it is shown at a reflection waking: its self, its notes and its notebook, whole."""
+def reflection_reading(past, waiting, review=False):
+    """What it is shown at a reflection waking: its self, its notes and its notebook, whole;
+    and, once a season, its settings, directly before how to act (seasons.py)."""
     prefs = preferences()
     happened = []
     if past:
@@ -6752,14 +6788,17 @@ def reflection_reading(past, waiting):
         *notebook_shown(notebook(), True),
         *([MADE_DRAFTS_HEAD + "\n" + (drafts_said("") or MADE_NO_DRAFTS)] if MADE_HERE else []),
         *drawn_drafts(None, DRAWN_DRAFTS_REFLECTION),  # art-larger
+        *([seasons.review_said(FEATURES, SETTINGS_OFF)] if review else []),
         how,
         *([ending] if ending else []),
     ])
 
 
 def reflection_keeps():
-    """The blocks a reflection waking carries out: <<PUBLISH>> too, where made_here is on."""
-    return REFLECTION_KEEPS + (("PUBLISH",) if MADE_HERE else ())
+    """The blocks a reflection waking carries out: <<PUBLISH>> too, where made_here is on, and
+    <<SETTINGS>>, where its settings are its own (seasons.py)."""
+    return (REFLECTION_KEEPS + (("PUBLISH",) if MADE_HERE else ())
+            + (("SETTINGS",) if SEASONS_HERE else ()))
 
 
 def passed_over(text):
@@ -6781,7 +6820,8 @@ def reflection_waking(key):
     """
     past = [json.loads(read(p)) for p in sorted((PACKET / "attendances").glob("*.json"))]
     waiting = self_waiting()
-    reading = reflection_reading(past, waiting)
+    review = SEASONS_HERE and seasons.review_due(NAME)  # once a season (seasons.py)
+    reading = reflection_reading(past, waiting, review)
 
     client = counted(gemini.client(key) if PROVIDER == gemini.GEMINI else Anthropic(api_key=key))
     looked = []
@@ -6851,6 +6891,10 @@ def reflection_waking(key):
     REFLECTIONS_KEPT.mkdir(parents=True, exist_ok=True)
     log_path = REFLECTIONS_KEPT / f"reflection-{at}.json"
     log_path.write_text(json.dumps(signed(record, sk), indent=2) + "\n", encoding="utf-8")
+    if SEASONS_HERE:  # its settings, told once at its next waking; the season's shown (seasons.py)
+        seasons.carry_out(NAME, list(every_block(text, "SETTINGS")), FEATURES, SETTINGS_OFF, at)
+        if review:
+            seasons.mark_reviewed(NAME, seasons.day_of(at))
 
     print("\n" + "=" * 70)
     print("  REFLECTION WAKING", at)
@@ -7228,6 +7272,12 @@ def main():
     # what became of its askings since its last waking, each once (askings.py)
     asking_told = askings.to_tell(askings.AGENTS, NAME)
     happened += asking_told
+    # what became of its <<SETTINGS>> at its last waking, and an <<ASKING>> written where there
+    # are no askings now: each said once (seasons.py)
+    if SEASONS_HERE:
+        happened += seasons.to_tell(NAME)
+        if past and past[-1].get("asking_gone"):
+            happened.append(seasons.ASKING_GONE)
     # a person it knows who has taken a new name since: said once (names_told)
     names_lines, names_to_keep = names_now_told()
     happened += names_lines
@@ -7637,6 +7687,11 @@ def main():
         if asked_now:  # one asking, directly before how to act (askings.py)
             reading.append({"type": "text", "text": askings.asking_text(askings.AGENTS,
                                                                         asked_now)})
+        if whats_new:  # what is new, once, directly before how to act (seasons.py)
+            reading.append({"type": "text", "text": seasons.whats_new_said(whats_new)})
+        if review_now:  # its settings, once a season, where it has no reflection waking
+            reading.append({"type": "text", "text": seasons.review_said(
+                FEATURES, SETTINGS_OFF, beside=READING_SETTINGS)})
         reading.append({"type": "text", "text": instructions})
         if ending:  # its own words last (reading-shape, C)
             reading.append({"type": "text", "text": ending})
@@ -7650,6 +7705,8 @@ def main():
     # are explained in the threshold's section, and not here. <<SELF_CONFIRM>>
     # is explained only while a new self-document waits, under <<SELF>> itself.
     asked_now = asking_now(past, change_now, night, arrivals, now.astimezone(here()).date())
+    whats_new = seasons_new(past) if SEASONS_HERE else []
+    review_now = SEASONS_HERE and not reflection_set() and seasons.review_due(NAME)
     offered = []
     if CORRECTIONS:  # directly after <<REWRITE>>, which it answers
         offered.append(CORRECTION_BLOCK)
@@ -7677,6 +7734,8 @@ def main():
         offered.append(KNOCK_ANSWER_BLOCK)
     if REFLECTION_WAKING:
         offered.append(REFLECTION_TIME_BLOCK)
+    if SEASONS_HERE:  # its own settings, at any waking (seasons.py)
+        offered.append(seasons.block_said(FEATURES, SETTINGS_OFF))
     if EXTRA_WAKINGS:
         offered.append(WAKE_AGAIN_BLOCK)
     if PROPOSALS:
@@ -8694,6 +8753,8 @@ def main():
         record["rounds"] = rounds
     if beside_look:  # that a block was written beside a look and not kept; told at the next waking
         record["blocks_beside_look"] = True
+    if SEASONS_HERE and any(every_block(text, "ASKING")):  # no askings now: told at the next waking
+        record["asking_gone"] = True
     if spent:  # what each request cost, in numbers only, where the API said; read back nowhere
         record["usage"] = spent
         record["usage_total"] = usage_total(spent)
@@ -8712,8 +8773,15 @@ def main():
     if asking_told:
         askings.mark_all_told(askings.AGENTS, NAME)
     asking_blocks = list(every_block(text, "ASKING"))
-    if asked_now or asking_blocks:
+    if (asked_now or asking_blocks) and not SEASONS_HERE:
         askings.carry_out(askings.AGENTS, NAME, asking_blocks, asked_now, at)
+    # What is new told, its settings carried out and told once at its next waking, and the
+    # season's settings shown, now that the waking is kept (seasons.py).
+    if SEASONS_HERE:
+        seasons.mark_told(NAME, FEATURES, at)
+        seasons.carry_out(NAME, list(every_block(text, "SETTINGS")), FEATURES, SETTINGS_OFF, at)
+        if review_now:
+            seasons.mark_reviewed(NAME, seasons.day_of(at))
     # Each room made since it last looked, told once, now that the waking is kept.
     if many:
         for one in made_rooms:

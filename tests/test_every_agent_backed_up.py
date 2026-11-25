@@ -54,7 +54,13 @@ FIRST_ONE_S_BACKUP_TREES = ("packets/first", "commons", "bonds", "rooms", "membe
                             "made-people",
                             # and since askings (20 November 2026), the askings and their
                             # answers (askings.FOLDER), in a backup and never in a copy
-                            "askings")
+                            "askings",
+                            # and since tides-and-charter (25 November 2026), the day each change
+                            # "on deploy" was posted (board.POSTED)
+                            "charter-posted.json",
+                            # and since the seasons (25 November 2026), each agent's settings
+                            # and what it was told of them (seasons.FOLDER), the same way
+                            "seasons")
 
 # What of the world is the second one's, by the names it has on disk.
 SECOND_S = ("packets/second/", "keys/second/", "transcripts/second/", "rooms/second/",

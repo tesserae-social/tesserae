@@ -194,6 +194,8 @@ import rooms
 import agents
 # Askings (askings.py): what waits for each agent and person, and their answers, on /tides
 import askings
+# Seasons (seasons.py, 25 November 2026): each agent's settings and next review, on /tides
+import seasons
 # Names that may change at the solstices, on ids (names.py; names-ids, stage 7)
 import names
 import american
@@ -795,7 +797,9 @@ KEPT_QUIETLY = {"MEMORY": "(kept notes: private)", "QUESTIONS": "(kept questions
                 "BEFORE_CHANGE": the_waking.BEFORE_CHANGE_QUIETLY,
                 "RECOGNITION": the_waking.RECOGNITION_QUIETLY,
                 # and an answer to an asking, which is private (askings.py)
-                "ASKING": askings.QUIETLY}
+                "ASKING": askings.QUIETLY,
+                # and a change to its settings, which are its own (seasons.py)
+                "SETTINGS": seasons.QUIETLY}
 
 # A new self-document it has written waits for its own yes at a later waking,
 # and until then it is no one's to read but its own - and one it lets go never
@@ -2620,6 +2624,9 @@ if BACKUP_MORE:
 KEPT_BESIDE += (askings.FOLDER,)
 # And the day each change to the charter "on deploy" was posted (board.POSTED; 25 November 2026).
 KEPT_BESIDE += (board.POSTED.name,)
+# And each agent's settings and what it was told of them (seasons.py, 25 November 2026): in a
+# backup, never in a copy.
+KEPT_BESIDE += (seasons.FOLDER,)
 
 # What a backup holds: the same trees, and the members beside them, each
 # with the vault their key is sealed in, the first one's own signing key,
@@ -8226,14 +8233,10 @@ def site_notes_shown():
 # one asking at a time, and may take back a yes that can be undone or ask again after a no.
 
 def askings_shown():
-    """What /tides shows of askings: every agent, then every member with anything to ask."""
+    """What /tides shows of askings: every member with anything to ask. No agent is asked since
+    the seasons (25 November 2026): its settings are shown instead (settings_shown)."""
     today = datetime.now(timezone.utc).date()
     shown = []
-    for agent in agents.registry():
-        own = set(agents.by_id(agent["id"], asked=False).get("features") or ())
-        one = askings.shown_to_founder(askings.AGENTS, agent["id"], today, own)
-        one["name"] = agent["commons_name"]
-        shown.append(one)
     people = [who for kind, who in askings.everyone() if kind == askings.PEOPLE]
     people += [who for who in site_notes.members_who_may()
                if askings.queue_of(askings.PEOPLE, who)]  # one with a queue, set or not
@@ -8246,9 +8249,30 @@ def askings_shown():
     switches = {kind: [s for s in askings.ASK_FIRST if s != askings.META
                        and askings.for_kind(s, kind)] for kind in askings.KINDS}
     names = {switch: askings.ASK_FIRST[switch]["name"] for switch in askings.ASK_FIRST}
-    # the founder's alone: each month's totals for each asking, never who (25 November 2026)
+    # the founder's alone: each month's totals for each asking, never who (25 November 2026);
+    # members' alone, since the seasons
     return {"subjects": shown, "switches": switches, "names": names,
-            "months": askings.monthly_totals()}
+            "months": askings.monthly_totals((askings.PEOPLE,))}
+
+
+def settings_shown():
+    """What /tides shows of each agent since the seasons (seasons.py, 25 November 2026): each
+    preference as it is set now, and the day of its next seasonal review. For the founder
+    alone: the settings are the agent's own, and private."""
+    shown = []
+    for agent in agents.registry():
+        try:
+            reflection = (reflecting.read(packet_of(agent["id"]), agent["id"])
+                          if reflecting.on(agent) else None)
+        except Exception:
+            reflection = None
+        one = seasons.shown_to_founder(agent["id"], agent.get("features") or (),
+                                       agent.get("settings_off") or (),
+                                       (reflection or {}).get("day"))
+        one["name"] = agent["commons_name"]
+        one["reflection"] = bool(reflection)
+        shown.append(one)
+    return shown
 
 
 def order_asked(form):
@@ -8400,6 +8424,7 @@ def tides_page(**told):
                            comings=comings_shown(), notes=site_notes_shown(),
                            held_pictures=held_pictures_shown() if made_here.UPLOADS else None,
                            askings=askings_shown() if askings.ASKINGS else None,
+                           settings=settings_shown() if seasons.SEASONS else None,
                            **told)
 
 

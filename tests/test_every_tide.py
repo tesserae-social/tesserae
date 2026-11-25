@@ -365,9 +365,23 @@ def test_with_one_agent_stopping_every_tide_is_stopping_its_own(
 
 # The askings section's own words on /tides (askings, 20 November 2026), as content() gives them.
 ASKED_NEVER_AT = "at a reflection waking"
+# And the agents' settings section's own (seasons, 25 November 2026): when its review comes.
+SETTINGS_SAID = "reflection waking"
 
 @three
 def test_the_page_carries_nothing_off_the_keeper_s_list(hearth, founder, data_dir, packet):
+    carries_nothing_off_the_list(hearth, founder, data_dir, packet)
+
+
+@three
+def test_with_the_seasons_on_the_page_carries_nothing_off_the_list(seasons_on, hearth, founder,
+                                                                    data_dir, packet):
+    """With each agent's settings on /tides (seasons.py), as on the site."""
+    assert 'id="settings"' in page(founder.get("/tides"))
+    carries_nothing_off_the_list(hearth, founder, data_dir, packet)
+
+
+def carries_nothing_off_the_list(hearth, founder, data_dir, packet):
     a_planted_record(data_dir, packet)
     answers = {"the page": founder.get("/tides"),
                "refused": post(founder, "/stop-every-tide", data={"reason": ""}),
@@ -381,7 +395,7 @@ def test_the_page_carries_nothing_off_the_keeper_s_list(hearth, founder, data_di
         # since askings (20 November 2026) the page says, in its own fixed words, that no
         # asking is made at a reflection waking, and names the switches that may be asked
         # (private_reflections among them) for the founder to order: neither is an agent's
-        shown = content(said).replace(ASKED_NEVER_AT, "")
+        shown = content(said).replace(ASKED_NEVER_AT, "").replace(SETTINGS_SAID, "")
         for switch in sorted(hearth.askings.ASK_FIRST, key=len, reverse=True):
             shown = shown.replace(switch, "")
         for words in ("heartbeat", "a-model-for-the-tests", "woken by", "reflection"):

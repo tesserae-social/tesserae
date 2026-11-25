@@ -1022,6 +1022,26 @@ def test_with_both_put_back_the_chronicle_is_the_one_before_either(
 
 # ---- what is copied ------------------------------------------------------
 
+# The seasons (seasons.py, the founder's request of 25 November 2026): nothing turns on and
+# nothing is told for the first one before 1 December 2026, and every world here is lived on 15
+# October 2026. With the seasons on, as on the site, the files its waking leaves, the words the
+# commons is told, its pages and its backup are each what they were: no fingerprint here moved.
+# Its reading from 1 December is held in test_rooms_reading (READING_FROM_1_DECEMBER).
+
+def test_with_the_seasons_on_nothing_moves_before_1_december(seasons_on, steady, founder, wake,
+                                                              room, commons, data_dir, hearth):
+    a_lived_world(founder, wake, room, commons)
+    assert fingerprint_of_files(data_dir) == ON_DISK_AFTER
+    assert (commons / "events.md").read_text(encoding="utf-8") == EVENTS_AFTER
+    assert not (data_dir / "seasons").exists()
+    assert backup_held(hearth) == BACKUP  # before any page is drawn, as the backup is held
+    for address in ("/", "/rooms/first", "/attendances", "/commons"):
+        answer = founder.get(address)
+        shown = ("%d %s\n" % (answer.status_code, answer.headers.get("Location", ""))
+                 + FORM_TOKEN.sub(r"\1\2", page(answer)))
+        assert hashlib.sha256(shown.encode("utf-8")).hexdigest() == PAGES[address], address
+
+
 def test_the_export_holds_the_same_things(steady, letter_parts, founder, wake, room, commons):
     a_lived_world(founder, wake, room, commons)
     answer = post(founder, "/export")

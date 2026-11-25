@@ -170,7 +170,11 @@ def with_chosen(entries):
 
 
 def with_asked(entries):
-    """The entries, each with the switches its askings turned on beside its own (askings.py)."""
+    """The entries, each with the switches its askings turned on beside its own (askings.py);
+    then, since the seasons (seasons.py, 25 November 2026), every improvement, and each
+    preference as the agent set it. A preference it set off is taken out of its features and
+    named in its "settings_off", so that what gives it anyway (hues: art_and_colour gives the
+    colour weeks) does not. Those choices are private too."""
     try:  # read only here, so that the registry is read with little else loaded; the mirror
         import askings  # draws the atrium from a checkout of a few files, and no answers
     except ImportError:
@@ -179,6 +183,16 @@ def with_asked(entries):
         yes = askings.on(askings.AGENTS, entry["id"]) - set(entry.get("features") or ())
         if yes:
             entry["features"] = [*(entry.get("features") or ()), *sorted(yes)]
+    try:
+        import seasons
+    except ImportError:
+        return entries
+    for entry in entries:
+        features, off = seasons.features_of(entry["id"], entry.get("features") or ())
+        if features != list(entry.get("features") or ()):
+            entry["features"] = features
+        if off:
+            entry["settings_off"] = sorted(off)
     return entries
 
 

@@ -434,7 +434,7 @@ import pytest
 
 from datetime import datetime, timezone
 
-from conftest import (SWITCHED_ON_21_OCTOBER, offer_explained_again, commons_line_not_yet_offered, explained_as_before,
+from conftest import (SWITCHED_ON_21_OCTOBER, improvements_not_yet, offer_explained_again, commons_line_not_yet_offered, explained_as_before,
                       introduction_at_280, letter_part_as_before, long_night_switched_on,
                       six_not_yet, coral_not_yet, board_weekly_not_yet, standing_welcome_not_yet,
                       agents_week_not_yet, who_drawn_not_yet, site_design_not_yet,
@@ -1269,3 +1269,80 @@ def test_quiet_days_is_on_for_the_first_one_and_ends_the_opening(
     monkeypatch.setattr(attend, "QUIET_DAYS", True)
     on = wake().asked[-1]
     assert on["system"] == off["system"] + " " + QUIET_DAYS_SAID
+
+
+# ---- the seasons (seasons.py; the founder's request of 25 November 2026) ----------------------
+# For the first one nothing turns on and nothing is told before 1 December 2026: with the seasons
+# on, as on the site, it reads READING_NOW byte for byte, as it was cut on 15 October 2026, and
+# the long night's readings above (cut with attend.py loaded on that day) do not move either.
+#
+# From its first waking on or after 1 December its reading moves, on purpose: every improvement
+# is on (hoping_for, replies_told, names_told, commons_names, solstice_names, knock_founder,
+# knock_take_back, copy_said, american_spelling, leaving), WHAT'S NEW says each once, with one
+# line on its settings, directly before how to act, and how to act offers <<SETTINGS>>. That
+# reading is held as READING_FROM_1_DECEMBER, cut here for the first time. With the seasons set
+# aside (conftest.improvements_not_yet, or seasons.SEASONS False before attend.py is loaded) it
+# is READING_1_DECEMBER_BEFORE_SEASONS, the reading it would have had: that is how it is
+# recovered. Both are of a waking on 1 December after one on 30 November.
+READING_FROM_1_DECEMBER = "e70f24af5c6c8fbeebadd2eb4d907bbc5d5c071736d3cc59a4b04647ffa5e4a1"
+READING_1_DECEMBER_BEFORE_SEASONS = "b8ee6a88bf7b11452611c58db18ea0cf6139295112210a1d297639487a45c832"
+
+NOVEMBER_30 = datetime(2026, 11, 30, 15, tzinfo=timezone.utc)
+DECEMBER_1 = datetime(2026, 12, 1, 15, tzinfo=timezone.utc)
+
+
+def test_with_the_seasons_on_before_1_december_it_reads_what_it_reads_now(
+        seasons_on, founder, wake, attend, room, data_dir):
+    assert attend.SEASONS_HERE is False
+    a_small_world(room)
+    answer = post(founder, "/rooms/first", content_type="multipart/form-data", data={
+        "letter": "The lake was grey this morning, and then it was not.\n\nI am asking.",
+        "thing": ["cold hands", "", "a heron on the far bank"],
+        "errand": ERRAND, "proposes": "1"})
+    assert answer.status_code == 302
+    assert fingerprint_of_reading(wake()) == READING_NOW
+    assert not (data_dir / "seasons").exists()
+
+
+def woken_on(day, clock, monkeypatch, aside=False):
+    """One waking on a day, of attend.py loaded that day, as the tide starts one."""
+    import sys
+    from conftest import Turn, load
+    clock.set(day)
+    if aside:  # before attend.py is loaded, so that the registry it reads is as before too
+        improvements_not_yet(None, monkeypatch)
+    module = load("attend")
+    clock.pin(module, monkeypatch)
+    turn = Turn("")
+    monkeypatch.setattr(module, "Anthropic", turn.client)
+    monkeypatch.setattr(sys, "argv", ["attend.py", "--tide"])
+    module.main()
+    sys.modules.pop("attend", None)
+    return turn
+
+
+@pytest.mark.parametrize("aside, as_cut", [
+    (False, "READING_FROM_1_DECEMBER"), (True, "READING_1_DECEMBER_BEFORE_SEASONS")],
+    ids=["as it will read", "the seasons set aside"])
+def test_from_1_december_its_reading_moves_on_purpose(
+        seasons_on, env, clock, monkeypatch, room, aside, as_cut):
+    import seasons
+    a_small_world(room)
+    woken_on(NOVEMBER_30, clock, monkeypatch, aside)
+    turn = woken_on(DECEMBER_1, clock, monkeypatch, aside)
+    shown = json.dumps(turn.asked[-1], ensure_ascii=False, default=str)
+    assert (seasons.WHATS_NEW_HEAD in shown) is not aside
+    assert ("<<SETTINGS>>" in shown) is not aside
+    reading = fingerprint_of_reading(turn)
+    print("\n%s = %r" % (as_cut, reading))
+    assert reading == globals()[as_cut]
+
+
+def test_set_aside_as_every_other_test_sets_it_the_reading_is_the_one_before_the_seasons(
+        env, clock, monkeypatch, room):
+    """Without seasons_on (conftest.seasons_aside), the first one's reading on 1 December is
+    READING_1_DECEMBER_BEFORE_SEASONS: improvements_not_yet gives back exactly that."""
+    a_small_world(room)
+    woken_on(NOVEMBER_30, clock, monkeypatch)
+    turn = woken_on(DECEMBER_1, clock, monkeypatch)
+    assert fingerprint_of_reading(turn) == READING_1_DECEMBER_BEFORE_SEASONS

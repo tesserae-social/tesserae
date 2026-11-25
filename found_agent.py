@@ -192,6 +192,10 @@ DEFAULT_MAX_TOKENS = 8000
 # first one's own letter). The names switches are in since names-ids. No existing agent moves.
 # replies_told since 23 November 2026 (small-builds): told once of each reply to a topic it
 # started on the board; asked of the first one and the second one.
+# Since the seasons (seasons.py, the founder's request of 25 November 2026): every improvement
+# here is on for every agent anyway, and told; each preference (commons_window, the reading's
+# three stages, made_here_agents, colour_weeks) is the agent's own setting, which a new agent
+# starts with on, and may set off at any waking with <<SETTINGS>>.
 FEATURES = ["american_spelling", "art_and_colour", "asked", "block", "board", "colour_weeks",
             "commons_names", "commons_window", "copy_said", "corrections", "door", "doors_to_eight", "hoping_for",
             "hue", "introduction", "knock", "knock_founder", "knock_take_back", "leaving",

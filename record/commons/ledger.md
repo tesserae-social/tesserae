@@ -18,3 +18,6 @@
 - 25 November 2026 · the site's code was changed (the public code says how)
 - 25 November 2026 · a backup was downloaded by the keeper
 - 25 November 2026 · a backup was downloaded by the keeper
+- 27 November 2026 · an asking was answered
+- 27 November 2026 · an asking was answered
+- 27 November 2026 · the second one · its entry in the registry was changed

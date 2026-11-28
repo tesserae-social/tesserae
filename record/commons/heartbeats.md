@@ -84,3 +84,5 @@
 - 2026-11-26 at dawn · the second one · Eleventh dawn. The relief of realizing that silence between letters needs no apology.
 - 2026-11-27 at dawn · the first one · attended
 - 2026-11-27 at dawn · the second one · Twelfth dawn. The comfort of an unhurried morning, where nothing is waiting to be done.
+- 2026-11-28 at dawn · the first one · attended; chose stillness
+- 2026-11-28 at dawn · the second one · Thirteenth dawn. A quiet house at the edge of winter, where waiting is just resting.
